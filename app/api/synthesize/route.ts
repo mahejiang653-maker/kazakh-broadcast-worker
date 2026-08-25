@@ -20,6 +20,11 @@ const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-AigulNeural",
 ]);
 
+const CHINESE_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
+  "kk-KZ-DauletNeural": "zh-CN-YunyangNeural",
+  "kk-KZ-AigulNeural": "zh-CN-XiaoxiaoNeural",
+};
+
 const PRESETS = {
   // All four styles are native-first. They differ only by a very small global bias.
   news: { rateFactor: 1, pitch: 0, volume: 0 },
@@ -124,6 +129,39 @@ function signedPercent(value: number) {
 
 function speedToRate(speed: number) {
   return signedPercent((speed - 1) * 100);
+}
+
+type EdgeTextLanguage = "kk" | "zh";
+type EdgeLanguageRun = { language: EdgeTextLanguage; text: string };
+
+function hasHanCharacters(text: string) {
+  return /\p{Script=Han}/u.test(text);
+}
+
+function edgeLanguageForCharacter(character: string): EdgeTextLanguage | null {
+  if (/\p{Script=Han}/u.test(character)) return "zh";
+  if (/\p{Script=Cyrillic}/u.test(character)) return "kk";
+  return null;
+}
+
+function splitEdgeLanguageRuns(text: string): EdgeLanguageRun[] {
+  const runs: EdgeLanguageRun[] = [];
+  let language: EdgeTextLanguage = "kk";
+  let buffer = "";
+
+  for (const character of text) {
+    const detected = edgeLanguageForCharacter(character);
+    if (detected && detected !== language) {
+      if (buffer) runs.push({ language, text: buffer });
+      language = detected;
+      buffer = character;
+    } else {
+      buffer += character;
+    }
+  }
+
+  if (buffer) runs.push({ language, text: buffer });
+  return runs.length ? runs : [{ language: "kk", text }];
 }
 
 
@@ -472,11 +510,18 @@ function buildEdgeSsml(
   settings: EdgeVoiceSettings,
   _documentPlan?: EdgeDocumentPlan,
 ) {
+  const runs = splitEdgeLanguageRuns(text);
+  const chineseVoice = CHINESE_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyangNeural";
+  const body = runs
+    .map((run) => {
+      const runVoice = run.language === "zh" ? chineseVoice : voice;
+      return `<voice name="${runVoice}">${edgeNativeProsody(run.text, settings, runVoice, preset)}</voice>`;
+    })
+    .join("");
+
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
-    `<voice name="${voice}">`,
-    edgeNativeProsody(text, settings, voice, preset),
-    "</voice>",
+    body,
     "</speak>",
   ].join("");
 }
@@ -570,7 +615,8 @@ async function synthesizeElevenChunk(
       body: JSON.stringify({
         text,
         model_id: ELEVEN_MODEL_ID,
-        language_code: "kk",
+        ...(hasHanCharacters(text) ? {} : { language_code: "kk" }),
+        apply_text_normalization: "auto",
         voice_settings: {
           speed: settings.speed,
           stability: settings.stability,

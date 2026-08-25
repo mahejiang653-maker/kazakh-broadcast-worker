@@ -409,10 +409,11 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。
+            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段并按普通话朗读。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / ElevenLabs</span>
+            <span>Edge / v3 中哈自动混读</span>
             <span>三种模式均可调倍速</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
@@ -479,7 +480,7 @@ export default function Home() {
                 <span className="voice-avatar">F</span>
                 <span className="voice-copy">
                   <strong>免费模式</strong>
-                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量</small>
+                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量 / 中文自动识别</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -495,7 +496,7 @@ export default function Home() {
                 <span className="voice-avatar">3</span>
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
-                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色</small>
+                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 中文自动识别</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -628,7 +629,7 @@ export default function Home() {
                 <div className="broadcast-index">EDGE</div>
                 <div>
                   <strong>Edge TTS · 免费增强模式</strong>
-                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格，不消耗 ElevenLabs 额度。</p>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格；稿件中出现中文汉字时，会自动切换匹配性别的普通话 Neural Voice，读完后无缝切回哈萨克语，不消耗 ElevenLabs 额度。</p>
                 </div>
               </div>
             </>
@@ -801,7 +802,7 @@ export default function Home() {
                 <div className="broadcast-index">V3</div>
                 <div>
                   <strong>ElevenLabs v3 · 哈萨克语高质量模式</strong>
-                  <p>支持最多 500 条账号声线、0.70×–1.20× 精细倍速，以及稳定度、声线相似度和风格强度等音色参数。</p>
+                  <p>支持最多 500 条账号声线、0.70×–1.20× 精细倍速，以及稳定度、声线相似度和风格强度等音色参数；检测到中文时自动使用 v3 的多语言识别，不再强制整段按哈萨克语解析。</p>
                 </div>
               </div>
             </>
