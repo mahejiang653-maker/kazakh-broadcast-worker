@@ -115,7 +115,12 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<"idle" | "generating" | "ready" | "error">("idle");
+  const [warmupStatus, setWarmupStatus] = useState("正在自动预热 OmniVoice…");
+  const [cacheStatus, setCacheStatus] = useState("");
   const audioUrlRef = useRef<string | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wordCount = useMemo(
@@ -141,8 +146,40 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
   }, [sourceText]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function warmOmniVoice() {
+      try {
+        const response = await fetch("/api/omnivoice", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { state?: string }
+          | null;
+        if (cancelled) return;
+        setWarmupStatus(
+          payload?.state === "ready"
+            ? "OmniVoice 已连接 · 可以直接生成"
+            : "已发送预热请求 · 免费 GPU 正在准备",
+        );
+      } catch {
+        if (!cancelled) setWarmupStatus("已尝试预热 · 免费 GPU 可能仍在唤醒");
+      }
+    }
+
+    void warmOmniVoice();
+    const secondWarmup = window.setTimeout(() => void warmOmniVoice(), 25000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(secondWarmup);
+    };
+  }, []);
+
+  useEffect(() => {
     return () => {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
   }, []);
 
@@ -151,7 +188,14 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
     setAudioUrl(null);
+    setPreviewUrl(null);
+    setPreviewStatus("idle");
+    setCacheStatus("");
     setGeneratedAt("");
   }
 
@@ -217,6 +261,88 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
     });
   }
 
+  async function createCacheKey(payload: Record<string, unknown>) {
+    const source = JSON.stringify({ version: 2, ...payload });
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(source));
+    return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function readCachedOmniVoice(key: string) {
+    if (!("caches" in window)) return null;
+    try {
+      const storage = await caches.open("kazakh-omnivoice-v2");
+      const request = new Request(`${window.location.origin}/__omnivoice-cache__/${key}`);
+      const response = await storage.match(request);
+      return response ? await response.blob() : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function writeCachedOmniVoice(key: string, blob: Blob) {
+    if (!("caches" in window)) return;
+    try {
+      const storage = await caches.open("kazakh-omnivoice-v2");
+      const request = new Request(`${window.location.origin}/__omnivoice-cache__/${key}`);
+      await storage.put(
+        request,
+        new Response(blob, {
+          headers: {
+            "Content-Type": "audio/wav",
+            "X-Omni-Cached-At": String(Date.now()),
+          },
+        }),
+      );
+    } catch {
+      // Browser cache is optional; synthesis still works if storage is unavailable.
+    }
+  }
+
+  function setPreviewBlob(blob: Blob) {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    const nextUrl = URL.createObjectURL(blob);
+    previewUrlRef.current = nextUrl;
+    setPreviewUrl(nextUrl);
+    setPreviewStatus("ready");
+  }
+
+  function setOmniBlob(blob: Blob) {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    const nextUrl = URL.createObjectURL(blob);
+    audioUrlRef.current = nextUrl;
+    setAudioUrl(nextUrl);
+    setGeneratedAt(
+      new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
+    );
+  }
+
+  async function generateEdgePreview(cleanText: string) {
+    const pitchMap: Record<string, number> = {
+      "Very Low Pitch / 极低音调": -16,
+      "Low Pitch / 低音调": -8,
+      "Moderate Pitch / 中音调": 0,
+      "High Pitch / 高音调": 8,
+      "Very High Pitch / 极高音调": 16,
+    };
+    const response = await fetch("/api/synthesize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: cleanText,
+        engine: "edge",
+        voice: gender === "Female / 女" ? "kk-KZ-AigulNeural" : "kk-KZ-DauletNeural",
+        preset: style === "Whisper / 耳语" ? "calm" : "news",
+        speed,
+        edgePitch: pitchMap[pitch] ?? 0,
+        edgeVolume: style === "Whisper / 耳语" ? -4 : 0,
+      }),
+    });
+    if (!response.ok) throw new Error("Edge 预览暂时不可用");
+    const blob = await response.blob();
+    if (!blob.size) throw new Error("Edge 预览没有返回音频");
+    return blob;
+  }
+
   async function generate() {
     const cleanText = text.trim();
     if (!cleanText) {
@@ -232,39 +358,63 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
       return;
     }
 
+    const omniPayload = {
+      text: cleanText,
+      speed,
+      steps,
+      guidance,
+      denoise,
+      gender,
+      age,
+      pitch,
+      style,
+    };
+
     setIsGenerating(true);
     setError("");
     resetAudio();
+
     try {
-      const response = await fetch("/api/omnivoice", {
+      const cacheKey = await createCacheKey(omniPayload);
+      const cached = await readCachedOmniVoice(cacheKey);
+      if (cached?.size) {
+        setOmniBlob(cached);
+        setCacheStatus("命中本机缓存 · OmniVoice 即刻播放");
+        setIsGenerating(false);
+        return;
+      }
+
+      setCacheStatus("未命中缓存 · 正在后台生成 OmniVoice");
+      setPreviewStatus("generating");
+
+      const omniRequest = fetch("/api/omnivoice", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: cleanText,
-          speed,
-          steps,
-          guidance,
-          denoise,
-          gender,
-          age,
-          pitch,
-          style,
-        }),
+        body: JSON.stringify(omniPayload),
       });
+      const previewRequest = generateEdgePreview(cleanText);
+
+      try {
+        const previewBlob = await previewRequest;
+        setPreviewBlob(previewBlob);
+      } catch {
+        setPreviewStatus("error");
+      }
+
+      const response = await omniRequest;
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null;
         throw new Error(payload?.error || "OmniVoice 生成失败，请稍后再试。");
       }
       const blob = await response.blob();
       if (!blob.size) throw new Error("OmniVoice 没有返回音频。");
-      const nextUrl = URL.createObjectURL(blob);
-      audioUrlRef.current = nextUrl;
-      setAudioUrl(nextUrl);
-      setGeneratedAt(
-        new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" }),
-      );
+      setOmniBlob(blob);
+      setCacheStatus("OmniVoice 已完成 · 已自动保存到本机缓存");
+      void writeCachedOmniVoice(cacheKey, blob);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "OmniVoice 免费服务暂时不可用。");
+      setError(
+        `${caught instanceof Error ? caught.message : "OmniVoice 免费服务暂时不可用。"}${previewUrlRef.current ? " Edge 预览仍可继续播放。" : ""}`,
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -283,10 +433,11 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
           <em>可设计声线。</em>
         </h1>
         <p className="hero-description">
-          基于 shyngys879 的 KazakhTTS-OmniVoice 公共 Demo。无需 ElevenLabs 额度，可以直接设计男声或女声、年龄、音高、耳语风格，并调节倍速、质量和推理强度。
+          基于 shyngys879 的 KazakhTTS-OmniVoice 公共 Demo。现在采用 Edge 秒出预览 + OmniVoice 后台高质生成 + 自动预热/本机缓存；全程不需要 ElevenLabs 额度。
         </p>
         <div className="feature-row" aria-label="OmniVoice 功能">
-          <span>免费共享 GPU</span>
+          <span>Edge 秒出预览</span>
+          <span>自动预热 / 缓存</span>
           <span>男 / 女声设计</span>
           <span>年龄 / 音高</span>
           <span>0.70×–1.20×</span>
@@ -296,8 +447,8 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
         <div className="broadcast-note">
           <div className="broadcast-index">GPU</div>
           <div>
-            <strong>这是公共 Hugging Face 共享 GPU</strong>
-            <p>已默认启用 8 步极速档。公共 GPU 仍可能冷启动或排队；不加情绪标签时最快。</p>
+            <strong>{warmupStatus}</strong>
+            <p>打开页面即自动唤醒免费 GPU；点击生成时 Edge 与 OmniVoice 同时启动，先试听 Edge，OmniVoice 完成后自动出现。相同文本和参数再次生成会优先读取本机缓存。</p>
           </div>
         </div>
       </div>
@@ -563,23 +714,46 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
             {isGenerating ? <i className="spinner" /> : <i className="play-triangle" />}
           </span>
           <span>
-            <strong>{isGenerating ? "OmniVoice 共享 GPU 正在生成…" : `生成 OmniVoice · ${speed.toFixed(2)}×`}</strong>
+            <strong>{isGenerating ? "Edge 预览 + OmniVoice 后台生成中…" : `生成免费双轨语音 · ${speed.toFixed(2)}×`}</strong>
             <small>
               {isGenerating
-                ? "极速档通常更快；公共 GPU 排队时仍可能需要数分钟"
-                : `声线设计 + 倍速 + 质量 + 情绪标签 · 当前 ${steps} 步`}
+                ? previewStatus === "ready" ? "Edge 预览已就绪 · OmniVoice 继续在后台生成" : "Edge 正在抢先生成预览 · OmniVoice 已同时启动"
+                : `先出 Edge 预览，再出 OmniVoice 最终版 · 当前 ${steps} 步`}
             </small>
           </span>
           <span className="button-arrow" aria-hidden="true">→</span>
         </button>
 
+        {(previewUrl || previewStatus === "generating" || previewStatus === "error") ? (
+          <div className={`result-panel ${previewUrl ? "has-audio" : ""}`} aria-live="polite" style={{ marginBottom: 14 }}>
+            <div className="result-topline">
+              <div>
+                <span className="result-dot" />
+                <strong>{previewUrl ? "Edge 秒出预览已就绪" : previewStatus === "error" ? "Edge 预览未成功" : "Edge 预览正在生成"}</strong>
+              </div>
+              <span>{previewUrl ? "可先试听" : "等待几秒"}</span>
+            </div>
+            {previewUrl ? (
+              <div className="audio-ready">
+                <audio controls src={previewUrl} preload="metadata">您的浏览器不支持音频播放。</audio>
+                <a className="download-link" href={previewUrl} download="qazaq-edge-preview.mp3">
+                  <span aria-hidden="true">↓</span>
+                  下载预览 MP3
+                </a>
+              </div>
+            ) : (
+              <div className="empty-player"><p>{previewStatus === "error" ? "不影响 OmniVoice 最终版继续生成。" : "Edge 免费引擎正在抢先生成可试听版本…"}</p></div>
+            )}
+          </div>
+        ) : null}
+
         <div className={`result-panel ${audioUrl ? "has-audio" : ""}`} aria-live="polite">
           <div className="result-topline">
             <div>
               <span className="result-dot" />
-              <strong>{audioUrl ? "OmniVoice 音频已生成" : "OmniVoice 音频播放器"}</strong>
+              <strong>{audioUrl ? "OmniVoice 高质量最终版" : "OmniVoice 后台高质量生成"}</strong>
             </div>
-            {generatedAt ? <time>{generatedAt}</time> : <span>等待生成</span>}
+            {generatedAt ? <time>{generatedAt}</time> : <span>{cacheStatus || "等待生成"}</span>}
           </div>
           {audioUrl ? (
             <div className="audio-ready">
@@ -596,7 +770,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
                   (height, index) => <i style={{ height }} key={`${height}-${index}`} />,
                 )}
               </div>
-              <p>第二免费引擎生成后，播放器会出现在这里</p>
+              <p>{isGenerating ? "Edge 预览可先试听，OmniVoice 最终版会在这里自动出现" : "相同文本与参数若已缓存，会直接在这里秒开"}</p>
             </div>
           )}
         </div>

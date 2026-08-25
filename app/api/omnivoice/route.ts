@@ -352,6 +352,37 @@ async function generateSegment(text: string, settings: OmniSettings) {
   return buffer;
 }
 
+export async function GET() {
+  try {
+    const response = await fetchWithTimeout(
+      `${OMNI_BASE}/`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "User-Agent": "kazakh-broadcast-worker-warmup",
+        },
+      },
+      7000,
+    );
+    return Response.json(
+      {
+        state: response.ok ? "ready" : "warming",
+        upstreamStatus: response.status,
+      },
+      {
+        status: response.ok ? 200 : 202,
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
+  } catch {
+    return Response.json(
+      { state: "warming" },
+      { status: 202, headers: { "Cache-Control": "no-store" } },
+    );
+  }
+}
+
 export async function POST(request: Request) {
   let payload: unknown;
   try {
