@@ -1,4 +1,8 @@
-import { analyzeEdgeDocument, renderEdgeDirectorMarkup, type EdgeDocumentPlan } from "../../lib/edge-director";
+import { analyzeEdgeDocument, type EdgeDocumentPlan } from "../../lib/edge-director";
+import {
+  renderEdgeOmniInspiredMarkup,
+  splitEdgeTextByDuration,
+} from "../../lib/edge-omnivoice-inspired";
 
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
@@ -633,9 +637,10 @@ function edgeProsody(
 ) {
   const presetSettings = PRESETS[preset];
   const tagSettings = tag ? EDGE_TAG_STYLES[tag] : undefined;
-  const softenedTagRate = 1 + ((tagSettings?.rateFactor ?? 1) - 1) * 0.48;
-  const softenedTagPitch = (tagSettings?.pitch ?? 0) * 0.32;
-  const softenedTagVolume = (tagSettings?.volume ?? 0) * 0.42;
+  // OmniVoice-style control should alter delivery without sounding like a pitch shifter.
+  const softenedTagRate = 1 + ((tagSettings?.rateFactor ?? 1) - 1) * 0.38;
+  const softenedTagPitch = (tagSettings?.pitch ?? 0) * 0.18;
+  const softenedTagVolume = (tagSettings?.volume ?? 0) * 0.30;
 
   const effectiveSpeed = clamp(
     settings.speed * presetSettings.rateFactor * softenedTagRate,
@@ -653,7 +658,7 @@ function edgeProsody(
     7,
   );
 
-  return renderEdgeDirectorMarkup(
+  return renderEdgeOmniInspiredMarkup(
     text,
     {
       speed: effectiveSpeed,
@@ -820,7 +825,13 @@ async function synthesizeWithEdge(
   // Analyze the complete article before chunking, then reuse one global plan for every audio chunk.
   // This keeps title/lead/background/climax/ending decisions consistent across long-form news.
   const documentPlan = analyzeEdgeDocument(text);
-  const chunks = splitEdgeText(text, EDGE_MAX_CHUNK_SIZE);
+  // Like OmniVoice, split by estimated speaking duration instead of raw text length.
+  // Use longer Edge chunks to preserve Microsoft's native contextual cadence.
+  const chunks = splitEdgeTextByDuration(
+    text,
+    settings.speed * PRESETS[preset].rateFactor,
+    EDGE_MAX_CHUNK_SIZE,
+  );
   return Promise.all(
     chunks.map((chunk) =>
       synthesizeEdgeChunk(chunk, voice, preset, settings, endpoint, documentPlan),
