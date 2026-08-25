@@ -4,6 +4,16 @@ export type EdgeDirectorSettings = {
   volume: number;
 };
 
+export type EdgeDocumentRole =
+  | "title"
+  | "lead"
+  | "body"
+  | "background"
+  | "transition"
+  | "key_number"
+  | "climax"
+  | "ending";
+
 type EdgeToken = {
   kind: "text" | "punct";
   value: string;
@@ -27,6 +37,35 @@ type MicroProsody = {
   rateFactor: number;
   pitchDelta: number;
   volumeDelta: number;
+};
+
+export type EdgePlannedSegment = {
+  index: number;
+  paragraphIndex: number;
+  normalized: string;
+  role: EdgeDocumentRole;
+  progress: number;
+  importance: number;
+  numericScore: number;
+  impactScore: number;
+};
+
+export type EdgeDocumentPlan = {
+  version: 2;
+  sourceLength: number;
+  titleIndex: number | null;
+  climaxIndex: number;
+  climaxProgress: number;
+  endingStartIndex: number;
+  segments: EdgePlannedSegment[];
+};
+
+type AnalyzedUnit = {
+  index: number;
+  paragraphIndex: number;
+  text: string;
+  normalized: string;
+  punctuation: PunctuationKind;
 };
 
 const NEUTRAL_MICRO: MicroProsody = {
@@ -71,6 +110,68 @@ const SEQUENCE_CUES = [
   "ақырында",
 ];
 
+const BACKGROUND_CUES = [
+  "бұған дейін",
+  "осыған дейін",
+  "бұрын",
+  "еске сала кетейік",
+  "еске салайық",
+  "өткен жылы",
+  "өткен айда",
+  "өткен аптада",
+  "тарихында",
+  "алдыңғы",
+];
+
+const TRANSITION_CUES = [
+  ...CONTRAST_CUES,
+  ...RESULT_CUES,
+  "ал енді",
+  "енді",
+  "сонымен бірге",
+  "сонымен қатар",
+  "осы арада",
+  "бұдан бөлек",
+];
+
+const IMPACT_CUES = [
+  "қаза",
+  "мерт",
+  "жараланды",
+  "жараланған",
+  "соғыс",
+  "соққы",
+  "шабуыл",
+  "жарылыс",
+  "қауіп",
+  "төтенше",
+  "шұғыл",
+  "алғаш рет",
+  "рекорд",
+  "ең үлкен",
+  "ең жоғары",
+  "ең төмен",
+  "маңызды",
+  "растады",
+  "мәлімдеді",
+];
+
+const NUMBER_CUES = [
+  "%",
+  "пайыз",
+  "миллион",
+  "миллиард",
+  "триллион",
+  "мың",
+  "теңге",
+  "доллар",
+  "еуро",
+  "адам",
+  "километр",
+  "тонна",
+  "жыл",
+];
+
 const BREATH_CUES = new Set([
   "және",
   "әрі",
@@ -108,6 +209,15 @@ function speedToRate(speed: number) {
 
 function isDigit(value: string | undefined) {
   return Boolean(value && /[0-9]/u.test(value));
+}
+
+function normalizeForAnalysis(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[\[\]【】(){}«»“”"'‘’]/gu, " ")
+    .replace(/[，,；;：:—–…!?！？。.]/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
 }
 
 function tokenizeEdgeText(source: string) {
@@ -246,21 +356,214 @@ function isSentenceTerminal(kind: PunctuationKind) {
 }
 
 function startsWithCue(text: string, cues: string[]) {
-  const normalized = text
-    .trim()
-    .replace(/^[«“"'‘’(\[]+/u, "")
-    .toLowerCase();
-
+  const normalized = normalizeForAnalysis(text);
   return cues.some(
     (cue) =>
       normalized === cue ||
       normalized.startsWith(`${cue} `) ||
-      normalized.startsWith(`${cue},`),
+      normalized.includes(` ${cue} `),
   );
+}
+
+function containsCue(text: string, cues: string[]) {
+  const normalized = normalizeForAnalysis(text);
+  return cues.some((cue) => normalized.includes(cue));
 }
 
 function hasUppercaseAnchor(text: string) {
   return /(?:^|\s)[A-ZА-ЯӘҒҚҢӨҰҮҺІ]{2,8}(?=\s|$|[.,:;!?])/u.test(text);
+}
+
+function collectDocumentUnits(source: string) {
+  const tokens = tokenizeEdgeText(source);
+  const units: AnalyzedUnit[] = [];
+  let paragraphIndex = 0;
+  let buffer = "";
+  let lastKind: PunctuationKind = "none";
+
+  const flush = (kind: PunctuationKind) => {
+    const text = buffer.trim();
+    if (text) {
+      units.push({
+        index: units.length,
+        paragraphIndex,
+        text,
+        normalized: normalizeForAnalysis(text),
+        punctuation: kind,
+      });
+    }
+    buffer = "";
+  };
+
+  for (const token of tokens) {
+    if (token.kind === "text") {
+      buffer += token.value;
+      continue;
+    }
+
+    const kind = punctuationKind(token.value);
+    if (!/^\n+$/u.test(token.value)) buffer += token.value;
+    lastKind = kind;
+
+    if (isSentenceTerminal(kind) || kind === "newline" || kind === "paragraph") {
+      flush(kind);
+      if (kind === "newline" || kind === "paragraph") paragraphIndex += 1;
+    }
+  }
+
+  if (buffer.trim()) flush(lastKind);
+  return units;
+}
+
+function numericScore(text: string) {
+  const normalized = normalizeForAnalysis(text);
+  const digitCount = text.match(/[0-9]/gu)?.length ?? 0;
+  const cueCount = NUMBER_CUES.reduce(
+    (sum, cue) => sum + (normalized.includes(cue) ? 1 : 0),
+    0,
+  );
+  return clamp(digitCount * 0.28 + cueCount * 0.55, 0, 2.5);
+}
+
+function impactScore(text: string) {
+  const normalized = normalizeForAnalysis(text);
+  const impact = IMPACT_CUES.reduce(
+    (sum, cue) => sum + (normalized.includes(cue) ? 0.62 : 0),
+    0,
+  );
+  const focus = FOCUS_CUES.reduce(
+    (sum, cue) => sum + (normalized.includes(cue) ? 0.5 : 0),
+    0,
+  );
+  const punctuation = /[!！]/u.test(text) ? 0.28 : 0;
+  return clamp(impact + focus + punctuation, 0, 3.2);
+}
+
+function isLikelyTitle(unit: AnalyzedUnit, totalUnits: number) {
+  if (unit.index !== 0 || totalUnits < 2) return false;
+  const length = unit.normalized.length;
+  if (length < 4 || length > 88) return false;
+  if (unit.punctuation === "newline" || unit.punctuation === "paragraph") return true;
+  return length <= 58 && !/[.!?。！？]/u.test(unit.text);
+}
+
+function chooseClimaxIndex(units: AnalyzedUnit[], titleIndex: number | null) {
+  if (!units.length) return 0;
+  let bestIndex = Math.min(units.length - 1, Math.max(0, Math.round(units.length * 0.62)));
+  let bestScore = -Infinity;
+
+  for (const unit of units) {
+    if (unit.index === titleIndex) continue;
+    const progress = units.length <= 1 ? 0.5 : unit.index / (units.length - 1);
+    if (progress < 0.18 || progress > 0.9) continue;
+
+    const centerWeight = 1 - Math.min(1, Math.abs(progress - 0.66) / 0.66);
+    const score =
+      impactScore(unit.text) * 1.25 +
+      numericScore(unit.text) * 0.72 +
+      centerWeight * 0.28 +
+      (containsCue(unit.text, CONTRAST_CUES) ? 0.24 : 0);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestIndex = unit.index;
+    }
+  }
+
+  return bestIndex;
+}
+
+function roleForUnit(
+  unit: AnalyzedUnit,
+  units: AnalyzedUnit[],
+  titleIndex: number | null,
+  climaxIndex: number,
+  endingStartIndex: number,
+): EdgeDocumentRole {
+  if (unit.index === titleIndex) return "title";
+  if (unit.index >= endingStartIndex) return "ending";
+  if (unit.index === climaxIndex) return "climax";
+  if (numericScore(unit.text) >= 0.9) return "key_number";
+  if (containsCue(unit.text, BACKGROUND_CUES)) return "background";
+  if (startsWithCue(unit.text, TRANSITION_CUES)) return "transition";
+
+  const firstContent = titleIndex === 0 ? 1 : 0;
+  if (unit.index >= firstContent && unit.index <= firstContent + 1 && units.length >= 3) {
+    return "lead";
+  }
+  return "body";
+}
+
+function roleImportance(role: EdgeDocumentRole, numeric: number, impact: number) {
+  const base: Record<EdgeDocumentRole, number> = {
+    title: 0.68,
+    lead: 0.58,
+    body: 0.36,
+    background: 0.22,
+    transition: 0.48,
+    key_number: 0.7,
+    climax: 0.92,
+    ending: 0.4,
+  };
+  return clamp(base[role] + numeric * 0.08 + impact * 0.07, 0.12, 1);
+}
+
+export function analyzeEdgeDocument(source: string): EdgeDocumentPlan {
+  const units = collectDocumentUnits(source);
+  if (!units.length) {
+    return {
+      version: 2,
+      sourceLength: source.length,
+      titleIndex: null,
+      climaxIndex: 0,
+      climaxProgress: 0.65,
+      endingStartIndex: 0,
+      segments: [],
+    };
+  }
+
+  const titleIndex = isLikelyTitle(units[0], units.length) ? 0 : null;
+  const climaxIndex = chooseClimaxIndex(units, titleIndex);
+  const endingCount = units.length >= 8 ? 2 : 1;
+  const endingStartIndex = Math.max(
+    titleIndex === 0 ? 1 : 0,
+    units.length - endingCount,
+  );
+
+  const segments = units.map((unit) => {
+    const progress = units.length <= 1 ? 0.5 : unit.index / (units.length - 1);
+    const numeric = numericScore(unit.text);
+    const impact = impactScore(unit.text);
+    const role = roleForUnit(
+      unit,
+      units,
+      titleIndex,
+      climaxIndex,
+      endingStartIndex,
+    );
+
+    return {
+      index: unit.index,
+      paragraphIndex: unit.paragraphIndex,
+      normalized: unit.normalized,
+      role,
+      progress,
+      importance: roleImportance(role, numeric, impact),
+      numericScore: numeric,
+      impactScore: impact,
+    };
+  });
+
+  return {
+    version: 2,
+    sourceLength: source.length,
+    titleIndex,
+    climaxIndex,
+    climaxProgress:
+      units.length <= 1 ? 0.65 : climaxIndex / Math.max(1, units.length - 1),
+    endingStartIndex,
+    segments,
+  };
 }
 
 function phraseTarget(
@@ -277,38 +580,32 @@ function phraseTarget(
   let pitchDelta = 0;
   let volumeDelta = 0;
 
-  // Long clauses get a little more room, but the change stays subtle.
   if (length >= 120) rateFactor *= 0.97;
   else if (length >= 82) rateFactor *= 0.982;
   else if (length >= 48) rateFactor *= 0.992;
 
-  // Start a new paragraph with a steadier onset instead of an abrupt pitch jump.
   if (paragraphStart) {
     rateFactor *= 0.994;
     volumeDelta += 0.1;
   }
 
-  // A non-final opening clause gets a tiny continuation lift.
   if (sentenceStart && !isSentenceTerminal(punctuation) && punctuation !== "none") {
     pitchDelta += 0.1;
   } else if (clauseIndex > 0 && punctuation === "comma") {
     pitchDelta += 0.07;
   }
 
-  // Information after a colon is usually the payload, so give it a soft focus.
   if (afterColon) {
     rateFactor *= 0.987;
     volumeDelta += 0.34;
     pitchDelta += 0.08;
   }
 
-  // Short labels/headlines before a colon should sound intentional, not rushed.
   if (punctuation === "colon" && length > 0 && length <= 44) {
     rateFactor *= 0.992;
     volumeDelta += 0.24;
   }
 
-  // Discourse cues approximate the context-aware emphasis that expressive TTS models learn.
   if (startsWithCue(clean, FOCUS_CUES)) {
     rateFactor *= 0.982;
     volumeDelta += 0.42;
@@ -325,7 +622,6 @@ function phraseTarget(
     volumeDelta += 0.18;
   }
 
-  // Dense numbers/acronyms benefit from a slightly more deliberate read.
   const digitCount = clean.match(/[0-9]/gu)?.length ?? 0;
   if (digitCount >= 2) rateFactor *= 0.985;
   if (hasUppercaseAnchor(clean)) {
@@ -333,14 +629,11 @@ function phraseTarget(
     volumeDelta += 0.12;
   }
 
-  // Parenthetical asides are typically delivered a touch softer.
   if (/^\s*[([]/u.test(clean)) {
     rateFactor *= 0.988;
     volumeDelta -= 0.16;
   }
 
-  // Sentence-final contours are intentionally small. Punctuation remains inside
-  // the same prosody span so the speech model can still interpret it naturally.
   if (punctuation === "period") {
     rateFactor *= 0.992;
     pitchDelta -= 0.45;
@@ -370,14 +663,107 @@ function phraseTarget(
   };
 }
 
+function segmentForFragment(text: string, plan?: EdgeDocumentPlan) {
+  if (!plan?.segments.length) return null;
+  const fragment = normalizeForAnalysis(text);
+  if (!fragment) return null;
+
+  let best: EdgePlannedSegment | null = null;
+  let bestScore = -1;
+  const fragmentWords = new Set(fragment.split(" ").filter((word) => word.length >= 3));
+
+  for (const segment of plan.segments) {
+    let score = 0;
+    if (segment.normalized.includes(fragment)) {
+      score = 4 + fragment.length / Math.max(1, segment.normalized.length);
+    } else if (fragment.includes(segment.normalized)) {
+      score = 3.5 + segment.normalized.length / Math.max(1, fragment.length);
+    } else {
+      const segmentWords = segment.normalized.split(" ");
+      let overlap = 0;
+      for (const word of segmentWords) {
+        if (word.length >= 3 && fragmentWords.has(word)) overlap += 1;
+      }
+      score = overlap / Math.max(3, Math.min(fragmentWords.size, segmentWords.length));
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      best = segment;
+    }
+  }
+
+  return bestScore >= 0.34 ? best : null;
+}
+
+function documentArc(progress: number, climaxProgress: number): MicroProsody {
+  const distance = Math.abs(progress - climaxProgress);
+  const climaxLift = Math.max(0, 1 - distance / 0.24);
+  const endingSettle = progress > 0.82 ? (progress - 0.82) / 0.18 : 0;
+  const openingPoise = progress < 0.14 ? (0.14 - progress) / 0.14 : 0;
+
+  return {
+    rateFactor: clamp(
+      1 - climaxLift * 0.006 - endingSettle * 0.012 - openingPoise * 0.004,
+      0.975,
+      1.01,
+    ),
+    pitchDelta: clamp(
+      climaxLift * 0.09 - endingSettle * 0.22 - openingPoise * 0.03,
+      -0.32,
+      0.14,
+    ),
+    volumeDelta: clamp(
+      climaxLift * 0.16 - endingSettle * 0.08 + openingPoise * 0.04,
+      -0.12,
+      0.2,
+    ),
+  };
+}
+
+function roleTarget(segment: EdgePlannedSegment | null, plan?: EdgeDocumentPlan) {
+  if (!segment || !plan) return NEUTRAL_MICRO;
+
+  const role: Record<EdgeDocumentRole, MicroProsody> = {
+    title: { rateFactor: 0.984, pitchDelta: -0.08, volumeDelta: 0.38 },
+    lead: { rateFactor: 0.992, pitchDelta: 0.06, volumeDelta: 0.18 },
+    body: { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 },
+    background: { rateFactor: 0.988, pitchDelta: -0.1, volumeDelta: -0.18 },
+    transition: { rateFactor: 0.994, pitchDelta: 0.12, volumeDelta: 0.12 },
+    key_number: { rateFactor: 0.978, pitchDelta: -0.04, volumeDelta: 0.34 },
+    climax: { rateFactor: 0.976, pitchDelta: 0.18, volumeDelta: 0.5 },
+    ending: { rateFactor: 0.984, pitchDelta: -0.34, volumeDelta: -0.08 },
+  };
+
+  const base = role[segment.role];
+  const arc = documentArc(segment.progress, plan.climaxProgress);
+  const importance = 0.55 + segment.importance * 0.45;
+
+  return {
+    rateFactor: clamp(
+      1 + (base.rateFactor - 1) * importance + (arc.rateFactor - 1),
+      0.95,
+      1.02,
+    ),
+    pitchDelta: clamp(base.pitchDelta * importance + arc.pitchDelta, -0.75, 0.65),
+    volumeDelta: clamp(base.volumeDelta * importance + arc.volumeDelta, -0.4, 0.75),
+  };
+}
+
+function mergeMicro(local: MicroProsody, document: MicroProsody) {
+  return {
+    rateFactor: clamp(local.rateFactor * document.rateFactor, 0.92, 1.045),
+    pitchDelta: clamp(local.pitchDelta + document.pitchDelta, -1.45, 1.45),
+    volumeDelta: clamp(local.volumeDelta + document.volumeDelta, -0.75, 1.25),
+  };
+}
+
 function smoothMicro(
   previous: MicroProsody,
   target: MicroProsody,
   sentenceStart: boolean,
 ) {
-  if (sentenceStart) return target;
-
-  const carry = 0.22;
+  const carry = sentenceStart ? 0.08 : 0.22;
   const fresh = 1 - carry;
   return {
     rateFactor:
@@ -484,6 +870,7 @@ function renderProsody(
 export function renderEdgeDirectorMarkup(
   text: string,
   settings: EdgeDirectorSettings,
+  documentPlan?: EdgeDocumentPlan,
 ) {
   const tokens = tokenizeEdgeText(text);
   let output = "";
@@ -506,7 +893,6 @@ export function renderEdgeDirectorMarkup(
       if (terminal) {
         sentenceStart = true;
         clauseIndex = 0;
-        previousMicro = NEUTRAL_MICRO;
       } else if (kind !== "none") {
         clauseIndex += 1;
       }
@@ -523,7 +909,7 @@ export function renderEdgeDirectorMarkup(
 
     const following = tokens[index + 1]?.kind === "punct" ? tokens[index + 1].value : "";
     const kind = punctuationKind(following);
-    const target = phraseTarget(
+    const localTarget = phraseTarget(
       token.value,
       kind,
       paragraphStart,
@@ -531,6 +917,9 @@ export function renderEdgeDirectorMarkup(
       clauseIndex,
       afterColon,
     );
+    const segment = segmentForFragment(token.value, documentPlan);
+    const globalTarget = roleTarget(segment, documentPlan);
+    const target = mergeMicro(localTarget, globalTarget);
     const micro = smoothMicro(previousMicro, target, sentenceStart);
 
     output += renderProsody(token.value, following, settings, micro);
@@ -549,7 +938,12 @@ export function renderEdgeDirectorMarkup(
     if (terminal) {
       sentenceStart = true;
       clauseIndex = 0;
-      previousMicro = NEUTRAL_MICRO;
+      // Keep a small amount of the previous contour so sentence boundaries do not reset the whole article.
+      previousMicro = {
+        rateFactor: 1 + (micro.rateFactor - 1) * 0.16,
+        pitchDelta: micro.pitchDelta * 0.16,
+        volumeDelta: micro.volumeDelta * 0.16,
+      };
     } else {
       sentenceStart = false;
       if (kind !== "none") clauseIndex += 1;
