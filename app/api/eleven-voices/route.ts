@@ -1,5 +1,5 @@
 const ELEVEN_VOICES_ENDPOINT = "https://api.elevenlabs.io/v2/voices";
-const MAX_VOICE_PAGES = 3;
+const MAX_VOICE_PAGES = 5;
 
 function jsonError(message: string, status: number) {
   return Response.json(
