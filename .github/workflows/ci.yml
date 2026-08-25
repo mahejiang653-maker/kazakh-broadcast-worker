@@ -9,20 +9,20 @@ permissions:
   contents: write
 
 jobs:
-  patch-remove-emotion-tags:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply emotion tag removal'
+  patch-edge-native-repair:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Repair Edge after tag removal'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Remove emotion tags
-        run: python scripts/remove_emotion_tags.py
-      - name: Commit emotion tag removal
+      - name: Repair Edge native prosody
+        run: python scripts/repair_edge_native_after_tag_removal.py
+      - name: Commit Edge repair
         run: |
           git config user.name "mahejiang653-maker"
           git config user.email "mahejiang653@gmail.com"
-          git add app/page.tsx app/components/OmniVoiceStudio.tsx app/api/synthesize/route.ts app/api/omnivoice/route.ts
-          git commit -m "Remove emotion tags from all TTS modes"
+          git add app/api/synthesize/route.ts
+          git commit -m "Restore native Edge prosody after tag removal"
           git push
 
   build-and-test:
