@@ -503,9 +503,9 @@ function edgePauseForPunctuation(punctuation: string, phraseLength: number) {
   if (/^[，,]+$/u.test(punctuation)) return 72 + Math.min(32, lengthBonus);
   if (/^[；;]+$/u.test(punctuation)) return 125 + Math.min(30, lengthBonus);
   if (/^[：:]+$/u.test(punctuation)) return 105 + Math.min(25, lengthBonus);
-  if (/^[—–-]+$/u.test(punctuation)) return 120 + Math.min(28, lengthBonus);
+  if (/^[—–]+$/u.test(punctuation)) return 120 + Math.min(28, lengthBonus);
   if (/^…+$/u.test(punctuation)) return 235 + Math.min(35, lengthBonus);
-  if (/^[！？!]+$/u.test(punctuation)) return 205 + Math.min(35, lengthBonus);
+  if (/^[！!]+$/u.test(punctuation)) return 205 + Math.min(35, lengthBonus);
   if (/^[？?]+$/u.test(punctuation)) return 225 + Math.min(35, lengthBonus);
   if (/^[。.]+$/u.test(punctuation)) return 220 + Math.min(40, lengthBonus);
   return 0;
@@ -546,7 +546,7 @@ function edgeMicroForPhrase(
   } else if (/^[？?]+$/u.test(punctuation)) {
     rateFactor *= 0.985;
     pitchDelta += 1.15;
-  } else if (/^[！？!]+$/u.test(punctuation)) {
+  } else if (/^[！!]+$/u.test(punctuation)) {
     rateFactor *= 0.995;
     pitchDelta += 0.65;
     volumeDelta += 0.45;
@@ -572,7 +572,8 @@ function edgeNaturalMarkup(
     .replaceAll("\r", "\n")
     .replace(/[\t ]+/gu, " ");
 
-  const pieces = normalized.split(/(\n{2,}|\n|[，,；;：:—–-]+|[。.]+|[！？!]+|[？?]+|…+)/u);
+  // Keep ordinary hyphens inside Kazakh compound words; only real dashes create a pause.
+  const pieces = normalized.split(/(\n{2,}|\n|[，,；;：:—–]+|[。.]+|[！!]+|[？?]+|…+)/u);
   let output = "";
   let paragraphStart = true;
   let afterColon = false;
@@ -581,7 +582,7 @@ function edgeNaturalMarkup(
     const piece = pieces[index];
     if (!piece) continue;
 
-    const isPunctuation = /^(?:\n+|[，,；;：:—–-]+|[。.]+|[！？!]+|[？?]+|…+)$/u.test(piece);
+    const isPunctuation = /^(?:\n+|[，,；;：:—–]+|[。.]+|[！!]+|[？?]+|…+)$/u.test(piece);
     if (isPunctuation) {
       const pause = edgePauseForPunctuation(piece, 0);
       if (!/^\n+$/u.test(piece)) output += escapeXml(piece);
@@ -592,7 +593,7 @@ function edgeNaturalMarkup(
     }
 
     const next = pieces[index + 1] ?? "";
-    const punctuation = /^(?:\n+|[，,；;：:—–-]+|[。.]+|[！？!]+|[？?]+|…+)$/u.test(next)
+    const punctuation = /^(?:\n+|[，,；;：:—–]+|[。.]+|[！!]+|[？?]+|…+)$/u.test(next)
       ? next
       : "";
     const cleanLength = piece.trim().length;
