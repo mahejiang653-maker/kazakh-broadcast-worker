@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import OmniVoiceStudio from "./components/OmniVoiceStudio";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -957,10 +958,12 @@ export default function Home() {
         </section>
       </section>
 
+      <OmniVoiceStudio sourceText={text} />
+
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
         <p>
-          免费模式基于 Edge TTS 开源通道 · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
+          免费模式一基于 Edge TTS · 免费模式二使用 KazakhTTS-OmniVoice 公共 Demo · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
           <a href="https://github.com/linshenkx/edge-tts-openai-cf-worker" target="_blank" rel="noreferrer">
             查看免费通道开源项目
           </a>
