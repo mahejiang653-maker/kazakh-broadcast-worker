@@ -13,20 +13,18 @@ jobs:
       - name: Probe Gradio API
         shell: bash
         run: |
-          set -x
           BASE='https://shyngys879-kazakhtts-omnivoice-demo.hf.space'
-          echo '=== /gradio_api/info ==='
-          curl -L --max-time 90 -sS -D /tmp/headers "$BASE/gradio_api/info" -o /tmp/info || true
-          cat /tmp/headers || true
+          curl -L --max-time 90 -sS "$BASE/gradio_api/info" -o /tmp/info
           python - <<'PY'
-          from pathlib import Path
-          p=Path('/tmp/info')
-          print(p.read_text(errors='replace')[:20000] if p.exists() else 'NO_BODY')
-          PY
-          echo '=== /config ==='
-          curl -L --max-time 90 -sS "$BASE/config" -o /tmp/config || true
-          python - <<'PY'
-          from pathlib import Path
-          p=Path('/tmp/config')
-          print(p.read_text(errors='replace')[:20000] if p.exists() else 'NO_BODY')
+          import json
+          info=json.load(open('/tmp/info'))
+          for name, spec in info.get('named_endpoints', {}).items():
+              print('ENDPOINT', name)
+              print('PARAMS')
+              for p in spec.get('parameters', []):
+                  print('-', p.get('parameter_name'), '| label=', p.get('label'), '| default=', repr(p.get('parameter_default')), '| component=', p.get('component'))
+              print('RETURNS')
+              for r in spec.get('returns', []):
+                  print('-', r.get('label'), '| component=', r.get('component'), '| type=', r.get('python_type'))
+              print()
           PY
