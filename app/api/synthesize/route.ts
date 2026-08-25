@@ -6,6 +6,8 @@ const EDGE_MAX_CHUNK_SIZE = 1800;
 const ELEVEN_MAX_CHUNK_SIZE = 4800;
 const ELEVEN_MODEL_ID = "eleven_v3";
 const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
+const ELEVEN_MIN_SPEED = 0.7;
+const ELEVEN_MAX_SPEED = 1.2;
 
 const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-DauletNeural",
@@ -17,6 +19,42 @@ const PRESETS = {
   calm: { rate: "-10%", pitch: "-2%" },
   bulletin: { rate: "+6%", pitch: "+0%" },
 } as const;
+
+const CHINESE_AUDIO_TAGS: Record<string, string> = {
+  开心: "happy",
+  高兴: "happily",
+  兴奋: "excited",
+  激动: "excited",
+  悲伤: "sad",
+  难过: "sad",
+  伤心: "sorrowful",
+  愤怒: "angry",
+  生气: "angry",
+  担心: "worried",
+  紧张: "nervous",
+  害怕: "fearful",
+  恐惧: "fearful",
+  好奇: "curious",
+  疲惫: "tired",
+  温柔: "softly",
+  轻声: "softly",
+  小声: "whispers",
+  耳语: "whispers",
+  大声: "shouts",
+  喊叫: "shouts",
+  严肃: "serious",
+  平静: "calm",
+  轻松: "relaxed",
+  神秘: "mysteriously",
+  哭泣: "crying",
+  笑: "laughs",
+  大笑: "laughs",
+  轻笑: "chuckles",
+  叹气: "sighs",
+  清嗓: "clears throat",
+  慢速: "slowly",
+  快速: "quickly",
+};
 
 type PresetName = keyof typeof PRESETS;
 type EngineName = "edge" | "eleven";
@@ -80,6 +118,14 @@ function compactId() {
 
 function formattedDate() {
   return new Date().toUTCString().replace("GMT", "").trim().concat(" GMT").toLowerCase();
+}
+
+function normalizeElevenAudioTags(text: string) {
+  return text.replace(/\[([^\]\r\n]{1,30})\]/gu, (full, rawTag: string) => {
+    const normalized = rawTag.trim();
+    const mapped = CHINESE_AUDIO_TAGS[normalized];
+    return mapped ? `[${mapped}]` : full;
+  });
 }
 
 async function sign(urlString: string) {
@@ -223,6 +269,7 @@ async function synthesizeElevenChunk(
   text: string,
   voiceId: string,
   apiKey: string,
+  speed: number,
   previousText?: string,
   nextText?: string,
 ) {
@@ -239,6 +286,7 @@ async function synthesizeElevenChunk(
         text,
         model_id: ELEVEN_MODEL_ID,
         language_code: "kk",
+        voice_settings: { speed },
         ...(previousText ? { previous_text: previousText } : {}),
         ...(nextText ? { next_text: nextText } : {}),
       }),
@@ -258,8 +306,14 @@ async function synthesizeWithEdge(text: string, voice: string, preset: PresetNam
   );
 }
 
-async function synthesizeWithEleven(text: string, voiceId: string, apiKey: string) {
-  const chunks = splitText(text, ELEVEN_MAX_CHUNK_SIZE);
+async function synthesizeWithEleven(
+  text: string,
+  voiceId: string,
+  apiKey: string,
+  speed: number,
+) {
+  const directedText = normalizeElevenAudioTags(text);
+  const chunks = splitText(directedText, ELEVEN_MAX_CHUNK_SIZE);
   const audioChunks: ArrayBuffer[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
@@ -267,7 +321,7 @@ async function synthesizeWithEleven(text: string, voiceId: string, apiKey: strin
     const previous = index > 0 ? chunks[index - 1] : undefined;
     const next = index < chunks.length - 1 ? chunks[index + 1] : undefined;
     audioChunks.push(
-      await synthesizeElevenChunk(current, voiceId, apiKey, previous, next),
+      await synthesizeElevenChunk(current, voiceId, apiKey, speed, previous, next),
     );
   }
 
@@ -295,7 +349,7 @@ export async function POST(request: Request) {
   }
 
   if (!payload || typeof payload !== "object") return jsonError("请求内容无效。", 400);
-  const { text, engine, voice, preset } = payload as Record<string, unknown>;
+  const { text, engine, voice, preset, speed } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
     return jsonError("请先输入哈萨克语文本。", 400);
@@ -329,6 +383,12 @@ export async function POST(request: Request) {
 
   if (selectedEngine === "eleven") {
     const apiKey = process.env.Max?.trim();
+    const selectedSpeed =
+      typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
+
+    if (selectedSpeed < ELEVEN_MIN_SPEED || selectedSpeed > ELEVEN_MAX_SPEED) {
+      return jsonError("ElevenLabs 倍速必须在 0.7× 到 1.2× 之间。", 400);
+    }
 
     if (!apiKey) {
       return jsonError(
@@ -338,7 +398,12 @@ export async function POST(request: Request) {
     }
 
     try {
-      const audioChunks = await synthesizeWithEleven(safeText, voice, apiKey);
+      const audioChunks = await synthesizeWithEleven(
+        safeText,
+        voice,
+        apiKey,
+        selectedSpeed,
+      );
       return audioResponse(audioChunks, "eleven");
     } catch (error) {
       console.error("ElevenLabs Kazakh speech synthesis failed", error);
@@ -353,7 +418,7 @@ export async function POST(request: Request) {
           return jsonError("ElevenLabs 当前额度不足或请求过于频繁，请稍后再试。", 429);
         }
         if (error.status === 422) {
-          return jsonError("ElevenLabs 无法使用当前文本或声线生成语音，请更换后重试。", 422);
+          return jsonError("ElevenLabs 无法使用当前文本、声线、倍速或情绪标签生成语音，请调整后重试。", 422);
         }
       }
       return jsonError("高质量语音服务暂时繁忙，请稍后重新生成。", 502);
