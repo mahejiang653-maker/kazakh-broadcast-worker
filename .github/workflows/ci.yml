@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
+  patch-edge-native-news:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply native Edge news mode'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply native Edge news mode
+        run: python scripts/apply_edge_native_news.py
+      - name: Commit native Edge news mode
+        run: |
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/api/synthesize/route.ts app/page.tsx
+          git commit -m "Use native Edge pipeline for standard news"
+          git push
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
