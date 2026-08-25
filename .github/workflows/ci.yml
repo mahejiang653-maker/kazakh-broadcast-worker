@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
+  patch-remove-emotion-tags:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply emotion tag removal'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Remove emotion tags
+        run: python scripts/remove_emotion_tags.py
+      - name: Commit emotion tag removal
+        run: |
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/page.tsx app/components/OmniVoiceStudio.tsx app/api/synthesize/route.ts app/api/omnivoice/route.ts
+          git commit -m "Remove emotion tags from all TTS modes"
+          git push
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
