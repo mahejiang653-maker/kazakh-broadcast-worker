@@ -2,11 +2,19 @@ const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-ve
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
 const MAX_CHARACTERS = 6000;
-const MAX_CHUNK_SIZE = 1800;
+const EDGE_MAX_CHUNK_SIZE = 1800;
+const ELEVEN_MAX_CHUNK_SIZE = 4800;
+const ELEVEN_MODEL_ID = "eleven_v3";
+const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
 
-const ALLOWED_VOICES = new Set([
+const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-DauletNeural",
   "kk-KZ-AigulNeural",
+]);
+
+const ALLOWED_ELEVEN_VOICES = new Set([
+  "eleven-george",
+  "eleven-rachel",
 ]);
 
 const PRESETS = {
@@ -16,6 +24,7 @@ const PRESETS = {
 } as const;
 
 type PresetName = keyof typeof PRESETS;
+type EngineName = "edge" | "eleven";
 
 type TranslatorEndpoint = {
   r: string;
@@ -26,6 +35,15 @@ let tokenCache: {
   endpoint: TranslatorEndpoint;
   expiresAt: number;
 } | null = null;
+
+class ElevenLabsError extends Error {
+  status: number;
+
+  constructor(status: number) {
+    super(`elevenlabs:${status}`);
+    this.status = status;
+  }
+}
 
 function jsonError(message: string, status: number) {
   return Response.json(
@@ -140,14 +158,14 @@ async function getEndpoint() {
   return endpoint;
 }
 
-function splitText(text: string) {
+function splitText(text: string, maxChunkSize: number) {
   const normalized = text.replaceAll("\r\n", "\n").replace(/[\t ]+/g, " ").trim();
-  if (normalized.length <= MAX_CHUNK_SIZE) return [normalized];
+  if (normalized.length <= maxChunkSize) return [normalized];
 
   const chunks: string[] = [];
   let rest = normalized;
-  while (rest.length > MAX_CHUNK_SIZE) {
-    const window = rest.slice(0, MAX_CHUNK_SIZE + 1);
+  while (rest.length > maxChunkSize) {
+    const window = rest.slice(0, maxChunkSize + 1);
     const punctuation = Math.max(
       window.lastIndexOf("."),
       window.lastIndexOf("!"),
@@ -158,11 +176,11 @@ function splitText(text: string) {
       window.lastIndexOf("\n"),
     );
     const whitespace = window.lastIndexOf(" ");
-    const breakAt = punctuation > MAX_CHUNK_SIZE * 0.55
+    const breakAt = punctuation > maxChunkSize * 0.55
       ? punctuation + 1
-      : whitespace > MAX_CHUNK_SIZE * 0.55
+      : whitespace > maxChunkSize * 0.55
         ? whitespace
-        : MAX_CHUNK_SIZE;
+        : maxChunkSize;
     chunks.push(rest.slice(0, breakAt).trim());
     rest = rest.slice(breakAt).trim();
   }
@@ -181,7 +199,7 @@ function buildSsml(text: string, voice: string, preset: PresetName) {
   ].join("");
 }
 
-async function synthesizeChunk(
+async function synthesizeEdgeChunk(
   text: string,
   voice: string,
   preset: PresetName,
@@ -206,6 +224,80 @@ async function synthesizeChunk(
   return response.arrayBuffer();
 }
 
+function resolveElevenVoice(alias: string) {
+  if (alias === "eleven-rachel") {
+    return process.env.ELEVENLABS_VOICE_ID_FEMALE?.trim() || "21m00Tcm4TlvDq8ikWAM";
+  }
+  return process.env.ELEVENLABS_VOICE_ID_MALE?.trim() || "JBFqnCBsd6RMkjVDRZzb";
+}
+
+async function synthesizeElevenChunk(
+  text: string,
+  voiceId: string,
+  apiKey: string,
+  previousText?: string,
+  nextText?: string,
+) {
+  const response = await fetchWithTimeout(
+    `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${ELEVEN_OUTPUT_FORMAT}`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "audio/mpeg",
+        "Content-Type": "application/json",
+        "xi-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        text,
+        model_id: ELEVEN_MODEL_ID,
+        ...(previousText ? { previous_text: previousText } : {}),
+        ...(nextText ? { next_text: nextText } : {}),
+      }),
+    },
+    90000,
+  );
+
+  if (!response.ok) throw new ElevenLabsError(response.status);
+  return response.arrayBuffer();
+}
+
+async function synthesizeWithEdge(text: string, voice: string, preset: PresetName) {
+  const endpoint = await getEndpoint();
+  const chunks = splitText(text, EDGE_MAX_CHUNK_SIZE);
+  return Promise.all(
+    chunks.map((chunk) => synthesizeEdgeChunk(chunk, voice, preset, endpoint)),
+  );
+}
+
+async function synthesizeWithEleven(text: string, voiceAlias: string, apiKey: string) {
+  const voiceId = resolveElevenVoice(voiceAlias);
+  const chunks = splitText(text, ELEVEN_MAX_CHUNK_SIZE);
+  const audioChunks: ArrayBuffer[] = [];
+
+  for (let index = 0; index < chunks.length; index += 1) {
+    const current = chunks[index];
+    const previous = index > 0 ? chunks[index - 1] : undefined;
+    const next = index < chunks.length - 1 ? chunks[index + 1] : undefined;
+    audioChunks.push(
+      await synthesizeElevenChunk(current, voiceId, apiKey, previous, next),
+    );
+  }
+
+  return audioChunks;
+}
+
+function audioResponse(chunks: ArrayBuffer[], engine: EngineName) {
+  return new Response(new Blob(chunks, { type: "audio/mpeg" }), {
+    headers: {
+      "Content-Type": "audio/mpeg",
+      "Content-Disposition": 'inline; filename="qazaq-radio.mp3"',
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+      "X-TTS-Engine": engine === "eleven" ? "eleven_v3" : "edge",
+    },
+  });
+}
+
 export async function POST(request: Request) {
   let payload: unknown;
   try {
@@ -215,7 +307,7 @@ export async function POST(request: Request) {
   }
 
   if (!payload || typeof payload !== "object") return jsonError("请求内容无效。", 400);
-  const { text, voice, preset } = payload as Record<string, unknown>;
+  const { text, engine, voice, preset } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
     return jsonError("请先输入哈萨克语文本。", 400);
@@ -223,31 +315,65 @@ export async function POST(request: Request) {
   if (text.length > MAX_CHARACTERS) {
     return jsonError(`文本不能超过 ${MAX_CHARACTERS} 个字符。`, 413);
   }
-  if (typeof voice !== "string" || !ALLOWED_VOICES.has(voice)) {
-    return jsonError("请选择有效的哈萨克语播音员。", 400);
+
+  const selectedEngine: EngineName = engine === "eleven" ? "eleven" : "edge";
+  if (engine !== undefined && engine !== "edge" && engine !== "eleven") {
+    return jsonError("请选择有效的语音模式。", 400);
   }
   if (typeof preset !== "string" || !(preset in PRESETS)) {
     return jsonError("请选择有效的播音节奏。", 400);
   }
+  if (typeof voice !== "string") {
+    return jsonError("请选择有效的哈萨克语播音员。", 400);
+  }
+
+  if (selectedEngine === "edge" && !ALLOWED_EDGE_VOICES.has(voice)) {
+    return jsonError("请选择有效的免费哈萨克语播音员。", 400);
+  }
+  if (selectedEngine === "eleven" && !ALLOWED_ELEVEN_VOICES.has(voice)) {
+    return jsonError("请选择有效的 ElevenLabs 高质量播音员。", 400);
+  }
 
   const safeText = text.replaceAll("\u0000", "").trim();
 
+  if (selectedEngine === "eleven") {
+    const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
+    if (!apiKey) {
+      return jsonError(
+        "高质量模式尚未配置 ElevenLabs API Key。免费模式仍可正常使用。",
+        503,
+      );
+    }
+
+    try {
+      const audioChunks = await synthesizeWithEleven(safeText, voice, apiKey);
+      return audioResponse(audioChunks, "eleven");
+    } catch (error) {
+      console.error("ElevenLabs Kazakh speech synthesis failed", error);
+      if (error instanceof ElevenLabsError) {
+        if (error.status === 401 || error.status === 403) {
+          return jsonError("ElevenLabs 授权失败，请检查 API Key 或访问权限。", 502);
+        }
+        if (error.status === 429) {
+          return jsonError("ElevenLabs 当前额度不足或请求过于频繁，请稍后再试。", 429);
+        }
+        if (error.status === 422) {
+          return jsonError("ElevenLabs 无法使用当前文本或声线生成语音，请更换后重试。", 422);
+        }
+      }
+      return jsonError("高质量语音服务暂时繁忙，请稍后重新生成。", 502);
+    }
+  }
+
   try {
-    const endpoint = await getEndpoint();
-    const chunks = splitText(safeText);
-    const audioChunks = await Promise.all(
-      chunks.map((chunk) => synthesizeChunk(chunk, voice, preset as PresetName, endpoint)),
+    const audioChunks = await synthesizeWithEdge(
+      safeText,
+      voice,
+      preset as PresetName,
     );
-    return new Response(new Blob(audioChunks, { type: "audio/mpeg" }), {
-      headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Disposition": 'inline; filename="qazaq-radio.mp3"',
-        "Cache-Control": "no-store",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
+    return audioResponse(audioChunks, "edge");
   } catch (error) {
-    console.error("Kazakh speech synthesis failed", error);
+    console.error("Edge Kazakh speech synthesis failed", error);
     return jsonError("免费语音服务暂时繁忙，请稍后重新生成。", 502);
   }
 }
