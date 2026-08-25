@@ -12,11 +12,6 @@ const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-AigulNeural",
 ]);
 
-const ALLOWED_ELEVEN_VOICES = new Set([
-  "eleven-george",
-  "eleven-rachel",
-]);
-
 const PRESETS = {
   news: { rate: "-2%", pitch: "-1%" },
   calm: { rate: "-10%", pitch: "-2%" },
@@ -53,6 +48,19 @@ function jsonError(message: string, status: number) {
       headers: { "Cache-Control": "no-store" },
     },
   );
+}
+
+function constantTimeEqual(left: string, right: string) {
+  const encoder = new TextEncoder();
+  const a = encoder.encode(left);
+  const b = encoder.encode(right);
+  if (a.length !== b.length) return false;
+
+  let difference = 0;
+  for (let index = 0; index < a.length; index += 1) {
+    difference |= a[index] ^ b[index];
+  }
+  return difference === 0;
 }
 
 function escapeXml(value: string) {
@@ -224,13 +232,6 @@ async function synthesizeEdgeChunk(
   return response.arrayBuffer();
 }
 
-function resolveElevenVoice(alias: string) {
-  if (alias === "eleven-rachel") {
-    return process.env.ELEVENLABS_VOICE_ID_FEMALE?.trim() || "21m00Tcm4TlvDq8ikWAM";
-  }
-  return process.env.ELEVENLABS_VOICE_ID_MALE?.trim() || "JBFqnCBsd6RMkjVDRZzb";
-}
-
 async function synthesizeElevenChunk(
   text: string,
   voiceId: string,
@@ -250,6 +251,7 @@ async function synthesizeElevenChunk(
       body: JSON.stringify({
         text,
         model_id: ELEVEN_MODEL_ID,
+        language_code: "kk",
         ...(previousText ? { previous_text: previousText } : {}),
         ...(nextText ? { next_text: nextText } : {}),
       }),
@@ -269,8 +271,7 @@ async function synthesizeWithEdge(text: string, voice: string, preset: PresetNam
   );
 }
 
-async function synthesizeWithEleven(text: string, voiceAlias: string, apiKey: string) {
-  const voiceId = resolveElevenVoice(voiceAlias);
+async function synthesizeWithEleven(text: string, voiceId: string, apiKey: string) {
   const chunks = splitText(text, ELEVEN_MAX_CHUNK_SIZE);
   const audioChunks: ArrayBuffer[] = [];
 
@@ -323,14 +324,17 @@ export async function POST(request: Request) {
   if (typeof preset !== "string" || !(preset in PRESETS)) {
     return jsonError("请选择有效的播音节奏。", 400);
   }
-  if (typeof voice !== "string") {
+  if (typeof voice !== "string" || !voice.trim()) {
     return jsonError("请选择有效的哈萨克语播音员。", 400);
   }
 
   if (selectedEngine === "edge" && !ALLOWED_EDGE_VOICES.has(voice)) {
     return jsonError("请选择有效的免费哈萨克语播音员。", 400);
   }
-  if (selectedEngine === "eleven" && !ALLOWED_ELEVEN_VOICES.has(voice)) {
+  if (
+    selectedEngine === "eleven" &&
+    !/^[A-Za-z0-9_-]{8,128}$/.test(voice)
+  ) {
     return jsonError("请选择有效的 ElevenLabs 高质量播音员。", 400);
   }
 
@@ -338,11 +342,18 @@ export async function POST(request: Request) {
 
   if (selectedEngine === "eleven") {
     const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-    if (!apiKey) {
+    const accessPin = process.env.ELEVENLABS_ACCESS_PIN?.trim();
+
+    if (!apiKey || !accessPin) {
       return jsonError(
-        "高质量模式尚未配置 ElevenLabs API Key。免费模式仍可正常使用。",
+        "高质量模式尚未完成配置。免费模式仍可正常使用。",
         503,
       );
+    }
+
+    const submittedPin = request.headers.get("x-eleven-access")?.trim() || "";
+    if (!submittedPin || !constantTimeEqual(submittedPin, accessPin)) {
+      return jsonError("高质量模式访问密码不正确。", 401);
     }
 
     try {
