@@ -24,7 +24,7 @@ const EDGE_VOICES = [
 ] as const;
 
 const PRESETS = [
-  { id: "news", label: "标准新闻", note: "清晰、有分量", rateFactor: 1 },
+  { id: "news", label: "标准新闻", note: "原生自然 · 推荐", rateFactor: 1 },
   { id: "calm", label: "沉稳长稿", note: "稍慢、便于听清", rateFactor: 0.92 },
   { id: "bulletin", label: "简明快讯", note: "节奏更紧凑", rateFactor: 1.08 },
   { id: "expressive", label: "生动播报", note: "更有起伏、适合旁白", rateFactor: 1.02 },

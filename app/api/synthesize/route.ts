@@ -21,7 +21,7 @@ const ALLOWED_EDGE_VOICES = new Set([
 ]);
 
 const PRESETS = {
-  news: { rateFactor: 0.96, pitch: -0.5, volume: 0 },
+  news: { rateFactor: 1, pitch: 0, volume: 0 },
   calm: { rateFactor: 0.9, pitch: -1.5, volume: -0.5 },
   bulletin: { rateFactor: 1.03, pitch: -0.5, volume: 0.5 },
   expressive: { rateFactor: 0.98, pitch: 1, volume: 0.5 },
@@ -669,6 +669,22 @@ function edgeProsody(
   );
 }
 
+function hasRecognizedEdgeTag(text: string) {
+  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
+  for (const match of text.matchAll(matcher)) {
+    const rawTag = (match[1] ?? "").trim();
+    if (EDGE_TAG_STYLES[rawTag]) return true;
+  }
+  return false;
+}
+
+function edgeNativeProsody(text: string, settings: EdgeVoiceSettings) {
+  const effectiveSpeed = clamp(settings.speed, 0.58, 1.35);
+  const effectivePitch = clamp(settings.pitch, -18, 18);
+  const effectiveVolume = clamp(settings.volume, -7, 7);
+  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
+}
+
 function buildEdgeSsml(
   text: string,
   voice: string,
@@ -676,6 +692,18 @@ function buildEdgeSsml(
   settings: EdgeVoiceSettings,
   documentPlan?: EdgeDocumentPlan,
 ) {
+  // Standard news is deliberately native-first: one continuous prosody span,
+  // original punctuation, and no sentence-level director intervention. If the
+  // user explicitly adds an emotion tag, fall back to the enhanced pipeline.
+  if (preset === "news" && !hasRecognizedEdgeTag(text)) {
+    return [
+      '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
+      `<voice name="${voice}">`,
+      edgeNativeProsody(text, settings),
+      "</voice>",
+      "</speak>",
+    ].join("");
+  }
   const directed = normalizeEdgeAudioTags(text);
   const matcher = /\[\[EDGE:([^\]]+)\]\]([\s\S]*?)\[\[\/EDGE\]\]/gu;
   let body = "";
