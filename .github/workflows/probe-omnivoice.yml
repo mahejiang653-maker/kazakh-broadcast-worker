@@ -1,0 +1,32 @@
+name: Probe OmniVoice Space
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-omnivoice.yml'
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe Gradio API
+        shell: bash
+        run: |
+          set -x
+          BASE='https://shyngys879-kazakhtts-omnivoice-demo.hf.space'
+          echo '=== /gradio_api/info ==='
+          curl -L --max-time 90 -sS -D /tmp/headers "$BASE/gradio_api/info" -o /tmp/info || true
+          cat /tmp/headers || true
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/info')
+          print(p.read_text(errors='replace')[:20000] if p.exists() else 'NO_BODY')
+          PY
+          echo '=== /config ==='
+          curl -L --max-time 90 -sS "$BASE/config" -o /tmp/config || true
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/config')
+          print(p.read_text(errors='replace')[:20000] if p.exists() else 'NO_BODY')
+          PY
