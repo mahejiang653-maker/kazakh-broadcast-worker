@@ -25,6 +25,15 @@ type ElevenVoicesPayload = {
   next_page_token?: string | null;
 };
 
+type ElevenErrorPayload = {
+  detail?:
+    | string
+    | {
+        status?: string;
+        message?: string;
+      };
+};
+
 async function fetchVoicePage(apiKey: string, nextPageToken?: string) {
   const url = new URL(ELEVEN_VOICES_ENDPOINT);
   url.searchParams.set("page_size", "100");
@@ -42,8 +51,23 @@ async function fetchVoicePage(apiKey: string, nextPageToken?: string) {
   });
 }
 
+function safeKeyDiagnostic(rawKey: string, apiKey: string) {
+  const hasOuterWhitespace = rawKey !== apiKey;
+  const hasQuote = apiKey.startsWith('"') || apiKey.endsWith('"') || apiKey.startsWith("'") || apiKey.endsWith("'");
+  return `Max 长度 ${apiKey.length} 个字符；首尾空白：${hasOuterWhitespace ? "有" : "无"}；首尾引号：${hasQuote ? "有" : "无"}`;
+}
+
+function describeElevenError(payload: ElevenErrorPayload | null) {
+  if (!payload?.detail) return "ElevenLabs 未返回详细原因";
+  if (typeof payload.detail === "string") return payload.detail;
+  const status = payload.detail.status?.trim();
+  const message = payload.detail.message?.trim();
+  return [status, message].filter(Boolean).join(" · ") || "ElevenLabs 未返回详细原因";
+}
+
 export async function POST() {
-  const apiKey = process.env.Max?.trim();
+  const rawKey = process.env.Max ?? "";
+  const apiKey = rawKey.trim();
 
   if (!apiKey) {
     return jsonError(
@@ -60,22 +84,26 @@ export async function POST() {
       const response = await fetchVoicePage(apiKey, nextPageToken);
 
       if (!response.ok) {
+        const errorPayload = (await response.json().catch(() => null)) as ElevenErrorPayload | null;
+        const reason = describeElevenError(errorPayload);
+        const diagnostic = safeKeyDiagnostic(rawKey, apiKey);
+
         if (response.status === 401) {
           return jsonError(
-            "Cloudflare 已读取到 Max，但 ElevenLabs 返回 401：这个 Key 无效、已删除、已过期，或复制的不是完整 API Key。",
+            `ElevenLabs 返回 401：${reason}。${diagnostic}。Key 本身不会显示。`,
             502,
           );
         }
         if (response.status === 403) {
           return jsonError(
-            "Cloudflare 已读取到 Max，但 ElevenLabs 返回 403：Key 权限不足或设置了 IP 限制。请开启 Voices 读取与 Text to Speech 权限，并取消 IP 限制。",
+            `ElevenLabs 返回 403：${reason}。请检查 Key 权限或 IP 限制。${diagnostic}。`,
             502,
           );
         }
         if (response.status === 429) {
           return jsonError("ElevenLabs 当前请求过于频繁，请稍后再试。", 429);
         }
-        return jsonError(`ElevenLabs 返回错误 ${response.status}，暂时无法读取声线。`, 502);
+        return jsonError(`ElevenLabs 返回错误 ${response.status}：${reason}。`, 502);
       }
 
       const payload = (await response.json()) as ElevenVoicesPayload;
