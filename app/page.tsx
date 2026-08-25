@@ -628,8 +628,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">EDGE</div>
                 <div>
-                  <strong>Edge TTS · 免费增强模式</strong>
-                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格。纯哈萨克稿继续使用 Дәулет / Айгүл；只要检测到中文，整篇自动切换为匹配性别的一条 Multilingual Neural Voice，并在同一音色内分别按哈萨克语和普通话发音，不消耗 ElevenLabs 额度。</p>
+                  <strong>Edge TTS · 免费真人化模式</strong>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格；新增长上下文合成与哈萨克语真人化文本前端，尽量减少长稿分段后的语气重置。纯哈萨克稿继续使用 Дәулет / Айгүл；只要检测到中文，整篇自动切换为匹配性别的一条 Multilingual Neural Voice，并在同一音色内分别按哈萨克语和普通话发音，不消耗 ElevenLabs 额度。</p>
                 </div>
               </div>
             </>

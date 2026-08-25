@@ -1,4 +1,5 @@
 import { analyzeEdgeDocument, type EdgeDocumentPlan } from "../../lib/edge-director";
+import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
 import {
   renderEdgeOmniInspiredMarkup,
   splitEdgeTextByDuration,
@@ -8,7 +9,7 @@ const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-ve
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
 const MAX_CHARACTERS = 6000;
-const EDGE_MAX_CHUNK_SIZE = 1600;
+const EDGE_MAX_CHUNK_SIZE = 4800;
 const ELEVEN_MAX_CHUNK_SIZE = 2200;
 const ELEVEN_MODEL_ID = "eleven_v3";
 const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
@@ -577,11 +578,11 @@ async function synthesizeEdgeChunk(
         Authorization: endpoint.t,
         "Content-Type": "application/ssml+xml",
         "User-Agent": "okhttp/4.5.0",
-        "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
+        "X-Microsoft-OutputFormat": "audio-24khz-160kbitrate-mono-mp3",
       },
       body: buildEdgeSsml(text, voice, preset, settings, documentPlan, useMultilingual),
     },
-    30000,
+    120000,
   );
 
   if (!response.ok) throw new Error(`speech:${response.status}`);
@@ -680,30 +681,69 @@ async function synthesizeWithEdge(
   settings: EdgeVoiceSettings,
 ) {
   const endpoint = await getEndpoint();
-  // Analyze the complete article before chunking, then reuse one global plan for every audio chunk.
-  // This keeps title/lead/background/climax/ending decisions consistent across long-form news.
-  const documentPlan = analyzeEdgeDocument(text);
-  // Like OmniVoice, split by estimated speaking duration instead of raw text length.
-  // Use longer Edge chunks to preserve Microsoft's native contextual cadence.
+  const preparedText = prepareEdgeHumanText(text);
+  if (!preparedText) return [];
+
+  // Preserve one coherent article context for as long as the service allows.
+  // Unlike the older 1600-character path, a typical news article now needs
+  // only one request (or two for very long copy), which greatly reduces the
+  // audible prosody reset at MP3 boundaries.
+  const documentPlan = analyzeEdgeDocument(preparedText);
+  const effectiveSpeed = settings.speed * PRESETS[preset].rateFactor;
   const chunks = splitEdgeTextByDuration(
-    text,
-    settings.speed * PRESETS[preset].rateFactor,
+    preparedText,
+    effectiveSpeed,
     EDGE_MAX_CHUNK_SIZE,
+    210,
+    480,
   );
-  const useMultilingual = hasHanCharacters(text);
-  return Promise.all(
-    chunks.map((chunk) =>
-      synthesizeEdgeChunk(
+  const useMultilingual = hasHanCharacters(preparedText);
+  const audioChunks: ArrayBuffer[] = [];
+
+  for (const chunk of chunks) {
+    try {
+      audioChunks.push(
+        await synthesizeEdgeChunk(
+          chunk,
+          voice,
+          preset,
+          settings,
+          endpoint,
+          documentPlan,
+          useMultilingual,
+        ),
+      );
+      continue;
+    } catch (error) {
+      // Be aggressive about context, conservative about reliability: if this
+      // internal Edge endpoint ever rejects a long request, retry it at a much
+      // smaller sentence-aware size instead of failing the user's whole稿件.
+      if (chunk.length < 2300) throw error;
+      const fallbackChunks = splitEdgeTextByDuration(
         chunk,
-        voice,
-        preset,
-        settings,
-        endpoint,
-        documentPlan,
-        useMultilingual,
-      ),
-    ),
-  );
+        effectiveSpeed,
+        2100,
+        78,
+        145,
+      );
+      if (fallbackChunks.length <= 1) throw error;
+      for (const fallback of fallbackChunks) {
+        audioChunks.push(
+          await synthesizeEdgeChunk(
+            fallback,
+            voice,
+            preset,
+            settings,
+            endpoint,
+            documentPlan,
+            useMultilingual,
+          ),
+        );
+      }
+    }
+  }
+
+  return audioChunks;
 }
 
 async function synthesizeWithEleven(

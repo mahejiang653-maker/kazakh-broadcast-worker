@@ -119,6 +119,10 @@ function speechWeight(text: string) {
     if (/\p{M}/u.test(char)) continue;
     if (/\p{N}/u.test(char)) {
       weight += 2.8;
+    } else if (/\p{Script=Han}/u.test(char)) {
+      // A Han character generally expands to a full spoken syllable; assign a
+      // larger budget so mixed-language articles are not packed too tightly.
+      weight += 2.15;
     } else if (/\s/u.test(char)) {
       weight += 0.18;
     } else if (/\p{P}|\p{S}/u.test(char)) {
@@ -157,12 +161,6 @@ function sentenceFragments(source: string) {
     while (/[.!?。！？]/u.test(text[end] ?? "")) end += 1;
     while (/[»”"'’）\])}]/u.test(text[end] ?? "")) end += 1;
 
-    // Keep a sentence-end [情绪] tag attached to the sentence it controls.
-    let cursor = end;
-    while (/\s/u.test(text[cursor] ?? "")) cursor += 1;
-    const tail = text.slice(cursor, cursor + 48);
-    const tag = tail.match(/^[\[【][^\]】\r\n]{1,30}[\]】]/u);
-    if (tag) end = cursor + tag[0].length;
 
     const fragment = text.slice(start, end).trim();
     if (fragment) fragments.push(fragment);
