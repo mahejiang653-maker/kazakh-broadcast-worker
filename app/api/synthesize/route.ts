@@ -1,4 +1,4 @@
-import { renderEdgeDirectorMarkup } from "../../lib/edge-director";
+import { analyzeEdgeDocument, renderEdgeDirectorMarkup, type EdgeDocumentPlan } from "../../lib/edge-director";
 
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
@@ -629,6 +629,7 @@ function edgeProsody(
   settings: EdgeVoiceSettings,
   preset: PresetName,
   tag?: string,
+  documentPlan?: EdgeDocumentPlan,
 ) {
   const presetSettings = PRESETS[preset];
   const tagSettings = tag ? EDGE_TAG_STYLES[tag] : undefined;
@@ -652,11 +653,15 @@ function edgeProsody(
     7,
   );
 
-  return renderEdgeDirectorMarkup(text, {
-    speed: effectiveSpeed,
-    pitch: effectivePitch,
-    volume: effectiveVolume,
-  });
+  return renderEdgeDirectorMarkup(
+    text,
+    {
+      speed: effectiveSpeed,
+      pitch: effectivePitch,
+      volume: effectiveVolume,
+    },
+    documentPlan,
+  );
 }
 
 function buildEdgeSsml(
@@ -664,6 +669,7 @@ function buildEdgeSsml(
   voice: string,
   preset: PresetName,
   settings: EdgeVoiceSettings,
+  documentPlan?: EdgeDocumentPlan,
 ) {
   const directed = normalizeEdgeAudioTags(text);
   const matcher = /\[\[EDGE:([^\]]+)\]\]([\s\S]*?)\[\[\/EDGE\]\]/gu;
@@ -673,16 +679,16 @@ function buildEdgeSsml(
   for (const match of directed.matchAll(matcher)) {
     const index = match.index ?? 0;
     const before = directed.slice(cursor, index);
-    if (before) body += edgeProsody(before, settings, preset);
+    if (before) body += edgeProsody(before, settings, preset, undefined, documentPlan);
 
     const tag = (match[1] ?? "").trim();
     const sentence = match[2] ?? "";
-    body += edgeProsody(sentence, settings, preset, tag);
+    body += edgeProsody(sentence, settings, preset, tag, documentPlan);
     cursor = index + match[0].length;
   }
 
   const tail = directed.slice(cursor);
-  if (tail) body += edgeProsody(tail, settings, preset);
+  if (tail) body += edgeProsody(tail, settings, preset, undefined, documentPlan);
 
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
@@ -699,6 +705,7 @@ async function synthesizeEdgeChunk(
   preset: PresetName,
   settings: EdgeVoiceSettings,
   endpoint: TranslatorEndpoint,
+  documentPlan: EdgeDocumentPlan,
 ) {
   const response = await fetchWithTimeout(
     `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`,
@@ -710,7 +717,7 @@ async function synthesizeEdgeChunk(
         "User-Agent": "okhttp/4.5.0",
         "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
       },
-      body: buildEdgeSsml(text, voice, preset, settings),
+      body: buildEdgeSsml(text, voice, preset, settings, documentPlan),
     },
     30000,
   );
@@ -810,9 +817,14 @@ async function synthesizeWithEdge(
   settings: EdgeVoiceSettings,
 ) {
   const endpoint = await getEndpoint();
+  // Analyze the complete article before chunking, then reuse one global plan for every audio chunk.
+  // This keeps title/lead/background/climax/ending decisions consistent across long-form news.
+  const documentPlan = analyzeEdgeDocument(text);
   const chunks = splitEdgeText(text, EDGE_MAX_CHUNK_SIZE);
   return Promise.all(
-    chunks.map((chunk) => synthesizeEdgeChunk(chunk, voice, preset, settings, endpoint)),
+    chunks.map((chunk) =>
+      synthesizeEdgeChunk(chunk, voice, preset, settings, endpoint, documentPlan),
+    ),
   );
 }
 
