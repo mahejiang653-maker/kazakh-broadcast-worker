@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-edge-native-all:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply Edge native-first to all presets'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply native-first Edge presets
-        run: python scripts/apply_edge_native_all_presets.py
-      - name: Commit native-first Edge presets
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/api/synthesize/route.ts app/page.tsx
-          git commit -m "Make all Edge presets native-first"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
