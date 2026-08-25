@@ -328,7 +328,7 @@ export async function POST(request: Request) {
   const safeText = text.replaceAll("\u0000", "").trim();
 
   if (selectedEngine === "eleven") {
-    const apiKey = process.env.MA?.trim();
+    const apiKey = process.env.Mahjan?.trim() || process.env.MA?.trim();
 
     if (!apiKey) {
       return jsonError(
