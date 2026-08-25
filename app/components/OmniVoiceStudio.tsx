@@ -9,10 +9,10 @@ const DEFAULT_TEXT =
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
 
 const QUALITY_PRESETS = [
-  { id: "fast", label: "快速预览", note: "更快出结果", steps: 12, guidance: 1.6 },
-  { id: "standard", label: "标准模式", note: "速度与质量平衡", steps: 16, guidance: 2.0 },
-  { id: "quality", label: "高质量", note: "细节更完整", steps: 24, guidance: 2.1 },
-  { id: "detail", label: "细腻表现", note: "最慢、表现更细", steps: 32, guidance: 2.3 },
+  { id: "fast", label: "极速模式", note: "推荐 · 最快出结果", steps: 8, guidance: 1.3 },
+  { id: "standard", label: "标准模式", note: "速度与质量平衡", steps: 12, guidance: 1.6 },
+  { id: "quality", label: "高质量", note: "细节更完整", steps: 16, guidance: 2.0 },
+  { id: "detail", label: "细腻表现", note: "较慢 · 表现更细", steps: 24, guidance: 2.1 },
 ] as const;
 
 const VOICE_PRESETS = [
@@ -104,9 +104,9 @@ function formatDuration(seconds: number) {
 export default function OmniVoiceStudio({ sourceText }: { sourceText?: string }) {
   const [text, setText] = useState(sourceText?.slice(0, MAX_CHARACTERS) || DEFAULT_TEXT);
   const [speed, setSpeed] = useState(1);
-  const [steps, setSteps] = useState(16);
-  const [guidance, setGuidance] = useState(2);
-  const [denoise, setDenoise] = useState(true);
+  const [steps, setSteps] = useState(8);
+  const [guidance, setGuidance] = useState(1.3);
+  const [denoise, setDenoise] = useState(false);
   const [gender, setGender] = useState("Male / 男");
   const [age, setAge] = useState("Middle-aged / 中年");
   const [pitch, setPitch] = useState("Moderate Pitch / 中音调");
@@ -297,7 +297,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
           <div className="broadcast-index">GPU</div>
           <div>
             <strong>这是公共 Hugging Face 共享 GPU</strong>
-            <p>首次使用可能冷启动；短句也可能等待约 1–3 分钟。等待期间请保持网页开启。</p>
+            <p>已默认启用 8 步极速档。公共 GPU 仍可能冷启动或排队；不加情绪标签时最快。</p>
           </div>
         </div>
       </div>
@@ -488,7 +488,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
                 onChange={(event) => changeSetting(() => setSteps(Number(event.target.value)))}
                 style={{ width: "100%", accentColor: "var(--mint)" }}
               />
-              <small>越高通常越细腻，但共享 GPU 等待时间也越长</small>
+              <small>8 步最快；步数越高通常越细腻，但共享 GPU 等待时间也会明显增加</small>
             </label>
             <label style={{ display: "block", marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 7 }}>
@@ -505,7 +505,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
                 onChange={(event) => changeSetting(() => setGuidance(Number(event.target.value)))}
                 style={{ width: "100%", accentColor: "var(--mint)" }}
               />
-              <small>控制模型对声线设计条件的遵循强度；默认 2.0</small>
+              <small>控制模型对声线设计条件的遵循强度；极速默认 1.3</small>
             </label>
             <button
               className={denoise ? "preset selected" : "preset"}
@@ -515,7 +515,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
               style={{ width: "100%" }}
             >
               <strong>Denoise：{denoise ? "开启" : "关闭"}</strong>
-              <small>建议保持开启，减少生成噪声</small>
+              <small>关闭更快；需要更干净的高质量结果时再开启</small>
             </button>
           </div>
         </fieldset>
@@ -535,7 +535,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
             <div>
               <strong>同样写在句子后面，控制前面的那一句</strong>
               <p>
-                例如：Бүгін жақсы жаңалық бар! [开心]。OmniVoice 会把这一句单独用不同倍速、音高或耳语风格生成，再自动合并。公共 GPU 较慢，所以一次最多 3 个标签。
+                例如：Бүгін жақсы жаңалық бар! [开心]。每个情绪标签都会增加一次独立 GPU 推理；追求速度时建议先不加标签，最终成稿再添加。一次最多 3 个标签。
               </p>
             </div>
           </div>
@@ -566,7 +566,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
             <strong>{isGenerating ? "OmniVoice 共享 GPU 正在生成…" : `生成 OmniVoice · ${speed.toFixed(2)}×`}</strong>
             <small>
               {isGenerating
-                ? "可能需要 1–3 分钟或更久，请保持页面开启"
+                ? "极速档通常更快；公共 GPU 排队时仍可能需要数分钟"
                 : `声线设计 + 倍速 + 质量 + 情绪标签 · 当前 ${steps} 步`}
             </small>
           </span>

@@ -380,9 +380,9 @@ export async function POST(request: Request) {
   }
 
   const safeSpeed = typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
-  const safeSteps = typeof steps === "number" && Number.isFinite(steps) ? Math.round(steps) : 16;
-  const safeGuidance = typeof guidance === "number" && Number.isFinite(guidance) ? guidance : 2;
-  const safeDenoise = typeof denoise === "boolean" ? denoise : true;
+  const safeSteps = typeof steps === "number" && Number.isFinite(steps) ? Math.round(steps) : 8;
+  const safeGuidance = typeof guidance === "number" && Number.isFinite(guidance) ? guidance : 1.3;
+  const safeDenoise = typeof denoise === "boolean" ? denoise : false;
   const safeGender = typeof gender === "string" ? gender : "Male / 男";
   const safeAge = typeof age === "string" ? age : "Middle-aged / 中年";
   const safePitch = typeof pitch === "string" ? pitch : "Moderate Pitch / 中音调";
