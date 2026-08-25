@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-edge-human-speech-v3:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply Edge human speech v3'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply Edge human speech upgrade
-        run: python scripts/apply_edge_human_speech_v3.py
-      - name: Commit Edge human speech upgrade
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/api/synthesize/route.ts app/lib/edge-omnivoice-inspired.ts app/page.tsx
-          git commit -m "Upgrade Edge long-context human speech"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
