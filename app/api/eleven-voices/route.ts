@@ -36,8 +36,8 @@ type ElevenVoicesPayload = {
 };
 
 export async function POST(request: Request) {
-  const apiKey = process.env.ELEVENLABS_API_KEY?.trim();
-  const accessPin = process.env.ELEVENLABS_ACCESS_PIN?.trim();
+  const apiKey = process.env.MA?.trim();
+  const accessPin = process.env.AM?.trim();
 
   if (!apiKey || !accessPin) {
     return jsonError(
