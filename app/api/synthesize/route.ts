@@ -2,12 +2,12 @@ const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-ve
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
 const MAX_CHARACTERS = 6000;
-const EDGE_MAX_CHUNK_SIZE = 1800;
+const EDGE_MAX_CHUNK_SIZE = 1600;
 const ELEVEN_MAX_CHUNK_SIZE = 2200;
 const ELEVEN_MODEL_ID = "eleven_v3";
 const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
-const ELEVEN_MIN_SPEED = 0.7;
-const ELEVEN_MAX_SPEED = 1.2;
+const MIN_SPEED = 0.7;
+const MAX_SPEED = 1.2;
 
 const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-DauletNeural",
@@ -15,9 +15,10 @@ const ALLOWED_EDGE_VOICES = new Set([
 ]);
 
 const PRESETS = {
-  news: { rate: "-2%", pitch: "-1%" },
-  calm: { rate: "-10%", pitch: "-2%" },
-  bulletin: { rate: "+6%", pitch: "+0%" },
+  news: { rateFactor: 1, pitch: -1, volume: 1 },
+  calm: { rateFactor: 0.92, pitch: -2, volume: -1 },
+  bulletin: { rateFactor: 1.08, pitch: 0, volume: 2 },
+  expressive: { rateFactor: 1.02, pitch: 3, volume: 2 },
 } as const;
 
 const CHINESE_AUDIO_TAGS: Record<string, string> = {
@@ -65,6 +66,54 @@ const CHINESE_AUDIO_TAGS: Record<string, string> = {
   快速: "quickly",
 };
 
+const EDGE_TAG_STYLES: Record<
+  string,
+  { rateFactor: number; pitch: number; volume: number }
+> = {
+  开心: { rateFactor: 1.06, pitch: 8, volume: 1 },
+  高兴: { rateFactor: 1.06, pitch: 8, volume: 1 },
+  快乐: { rateFactor: 1.06, pitch: 8, volume: 1 },
+  兴奋: { rateFactor: 1.12, pitch: 12, volume: 2 },
+  激动: { rateFactor: 1.12, pitch: 10, volume: 3 },
+  热情: { rateFactor: 1.08, pitch: 7, volume: 2 },
+  悲伤: { rateFactor: 0.86, pitch: -8, volume: -2 },
+  难过: { rateFactor: 0.88, pitch: -7, volume: -2 },
+  伤心: { rateFactor: 0.84, pitch: -9, volume: -3 },
+  哭泣: { rateFactor: 0.8, pitch: -10, volume: -4 },
+  愤怒: { rateFactor: 1.04, pitch: 2, volume: 5 },
+  生气: { rateFactor: 1.03, pitch: 2, volume: 4 },
+  担心: { rateFactor: 0.93, pitch: 3, volume: -1 },
+  忧虑: { rateFactor: 0.9, pitch: 1, volume: -1 },
+  紧张: { rateFactor: 1.08, pitch: 5, volume: 0 },
+  害怕: { rateFactor: 1.08, pitch: 7, volume: 0 },
+  恐惧: { rateFactor: 1.1, pitch: 8, volume: -1 },
+  惊讶: { rateFactor: 1.05, pitch: 11, volume: 2 },
+  好奇: { rateFactor: 0.96, pitch: 5, volume: 0 },
+  疲惫: { rateFactor: 0.82, pitch: -6, volume: -3 },
+  自信: { rateFactor: 0.98, pitch: -1, volume: 3 },
+  严肃: { rateFactor: 0.93, pitch: -4, volume: 2 },
+  平静: { rateFactor: 0.9, pitch: -2, volume: -1 },
+  冷静: { rateFactor: 0.92, pitch: -3, volume: 0 },
+  轻松: { rateFactor: 0.94, pitch: 2, volume: -1 },
+  温柔: { rateFactor: 0.88, pitch: 3, volume: -3 },
+  温暖: { rateFactor: 0.92, pitch: 2, volume: -1 },
+  轻声: { rateFactor: 0.86, pitch: 1, volume: -5 },
+  小声: { rateFactor: 0.82, pitch: -2, volume: -7 },
+  耳语: { rateFactor: 0.8, pitch: -3, volume: -8 },
+  大声: { rateFactor: 1.02, pitch: 2, volume: 7 },
+  喊叫: { rateFactor: 1.08, pitch: 5, volume: 8 },
+  神秘: { rateFactor: 0.84, pitch: -4, volume: -4 },
+  调皮: { rateFactor: 1.05, pitch: 8, volume: 0 },
+  讽刺: { rateFactor: 0.95, pitch: 4, volume: 0 },
+  笑: { rateFactor: 1.06, pitch: 8, volume: 0 },
+  轻笑: { rateFactor: 1.05, pitch: 9, volume: -1 },
+  大笑: { rateFactor: 1.12, pitch: 13, volume: 3 },
+  叹气: { rateFactor: 0.78, pitch: -7, volume: -4 },
+  清嗓: { rateFactor: 0.82, pitch: -2, volume: 1 },
+  慢速: { rateFactor: 0.78, pitch: 0, volume: 0 },
+  快速: { rateFactor: 1.18, pitch: 0, volume: 0 },
+};
+
 type PresetName = keyof typeof PRESETS;
 type EngineName = "edge" | "eleven";
 
@@ -79,6 +128,12 @@ type ElevenVoiceSettings = {
   similarityBoost: number;
   style: number;
   speakerBoost: boolean;
+};
+
+type EdgeVoiceSettings = {
+  speed: number;
+  pitch: number;
+  volume: number;
 };
 
 let tokenCache: {
@@ -143,6 +198,24 @@ function formattedDate() {
   return new Date().toUTCString().replace("GMT", "").trim().concat(" GMT").toLowerCase();
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function signedPercent(value: number) {
+  const rounded = Math.round(value);
+  return `${rounded >= 0 ? "+" : ""}${rounded}%`;
+}
+
+function signedDb(value: number) {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded >= 0 ? "+" : ""}${rounded}dB`;
+}
+
+function speedToRate(speed: number) {
+  return signedPercent((speed - 1) * 100);
+}
+
 function applyTagToPreviousSentence(source: string, mappedTag: string) {
   let contentEnd = source.length;
   while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
@@ -171,6 +244,33 @@ function applyTagToPreviousSentence(source: string, mappedTag: string) {
   return `${beforeSentence}${leadingWhitespace}[${mappedTag}] ${sentence}${trailingWhitespace}`;
 }
 
+function applyEdgeTagToPreviousSentence(source: string, tag: string) {
+  let contentEnd = source.length;
+  while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
+
+  if (!source.slice(0, contentEnd).trim()) return source;
+
+  let searchFrom = contentEnd - 1;
+  if (/[.!?。！？]/u.test(source[searchFrom] ?? "")) searchFrom -= 1;
+
+  let sentenceStart = 0;
+  for (let index = searchFrom; index >= 0; index -= 1) {
+    if (/[.!?。！？\n]/u.test(source[index])) {
+      sentenceStart = index + 1;
+      break;
+    }
+  }
+
+  const beforeSentence = source.slice(0, sentenceStart);
+  const sentenceWithSpacing = source.slice(sentenceStart, contentEnd);
+  const trailingWhitespace = source.slice(contentEnd);
+  const leadingWhitespace = sentenceWithSpacing.match(/^\s*/u)?.[0] ?? "";
+  const sentence = sentenceWithSpacing.slice(leadingWhitespace.length);
+
+  if (!sentence.trim()) return source;
+  return `${beforeSentence}${leadingWhitespace}[[EDGE:${tag}]]${sentence}[[/EDGE]]${trailingWhitespace}`;
+}
+
 function normalizeElevenAudioTags(text: string) {
   const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
   let output = "";
@@ -185,6 +285,29 @@ function normalizeElevenAudioTags(text: string) {
 
     if (mapped) {
       output = applyTagToPreviousSentence(output, mapped);
+    } else {
+      output += match[0];
+    }
+
+    cursor = index + match[0].length;
+  }
+
+  output += text.slice(cursor);
+  return output;
+}
+
+function normalizeEdgeAudioTags(text: string) {
+  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
+  let output = "";
+  let cursor = 0;
+
+  for (const match of text.matchAll(matcher)) {
+    const index = match.index ?? 0;
+    output += text.slice(cursor, index);
+    const rawTag = (match[1] ?? "").trim();
+
+    if (EDGE_TAG_STYLES[rawTag]) {
+      output = applyEdgeTagToPreviousSentence(output, rawTag);
     } else {
       output += match[0];
     }
@@ -297,12 +420,102 @@ function splitText(text: string, maxChunkSize: number) {
   return chunks;
 }
 
-function buildSsml(text: string, voice: string, preset: PresetName) {
-  const { rate, pitch } = PRESETS[preset];
+function splitEdgeText(text: string, maxChunkSize: number) {
+  const normalized = text.replaceAll("\r\n", "\n").replace(/[\t ]+/g, " ").trim();
+  if (normalized.length <= maxChunkSize) return [normalized];
+
+  const chunks: string[] = [];
+  let rest = normalized;
+
+  while (rest.length > maxChunkSize) {
+    const window = rest.slice(0, maxChunkSize + 90);
+    const searchWindow = window.slice(0, maxChunkSize + 1);
+    const punctuation = Math.max(
+      searchWindow.lastIndexOf("."),
+      searchWindow.lastIndexOf("!"),
+      searchWindow.lastIndexOf("?"),
+      searchWindow.lastIndexOf("。"),
+      searchWindow.lastIndexOf("！"),
+      searchWindow.lastIndexOf("？"),
+      searchWindow.lastIndexOf("\n"),
+    );
+    const whitespace = searchWindow.lastIndexOf(" ");
+    let breakAt = punctuation > maxChunkSize * 0.55
+      ? punctuation + 1
+      : whitespace > maxChunkSize * 0.55
+        ? whitespace
+        : maxChunkSize;
+
+    if (punctuation > maxChunkSize * 0.55) {
+      const after = window.slice(breakAt);
+      const tagMatch = after.match(/^\s*[\[【][^\]】\r\n]{1,30}[\]】]/u);
+      if (tagMatch) breakAt += tagMatch[0].length;
+    }
+
+    chunks.push(rest.slice(0, breakAt).trim());
+    rest = rest.slice(breakAt).trim();
+  }
+
+  if (rest) chunks.push(rest);
+  return chunks;
+}
+
+function edgeProsody(
+  text: string,
+  settings: EdgeVoiceSettings,
+  preset: PresetName,
+  tag?: string,
+) {
+  const presetSettings = PRESETS[preset];
+  const tagSettings = tag ? EDGE_TAG_STYLES[tag] : undefined;
+  const effectiveSpeed = clamp(
+    settings.speed * presetSettings.rateFactor * (tagSettings?.rateFactor ?? 1),
+    0.5,
+    1.5,
+  );
+  const effectivePitch = clamp(
+    settings.pitch + presetSettings.pitch + (tagSettings?.pitch ?? 0),
+    -35,
+    35,
+  );
+  const effectiveVolume = clamp(
+    settings.volume + presetSettings.volume + (tagSettings?.volume ?? 0),
+    -12,
+    12,
+  );
+
+  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedDb(effectiveVolume)}">${escapeXml(text)}</prosody>`;
+}
+
+function buildEdgeSsml(
+  text: string,
+  voice: string,
+  preset: PresetName,
+  settings: EdgeVoiceSettings,
+) {
+  const directed = normalizeEdgeAudioTags(text);
+  const matcher = /\[\[EDGE:([^\]]+)\]\]([\s\S]*?)\[\[\/EDGE\]\]/gu;
+  let body = "";
+  let cursor = 0;
+
+  for (const match of directed.matchAll(matcher)) {
+    const index = match.index ?? 0;
+    const before = directed.slice(cursor, index);
+    if (before) body += edgeProsody(before, settings, preset);
+
+    const tag = (match[1] ?? "").trim();
+    const sentence = match[2] ?? "";
+    body += edgeProsody(sentence, settings, preset, tag);
+    cursor = index + match[0].length;
+  }
+
+  const tail = directed.slice(cursor);
+  if (tail) body += edgeProsody(tail, settings, preset);
+
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
     `<voice name="${voice}">`,
-    `<prosody rate="${rate}" pitch="${pitch}" volume="+0%">${escapeXml(text)}</prosody>`,
+    body,
     "</voice>",
     "</speak>",
   ].join("");
@@ -312,6 +525,7 @@ async function synthesizeEdgeChunk(
   text: string,
   voice: string,
   preset: PresetName,
+  settings: EdgeVoiceSettings,
   endpoint: TranslatorEndpoint,
 ) {
   const response = await fetchWithTimeout(
@@ -324,7 +538,7 @@ async function synthesizeEdgeChunk(
         "User-Agent": "okhttp/4.5.0",
         "X-Microsoft-OutputFormat": "audio-24khz-48kbitrate-mono-mp3",
       },
-      body: buildSsml(text, voice, preset),
+      body: buildEdgeSsml(text, voice, preset, settings),
     },
     30000,
   );
@@ -417,11 +631,16 @@ async function synthesizeElevenChunk(
   return response.arrayBuffer();
 }
 
-async function synthesizeWithEdge(text: string, voice: string, preset: PresetName) {
+async function synthesizeWithEdge(
+  text: string,
+  voice: string,
+  preset: PresetName,
+  settings: EdgeVoiceSettings,
+) {
   const endpoint = await getEndpoint();
-  const chunks = splitText(text, EDGE_MAX_CHUNK_SIZE);
+  const chunks = splitEdgeText(text, EDGE_MAX_CHUNK_SIZE);
   return Promise.all(
-    chunks.map((chunk) => synthesizeEdgeChunk(chunk, voice, preset, endpoint)),
+    chunks.map((chunk) => synthesizeEdgeChunk(chunk, voice, preset, settings, endpoint)),
   );
 }
 
@@ -535,6 +754,8 @@ export async function POST(request: Request) {
     similarityBoost,
     style,
     speakerBoost,
+    edgePitch,
+    edgeVolume,
   } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
@@ -566,20 +787,21 @@ export async function POST(request: Request) {
   }
 
   const safeText = text.replaceAll("\u0000", "").trim();
+  const selectedSpeed =
+    typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
+
+  if (selectedSpeed < MIN_SPEED || selectedSpeed > MAX_SPEED) {
+    return jsonError("倍速必须在 0.7× 到 1.2× 之间。", 400);
+  }
 
   if (selectedEngine === "eleven") {
     const apiKey = process.env.Max?.trim();
-    const selectedSpeed =
-      typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
     const selectedStability = readUnitInterval(stability, 0.5);
     const selectedSimilarity = readUnitInterval(similarityBoost, 0.75);
     const selectedStyle = readUnitInterval(style, 0);
     const selectedSpeakerBoost =
       typeof speakerBoost === "boolean" ? speakerBoost : true;
 
-    if (selectedSpeed < ELEVEN_MIN_SPEED || selectedSpeed > ELEVEN_MAX_SPEED) {
-      return jsonError("ElevenLabs 倍速必须在 0.7× 到 1.2× 之间。", 400);
-    }
     if (
       selectedStability < 0 ||
       selectedStability > 1 ||
@@ -624,11 +846,30 @@ export async function POST(request: Request) {
     }
   }
 
+  const selectedPitch =
+    typeof edgePitch === "number" && Number.isFinite(edgePitch) ? edgePitch : 0;
+  const selectedVolume =
+    typeof edgeVolume === "number" && Number.isFinite(edgeVolume) ? edgeVolume : 0;
+
+  if (selectedPitch < -20 || selectedPitch > 20) {
+    return jsonError("Edge TTS 音调必须在 -20% 到 +20% 之间。", 400);
+  }
+  if (selectedVolume < -8 || selectedVolume > 8) {
+    return jsonError("Edge TTS 音量必须在 -8dB 到 +8dB 之间。", 400);
+  }
+
+  const edgeSettings: EdgeVoiceSettings = {
+    speed: selectedSpeed,
+    pitch: selectedPitch,
+    volume: selectedVolume,
+  };
+
   try {
     const audioChunks = await synthesizeWithEdge(
       safeText,
       voice,
       preset as PresetName,
+      edgeSettings,
     );
     return audioResponse(audioChunks, "edge");
   } catch (error) {
