@@ -28,6 +28,21 @@ const PRESETS = [
   { id: "bulletin", label: "简明快讯", note: "节奏更紧凑" },
 ] as const;
 
+const SPEED_PRESETS = [0.7, 0.85, 1, 1.1, 1.2] as const;
+
+const AUDIO_TAGS = [
+  { label: "开心", note: "明亮愉快" },
+  { label: "兴奋", note: "更有能量" },
+  { label: "悲伤", note: "低沉克制" },
+  { label: "愤怒", note: "强烈有力" },
+  { label: "担心", note: "紧张忧虑" },
+  { label: "温柔", note: "柔和轻缓" },
+  { label: "小声", note: "耳语效果" },
+  { label: "大声", note: "提高强度" },
+  { label: "轻笑", note: "自然轻笑" },
+  { label: "叹气", note: "自然叹息" },
+] as const;
+
 type Engine = "edge" | "eleven";
 type PresetId = (typeof PRESETS)[number]["id"];
 type ElevenVoice = {
@@ -35,7 +50,10 @@ type ElevenVoice = {
   name: string;
   gender: string;
   accent: string;
+  age?: string;
+  useCase?: string;
   category: string;
+  previewUrl?: string;
 };
 
 function formatDuration(seconds: number) {
@@ -46,7 +64,13 @@ function formatDuration(seconds: number) {
 }
 
 function describeElevenVoice(item: ElevenVoice) {
-  const details = [item.gender, item.accent, item.category].filter(Boolean);
+  const details = [
+    item.gender,
+    item.age,
+    item.accent,
+    item.useCase,
+    item.category,
+  ].filter(Boolean);
   return details.length ? details.join(" · ") : "ElevenLabs 声线";
 }
 
@@ -55,6 +79,7 @@ export default function Home() {
   const [engine, setEngine] = useState<Engine>("edge");
   const [voice, setVoice] = useState<string>("kk-KZ-DauletNeural");
   const [preset, setPreset] = useState<PresetId>("news");
+  const [speed, setSpeed] = useState(1);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -62,6 +87,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
   const audioUrlRef = useRef<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
@@ -73,7 +99,7 @@ export default function Home() {
     Math.round(
       wordCount /
         (engine === "eleven"
-          ? 2.35
+          ? 2.35 * speed
           : preset === "bulletin"
             ? 2.7
             : preset === "calm"
@@ -149,6 +175,39 @@ export default function Home() {
     }
   }
 
+  function insertAudioTag(tag: string) {
+    const textarea = textareaRef.current;
+    const token = `[${tag}]`;
+
+    if (!textarea) {
+      setText((current) => `${current}${current ? " " : ""}${token}`);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? text.length;
+    const end = textarea.selectionEnd ?? start;
+    const prefix = text.slice(0, start);
+    const suffix = text.slice(end);
+    const needsSpace = prefix.length > 0 && !/\s$/u.test(prefix);
+    const insertion = `${needsSpace ? " " : ""}${token} `;
+    const nextText = `${prefix}${insertion}${suffix}`;
+
+    if (nextText.length > MAX_CHARACTERS) {
+      setError(`文本不能超过 ${MAX_CHARACTERS} 个字符。`);
+      return;
+    }
+
+    setText(nextText);
+    setError("");
+    resetAudio();
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = prefix.length + insertion.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+  }
+
   async function generateAudio() {
     const cleanText = text.trim();
     if (!cleanText) {
@@ -173,7 +232,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: cleanText, engine, voice, preset }),
+        body: JSON.stringify({ text: cleanText, engine, voice, preset, speed }),
       });
 
       if (!response.ok) {
@@ -251,11 +310,12 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            粘贴哈萨克语稿件，在免费 Edge TTS 与 ElevenLabs v3 高质量模式之间切换。可直接试听，也可下载为 MP3。
+            粘贴哈萨克语稿件，在免费 Edge TTS 与 ElevenLabs v3 高质量模式之间切换。高质量模式支持更多声线、倍速与情绪标签。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>免费 / 高质量双模式</span>
-            <span>ElevenLabs v3</span>
+            <span>v3 情绪标签</span>
+            <span>0.7×–1.2× 倍速</span>
             <span>MP3 下载</span>
           </div>
 
@@ -286,6 +346,7 @@ export default function Home() {
             </div>
             <div className="textarea-wrap">
               <textarea
+                ref={textareaRef}
                 id="kazakh-text"
                 value={text}
                 maxLength={MAX_CHARACTERS}
@@ -336,7 +397,7 @@ export default function Home() {
                 <span className="voice-avatar">3</span>
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
-                  <small>ElevenLabs v3 · 无需密码</small>
+                  <small>ElevenLabs v3 · 声线 / 倍速 / 情绪</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -407,7 +468,7 @@ export default function Home() {
                     onClick={loadElevenVoices}
                     disabled={isLoadingVoices}
                   >
-                    {isLoadingVoices ? "读取中…" : elevenVoices.length ? "刷新声线" : "读取声线"}
+                    {isLoadingVoices ? "读取中…" : elevenVoices.length ? "刷新全部声线" : "读取全部声线"}
                   </button>
                 </div>
                 <div className="textarea-wrap">
@@ -431,7 +492,7 @@ export default function Home() {
                     }}
                   >
                     {!elevenVoices.length ? (
-                      <option value="">{isLoadingVoices ? "正在读取 ElevenLabs 声线…" : "点击读取声线"}</option>
+                      <option value="">{isLoadingVoices ? "正在读取 ElevenLabs 声线…" : "点击读取全部声线"}</option>
                     ) : null}
                     {elevenVoices.map((item) => (
                       <option key={item.id} value={item.id}>
@@ -440,17 +501,97 @@ export default function Home() {
                     ))}
                   </select>
                   <div className="textarea-footer">
-                    <span>无需密码 · API Key 仅保存在 Cloudflare 服务端</span>
+                    <span>一次最多读取 300 条账号可用声线</span>
                     <span>{elevenVoices.length ? `已读取 ${elevenVoices.length} 条声线` : "ElevenLabs v3"}</span>
                   </div>
                 </div>
               </div>
 
+              <fieldset className="field-block">
+                <legend>倍速调节</legend>
+                <div
+                  className="textarea-wrap"
+                  style={{ padding: "16px 17px 12px" }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                    }}
+                  >
+                    <span style={{ minWidth: 42, fontWeight: 700, fontSize: 15 }}>
+                      {speed.toFixed(2)}×
+                    </span>
+                    <input
+                      aria-label="ElevenLabs 倍速"
+                      type="range"
+                      min="0.7"
+                      max="1.2"
+                      step="0.05"
+                      value={speed}
+                      onChange={(event) => {
+                        setSpeed(Number(event.target.value));
+                        resetAudio();
+                      }}
+                      style={{ width: "100%", accentColor: "var(--mint)" }}
+                    />
+                  </div>
+                  <div className="preset-grid" style={{ marginTop: 14 }}>
+                    {SPEED_PRESETS.map((item) => (
+                      <button
+                        className={Math.abs(speed - item) < 0.001 ? "preset selected" : "preset"}
+                        type="button"
+                        key={item}
+                        onClick={() => {
+                          setSpeed(item);
+                          resetAudio();
+                        }}
+                        aria-pressed={Math.abs(speed - item) < 0.001}
+                      >
+                        <strong>{item.toFixed(item === 1 ? 1 : 2)}×</strong>
+                        <small>{item < 1 ? "更慢" : item > 1 ? "更快" : "原速"}</small>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
+                    <span>ElevenLabs 官方范围</span>
+                    <span>0.7× – 1.2×</span>
+                  </div>
+                </div>
+              </fieldset>
+
+              <fieldset className="field-block">
+                <legend>情绪与表演标签</legend>
+                <div className="preset-grid">
+                  {AUDIO_TAGS.map((item) => (
+                    <button
+                      className="preset"
+                      type="button"
+                      key={item.label}
+                      onClick={() => insertAudioTag(item.label)}
+                    >
+                      <strong>[{item.label}]</strong>
+                      <small>{item.note}</small>
+                    </button>
+                  ))}
+                </div>
+                <div className="broadcast-note" style={{ marginTop: 14 }}>
+                  <div className="broadcast-index">[ ]</div>
+                  <div>
+                    <strong>把标签放在要改变语气的句子前</strong>
+                    <p>
+                      例如：[开心] Бүгін жақсы жаңалық бар!　网站会自动把常用中文标签转换成 Eleven v3 Audio Tags；英文标签也可直接输入。
+                    </p>
+                  </div>
+                </div>
+              </fieldset>
+
               <div className="broadcast-note">
                 <div className="broadcast-index">V3</div>
                 <div>
                   <strong>ElevenLabs v3 · 哈萨克语高质量模式</strong>
-                  <p>切换到高质量模式后会自动读取账号中的可用声线，也可以随时手动刷新。</p>
+                  <p>支持更多账号声线、0.7×–1.2× 倍速，以及句子级情绪和表演控制。</p>
                 </div>
               </div>
             </>
@@ -484,7 +625,7 @@ export default function Home() {
                     : "正在生成免费播音…"
                   : engine === "eleven"
                     ? voice
-                      ? "生成 ElevenLabs v3 播音"
+                      ? `生成 ElevenLabs v3 · ${speed.toFixed(2)}×`
                       : "正在等待 ElevenLabs 声线"
                     : "生成免费哈萨克语播音"}
               </strong>
@@ -492,7 +633,7 @@ export default function Home() {
                 {isGenerating
                   ? "请保持页面开启"
                   : engine === "eleven"
-                    ? "高质量模式 · 生成后可试听并下载 MP3"
+                    ? "声线 + 倍速 + 情绪标签 · 生成后可试听并下载 MP3"
                     : "免费模式 · 生成后可试听并下载 MP3"}
               </small>
             </span>
