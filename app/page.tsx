@@ -6,7 +6,6 @@ const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
 
 const MAX_CHARACTERS = 6000;
-const ELEVEN_ACCESS_STORAGE_KEY = "qazaq-radio-eleven-access";
 
 const EDGE_VOICES = [
   {
@@ -56,7 +55,6 @@ export default function Home() {
   const [engine, setEngine] = useState<Engine>("edge");
   const [voice, setVoice] = useState<string>("kk-KZ-DauletNeural");
   const [preset, setPreset] = useState<PresetId>("news");
-  const [elevenAccess, setElevenAccess] = useState("");
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -69,6 +67,7 @@ export default function Home() {
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
     [text],
   );
+
   const estimatedDuration = Math.max(
     2,
     Math.round(
@@ -84,9 +83,6 @@ export default function Home() {
   );
 
   useEffect(() => {
-    const savedAccess = window.sessionStorage.getItem(ELEVEN_ACCESS_STORAGE_KEY);
-    if (savedAccess) setElevenAccess(savedAccess);
-
     return () => {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
@@ -101,46 +97,13 @@ export default function Home() {
     setGeneratedAt("");
   }
 
-  function selectEngine(nextEngine: Engine) {
-    if (nextEngine === engine) return;
-    setEngine(nextEngine);
-    setVoice(
-      nextEngine === "edge"
-        ? EDGE_VOICES[0].id
-        : elevenVoices[0]?.id ?? "",
-    );
-    setError("");
-    resetAudio();
-  }
-
-  function updateElevenAccess(value: string) {
-    setElevenAccess(value);
-    setError("");
-    setElevenVoices([]);
-    setVoice("");
-    if (value) {
-      window.sessionStorage.setItem(ELEVEN_ACCESS_STORAGE_KEY, value);
-    } else {
-      window.sessionStorage.removeItem(ELEVEN_ACCESS_STORAGE_KEY);
-    }
-  }
-
   async function loadElevenVoices() {
-    const cleanAccess = elevenAccess.trim();
-    if (!cleanAccess) {
-      setError("请先输入高质量模式私人访问密码。");
-      return;
-    }
-
     setIsLoadingVoices(true);
     setError("");
 
     try {
       const response = await fetch("/api/eleven-voices", {
         method: "POST",
-        headers: {
-          "x-eleven-access": cleanAccess,
-        },
       });
       const payload = (await response.json().catch(() => null)) as
         | { error?: string; voices?: ElevenVoice[] }
@@ -170,6 +133,22 @@ export default function Home() {
     }
   }
 
+  function selectEngine(nextEngine: Engine) {
+    if (nextEngine === engine) return;
+    setEngine(nextEngine);
+    setVoice(
+      nextEngine === "edge"
+        ? EDGE_VOICES[0].id
+        : elevenVoices[0]?.id ?? "",
+    );
+    setError("");
+    resetAudio();
+
+    if (nextEngine === "eleven" && !elevenVoices.length) {
+      void loadElevenVoices();
+    }
+  }
+
   async function generateAudio() {
     const cleanText = text.trim();
     if (!cleanText) {
@@ -178,10 +157,6 @@ export default function Home() {
     }
     if (cleanText.length > MAX_CHARACTERS) {
       setError(`文本不能超过 ${MAX_CHARACTERS} 个字符。`);
-      return;
-    }
-    if (engine === "eleven" && !elevenAccess.trim()) {
-      setError("请先输入高质量模式私人访问密码。");
       return;
     }
     if (engine === "eleven" && !voice) {
@@ -197,9 +172,6 @@ export default function Home() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(engine === "eleven"
-            ? { "x-eleven-access": elevenAccess.trim() }
-            : {}),
         },
         body: JSON.stringify({ text: cleanText, engine, voice, preset }),
       });
@@ -283,7 +255,7 @@ export default function Home() {
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>免费 / 高质量双模式</span>
-            <span>ElevenLabs 私人通道</span>
+            <span>ElevenLabs v3</span>
             <span>MP3 下载</span>
           </div>
 
@@ -364,7 +336,7 @@ export default function Home() {
                 <span className="voice-avatar">3</span>
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
-                  <small>ElevenLabs v3 · 私人额度保护</small>
+                  <small>ElevenLabs v3 · 无需密码</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -428,55 +400,21 @@ export default function Home() {
             <>
               <div className="field-block">
                 <div className="field-label-row">
-                  <label htmlFor="eleven-access">高质量模式私人访问密码</label>
+                  <label htmlFor="eleven-voice">ElevenLabs 声线</label>
                   <button
                     className="text-action"
                     type="button"
                     onClick={loadElevenVoices}
                     disabled={isLoadingVoices}
                   >
-                    {isLoadingVoices ? "读取中…" : "读取声线"}
+                    {isLoadingVoices ? "读取中…" : elevenVoices.length ? "刷新声线" : "读取声线"}
                   </button>
-                </div>
-                <div className="textarea-wrap">
-                  <input
-                    id="eleven-access"
-                    type="password"
-                    value={elevenAccess}
-                    onChange={(event) => updateElevenAccess(event.target.value)}
-                    autoComplete="off"
-                    placeholder="输入你在 Cloudflare 中设置的私人密码"
-                    style={{
-                      width: "100%",
-                      border: 0,
-                      outline: 0,
-                      padding: "15px 17px",
-                      background: "transparent",
-                      color: "var(--ink)",
-                      fontSize: 14,
-                    }}
-                  />
-                  <div className="textarea-footer">
-                    <span>仅保存在当前浏览器标签页，不写入 GitHub</span>
-                    <span>{elevenVoices.length ? `已读取 ${elevenVoices.length} 条声线` : "私人通道"}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="field-block">
-                <div className="field-label-row">
-                  <label htmlFor="eleven-voice">ElevenLabs 声线</label>
-                  {elevenVoices.length ? (
-                    <button className="text-action" type="button" onClick={loadElevenVoices}>
-                      刷新
-                    </button>
-                  ) : null}
                 </div>
                 <div className="textarea-wrap">
                   <select
                     id="eleven-voice"
                     value={voice}
-                    disabled={!elevenVoices.length}
+                    disabled={!elevenVoices.length || isLoadingVoices}
                     onChange={(event) => {
                       setVoice(event.target.value);
                       setError("");
@@ -493,7 +431,7 @@ export default function Home() {
                     }}
                   >
                     {!elevenVoices.length ? (
-                      <option value="">请先输入密码并读取声线</option>
+                      <option value="">{isLoadingVoices ? "正在读取 ElevenLabs 声线…" : "点击读取声线"}</option>
                     ) : null}
                     {elevenVoices.map((item) => (
                       <option key={item.id} value={item.id}>
@@ -501,6 +439,10 @@ export default function Home() {
                       </option>
                     ))}
                   </select>
+                  <div className="textarea-footer">
+                    <span>无需密码 · API Key 仅保存在 Cloudflare 服务端</span>
+                    <span>{elevenVoices.length ? `已读取 ${elevenVoices.length} 条声线` : "ElevenLabs v3"}</span>
+                  </div>
                 </div>
               </div>
 
@@ -508,7 +450,7 @@ export default function Home() {
                 <div className="broadcast-index">V3</div>
                 <div>
                   <strong>ElevenLabs v3 · 哈萨克语高质量模式</strong>
-                  <p>声线直接读取自你的 ElevenLabs 账号；以后加入中国哈萨克族克隆声线后，可在这里直接选择。</p>
+                  <p>切换到高质量模式后会自动读取账号中的可用声线，也可以随时手动刷新。</p>
                 </div>
               </div>
             </>
@@ -528,7 +470,7 @@ export default function Home() {
             disabled={
               !text.trim() ||
               isGenerating ||
-              (engine === "eleven" && (!elevenAccess.trim() || !voice))
+              (engine === "eleven" && !voice)
             }
           >
             <span className="button-icon" aria-hidden="true">
@@ -543,14 +485,14 @@ export default function Home() {
                   : engine === "eleven"
                     ? voice
                       ? "生成 ElevenLabs v3 播音"
-                      : "先读取并选择 ElevenLabs 声线"
+                      : "正在等待 ElevenLabs 声线"
                     : "生成免费哈萨克语播音"}
               </strong>
               <small>
                 {isGenerating
                   ? "请保持页面开启"
                   : engine === "eleven"
-                    ? "私人高质量模式 · 生成后可试听并下载 MP3"
+                    ? "高质量模式 · 生成后可试听并下载 MP3"
                     : "免费模式 · 生成后可试听并下载 MP3"}
               </small>
             </span>
@@ -597,7 +539,7 @@ export default function Home() {
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
         <p>
-          免费模式基于 Edge TTS 开源通道 · 高质量模式使用 ElevenLabs v3 并受私人密码保护 · {" "}
+          免费模式基于 Edge TTS 开源通道 · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
           <a href="https://github.com/linshenkx/edge-tts-openai-cf-worker" target="_blank" rel="noreferrer">
             查看免费通道开源项目
           </a>
