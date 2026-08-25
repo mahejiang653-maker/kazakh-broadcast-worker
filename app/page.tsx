@@ -25,9 +25,9 @@ const EDGE_VOICES = [
 
 const PRESETS = [
   { id: "news", label: "标准新闻", note: "原生自然 · 推荐", rateFactor: 1 },
-  { id: "calm", label: "沉稳长稿", note: "稍慢、便于听清", rateFactor: 0.92 },
-  { id: "bulletin", label: "简明快讯", note: "节奏更紧凑", rateFactor: 1.08 },
-  { id: "expressive", label: "生动播报", note: "更有起伏、适合旁白", rateFactor: 1.02 },
+  { id: "calm", label: "沉稳长稿", note: "原生自然 · 稍慢柔和", rateFactor: 0.94 },
+  { id: "bulletin", label: "简明快讯", note: "原生自然 · 轻快紧凑", rateFactor: 1.035 },
+  { id: "expressive", label: "生动播报", note: "原生自然 · 轻度表现", rateFactor: 0.99 },
 ] as const;
 
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;

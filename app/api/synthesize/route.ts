@@ -21,10 +21,11 @@ const ALLOWED_EDGE_VOICES = new Set([
 ]);
 
 const PRESETS = {
+  // All four styles are native-first. They differ only by a very small global bias.
   news: { rateFactor: 1, pitch: 0, volume: 0 },
-  calm: { rateFactor: 0.9, pitch: -1.5, volume: -0.5 },
-  bulletin: { rateFactor: 1.03, pitch: -0.5, volume: 0.5 },
-  expressive: { rateFactor: 0.98, pitch: 1, volume: 0.5 },
+  calm: { rateFactor: 0.94, pitch: 0, volume: -0.2 },
+  bulletin: { rateFactor: 1.035, pitch: 0.2, volume: 0.2 },
+  expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
 } as const;
 
 const CHINESE_AUDIO_TAGS: Record<string, string> = {
@@ -678,16 +679,35 @@ function hasRecognizedEdgeTag(text: string) {
   return false;
 }
 
-function edgeNativeProsody(text: string, settings: EdgeVoiceSettings, voice: string) {
-  // Daulet's natural register can become slightly creaky in the low end.
-  // A tiny register lift reduces vocal-fry perception without changing his identity.
+function edgeNativeProsody(
+  text: string,
+  settings: EdgeVoiceSettings,
+  voice: string,
+  preset: PresetName,
+) {
+  // Native-first means one continuous prosody span for the whole chunk. Presets
+  // provide only tiny global biases; punctuation/cadence stays with Microsoft.
+  const presetSettings = PRESETS[preset];
   const isDaulet = voice === "kk-KZ-DauletNeural";
-  const antiCreakRate = isDaulet ? 1.004 : 1;
-  const antiCreakPitch = isDaulet ? 1.4 : 0;
+  // Slightly lift Daulet out of the lowest creaky register, without making him bright.
+  const antiCreakRate = isDaulet ? 1.002 : 1;
+  const antiCreakPitch = isDaulet ? 1.8 : 0;
 
-  const effectiveSpeed = clamp(settings.speed * antiCreakRate, 0.58, 1.35);
-  const effectivePitch = clamp(settings.pitch + antiCreakPitch, -18, 18);
-  const effectiveVolume = clamp(settings.volume, -7, 7);
+  const effectiveSpeed = clamp(
+    settings.speed * presetSettings.rateFactor * antiCreakRate,
+    0.58,
+    1.35,
+  );
+  const effectivePitch = clamp(
+    settings.pitch + presetSettings.pitch + antiCreakPitch,
+    -18,
+    18,
+  );
+  const effectiveVolume = clamp(
+    settings.volume + presetSettings.volume,
+    -7,
+    7,
+  );
   return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
 }
 
@@ -698,14 +718,14 @@ function buildEdgeSsml(
   settings: EdgeVoiceSettings,
   documentPlan?: EdgeDocumentPlan,
 ) {
-  // Standard news is deliberately native-first: one continuous prosody span,
-  // original punctuation, and no sentence-level director intervention. If the
-  // user explicitly adds an emotion tag, fall back to the enhanced pipeline.
-  if (preset === "news" && !hasRecognizedEdgeTag(text)) {
+  // Every preset is native-first when there are no explicit emotion tags:
+  // one continuous prosody span, original punctuation, no sentence-level director.
+  // Explicit tags opt into the enhanced sentence-level pipeline only when requested.
+  if (!hasRecognizedEdgeTag(text)) {
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
       `<voice name="${voice}">`,
-      edgeNativeProsody(text, settings, voice),
+      edgeNativeProsody(text, settings, voice, preset),
       "</voice>",
       "</speak>",
     ].join("");
