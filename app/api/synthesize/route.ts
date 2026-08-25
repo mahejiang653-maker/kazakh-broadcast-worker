@@ -207,11 +207,6 @@ function signedPercent(value: number) {
   return `${rounded >= 0 ? "+" : ""}${rounded}%`;
 }
 
-function signedDb(value: number) {
-  const rounded = Math.round(value * 10) / 10;
-  return `${rounded >= 0 ? "+" : ""}${rounded}dB`;
-}
-
 function speedToRate(speed: number) {
   return signedPercent((speed - 1) * 100);
 }
@@ -484,7 +479,7 @@ function edgeProsody(
     12,
   );
 
-  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedDb(effectiveVolume)}">${escapeXml(text)}</prosody>`;
+  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
 }
 
 function buildEdgeSsml(
@@ -855,7 +850,7 @@ export async function POST(request: Request) {
     return jsonError("Edge TTS 音调必须在 -20% 到 +20% 之间。", 400);
   }
   if (selectedVolume < -8 || selectedVolume > 8) {
-    return jsonError("Edge TTS 音量必须在 -8dB 到 +8dB 之间。", 400);
+    return jsonError("Edge TTS 音量必须在 -8% 到 +8% 之间。", 400);
   }
 
   const edgeSettings: EdgeVoiceSettings = {
