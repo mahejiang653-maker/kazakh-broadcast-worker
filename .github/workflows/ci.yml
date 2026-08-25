@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-edge-tempo:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply Edge tempo contour'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply Edge tempo contour
-        run: python scripts/apply_edge_tempo_contour.py
-      - name: Commit Edge tempo contour
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/lib/edge-omnivoice-inspired.ts
-          git commit -m "Add dynamic Edge tempo contour"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
