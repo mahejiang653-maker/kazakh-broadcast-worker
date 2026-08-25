@@ -11,19 +11,6 @@ function jsonError(message: string, status: number) {
   );
 }
 
-function constantTimeEqual(left: string, right: string) {
-  const encoder = new TextEncoder();
-  const a = encoder.encode(left);
-  const b = encoder.encode(right);
-  if (a.length !== b.length) return false;
-
-  let difference = 0;
-  for (let index = 0; index < a.length; index += 1) {
-    difference |= a[index] ^ b[index];
-  }
-  return difference === 0;
-}
-
 type ElevenVoice = {
   voice_id?: string;
   name?: string;
@@ -35,20 +22,14 @@ type ElevenVoicesPayload = {
   voices?: ElevenVoice[];
 };
 
-export async function POST(request: Request) {
+export async function POST() {
   const apiKey = process.env.MA?.trim();
-  const accessPin = process.env.AM?.trim();
 
-  if (!apiKey || !accessPin) {
+  if (!apiKey) {
     return jsonError(
-      "高质量模式尚未完成配置。请先设置 ElevenLabs API Key 和私人访问密码。",
+      "高质量模式尚未完成配置。请先设置 ElevenLabs API Key。",
       503,
     );
-  }
-
-  const submittedPin = request.headers.get("x-eleven-access")?.trim() || "";
-  if (!submittedPin || !constantTimeEqual(submittedPin, accessPin)) {
-    return jsonError("高质量模式访问密码不正确。", 401);
   }
 
   try {
