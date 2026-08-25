@@ -435,6 +435,36 @@ function edgeNaturalMarkup(
   return output;
 }
 
+function edgeNativeProsody(
+  text: string,
+  settings: EdgeVoiceSettings,
+  voice: string,
+  preset: PresetName,
+) {
+  const presetSettings = PRESETS[preset];
+  const isDaulet = voice === "kk-KZ-DauletNeural";
+  const antiCreakRate = isDaulet ? 1.002 : 1;
+  const antiCreakPitch = isDaulet ? 1.8 : 0;
+
+  const effectiveSpeed = clamp(
+    settings.speed * presetSettings.rateFactor * antiCreakRate,
+    0.58,
+    1.35,
+  );
+  const effectivePitch = clamp(
+    settings.pitch + presetSettings.pitch + antiCreakPitch,
+    -18,
+    18,
+  );
+  const effectiveVolume = clamp(
+    settings.volume + presetSettings.volume,
+    -7,
+    7,
+  );
+
+  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
+}
+
 function buildEdgeSsml(
   text: string,
   voice: string,
