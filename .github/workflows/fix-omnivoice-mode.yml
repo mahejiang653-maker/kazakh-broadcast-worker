@@ -1,0 +1,108 @@
+name: Fix OmniVoice Mode Selector
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-omnivoice-mode.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch OmniVoice into main mode selector
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('app/page.tsx')
+          s = page.read_text()
+
+          def replace_once(old, new, label):
+              global s
+              if old not in s:
+                  raise SystemExit(f'Missing patch target: {label}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              'type Engine = "edge" | "eleven";',
+              'type Engine = "edge" | "eleven" | "omnivoice";',
+              'Engine union',
+          )
+
+          replace_once(
+              '''    setVoice(\n      nextEngine === "edge"\n        ? EDGE_VOICES[0].id\n        : elevenVoices[0]?.id ?? "",\n    );''',
+              '''    setVoice(\n      nextEngine === "edge"\n        ? EDGE_VOICES[0].id\n        : nextEngine === "eleven"\n          ? elevenVoices[0]?.id ?? ""\n          : "",\n    );''',
+              'selectEngine voice reset',
+          )
+
+          replace_once(
+              '''    if (nextEngine === "eleven" && !elevenVoices.length) {\n      void loadElevenVoices();\n    }\n  }''',
+              '''    if (nextEngine === "eleven" && !elevenVoices.length) {\n      void loadElevenVoices();\n    }\n\n    if (nextEngine === "omnivoice") {\n      window.setTimeout(() => {\n        document.getElementById("omnivoice")?.scrollIntoView({\n          behavior: "smooth",\n          block: "start",\n        });\n      }, 100);\n    }\n  }''',
+              'OmniVoice scroll behavior',
+          )
+
+          replace_once(
+              '''          {engine === "edge" ? "免费模式 · Edge TTS 增强" : "高质量模式 · ElevenLabs v3"}''',
+              '''          {engine === "edge"\n            ? "免费模式 1 · Edge TTS 增强"\n            : engine === "eleven"\n              ? "高质量模式 · ElevenLabs v3"\n              : "免费模式 2 · KazakhTTS-OmniVoice"}''',
+              'top status',
+          )
+
+          replace_once(
+              '''            免费 Edge TTS 与 ElevenLabs v3 两种模式都支持精细倍速和句尾情绪标签。Edge 额外提供音调、音量和播音风格控制；高质量模式提供更多声线和更自然的情绪表现。''',
+              '''            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。''',
+              'hero description',
+          )
+
+          replace_once(
+              '''            <span>免费 / 高质量双模式</span>\n            <span>两种模式均可调倍速</span>''',
+              '''            <span>Edge / OmniVoice / ElevenLabs</span>\n            <span>三种模式均可调倍速</span>''',
+              'feature row',
+          )
+
+          replace_once(
+              '''              </label>\n            </div>\n          </fieldset>\n\n          {engine === "edge" ? (''',
+              '''              </label>\n\n              <label className={`voice-option ${engine === "omnivoice" ? "selected" : ""}`}>\n                <input\n                  type="radio"\n                  name="engine"\n                  value="omnivoice"\n                  checked={engine === "omnivoice"}\n                  onChange={() => selectEngine("omnivoice")}\n                />\n                <span className="voice-avatar">O</span>\n                <span className="voice-copy">\n                  <strong>免费模式 2</strong>\n                  <small>KazakhTTS-OmniVoice · 声线设计 / 倍速 / 情绪</small>\n                </span>\n                <span className="radio-mark" aria-hidden="true" />\n              </label>\n            </div>\n          </fieldset>\n\n          {engine === "edge" ? (''',
+              'third mode selector',
+          )
+
+          replace_once(
+              '''            </>\n          ) : (\n            <>\n              <div className="field-block">\n                <div className="field-label-row">\n                  <label htmlFor="eleven-voice">ElevenLabs 声线</label>''',
+              '''            </>\n          ) : engine === "eleven" ? (\n            <>\n              <div className="field-block">\n                <div className="field-label-row">\n                  <label htmlFor="eleven-voice">ElevenLabs 声线</label>''',
+              'three-way engine branch',
+          )
+
+          replace_once(
+              '''            </>\n          )}\n\n          {error ? (''',
+              '''            </>\n          ) : (\n            <>\n              <div className="broadcast-note" style={{ marginTop: 24 }}>\n                <div className="broadcast-index">OV</div>\n                <div>\n                  <strong>KazakhTTS-OmniVoice · 免费模式 2 已选中</strong>\n                  <p>这是共享 GPU 模式，支持男/女声设计、年龄、音高、耳语、倍速、质量档位和句尾情绪标签。下方是它的专用控制区。</p>\n                </div>\n              </div>\n              <button\n                className="generate-button"\n                type="button"\n                onClick={() =>\n                  document.getElementById("omnivoice")?.scrollIntoView({ behavior: "smooth", block: "start" })\n                }\n              >\n                <span className="button-icon" aria-hidden="true"><i className="play-triangle" /></span>\n                <span>\n                  <strong>进入 KazakhTTS-OmniVoice 控制区</strong>\n                  <small>免费共享 GPU · 声线设计 + 倍速 + 情绪标签</small>\n                </span>\n                <span className="button-arrow" aria-hidden="true">→</span>\n              </button>\n            </>\n          )}\n\n          {engine !== "omnivoice" ? (\n            <>\n          {error ? (''',
+              'OmniVoice selected panel and output guard',
+          )
+
+          replace_once(
+              '''          </div>\n        </section>\n      </section>\n\n      <OmniVoiceStudio sourceText={text} />''',
+              '''          </div>\n            </>\n          ) : null}\n        </section>\n      </section>\n\n      <OmniVoiceStudio sourceText={text} />''',
+              'close output guard',
+          )
+
+          page.write_text(s)
+
+          comp = Path('app/components/OmniVoiceStudio.tsx')
+          c = comp.read_text()
+          old = '''  useEffect(() => {\n    return () => {\n      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);\n    };\n  }, []);'''
+          new = '''  useEffect(() => {\n    if (sourceText !== undefined) {\n      setText(sourceText.slice(0, MAX_CHARACTERS));\n      setError(\n        sourceText.length > MAX_CHARACTERS\n          ? `OmniVoice 公共 GPU 单次最多 ${MAX_CHARACTERS} 个字符，已自动同步前 ${MAX_CHARACTERS} 个字符。`\n          : "",\n      );\n      resetAudio();\n    }\n  }, [sourceText]);\n\n  useEffect(() => {\n    return () => {\n      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);\n    };\n  }, []);'''
+          if old not in c:
+              raise SystemExit('Missing patch target: OmniVoice source text sync')
+          c = c.replace(old, new, 1)
+          comp.write_text(c)
+          PY
+
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/page.tsx app/components/OmniVoiceStudio.tsx
+          git commit -m "Show OmniVoice as third TTS mode"
+          git push
