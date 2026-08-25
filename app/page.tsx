@@ -7,7 +7,7 @@ const SAMPLE_TEXT =
 
 const MAX_CHARACTERS = 6000;
 
-const VOICES = [
+const EDGE_VOICES = [
   {
     id: "kk-KZ-DauletNeural",
     name: "Дәулет",
@@ -22,13 +22,28 @@ const VOICES = [
   },
 ] as const;
 
+const ELEVEN_VOICES = [
+  {
+    id: "eleven-george",
+    name: "George · v3",
+    meta: "男声 · 高质量自然播音",
+    mark: "G",
+  },
+  {
+    id: "eleven-rachel",
+    name: "Rachel · v3",
+    meta: "女声 · 高质量自然播音",
+    mark: "R",
+  },
+] as const;
+
 const PRESETS = [
   { id: "news", label: "标准新闻", note: "清晰、有分量" },
   { id: "calm", label: "沉稳长稿", note: "稍慢、便于听清" },
   { id: "bulletin", label: "简明快讯", note: "节奏更紧凑" },
 ] as const;
 
-type VoiceId = (typeof VOICES)[number]["id"];
+type Engine = "edge" | "eleven";
 type PresetId = (typeof PRESETS)[number]["id"];
 
 function formatDuration(seconds: number) {
@@ -40,7 +55,8 @@ function formatDuration(seconds: number) {
 
 export default function Home() {
   const [text, setText] = useState(SAMPLE_TEXT);
-  const [voice, setVoice] = useState<VoiceId>("kk-KZ-DauletNeural");
+  const [engine, setEngine] = useState<Engine>("edge");
+  const [voice, setVoice] = useState<string>("kk-KZ-DauletNeural");
   const [preset, setPreset] = useState<PresetId>("news");
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -48,13 +64,24 @@ export default function Home() {
   const [generatedAt, setGeneratedAt] = useState("");
   const audioUrlRef = useRef<string | null>(null);
 
+  const activeVoices = engine === "edge" ? EDGE_VOICES : ELEVEN_VOICES;
+
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
     [text],
   );
   const estimatedDuration = Math.max(
     2,
-    Math.round(wordCount / (preset === "bulletin" ? 2.7 : preset === "calm" ? 2.1 : 2.4)),
+    Math.round(
+      wordCount /
+        (engine === "eleven"
+          ? 2.35
+          : preset === "bulletin"
+            ? 2.7
+            : preset === "calm"
+              ? 2.1
+              : 2.4),
+    ),
   );
 
   useEffect(() => {
@@ -62,6 +89,23 @@ export default function Home() {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, []);
+
+  function resetAudio() {
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+    setAudioUrl(null);
+    setGeneratedAt("");
+  }
+
+  function selectEngine(nextEngine: Engine) {
+    if (nextEngine === engine) return;
+    setEngine(nextEngine);
+    setVoice(nextEngine === "edge" ? EDGE_VOICES[0].id : ELEVEN_VOICES[0].id);
+    setError("");
+    resetAudio();
+  }
 
   async function generateAudio() {
     const cleanText = text.trim();
@@ -81,7 +125,7 @@ export default function Home() {
       const response = await fetch("/api/synthesize", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: cleanText, voice, preset }),
+        body: JSON.stringify({ text: cleanText, engine, voice, preset }),
       });
 
       if (!response.ok) {
@@ -108,7 +152,9 @@ export default function Home() {
       setError(
         caught instanceof Error
           ? caught.message
-          : "免费语音服务暂时繁忙，请稍后重试。",
+          : engine === "eleven"
+            ? "高质量语音服务暂时繁忙，请稍后重试。"
+            : "免费语音服务暂时繁忙，请稍后重试。",
       );
     } finally {
       setIsGenerating(false);
@@ -118,6 +164,7 @@ export default function Home() {
   function clearText() {
     setText("");
     setError("");
+    resetAudio();
   }
 
   return (
@@ -137,9 +184,9 @@ export default function Home() {
             <small>RADIO VOICE</small>
           </span>
         </a>
-        <div className="top-status" aria-label="服务状态">
+        <div className="top-status" aria-label="当前语音模式">
           <span className="status-dot" />
-          免费语音通道
+          {engine === "edge" ? "免费模式 · Edge TTS" : "高质量模式 · ElevenLabs v3"}
         </div>
       </header>
 
@@ -156,10 +203,10 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            粘贴哈萨克语稿件，一键生成自然清晰的播音音频。可直接试听，也可下载为 MP3。
+            粘贴哈萨克语稿件，在免费 Edge TTS 与 ElevenLabs v3 高质量模式之间切换。可直接试听，也可下载为 MP3。
           </p>
           <div className="feature-row" aria-label="功能特点">
-            <span>无需密钥</span>
+            <span>免费 / 高质量双模式</span>
             <span>男 / 女双声线</span>
             <span>MP3 下载</span>
           </div>
@@ -212,9 +259,46 @@ export default function Home() {
           </div>
 
           <fieldset className="field-block">
+            <legend>语音模式</legend>
+            <div className="voice-grid">
+              <label className={`voice-option ${engine === "edge" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="engine"
+                  value="edge"
+                  checked={engine === "edge"}
+                  onChange={() => selectEngine("edge")}
+                />
+                <span className="voice-avatar">F</span>
+                <span className="voice-copy">
+                  <strong>免费模式</strong>
+                  <small>Edge TTS · 无需 ElevenLabs 额度</small>
+                </span>
+                <span className="radio-mark" aria-hidden="true" />
+              </label>
+
+              <label className={`voice-option ${engine === "eleven" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="engine"
+                  value="eleven"
+                  checked={engine === "eleven"}
+                  onChange={() => selectEngine("eleven")}
+                />
+                <span className="voice-avatar">3</span>
+                <span className="voice-copy">
+                  <strong>高质量模式</strong>
+                  <small>ElevenLabs v3 · 更自然、更有表现力</small>
+                </span>
+                <span className="radio-mark" aria-hidden="true" />
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="field-block">
             <legend>选择播音员</legend>
             <div className="voice-grid">
-              {VOICES.map((item) => (
+              {activeVoices.map((item) => (
                 <label
                   className={`voice-option ${voice === item.id ? "selected" : ""}`}
                   key={item.id}
@@ -224,7 +308,11 @@ export default function Home() {
                     name="voice"
                     value={item.id}
                     checked={voice === item.id}
-                    onChange={() => setVoice(item.id)}
+                    onChange={() => {
+                      setVoice(item.id);
+                      setError("");
+                      resetAudio();
+                    }}
                   />
                   <span className="voice-avatar">{item.mark}</span>
                   <span className="voice-copy">
@@ -237,23 +325,36 @@ export default function Home() {
             </div>
           </fieldset>
 
-          <fieldset className="field-block">
-            <legend>播音节奏</legend>
-            <div className="preset-grid">
-              {PRESETS.map((item) => (
-                <button
-                  className={preset === item.id ? "preset selected" : "preset"}
-                  type="button"
-                  key={item.id}
-                  onClick={() => setPreset(item.id)}
-                  aria-pressed={preset === item.id}
-                >
-                  <strong>{item.label}</strong>
-                  <small>{item.note}</small>
-                </button>
-              ))}
+          {engine === "edge" ? (
+            <fieldset className="field-block">
+              <legend>播音节奏</legend>
+              <div className="preset-grid">
+                {PRESETS.map((item) => (
+                  <button
+                    className={preset === item.id ? "preset selected" : "preset"}
+                    type="button"
+                    key={item.id}
+                    onClick={() => {
+                      setPreset(item.id);
+                      resetAudio();
+                    }}
+                    aria-pressed={preset === item.id}
+                  >
+                    <strong>{item.label}</strong>
+                    <small>{item.note}</small>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          ) : (
+            <div className="broadcast-note">
+              <div className="broadcast-index">V3</div>
+              <div>
+                <strong>ElevenLabs v3 自动控制语气与节奏</strong>
+                <p>当前使用基础高质量声线；后续可直接替换成中国哈萨克族克隆声线。</p>
+              </div>
             </div>
-          </fieldset>
+          )}
 
           {error ? (
             <div className="error-message" role="alert">
@@ -272,8 +373,22 @@ export default function Home() {
               {isGenerating ? <i className="spinner" /> : <i className="play-triangle" />}
             </span>
             <span>
-              <strong>{isGenerating ? "正在生成播音…" : "生成哈萨克语播音"}</strong>
-              <small>{isGenerating ? "请保持页面开启" : "生成后可试听并下载 MP3"}</small>
+              <strong>
+                {isGenerating
+                  ? engine === "eleven"
+                    ? "正在生成高质量播音…"
+                    : "正在生成免费播音…"
+                  : engine === "eleven"
+                    ? "生成 ElevenLabs v3 播音"
+                    : "生成免费哈萨克语播音"}
+              </strong>
+              <small>
+                {isGenerating
+                  ? "请保持页面开启"
+                  : engine === "eleven"
+                    ? "使用高质量模式，生成后可试听并下载 MP3"
+                    : "使用免费模式，生成后可试听并下载 MP3"}
+              </small>
             </span>
             <span className="button-arrow" aria-hidden="true">→</span>
           </button>
@@ -304,7 +419,11 @@ export default function Home() {
                     (height, index) => <i style={{ height }} key={`${height}-${index}`} />,
                   )}
                 </div>
-                <p>生成后，播放器会出现在这里</p>
+                <p>
+                  {engine === "eleven"
+                    ? "高质量音频生成后，播放器会出现在这里"
+                    : "免费音频生成后，播放器会出现在这里"}
+                </p>
               </div>
             )}
           </div>
@@ -314,9 +433,9 @@ export default function Home() {
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
         <p>
-          基于 GitHub 开源项目的免费通道 · 
+          免费模式基于 Edge TTS 开源通道 · 高质量模式使用 ElevenLabs v3 · {" "}
           <a href="https://github.com/linshenkx/edge-tts-openai-cf-worker" target="_blank" rel="noreferrer">
-            查看开源项目
+            查看免费通道开源项目
           </a>
         </p>
       </footer>
