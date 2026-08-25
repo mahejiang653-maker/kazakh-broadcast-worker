@@ -28,98 +28,6 @@ const PRESETS = {
   expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
 } as const;
 
-const CHINESE_AUDIO_TAGS: Record<string, string> = {
-  开心: "happy",
-  高兴: "happily",
-  快乐: "happy",
-  兴奋: "excited",
-  激动: "excited",
-  热情: "enthusiastically",
-  悲伤: "sad",
-  难过: "sad",
-  伤心: "sorrowful",
-  哭泣: "crying",
-  愤怒: "angry",
-  生气: "angry",
-  担心: "worried",
-  忧虑: "worried",
-  紧张: "nervous",
-  害怕: "fearful",
-  恐惧: "fearful",
-  惊讶: "surprised",
-  好奇: "curious",
-  疲惫: "tired",
-  自信: "confidently",
-  严肃: "serious",
-  平静: "calm",
-  冷静: "calm",
-  轻松: "relaxed",
-  温柔: "softly",
-  温暖: "warmly",
-  轻声: "softly",
-  小声: "whispers",
-  耳语: "whispers",
-  大声: "shouts",
-  喊叫: "shouts",
-  神秘: "mysteriously",
-  调皮: "mischievously",
-  讽刺: "sarcastically",
-  笑: "laughs",
-  大笑: "laughs",
-  轻笑: "chuckles",
-  叹气: "sighs",
-  清嗓: "clears throat",
-  慢速: "slowly",
-  快速: "quickly",
-};
-
-const EDGE_TAG_STYLES: Record<
-  string,
-  { rateFactor: number; pitch: number; volume: number }
-> = {
-  开心: { rateFactor: 1.06, pitch: 8, volume: 1 },
-  高兴: { rateFactor: 1.06, pitch: 8, volume: 1 },
-  快乐: { rateFactor: 1.06, pitch: 8, volume: 1 },
-  兴奋: { rateFactor: 1.12, pitch: 12, volume: 2 },
-  激动: { rateFactor: 1.12, pitch: 10, volume: 3 },
-  热情: { rateFactor: 1.08, pitch: 7, volume: 2 },
-  悲伤: { rateFactor: 0.86, pitch: -8, volume: -2 },
-  难过: { rateFactor: 0.88, pitch: -7, volume: -2 },
-  伤心: { rateFactor: 0.84, pitch: -9, volume: -3 },
-  哭泣: { rateFactor: 0.8, pitch: -10, volume: -4 },
-  愤怒: { rateFactor: 1.04, pitch: 2, volume: 5 },
-  生气: { rateFactor: 1.03, pitch: 2, volume: 4 },
-  担心: { rateFactor: 0.93, pitch: 3, volume: -1 },
-  忧虑: { rateFactor: 0.9, pitch: 1, volume: -1 },
-  紧张: { rateFactor: 1.08, pitch: 5, volume: 0 },
-  害怕: { rateFactor: 1.08, pitch: 7, volume: 0 },
-  恐惧: { rateFactor: 1.1, pitch: 8, volume: -1 },
-  惊讶: { rateFactor: 1.05, pitch: 11, volume: 2 },
-  好奇: { rateFactor: 0.96, pitch: 5, volume: 0 },
-  疲惫: { rateFactor: 0.82, pitch: -6, volume: -3 },
-  自信: { rateFactor: 0.98, pitch: -1, volume: 3 },
-  严肃: { rateFactor: 0.93, pitch: -4, volume: 2 },
-  平静: { rateFactor: 0.9, pitch: -2, volume: -1 },
-  冷静: { rateFactor: 0.92, pitch: -3, volume: 0 },
-  轻松: { rateFactor: 0.94, pitch: 2, volume: -1 },
-  温柔: { rateFactor: 0.88, pitch: 3, volume: -3 },
-  温暖: { rateFactor: 0.92, pitch: 2, volume: -1 },
-  轻声: { rateFactor: 0.86, pitch: 1, volume: -5 },
-  小声: { rateFactor: 0.82, pitch: -2, volume: -7 },
-  耳语: { rateFactor: 0.8, pitch: -3, volume: -8 },
-  大声: { rateFactor: 1.02, pitch: 2, volume: 7 },
-  喊叫: { rateFactor: 1.08, pitch: 5, volume: 8 },
-  神秘: { rateFactor: 0.84, pitch: -4, volume: -4 },
-  调皮: { rateFactor: 1.05, pitch: 8, volume: 0 },
-  讽刺: { rateFactor: 0.95, pitch: 4, volume: 0 },
-  笑: { rateFactor: 1.06, pitch: 8, volume: 0 },
-  轻笑: { rateFactor: 1.05, pitch: 9, volume: -1 },
-  大笑: { rateFactor: 1.12, pitch: 13, volume: 3 },
-  叹气: { rateFactor: 0.78, pitch: -7, volume: -4 },
-  清嗓: { rateFactor: 0.82, pitch: -2, volume: 1 },
-  慢速: { rateFactor: 0.78, pitch: 0, volume: 0 },
-  快速: { rateFactor: 1.18, pitch: 0, volume: 0 },
-};
 
 type PresetName = keyof typeof PRESETS;
 type EngineName = "edge" | "eleven";
@@ -218,108 +126,6 @@ function speedToRate(speed: number) {
   return signedPercent((speed - 1) * 100);
 }
 
-function applyTagToPreviousSentence(source: string, mappedTag: string) {
-  let contentEnd = source.length;
-  while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
-
-  if (!source.slice(0, contentEnd).trim()) {
-    return `${source}[${mappedTag}] `;
-  }
-
-  let searchFrom = contentEnd - 1;
-  if (/[.!?。！？]/u.test(source[searchFrom] ?? "")) searchFrom -= 1;
-
-  let sentenceStart = 0;
-  for (let index = searchFrom; index >= 0; index -= 1) {
-    if (/[.!?。！？\n]/u.test(source[index])) {
-      sentenceStart = index + 1;
-      break;
-    }
-  }
-
-  const beforeSentence = source.slice(0, sentenceStart);
-  const sentenceWithSpacing = source.slice(sentenceStart, contentEnd);
-  const trailingWhitespace = source.slice(contentEnd);
-  const leadingWhitespace = sentenceWithSpacing.match(/^\s*/u)?.[0] ?? "";
-  const sentence = sentenceWithSpacing.slice(leadingWhitespace.length);
-
-  return `${beforeSentence}${leadingWhitespace}[${mappedTag}] ${sentence}${trailingWhitespace}`;
-}
-
-function applyEdgeTagToPreviousSentence(source: string, tag: string) {
-  let contentEnd = source.length;
-  while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
-
-  if (!source.slice(0, contentEnd).trim()) return source;
-
-  let searchFrom = contentEnd - 1;
-  if (/[.!?。！？]/u.test(source[searchFrom] ?? "")) searchFrom -= 1;
-
-  let sentenceStart = 0;
-  for (let index = searchFrom; index >= 0; index -= 1) {
-    if (/[.!?。！？\n]/u.test(source[index])) {
-      sentenceStart = index + 1;
-      break;
-    }
-  }
-
-  const beforeSentence = source.slice(0, sentenceStart);
-  const sentenceWithSpacing = source.slice(sentenceStart, contentEnd);
-  const trailingWhitespace = source.slice(contentEnd);
-  const leadingWhitespace = sentenceWithSpacing.match(/^\s*/u)?.[0] ?? "";
-  const sentence = sentenceWithSpacing.slice(leadingWhitespace.length);
-
-  if (!sentence.trim()) return source;
-  return `${beforeSentence}${leadingWhitespace}[[EDGE:${tag}]]${sentence}[[/EDGE]]${trailingWhitespace}`;
-}
-
-function normalizeElevenAudioTags(text: string) {
-  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
-  let output = "";
-  let cursor = 0;
-
-  for (const match of text.matchAll(matcher)) {
-    const index = match.index ?? 0;
-    output += text.slice(cursor, index);
-
-    const rawTag = (match[1] ?? "").trim();
-    const mapped = CHINESE_AUDIO_TAGS[rawTag];
-
-    if (mapped) {
-      output = applyTagToPreviousSentence(output, mapped);
-    } else {
-      output += match[0];
-    }
-
-    cursor = index + match[0].length;
-  }
-
-  output += text.slice(cursor);
-  return output;
-}
-
-function normalizeEdgeAudioTags(text: string) {
-  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
-  let output = "";
-  let cursor = 0;
-
-  for (const match of text.matchAll(matcher)) {
-    const index = match.index ?? 0;
-    output += text.slice(cursor, index);
-    const rawTag = (match[1] ?? "").trim();
-
-    if (EDGE_TAG_STYLES[rawTag]) {
-      output = applyEdgeTagToPreviousSentence(output, rawTag);
-    } else {
-      output += match[0];
-    }
-
-    cursor = index + match[0].length;
-  }
-
-  output += text.slice(cursor);
-  return output;
-}
 
 async function sign(urlString: string) {
   const unsignedUrl = urlString.split("://")[1];
@@ -629,130 +435,17 @@ function edgeNaturalMarkup(
   return output;
 }
 
-function edgeProsody(
-  text: string,
-  settings: EdgeVoiceSettings,
-  preset: PresetName,
-  tag?: string,
-  documentPlan?: EdgeDocumentPlan,
-) {
-  const presetSettings = PRESETS[preset];
-  const tagSettings = tag ? EDGE_TAG_STYLES[tag] : undefined;
-  // OmniVoice-style control should alter delivery without sounding like a pitch shifter.
-  const softenedTagRate = 1 + ((tagSettings?.rateFactor ?? 1) - 1) * 0.38;
-  const softenedTagPitch = (tagSettings?.pitch ?? 0) * 0.18;
-  const softenedTagVolume = (tagSettings?.volume ?? 0) * 0.30;
-
-  const effectiveSpeed = clamp(
-    settings.speed * presetSettings.rateFactor * softenedTagRate,
-    0.58,
-    1.35,
-  );
-  const effectivePitch = clamp(
-    settings.pitch + presetSettings.pitch + softenedTagPitch,
-    -18,
-    18,
-  );
-  const effectiveVolume = clamp(
-    settings.volume + presetSettings.volume + softenedTagVolume,
-    -7,
-    7,
-  );
-
-  return renderEdgeOmniInspiredMarkup(
-    text,
-    {
-      speed: effectiveSpeed,
-      pitch: effectivePitch,
-      volume: effectiveVolume,
-    },
-    documentPlan,
-  );
-}
-
-function hasRecognizedEdgeTag(text: string) {
-  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
-  for (const match of text.matchAll(matcher)) {
-    const rawTag = (match[1] ?? "").trim();
-    if (EDGE_TAG_STYLES[rawTag]) return true;
-  }
-  return false;
-}
-
-function edgeNativeProsody(
-  text: string,
-  settings: EdgeVoiceSettings,
-  voice: string,
-  preset: PresetName,
-) {
-  // Native-first means one continuous prosody span for the whole chunk. Presets
-  // provide only tiny global biases; punctuation/cadence stays with Microsoft.
-  const presetSettings = PRESETS[preset];
-  const isDaulet = voice === "kk-KZ-DauletNeural";
-  // Slightly lift Daulet out of the lowest creaky register, without making him bright.
-  const antiCreakRate = isDaulet ? 1.002 : 1;
-  const antiCreakPitch = isDaulet ? 1.8 : 0;
-
-  const effectiveSpeed = clamp(
-    settings.speed * presetSettings.rateFactor * antiCreakRate,
-    0.58,
-    1.35,
-  );
-  const effectivePitch = clamp(
-    settings.pitch + presetSettings.pitch + antiCreakPitch,
-    -18,
-    18,
-  );
-  const effectiveVolume = clamp(
-    settings.volume + presetSettings.volume,
-    -7,
-    7,
-  );
-  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
-}
-
 function buildEdgeSsml(
   text: string,
   voice: string,
   preset: PresetName,
   settings: EdgeVoiceSettings,
-  documentPlan?: EdgeDocumentPlan,
+  _documentPlan?: EdgeDocumentPlan,
 ) {
-  // Every preset is native-first when there are no explicit emotion tags:
-  // one continuous prosody span, original punctuation, no sentence-level director.
-  // Explicit tags opt into the enhanced sentence-level pipeline only when requested.
-  if (!hasRecognizedEdgeTag(text)) {
-    return [
-      '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
-      `<voice name="${voice}">`,
-      edgeNativeProsody(text, settings, voice, preset),
-      "</voice>",
-      "</speak>",
-    ].join("");
-  }
-  const directed = normalizeEdgeAudioTags(text);
-  const matcher = /\[\[EDGE:([^\]]+)\]\]([\s\S]*?)\[\[\/EDGE\]\]/gu;
-  let body = "";
-  let cursor = 0;
-
-  for (const match of directed.matchAll(matcher)) {
-    const index = match.index ?? 0;
-    const before = directed.slice(cursor, index);
-    if (before) body += edgeProsody(before, settings, preset, undefined, documentPlan);
-
-    const tag = (match[1] ?? "").trim();
-    const sentence = match[2] ?? "";
-    body += edgeProsody(sentence, settings, preset, tag, documentPlan);
-    cursor = index + match[0].length;
-  }
-
-  const tail = directed.slice(cursor);
-  if (tail) body += edgeProsody(tail, settings, preset, undefined, documentPlan);
-
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
     `<voice name="${voice}">`,
-    body,
+    edgeNativeProsody(text, settings, voice, preset),
     "</voice>",
     "</speak>",
   ].join("");
@@ -899,8 +592,7 @@ async function synthesizeWithEleven(
   apiKey: string,
   settings: ElevenVoiceSettings,
 ) {
-  const directedText = normalizeElevenAudioTags(text);
-  const chunks = splitText(directedText, ELEVEN_MAX_CHUNK_SIZE);
+  const chunks = splitText(text, ELEVEN_MAX_CHUNK_SIZE);
   const audioChunks: ArrayBuffer[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {

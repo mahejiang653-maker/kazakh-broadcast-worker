@@ -71,28 +71,6 @@ const PITCHES = [
   ["Very High Pitch / 极高音调", "极高"],
 ] as const;
 
-const AUDIO_TAGS = [
-  ["开心", "明亮愉快"],
-  ["兴奋", "更有能量"],
-  ["悲伤", "低沉克制"],
-  ["愤怒", "强烈有力"],
-  ["担心", "紧张忧虑"],
-  ["害怕", "提高紧张感"],
-  ["惊讶", "突然抬高语调"],
-  ["好奇", "带探索感"],
-  ["自信", "坚定沉稳"],
-  ["严肃", "正式克制"],
-  ["平静", "平稳自然"],
-  ["温柔", "柔和轻缓"],
-  ["小声", "耳语风格"],
-  ["大声", "增强语势"],
-  ["神秘", "低声耳语"],
-  ["轻笑", "轻快模拟"],
-  ["大笑", "强起伏模拟"],
-  ["叹气", "放慢变沉"],
-  ["慢速", "放慢这一句"],
-  ["快速", "加快这一句"],
-] as const;
 
 function formatDuration(seconds: number) {
   if (seconds < 60) return `约 ${seconds} 秒`;
@@ -121,17 +99,12 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
   const [cacheStatus, setCacheStatus] = useState("");
   const audioUrlRef = useRef<string | null>(null);
   const previewUrlRef = useRef<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
     [text],
   );
   const estimatedDuration = Math.max(2, Math.round(wordCount / (2.25 * speed)));
-  const tagCount = useMemo(
-    () => (text.match(/[\[【][^\]】\r\n]{1,30}[\]】]/gu) ?? []).length,
-    [text],
-  );
 
   useEffect(() => {
     if (sourceText !== undefined) {
@@ -218,47 +191,6 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
         : "",
     );
     resetAudio();
-  }
-
-  function insertAudioTag(tag: string) {
-    const textarea = textareaRef.current;
-    const token = `[${tag}]`;
-    if (!textarea) {
-      setText((current) => `${current}${current ? " " : ""}${token}`.slice(0, MAX_CHARACTERS));
-      return;
-    }
-
-    const start = textarea.selectionStart ?? text.length;
-    const end = textarea.selectionEnd ?? start;
-    const prefix = text.slice(0, start);
-    const selected = text.slice(start, end);
-    const suffix = text.slice(end);
-    let insertion: string;
-
-    if (selected) {
-      const between = /\s$/u.test(selected) ? "" : " ";
-      const after = suffix && !/^\s/u.test(suffix) ? " " : "";
-      insertion = `${selected}${between}${token}${after}`;
-    } else {
-      const before = prefix && !/\s$/u.test(prefix) ? " " : "";
-      const after = suffix && !/^\s/u.test(suffix) ? " " : "";
-      insertion = `${before}${token}${after}`;
-    }
-
-    const next = `${prefix}${insertion}${suffix}`;
-    if (next.length > MAX_CHARACTERS) {
-      setError(`OmniVoice 文本不能超过 ${MAX_CHARACTERS} 个字符。`);
-      return;
-    }
-    setText(next);
-    setError("");
-    resetAudio();
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = prefix.length + insertion.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
   }
 
   async function createCacheKey(payload: Record<string, unknown>) {
@@ -353,10 +285,6 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
       setError(`OmniVoice 文本不能超过 ${MAX_CHARACTERS} 个字符。`);
       return;
     }
-    if (tagCount > 3) {
-      setError("OmniVoice 共享 GPU 较慢，每次最多使用 3 个句尾情绪标签。");
-      return;
-    }
 
     const omniPayload = {
       text: cleanText,
@@ -441,7 +369,6 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
           <span>男 / 女声设计</span>
           <span>年龄 / 音高</span>
           <span>0.70×–1.20×</span>
-          <span>句尾情绪标签</span>
           <span>WAV 下载</span>
         </div>
         <div className="broadcast-note">
@@ -476,7 +403,6 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
           </div>
           <div className="textarea-wrap">
             <textarea
-              ref={textareaRef}
               id="omnivoice-text"
               value={text}
               maxLength={MAX_CHARACTERS}
@@ -671,33 +597,13 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
           </div>
         </fieldset>
 
-        <fieldset className="field-block">
-          <legend>情绪与表演标签</legend>
-          <div className="preset-grid">
-            {AUDIO_TAGS.map(([label, note]) => (
-              <button className="preset" type="button" key={label} onClick={() => insertAudioTag(label)}>
-                <strong>[{label}]</strong>
-                <small>{note}</small>
-              </button>
-            ))}
-          </div>
-          <div className="broadcast-note" style={{ marginTop: 14 }}>
-            <div className="broadcast-index">[ ]</div>
-            <div>
-              <strong>同样写在句子后面，控制前面的那一句</strong>
-              <p>
-                例如：Бүгін жақсы жаңалық бар! [开心]。每个情绪标签都会增加一次独立 GPU 推理；追求速度时建议先不加标签，最终成稿再添加。一次最多 3 个标签。
-              </p>
-            </div>
-          </div>
-        </fieldset>
 
         <div className="broadcast-note">
           <div className="broadcast-index">OV</div>
           <div>
             <strong>OmniVoice · 第二免费引擎</strong>
             <p>
-              不需要 ElevenLabs Key 或额度。Voice Design 是模型原生能力；“开心、悲伤、严肃”等中文标签由网站映射到速度、音高和 Whisper 风格进行句子级模拟。
+              不需要 ElevenLabs Key 或额度。Voice Design 的性别、年龄、音高和耳语风格均直接使用 OmniVoice 原生控制。
             </p>
           </div>
         </div>

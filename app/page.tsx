@@ -54,7 +54,7 @@ const TONE_PRESETS = [
   {
     id: "expressive",
     label: "情绪丰富",
-    note: "更响应情绪标签",
+    note: "更有自然起伏",
     stability: 0.28,
     similarityBoost: 0.72,
     style: 0.35,
@@ -71,28 +71,6 @@ const TONE_PRESETS = [
   },
 ] as const;
 
-const AUDIO_TAGS = [
-  { label: "开心", note: "明亮愉快" },
-  { label: "兴奋", note: "更有能量" },
-  { label: "悲伤", note: "低沉克制" },
-  { label: "愤怒", note: "强烈有力" },
-  { label: "担心", note: "紧张忧虑" },
-  { label: "害怕", note: "恐惧紧张" },
-  { label: "惊讶", note: "突然惊喜" },
-  { label: "好奇", note: "带探索感" },
-  { label: "自信", note: "坚定自信" },
-  { label: "严肃", note: "正式克制" },
-  { label: "平静", note: "平稳自然" },
-  { label: "温柔", note: "柔和轻缓" },
-  { label: "小声", note: "降低音量" },
-  { label: "大声", note: "提高强度" },
-  { label: "神秘", note: "低沉神秘" },
-  { label: "轻笑", note: "轻快模拟" },
-  { label: "大笑", note: "更强起伏" },
-  { label: "叹气", note: "放慢变沉" },
-  { label: "慢速", note: "放慢这一句" },
-  { label: "快速", note: "加快这一句" },
-] as const;
 
 type Engine = "edge" | "eleven" | "omnivoice";
 type PresetId = (typeof PRESETS)[number]["id"];
@@ -153,7 +131,6 @@ export default function Home() {
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
   const audioUrlRef = useRef<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
@@ -265,50 +242,6 @@ export default function Home() {
     setSpeakerBoost(item.speakerBoost);
     setError("");
     resetAudio();
-  }
-
-  function insertAudioTag(tag: string) {
-    const textarea = textareaRef.current;
-    const token = `[${tag}]`;
-
-    if (!textarea) {
-      setText((current) => `${current}${current ? " " : ""}${token}`);
-      return;
-    }
-
-    const start = textarea.selectionStart ?? text.length;
-    const end = textarea.selectionEnd ?? start;
-    const prefix = text.slice(0, start);
-    const selected = text.slice(start, end);
-    const suffix = text.slice(end);
-
-    let insertion: string;
-    if (selected) {
-      const between = /\s$/u.test(selected) ? "" : " ";
-      const after = suffix && !/^\s/u.test(suffix) ? " " : "";
-      insertion = `${selected}${between}${token}${after}`;
-    } else {
-      const before = prefix && !/\s$/u.test(prefix) ? " " : "";
-      const after = suffix && !/^\s/u.test(suffix) ? " " : "";
-      insertion = `${before}${token}${after}`;
-    }
-
-    const nextText = `${prefix}${insertion}${suffix}`;
-
-    if (nextText.length > MAX_CHARACTERS) {
-      setError(`文本不能超过 ${MAX_CHARACTERS} 个字符。`);
-      return;
-    }
-
-    setText(nextText);
-    setError("");
-    resetAudio();
-
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const cursor = prefix.length + insertion.length;
-      textarea.setSelectionRange(cursor, cursor);
-    });
   }
 
   async function generateAudio() {
@@ -436,37 +369,6 @@ export default function Home() {
     </fieldset>
   );
 
-  const audioTagPanel = (mode: "edge" | "eleven") => (
-    <fieldset className="field-block">
-      <legend>情绪与表演标签</legend>
-      <div className="preset-grid">
-        {AUDIO_TAGS.map((item) => (
-          <button
-            className="preset"
-            type="button"
-            key={item.label}
-            onClick={() => insertAudioTag(item.label)}
-          >
-            <strong>[{item.label}]</strong>
-            <small>{item.note}</small>
-          </button>
-        ))}
-      </div>
-      <div className="broadcast-note" style={{ marginTop: 14 }}>
-        <div className="broadcast-index">[ ]</div>
-        <div>
-          <strong>标签写在句子后面，控制它前面的那一句</strong>
-          <p>
-            例如：Бүгін жақсы жаңалық бар! [开心]　{mode === "eleven"
-              ? "高质量模式会自动转换成 Eleven v3 Audio Tag。"
-              : "免费模式会用 SSML 自动改变这一句的语速、音调和音量来模拟情绪。"}
-            也可以先选中一句话，再点上面的标签按钮。
-          </p>
-        </div>
-      </div>
-    </fieldset>
-  );
-
   return (
     <main className="site-shell">
       <div className="ambient ambient-one" />
@@ -512,7 +414,6 @@ export default function Home() {
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / ElevenLabs</span>
             <span>三种模式均可调倍速</span>
-            <span>句尾情绪标签</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
           </div>
@@ -544,7 +445,6 @@ export default function Home() {
             </div>
             <div className="textarea-wrap">
               <textarea
-                ref={textareaRef}
                 id="kazakh-text"
                 value={text}
                 maxLength={MAX_CHARACTERS}
@@ -579,7 +479,7 @@ export default function Home() {
                 <span className="voice-avatar">F</span>
                 <span className="voice-copy">
                   <strong>免费模式</strong>
-                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量 / 情绪</small>
+                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -595,7 +495,7 @@ export default function Home() {
                 <span className="voice-avatar">3</span>
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
-                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 情绪</small>
+                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -611,7 +511,7 @@ export default function Home() {
                 <span className="voice-avatar">O</span>
                 <span className="voice-copy">
                   <strong>免费模式 2</strong>
-                  <small>KazakhTTS-OmniVoice · 声线设计 / 倍速 / 情绪</small>
+                  <small>KazakhTTS-OmniVoice · 声线设计 / 倍速 / 质量</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -723,13 +623,12 @@ export default function Home() {
                 </div>
               </fieldset>
 
-              {audioTagPanel("edge")}
 
               <div className="broadcast-note">
                 <div className="broadcast-index">EDGE</div>
                 <div>
                   <strong>Edge TTS · 免费增强模式</strong>
-                  <p>支持 0.70×–1.20× 精细倍速、音调、音量、4 种播音风格，以及句子级情绪标签。情绪效果由 SSML 模拟，不消耗 ElevenLabs 额度。</p>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格，不消耗 ElevenLabs 额度。</p>
                 </div>
               </div>
             </>
@@ -836,7 +735,7 @@ export default function Home() {
                       }}
                       style={{ width: "100%", accentColor: "var(--mint)" }}
                     />
-                    <small>低：更有情绪起伏　高：更稳定一致</small>
+                    <small>低：变化更灵活　高：更稳定一致</small>
                   </label>
 
                   <label style={{ display: "block", marginBottom: 16 }}>
@@ -897,13 +796,12 @@ export default function Home() {
                 </div>
               </fieldset>
 
-              {audioTagPanel("eleven")}
 
               <div className="broadcast-note">
                 <div className="broadcast-index">V3</div>
                 <div>
                   <strong>ElevenLabs v3 · 哈萨克语高质量模式</strong>
-                  <p>支持最多 500 条账号声线、0.70×–1.20× 精细倍速、音色参数，以及句子级情绪和表演控制。</p>
+                  <p>支持最多 500 条账号声线、0.70×–1.20× 精细倍速，以及稳定度、声线相似度和风格强度等音色参数。</p>
                 </div>
               </div>
             </>
@@ -913,7 +811,7 @@ export default function Home() {
                 <div className="broadcast-index">OV</div>
                 <div>
                   <strong>KazakhTTS-OmniVoice · 免费模式 2 已选中</strong>
-                  <p>这是共享 GPU 模式，支持男/女声设计、年龄、音高、耳语、倍速、质量档位和句尾情绪标签。下方是它的专用控制区。</p>
+                  <p>这是共享 GPU 模式，支持男/女声设计、年龄、音高、耳语、倍速和质量档位。下方是它的专用控制区。</p>
                 </div>
               </div>
               <button
@@ -926,7 +824,7 @@ export default function Home() {
                 <span className="button-icon" aria-hidden="true"><i className="play-triangle" /></span>
                 <span>
                   <strong>进入 KazakhTTS-OmniVoice 控制区</strong>
-                  <small>免费共享 GPU · 声线设计 + 倍速 + 情绪标签</small>
+                  <small>免费共享 GPU · 声线设计 + 倍速 + 质量控制</small>
                 </span>
                 <span className="button-arrow" aria-hidden="true">→</span>
               </button>
@@ -971,8 +869,8 @@ export default function Home() {
                 {isGenerating
                   ? "请保持页面开启"
                   : engine === "eleven"
-                    ? "声线 + 倍速 + 音色 + 情绪标签 · 生成后可试听并下载 MP3"
-                    : "声线 + 倍速 + 音调 + 音量 + 情绪标签 · 免费生成 MP3"}
+                    ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
+                    : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
             <span className="button-arrow" aria-hidden="true">→</span>

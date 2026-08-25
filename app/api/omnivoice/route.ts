@@ -3,7 +3,6 @@ const OMNI_API = "_design_fn";
 const MAX_CHARACTERS = 1200;
 const MIN_SPEED = 0.7;
 const MAX_SPEED = 1.2;
-const MAX_TAGGED_SEGMENTS = 7;
 
 const GENDERS = new Set(["Auto", "Male / 男", "Female / 女"]);
 const AGES = new Set([
@@ -24,53 +23,6 @@ const PITCHES = new Set([
 ]);
 const STYLES = new Set(["Auto", "Whisper / 耳语"]);
 
-const TAG_STYLES: Record<
-  string,
-  { speedFactor?: number; pitch?: string; style?: string }
-> = {
-  开心: { speedFactor: 1.05, pitch: "High Pitch / 高音调" },
-  高兴: { speedFactor: 1.05, pitch: "High Pitch / 高音调" },
-  快乐: { speedFactor: 1.05, pitch: "High Pitch / 高音调" },
-  兴奋: { speedFactor: 1.1, pitch: "Very High Pitch / 极高音调" },
-  激动: { speedFactor: 1.1, pitch: "High Pitch / 高音调" },
-  热情: { speedFactor: 1.07, pitch: "High Pitch / 高音调" },
-  悲伤: { speedFactor: 0.88, pitch: "Low Pitch / 低音调" },
-  难过: { speedFactor: 0.9, pitch: "Low Pitch / 低音调" },
-  伤心: { speedFactor: 0.86, pitch: "Very Low Pitch / 极低音调" },
-  哭泣: { speedFactor: 0.84, pitch: "Low Pitch / 低音调" },
-  愤怒: { speedFactor: 1.04, pitch: "Low Pitch / 低音调" },
-  生气: { speedFactor: 1.03, pitch: "Low Pitch / 低音调" },
-  担心: { speedFactor: 0.95, pitch: "High Pitch / 高音调" },
-  忧虑: { speedFactor: 0.92, pitch: "Moderate Pitch / 中音调" },
-  紧张: { speedFactor: 1.06, pitch: "High Pitch / 高音调" },
-  害怕: { speedFactor: 1.06, pitch: "High Pitch / 高音调" },
-  恐惧: { speedFactor: 1.08, pitch: "Very High Pitch / 极高音调" },
-  惊讶: { speedFactor: 1.04, pitch: "Very High Pitch / 极高音调" },
-  好奇: { speedFactor: 0.98, pitch: "High Pitch / 高音调" },
-  疲惫: { speedFactor: 0.84, pitch: "Low Pitch / 低音调" },
-  自信: { speedFactor: 0.98, pitch: "Low Pitch / 低音调" },
-  严肃: { speedFactor: 0.94, pitch: "Low Pitch / 低音调" },
-  平静: { speedFactor: 0.92, pitch: "Moderate Pitch / 中音调" },
-  冷静: { speedFactor: 0.92, pitch: "Low Pitch / 低音调" },
-  轻松: { speedFactor: 0.95, pitch: "Moderate Pitch / 中音调" },
-  温柔: { speedFactor: 0.9, pitch: "Moderate Pitch / 中音调" },
-  温暖: { speedFactor: 0.93, pitch: "Moderate Pitch / 中音调" },
-  轻声: { speedFactor: 0.9, style: "Whisper / 耳语" },
-  小声: { speedFactor: 0.86, style: "Whisper / 耳语" },
-  耳语: { speedFactor: 0.84, style: "Whisper / 耳语" },
-  神秘: { speedFactor: 0.86, pitch: "Low Pitch / 低音调", style: "Whisper / 耳语" },
-  大声: { speedFactor: 1.03, pitch: "High Pitch / 高音调" },
-  喊叫: { speedFactor: 1.07, pitch: "Very High Pitch / 极高音调" },
-  调皮: { speedFactor: 1.04, pitch: "High Pitch / 高音调" },
-  讽刺: { speedFactor: 0.96, pitch: "High Pitch / 高音调" },
-  笑: { speedFactor: 1.06, pitch: "High Pitch / 高音调" },
-  轻笑: { speedFactor: 1.05, pitch: "High Pitch / 高音调" },
-  大笑: { speedFactor: 1.1, pitch: "Very High Pitch / 极高音调" },
-  叹气: { speedFactor: 0.82, pitch: "Low Pitch / 低音调" },
-  清嗓: { speedFactor: 0.9, pitch: "Moderate Pitch / 中音调" },
-  慢速: { speedFactor: 0.78 },
-  快速: { speedFactor: 1.18 },
-};
 
 type OmniSettings = {
   speed: number;
@@ -83,7 +35,6 @@ type OmniSettings = {
   style: string;
 };
 
-type OmniSegment = { text: string; tag?: string };
 
 class OmniError extends Error {
   constructor(message: string) {
@@ -110,72 +61,6 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: numbe
   } finally {
     clearTimeout(timeout);
   }
-}
-
-function splitTagFromPreviousSentence(source: string, tag: string) {
-  let contentEnd = source.length;
-  while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
-  if (!source.slice(0, contentEnd).trim()) return null;
-
-  let searchFrom = contentEnd - 1;
-  if (/[.!?。！？]/u.test(source[searchFrom] ?? "")) searchFrom -= 1;
-
-  let sentenceStart = 0;
-  for (let index = searchFrom; index >= 0; index -= 1) {
-    if (/[.!?。！？\n]/u.test(source[index])) {
-      sentenceStart = index + 1;
-      break;
-    }
-  }
-
-  const before = source.slice(0, sentenceStart).trim();
-  const sentence = source.slice(sentenceStart, contentEnd).trim();
-  const trailing = source.slice(contentEnd);
-  if (!sentence) return null;
-  return { before, sentence, trailing, tag };
-}
-
-function splitOmniSegments(text: string) {
-  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
-  const segments: OmniSegment[] = [];
-  let pending = "";
-  let cursor = 0;
-  let recognizedTags = 0;
-
-  for (const match of text.matchAll(matcher)) {
-    const index = match.index ?? 0;
-    pending += text.slice(cursor, index);
-    const rawTag = (match[1] ?? "").trim();
-
-    if (TAG_STYLES[rawTag]) {
-      recognizedTags += 1;
-      const split = splitTagFromPreviousSentence(pending, rawTag);
-      if (split) {
-        if (split.before) segments.push({ text: split.before });
-        segments.push({ text: split.sentence, tag: rawTag });
-        pending = split.trailing;
-      }
-    } else {
-      pending += match[0];
-    }
-
-    cursor = index + match[0].length;
-  }
-
-  pending += text.slice(cursor);
-  if (pending.trim()) segments.push({ text: pending.trim() });
-
-  const merged: OmniSegment[] = [];
-  for (const item of segments) {
-    const previous = merged.at(-1);
-    if (previous && previous.tag === item.tag && !item.tag) {
-      previous.text = `${previous.text} ${item.text}`.trim();
-    } else {
-      merged.push(item);
-    }
-  }
-
-  return { segments: merged.length ? merged : [{ text }], recognizedTags };
 }
 
 function writeAscii(view: Uint8Array, offset: number, value: string) {
@@ -275,18 +160,6 @@ function parseSseResult(raw: string) {
     if (event === "complete") finalData = parsed;
   }
   return finalData;
-}
-
-function settingsForTag(base: OmniSettings, tag?: string): OmniSettings {
-  if (!tag) return base;
-  const override = TAG_STYLES[tag];
-  if (!override) return base;
-  return {
-    ...base,
-    speed: clamp(base.speed * (override.speedFactor ?? 1), MIN_SPEED, MAX_SPEED),
-    pitch: override.pitch ?? base.pitch,
-    style: override.style ?? base.style,
-  };
 }
 
 async function generateSegment(text: string, settings: OmniSettings) {
@@ -437,20 +310,8 @@ export async function POST(request: Request) {
     style: safeStyle,
   };
 
-  const { segments, recognizedTags } = splitOmniSegments(cleanText);
-  if (recognizedTags > 3 || segments.length > MAX_TAGGED_SEGMENTS) {
-    return jsonError(
-      "OmniVoice 公共 GPU 很慢。为避免一次任务等待过久，每次最多使用 3 个句尾情绪标签；请减少标签数量后重试。",
-      400,
-    );
-  }
-
   try {
-    const buffers: ArrayBuffer[] = [];
-    for (const segment of segments) {
-      buffers.push(await generateSegment(segment.text, settingsForTag(baseSettings, segment.tag)));
-    }
-    const output = concatWav(buffers);
+    const output = await generateSegment(cleanText, baseSettings);
     return new Response(output, {
       headers: {
         "Content-Type": "audio/wav",
@@ -458,7 +319,7 @@ export async function POST(request: Request) {
         "Cache-Control": "no-store",
         "X-Content-Type-Options": "nosniff",
         "X-TTS-Engine": "omnivoice",
-        "X-Omni-Segments": String(segments.length),
+        "X-Omni-Segments": "1",
       },
     });
   } catch (error) {
