@@ -23,30 +23,39 @@ const PRESETS = {
 const CHINESE_AUDIO_TAGS: Record<string, string> = {
   开心: "happy",
   高兴: "happily",
+  快乐: "happy",
   兴奋: "excited",
   激动: "excited",
+  热情: "enthusiastically",
   悲伤: "sad",
   难过: "sad",
   伤心: "sorrowful",
+  哭泣: "crying",
   愤怒: "angry",
   生气: "angry",
   担心: "worried",
+  忧虑: "worried",
   紧张: "nervous",
   害怕: "fearful",
   恐惧: "fearful",
+  惊讶: "surprised",
   好奇: "curious",
   疲惫: "tired",
+  自信: "confidently",
+  严肃: "serious",
+  平静: "calm",
+  冷静: "calm",
+  轻松: "relaxed",
   温柔: "softly",
+  温暖: "warmly",
   轻声: "softly",
   小声: "whispers",
   耳语: "whispers",
   大声: "shouts",
   喊叫: "shouts",
-  严肃: "serious",
-  平静: "calm",
-  轻松: "relaxed",
   神秘: "mysteriously",
-  哭泣: "crying",
+  调皮: "mischievously",
+  讽刺: "sarcastically",
   笑: "laughs",
   大笑: "laughs",
   轻笑: "chuckles",
@@ -62,6 +71,14 @@ type EngineName = "edge" | "eleven";
 type TranslatorEndpoint = {
   r: string;
   t: string;
+};
+
+type ElevenVoiceSettings = {
+  speed: number;
+  stability: number;
+  similarityBoost: number;
+  style: number;
+  speakerBoost: boolean;
 };
 
 let tokenCache: {
@@ -120,12 +137,58 @@ function formattedDate() {
   return new Date().toUTCString().replace("GMT", "").trim().concat(" GMT").toLowerCase();
 }
 
+function applyTagToPreviousSentence(source: string, mappedTag: string) {
+  let contentEnd = source.length;
+  while (contentEnd > 0 && /\s/u.test(source[contentEnd - 1])) contentEnd -= 1;
+
+  if (!source.slice(0, contentEnd).trim()) {
+    return `${source}[${mappedTag}] `;
+  }
+
+  let searchFrom = contentEnd - 1;
+  if (/[.!?。！？]/u.test(source[searchFrom] ?? "")) searchFrom -= 1;
+
+  let sentenceStart = 0;
+  for (let index = searchFrom; index >= 0; index -= 1) {
+    if (/[.!?。！？\n]/u.test(source[index])) {
+      sentenceStart = index + 1;
+      break;
+    }
+  }
+
+  const beforeSentence = source.slice(0, sentenceStart);
+  const sentenceWithSpacing = source.slice(sentenceStart, contentEnd);
+  const trailingWhitespace = source.slice(contentEnd);
+  const leadingWhitespace = sentenceWithSpacing.match(/^\s*/u)?.[0] ?? "";
+  const sentence = sentenceWithSpacing.slice(leadingWhitespace.length);
+
+  return `${beforeSentence}${leadingWhitespace}[${mappedTag}] ${sentence}${trailingWhitespace}`;
+}
+
 function normalizeElevenAudioTags(text: string) {
-  return text.replace(/\[([^\]\r\n]{1,30})\]/gu, (full, rawTag: string) => {
-    const normalized = rawTag.trim();
-    const mapped = CHINESE_AUDIO_TAGS[normalized];
-    return mapped ? `[${mapped}]` : full;
-  });
+  const matcher = /[\[【]([^\]】\r\n]{1,30})[\]】]/gu;
+  let output = "";
+  let cursor = 0;
+
+  for (const match of text.matchAll(matcher)) {
+    const index = match.index ?? 0;
+    output += text.slice(cursor, index);
+
+    const rawTag = (match[1] ?? "").trim();
+    const mapped = CHINESE_AUDIO_TAGS[rawTag];
+
+    if (mapped) {
+      output = applyTagToPreviousSentence(output, mapped);
+    } else {
+      // Native Eleven v3 English audio tags stay exactly where the user typed them.
+      output += match[0];
+    }
+
+    cursor = index + match[0].length;
+  }
+
+  output += text.slice(cursor);
+  return output;
 }
 
 async function sign(urlString: string) {
@@ -269,7 +332,7 @@ async function synthesizeElevenChunk(
   text: string,
   voiceId: string,
   apiKey: string,
-  speed: number,
+  settings: ElevenVoiceSettings,
   previousText?: string,
   nextText?: string,
 ) {
@@ -286,7 +349,13 @@ async function synthesizeElevenChunk(
         text,
         model_id: ELEVEN_MODEL_ID,
         language_code: "kk",
-        voice_settings: { speed },
+        voice_settings: {
+          speed: settings.speed,
+          stability: settings.stability,
+          similarity_boost: settings.similarityBoost,
+          style: settings.style,
+          use_speaker_boost: settings.speakerBoost,
+        },
         ...(previousText ? { previous_text: previousText } : {}),
         ...(nextText ? { next_text: nextText } : {}),
       }),
@@ -310,7 +379,7 @@ async function synthesizeWithEleven(
   text: string,
   voiceId: string,
   apiKey: string,
-  speed: number,
+  settings: ElevenVoiceSettings,
 ) {
   const directedText = normalizeElevenAudioTags(text);
   const chunks = splitText(directedText, ELEVEN_MAX_CHUNK_SIZE);
@@ -321,7 +390,7 @@ async function synthesizeWithEleven(
     const previous = index > 0 ? chunks[index - 1] : undefined;
     const next = index < chunks.length - 1 ? chunks[index + 1] : undefined;
     audioChunks.push(
-      await synthesizeElevenChunk(current, voiceId, apiKey, speed, previous, next),
+      await synthesizeElevenChunk(current, voiceId, apiKey, settings, previous, next),
     );
   }
 
@@ -340,6 +409,11 @@ function audioResponse(chunks: ArrayBuffer[], engine: EngineName) {
   });
 }
 
+function readUnitInterval(value: unknown, fallback: number) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return value;
+}
+
 export async function POST(request: Request) {
   let payload: unknown;
   try {
@@ -349,7 +423,17 @@ export async function POST(request: Request) {
   }
 
   if (!payload || typeof payload !== "object") return jsonError("请求内容无效。", 400);
-  const { text, engine, voice, preset, speed } = payload as Record<string, unknown>;
+  const {
+    text,
+    engine,
+    voice,
+    preset,
+    speed,
+    stability,
+    similarityBoost,
+    style,
+    speakerBoost,
+  } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
     return jsonError("请先输入哈萨克语文本。", 400);
@@ -385,9 +469,24 @@ export async function POST(request: Request) {
     const apiKey = process.env.Max?.trim();
     const selectedSpeed =
       typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
+    const selectedStability = readUnitInterval(stability, 0.5);
+    const selectedSimilarity = readUnitInterval(similarityBoost, 0.75);
+    const selectedStyle = readUnitInterval(style, 0);
+    const selectedSpeakerBoost =
+      typeof speakerBoost === "boolean" ? speakerBoost : true;
 
     if (selectedSpeed < ELEVEN_MIN_SPEED || selectedSpeed > ELEVEN_MAX_SPEED) {
       return jsonError("ElevenLabs 倍速必须在 0.7× 到 1.2× 之间。", 400);
+    }
+    if (
+      selectedStability < 0 ||
+      selectedStability > 1 ||
+      selectedSimilarity < 0 ||
+      selectedSimilarity > 1 ||
+      selectedStyle < 0 ||
+      selectedStyle > 1
+    ) {
+      return jsonError("ElevenLabs 音色参数必须在 0 到 1 之间。", 400);
     }
 
     if (!apiKey) {
@@ -397,12 +496,20 @@ export async function POST(request: Request) {
       );
     }
 
+    const settings: ElevenVoiceSettings = {
+      speed: selectedSpeed,
+      stability: selectedStability,
+      similarityBoost: selectedSimilarity,
+      style: selectedStyle,
+      speakerBoost: selectedSpeakerBoost,
+    };
+
     try {
       const audioChunks = await synthesizeWithEleven(
         safeText,
         voice,
         apiKey,
-        selectedSpeed,
+        settings,
       );
       return audioResponse(audioChunks, "eleven");
     } catch (error) {
@@ -418,7 +525,7 @@ export async function POST(request: Request) {
           return jsonError("ElevenLabs 当前额度不足或请求过于频繁，请稍后再试。", 429);
         }
         if (error.status === 422) {
-          return jsonError("ElevenLabs 无法使用当前文本、声线、倍速或情绪标签生成语音，请调整后重试。", 422);
+          return jsonError("ElevenLabs 无法使用当前文本、声线、倍速、音色参数或情绪标签生成语音，请调整后重试。", 422);
         }
       }
       return jsonError("高质量语音服务暂时繁忙，请稍后重新生成。", 502);
