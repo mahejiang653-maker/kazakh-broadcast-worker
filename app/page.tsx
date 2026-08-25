@@ -23,9 +23,10 @@ const EDGE_VOICES = [
 ] as const;
 
 const PRESETS = [
-  { id: "news", label: "标准新闻", note: "清晰、有分量" },
-  { id: "calm", label: "沉稳长稿", note: "稍慢、便于听清" },
-  { id: "bulletin", label: "简明快讯", note: "节奏更紧凑" },
+  { id: "news", label: "标准新闻", note: "清晰、有分量", rateFactor: 1 },
+  { id: "calm", label: "沉稳长稿", note: "稍慢、便于听清", rateFactor: 0.92 },
+  { id: "bulletin", label: "简明快讯", note: "节奏更紧凑", rateFactor: 1.08 },
+  { id: "expressive", label: "生动播报", note: "更有起伏、适合旁白", rateFactor: 1.02 },
 ] as const;
 
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
@@ -82,12 +83,12 @@ const AUDIO_TAGS = [
   { label: "严肃", note: "正式克制" },
   { label: "平静", note: "平稳自然" },
   { label: "温柔", note: "柔和轻缓" },
-  { label: "小声", note: "耳语效果" },
+  { label: "小声", note: "降低音量" },
   { label: "大声", note: "提高强度" },
-  { label: "神秘", note: "神秘语气" },
-  { label: "轻笑", note: "自然轻笑" },
-  { label: "大笑", note: "明显笑声" },
-  { label: "叹气", note: "自然叹息" },
+  { label: "神秘", note: "低沉神秘" },
+  { label: "轻笑", note: "轻快模拟" },
+  { label: "大笑", note: "更强起伏" },
+  { label: "叹气", note: "放慢变沉" },
   { label: "慢速", note: "放慢这一句" },
   { label: "快速", note: "加快这一句" },
 ] as const;
@@ -127,12 +128,19 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+function signed(value: number, suffix = "%") {
+  const rounded = Math.round(value * 10) / 10;
+  return `${rounded > 0 ? "+" : ""}${rounded}${suffix}`;
+}
+
 export default function Home() {
   const [text, setText] = useState(SAMPLE_TEXT);
   const [engine, setEngine] = useState<Engine>("edge");
   const [voice, setVoice] = useState<string>("kk-KZ-DauletNeural");
   const [preset, setPreset] = useState<PresetId>("news");
   const [speed, setSpeed] = useState(1);
+  const [edgePitch, setEdgePitch] = useState(0);
+  const [edgeVolume, setEdgeVolume] = useState(0);
   const [stability, setStability] = useState(0.5);
   const [similarityBoost, setSimilarityBoost] = useState(0.75);
   const [style, setStyle] = useState(0);
@@ -156,17 +164,18 @@ export default function Home() {
     [elevenVoices, voice],
   );
 
+  const selectedPreset = useMemo(
+    () => PRESETS.find((item) => item.id === preset) ?? PRESETS[0],
+    [preset],
+  );
+
   const estimatedDuration = Math.max(
     2,
     Math.round(
       wordCount /
         (engine === "eleven"
           ? 2.35 * speed
-          : preset === "bulletin"
-            ? 2.7
-            : preset === "calm"
-              ? 2.1
-              : 2.4),
+          : 2.4 * speed * selectedPreset.rateFactor),
     ),
   );
 
@@ -320,6 +329,8 @@ export default function Home() {
           voice,
           preset,
           speed,
+          edgePitch,
+          edgeVolume,
           stability,
           similarityBoost,
           style,
@@ -366,6 +377,84 @@ export default function Home() {
     resetAudio();
   }
 
+  const speedControl = (label: string) => (
+    <fieldset className="field-block">
+      <legend>{label}</legend>
+      <div className="textarea-wrap" style={{ padding: "16px 17px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ minWidth: 48, fontWeight: 700, fontSize: 15 }}>
+            {speed.toFixed(2)}×
+          </span>
+          <input
+            aria-label={`${label}倍速`}
+            type="range"
+            min="0.7"
+            max="1.2"
+            step="0.01"
+            value={speed}
+            onChange={(event) => {
+              setSpeed(Number(event.target.value));
+              resetAudio();
+            }}
+            style={{ width: "100%", accentColor: "var(--mint)" }}
+          />
+        </div>
+        <div className="preset-grid" style={{ marginTop: 14 }}>
+          {SPEED_PRESETS.map((item) => (
+            <button
+              className={Math.abs(speed - item) < 0.001 ? "preset selected" : "preset"}
+              type="button"
+              key={item}
+              onClick={() => {
+                setSpeed(item);
+                resetAudio();
+              }}
+              aria-pressed={Math.abs(speed - item) < 0.001}
+            >
+              <strong>{item.toFixed(1)}×</strong>
+              <small>{item < 1 ? "更慢" : item > 1 ? "更快" : "原速"}</small>
+            </button>
+          ))}
+        </div>
+        <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
+          <span>精细步进 0.01×</span>
+          <span>0.70× – 1.20×</span>
+        </div>
+      </div>
+    </fieldset>
+  );
+
+  const audioTagPanel = (mode: "edge" | "eleven") => (
+    <fieldset className="field-block">
+      <legend>情绪与表演标签</legend>
+      <div className="preset-grid">
+        {AUDIO_TAGS.map((item) => (
+          <button
+            className="preset"
+            type="button"
+            key={item.label}
+            onClick={() => insertAudioTag(item.label)}
+          >
+            <strong>[{item.label}]</strong>
+            <small>{item.note}</small>
+          </button>
+        ))}
+      </div>
+      <div className="broadcast-note" style={{ marginTop: 14 }}>
+        <div className="broadcast-index">[ ]</div>
+        <div>
+          <strong>标签写在句子后面，控制它前面的那一句</strong>
+          <p>
+            例如：Бүгін жақсы жаңалық бар! [开心]　{mode === "eleven"
+              ? "高质量模式会自动转换成 Eleven v3 Audio Tag。"
+              : "免费模式会用 SSML 自动改变这一句的语速、音调和音量来模拟情绪。"}
+            也可以先选中一句话，再点上面的标签按钮。
+          </p>
+        </div>
+      </div>
+    </fieldset>
+  );
+
   return (
     <main className="site-shell">
       <div className="ambient ambient-one" />
@@ -385,7 +474,7 @@ export default function Home() {
         </a>
         <div className="top-status" aria-label="当前语音模式">
           <span className="status-dot" />
-          {engine === "edge" ? "免费模式 · Edge TTS" : "高质量模式 · ElevenLabs v3"}
+          {engine === "edge" ? "免费模式 · Edge TTS 增强" : "高质量模式 · ElevenLabs v3"}
         </div>
       </header>
 
@@ -402,13 +491,13 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            粘贴哈萨克语稿件，在免费 Edge TTS 与 ElevenLabs v3 高质量模式之间切换。高质量模式支持更多声线、倍速、音色细调与句子级情绪标签。
+            免费 Edge TTS 与 ElevenLabs v3 两种模式都支持精细倍速和句尾情绪标签。Edge 额外提供音调、音量和播音风格控制；高质量模式提供更多声线和更自然的情绪表现。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>免费 / 高质量双模式</span>
-            <span>最多 500 条声线</span>
-            <span>0.7×–1.2× 倍速</span>
+            <span>两种模式均可调倍速</span>
             <span>句尾情绪标签</span>
+            <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
           </div>
 
@@ -474,7 +563,7 @@ export default function Home() {
                 <span className="voice-avatar">F</span>
                 <span className="voice-copy">
                   <strong>免费模式</strong>
-                  <small>Edge TTS · 无需 ElevenLabs 额度</small>
+                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量 / 情绪</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -529,8 +618,10 @@ export default function Home() {
                 </div>
               </fieldset>
 
+              {speedControl("倍速调节")}
+
               <fieldset className="field-block">
-                <legend>播音节奏</legend>
+                <legend>音色与表现力</legend>
                 <div className="preset-grid">
                   {PRESETS.map((item) => (
                     <button
@@ -539,6 +630,7 @@ export default function Home() {
                       key={item.id}
                       onClick={() => {
                         setPreset(item.id);
+                        setError("");
                         resetAudio();
                       }}
                       aria-pressed={preset === item.id}
@@ -548,7 +640,66 @@ export default function Home() {
                     </button>
                   ))}
                 </div>
+
+                <div className="textarea-wrap" style={{ padding: "16px 17px 12px", marginTop: 12 }}>
+                  <label style={{ display: "block", marginBottom: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 7 }}>
+                      <strong>音调</strong>
+                      <span>{signed(edgePitch)}</span>
+                    </div>
+                    <input
+                      aria-label="Edge TTS 音调"
+                      type="range"
+                      min="-20"
+                      max="20"
+                      step="1"
+                      value={edgePitch}
+                      onChange={(event) => {
+                        setEdgePitch(Number(event.target.value));
+                        resetAudio();
+                      }}
+                      style={{ width: "100%", accentColor: "var(--mint)" }}
+                    />
+                    <small>降低更沉稳，提高更明亮；新闻建议 -5% 到 +5%</small>
+                  </label>
+
+                  <label style={{ display: "block", marginBottom: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 7 }}>
+                      <strong>音量</strong>
+                      <span>{signed(edgeVolume, "dB")}</span>
+                    </div>
+                    <input
+                      aria-label="Edge TTS 音量"
+                      type="range"
+                      min="-8"
+                      max="8"
+                      step="0.5"
+                      value={edgeVolume}
+                      onChange={(event) => {
+                        setEdgeVolume(Number(event.target.value));
+                        resetAudio();
+                      }}
+                      style={{ width: "100%", accentColor: "var(--mint)" }}
+                    />
+                    <small>整体增减播音强度；过高可能听起来偏硬</small>
+                  </label>
+
+                  <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
+                    <span>Edge SSML 实时调整</span>
+                    <span>无需 ElevenLabs 额度</span>
+                  </div>
+                </div>
               </fieldset>
+
+              {audioTagPanel("edge")}
+
+              <div className="broadcast-note">
+                <div className="broadcast-index">EDGE</div>
+                <div>
+                  <strong>Edge TTS · 免费增强模式</strong>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量、4 种播音风格，以及句子级情绪标签。情绪效果由 SSML 模拟，不消耗 ElevenLabs 额度。</p>
+                </div>
+              </div>
             </>
           ) : (
             <>
@@ -616,50 +767,7 @@ export default function Home() {
                 ) : null}
               </div>
 
-              <fieldset className="field-block">
-                <legend>倍速调节</legend>
-                <div className="textarea-wrap" style={{ padding: "16px 17px 12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <span style={{ minWidth: 48, fontWeight: 700, fontSize: 15 }}>
-                      {speed.toFixed(2)}×
-                    </span>
-                    <input
-                      aria-label="ElevenLabs 倍速"
-                      type="range"
-                      min="0.7"
-                      max="1.2"
-                      step="0.01"
-                      value={speed}
-                      onChange={(event) => {
-                        setSpeed(Number(event.target.value));
-                        resetAudio();
-                      }}
-                      style={{ width: "100%", accentColor: "var(--mint)" }}
-                    />
-                  </div>
-                  <div className="preset-grid" style={{ marginTop: 14 }}>
-                    {SPEED_PRESETS.map((item) => (
-                      <button
-                        className={Math.abs(speed - item) < 0.001 ? "preset selected" : "preset"}
-                        type="button"
-                        key={item}
-                        onClick={() => {
-                          setSpeed(item);
-                          resetAudio();
-                        }}
-                        aria-pressed={Math.abs(speed - item) < 0.001}
-                      >
-                        <strong>{item.toFixed(1)}×</strong>
-                        <small>{item < 1 ? "更慢" : item > 1 ? "更快" : "原速"}</small>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
-                    <span>精细步进 0.01×</span>
-                    <span>官方范围 0.7× – 1.2×</span>
-                  </div>
-                </div>
-              </fieldset>
+              {speedControl("倍速调节")}
 
               <fieldset className="field-block">
                 <legend>音色与表现力</legend>
@@ -757,37 +865,13 @@ export default function Home() {
                 </div>
               </fieldset>
 
-              <fieldset className="field-block">
-                <legend>情绪与表演标签</legend>
-                <div className="preset-grid">
-                  {AUDIO_TAGS.map((item) => (
-                    <button
-                      className="preset"
-                      type="button"
-                      key={item.label}
-                      onClick={() => insertAudioTag(item.label)}
-                    >
-                      <strong>[{item.label}]</strong>
-                      <small>{item.note}</small>
-                    </button>
-                  ))}
-                </div>
-                <div className="broadcast-note" style={{ marginTop: 14 }}>
-                  <div className="broadcast-index">[ ]</div>
-                  <div>
-                    <strong>标签写在句子后面，控制它前面的那一句</strong>
-                    <p>
-                      例如：Бүгін жақсы жаңалық бар! [开心]　生成时网站会自动转换成 Eleven v3 能识别的 Audio Tag。也可以先选中一句话，再点上面的情绪按钮。
-                    </p>
-                  </div>
-                </div>
-              </fieldset>
+              {audioTagPanel("eleven")}
 
               <div className="broadcast-note">
                 <div className="broadcast-index">V3</div>
                 <div>
                   <strong>ElevenLabs v3 · 哈萨克语高质量模式</strong>
-                  <p>支持最多 500 条账号声线、0.7×–1.2× 精细倍速、音色参数，以及句子级情绪和表演控制。</p>
+                  <p>支持最多 500 条账号声线、0.70×–1.20× 精细倍速、音色参数，以及句子级情绪和表演控制。</p>
                 </div>
               </div>
             </>
@@ -818,19 +902,19 @@ export default function Home() {
                 {isGenerating
                   ? engine === "eleven"
                     ? "正在生成高质量播音…"
-                    : "正在生成免费播音…"
+                    : "正在生成免费增强播音…"
                   : engine === "eleven"
                     ? voice
                       ? `生成 ElevenLabs v3 · ${speed.toFixed(2)}×`
                       : "正在等待 ElevenLabs 声线"
-                    : "生成免费哈萨克语播音"}
+                    : `生成 Edge TTS · ${speed.toFixed(2)}×`}
               </strong>
               <small>
                 {isGenerating
                   ? "请保持页面开启"
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色 + 情绪标签 · 生成后可试听并下载 MP3"
-                    : "免费模式 · 生成后可试听并下载 MP3"}
+                    : "声线 + 倍速 + 音调 + 音量 + 情绪标签 · 免费生成 MP3"}
               </small>
             </span>
             <span className="button-arrow" aria-hidden="true">→</span>
@@ -865,7 +949,7 @@ export default function Home() {
                 <p>
                   {engine === "eleven"
                     ? "高质量音频生成后，播放器会出现在这里"
-                    : "免费音频生成后，播放器会出现在这里"}
+                    : "免费增强音频生成后，播放器会出现在这里"}
                 </p>
               </div>
             )}
