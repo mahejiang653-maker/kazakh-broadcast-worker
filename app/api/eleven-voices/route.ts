@@ -42,8 +42,17 @@ export async function POST() {
     });
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        return jsonError("ElevenLabs 授权失败，请检查 API Key 或账号权限。", 502);
+      if (response.status === 401) {
+        return jsonError(
+          "ElevenLabs API Key 无效、已删除或已过期。请重新创建 API Key，并把新 Key 填入 Cloudflare 的 MA。",
+          502,
+        );
+      }
+      if (response.status === 403) {
+        return jsonError(
+          "ElevenLabs API Key 权限不足或设置了 IP 限制。请给 Key 开启 Voices 读取与 Text to Speech 权限，并取消 IP 限制。",
+          502,
+        );
       }
       if (response.status === 429) {
         return jsonError("ElevenLabs 当前请求过于频繁，请稍后再试。", 429);
