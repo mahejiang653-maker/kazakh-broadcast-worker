@@ -1,4 +1,4 @@
-const OMNI_BASE = "https://shyngys879-kazakhtts-omnivoice-demo.hf.space";
+const OMNI_BASE = (process.env.OMNIVOICE_BASE_URL?.trim() || "https://shyngys879-kazakhtts-omnivoice-demo.hf.space").replace(/\/$/u, "");
 const OMNI_API = "_design_fn";
 const MAX_CHARACTERS = 1200;
 const MIN_SPEED = 0.7;
