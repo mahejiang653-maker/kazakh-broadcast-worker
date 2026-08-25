@@ -94,7 +94,7 @@ const AUDIO_TAGS = [
   { label: "快速", note: "加快这一句" },
 ] as const;
 
-type Engine = "edge" | "eleven";
+type Engine = "edge" | "eleven" | "omnivoice";
 type PresetId = (typeof PRESETS)[number]["id"];
 type ElevenVoice = {
   id: string;
@@ -237,13 +237,24 @@ export default function Home() {
     setVoice(
       nextEngine === "edge"
         ? EDGE_VOICES[0].id
-        : elevenVoices[0]?.id ?? "",
+        : nextEngine === "eleven"
+          ? elevenVoices[0]?.id ?? ""
+          : "",
     );
     setError("");
     resetAudio();
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
       void loadElevenVoices();
+    }
+
+    if (nextEngine === "omnivoice") {
+      window.setTimeout(() => {
+        document.getElementById("omnivoice")?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, 100);
     }
   }
 
@@ -475,7 +486,11 @@ export default function Home() {
         </a>
         <div className="top-status" aria-label="当前语音模式">
           <span className="status-dot" />
-          {engine === "edge" ? "免费模式 · Edge TTS 增强" : "高质量模式 · ElevenLabs v3"}
+          {engine === "edge"
+            ? "免费模式 1 · Edge TTS 增强"
+            : engine === "eleven"
+              ? "高质量模式 · ElevenLabs v3"
+              : "免费模式 2 · KazakhTTS-OmniVoice"}
         </div>
       </header>
 
@@ -492,11 +507,11 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            免费 Edge TTS 与 ElevenLabs v3 两种模式都支持精细倍速和句尾情绪标签。Edge 额外提供音调、音量和播音风格控制；高质量模式提供更多声线和更自然的情绪表现。
+            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。
           </p>
           <div className="feature-row" aria-label="功能特点">
-            <span>免费 / 高质量双模式</span>
-            <span>两种模式均可调倍速</span>
+            <span>Edge / OmniVoice / ElevenLabs</span>
+            <span>三种模式均可调倍速</span>
             <span>句尾情绪标签</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
@@ -581,6 +596,22 @@ export default function Home() {
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
                   <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 情绪</small>
+                </span>
+                <span className="radio-mark" aria-hidden="true" />
+              </label>
+
+              <label className={`voice-option ${engine === "omnivoice" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="engine"
+                  value="omnivoice"
+                  checked={engine === "omnivoice"}
+                  onChange={() => selectEngine("omnivoice")}
+                />
+                <span className="voice-avatar">O</span>
+                <span className="voice-copy">
+                  <strong>免费模式 2</strong>
+                  <small>KazakhTTS-OmniVoice · 声线设计 / 倍速 / 情绪</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -702,7 +733,7 @@ export default function Home() {
                 </div>
               </div>
             </>
-          ) : (
+          ) : engine === "eleven" ? (
             <>
               <div className="field-block">
                 <div className="field-label-row">
@@ -876,8 +907,34 @@ export default function Home() {
                 </div>
               </div>
             </>
+          ) : (
+            <>
+              <div className="broadcast-note" style={{ marginTop: 24 }}>
+                <div className="broadcast-index">OV</div>
+                <div>
+                  <strong>KazakhTTS-OmniVoice · 免费模式 2 已选中</strong>
+                  <p>这是共享 GPU 模式，支持男/女声设计、年龄、音高、耳语、倍速、质量档位和句尾情绪标签。下方是它的专用控制区。</p>
+                </div>
+              </div>
+              <button
+                className="generate-button"
+                type="button"
+                onClick={() =>
+                  document.getElementById("omnivoice")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                <span className="button-icon" aria-hidden="true"><i className="play-triangle" /></span>
+                <span>
+                  <strong>进入 KazakhTTS-OmniVoice 控制区</strong>
+                  <small>免费共享 GPU · 声线设计 + 倍速 + 情绪标签</small>
+                </span>
+                <span className="button-arrow" aria-hidden="true">→</span>
+              </button>
+            </>
           )}
 
+          {engine !== "omnivoice" ? (
+            <>
           {error ? (
             <div className="error-message" role="alert">
               <span>!</span>
@@ -955,6 +1012,8 @@ export default function Home() {
               </div>
             )}
           </div>
+            </>
+          ) : null}
         </section>
       </section>
 

@@ -129,6 +129,18 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
   );
 
   useEffect(() => {
+    if (sourceText !== undefined) {
+      setText(sourceText.slice(0, MAX_CHARACTERS));
+      setError(
+        sourceText.length > MAX_CHARACTERS
+          ? `OmniVoice 公共 GPU 单次最多 ${MAX_CHARACTERS} 个字符，已自动同步前 ${MAX_CHARACTERS} 个字符。`
+          : "",
+      );
+      resetAudio();
+    }
+  }, [sourceText]);
+
+  useEffect(() => {
     return () => {
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
