@@ -328,11 +328,11 @@ export async function POST(request: Request) {
   const safeText = text.replaceAll("\u0000", "").trim();
 
   if (selectedEngine === "eleven") {
-    const apiKey = process.env.Mahjan?.trim();
+    const apiKey = process.env.Max?.trim();
 
     if (!apiKey) {
       return jsonError(
-        "Cloudflare 当前运行版本没有读取到 Mahjan。请确认 Mahjan 已保存并部署到 Worker。",
+        "Cloudflare 当前运行版本没有读取到 Max。请确认 Max 已保存并部署到 Worker。",
         503,
       );
     }
@@ -344,10 +344,10 @@ export async function POST(request: Request) {
       console.error("ElevenLabs Kazakh speech synthesis failed", error);
       if (error instanceof ElevenLabsError) {
         if (error.status === 401) {
-          return jsonError("Cloudflare 已读取到 Mahjan，但 ElevenLabs 返回 401：这个 Key 无效、已删除、已过期，或复制的不是完整 API Key。", 502);
+          return jsonError("Cloudflare 已读取到 Max，但 ElevenLabs 返回 401：这个 Key 无效、已删除、已过期，或复制的不是完整 API Key。", 502);
         }
         if (error.status === 403) {
-          return jsonError("Cloudflare 已读取到 Mahjan，但 ElevenLabs 返回 403：Key 权限不足或设置了 IP 限制。", 502);
+          return jsonError("Cloudflare 已读取到 Max，但 ElevenLabs 返回 403：Key 权限不足或设置了 IP 限制。", 502);
         }
         if (error.status === 429) {
           return jsonError("ElevenLabs 当前额度不足或请求过于频繁，请稍后再试。", 429);
