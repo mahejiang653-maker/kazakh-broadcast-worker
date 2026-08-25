@@ -3,7 +3,7 @@ const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
 const MAX_CHARACTERS = 6000;
 const EDGE_MAX_CHUNK_SIZE = 1800;
-const ELEVEN_MAX_CHUNK_SIZE = 4800;
+const ELEVEN_MAX_CHUNK_SIZE = 2200;
 const ELEVEN_MODEL_ID = "eleven_v3";
 const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
 const ELEVEN_MIN_SPEED = 0.7;
@@ -88,10 +88,16 @@ let tokenCache: {
 
 class ElevenLabsError extends Error {
   status: number;
+  code: string;
+  detail: string;
+  chunkIndex: number;
 
-  constructor(status: number) {
-    super(`elevenlabs:${status}`);
+  constructor(status: number, code: string, detail: string, chunkIndex: number) {
+    super(`elevenlabs:${status}:${code || "unknown"}`);
     this.status = status;
+    this.code = code;
+    this.detail = detail;
+    this.chunkIndex = chunkIndex;
   }
 }
 
@@ -180,7 +186,6 @@ function normalizeElevenAudioTags(text: string) {
     if (mapped) {
       output = applyTagToPreviousSentence(output, mapped);
     } else {
-      // Native Eleven v3 English audio tags stay exactly where the user typed them.
       output += match[0];
     }
 
@@ -328,13 +333,55 @@ async function synthesizeEdgeChunk(
   return response.arrayBuffer();
 }
 
+function parseElevenLabsErrorText(raw: string) {
+  let code = "";
+  let detail = raw.trim();
+
+  try {
+    const payload = JSON.parse(raw) as {
+      detail?: unknown;
+      status?: unknown;
+      message?: unknown;
+      code?: unknown;
+    };
+
+    let nested: unknown = payload.detail ?? payload;
+    if (typeof nested === "string") {
+      try {
+        nested = JSON.parse(nested);
+      } catch {
+        detail = nested;
+      }
+    }
+
+    if (nested && typeof nested === "object") {
+      const object = nested as Record<string, unknown>;
+      const statusValue = object.status ?? object.code ?? payload.status ?? payload.code;
+      const messageValue = object.message ?? object.detail ?? payload.message;
+      if (typeof statusValue === "string") code = statusValue;
+      if (typeof messageValue === "string") detail = messageValue;
+    } else {
+      const statusValue = payload.status ?? payload.code;
+      const messageValue = payload.message;
+      if (typeof statusValue === "string") code = statusValue;
+      if (typeof messageValue === "string") detail = messageValue;
+    }
+  } catch {
+    // Keep the raw text if ElevenLabs ever returns a non-JSON error body.
+  }
+
+  return {
+    code: code.slice(0, 80),
+    detail: detail.replace(/\s+/gu, " ").slice(0, 320),
+  };
+}
+
 async function synthesizeElevenChunk(
   text: string,
   voiceId: string,
   apiKey: string,
   settings: ElevenVoiceSettings,
-  previousText?: string,
-  nextText?: string,
+  chunkIndex: number,
 ) {
   const response = await fetchWithTimeout(
     `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=${ELEVEN_OUTPUT_FORMAT}`,
@@ -356,14 +403,17 @@ async function synthesizeElevenChunk(
           style: settings.style,
           use_speaker_boost: settings.speakerBoost,
         },
-        ...(previousText ? { previous_text: previousText } : {}),
-        ...(nextText ? { next_text: nextText } : {}),
       }),
     },
     90000,
   );
 
-  if (!response.ok) throw new ElevenLabsError(response.status);
+  if (!response.ok) {
+    const raw = await response.text().catch(() => "");
+    const parsed = parseElevenLabsErrorText(raw);
+    throw new ElevenLabsError(response.status, parsed.code, parsed.detail, chunkIndex);
+  }
+
   return response.arrayBuffer();
 }
 
@@ -386,11 +436,14 @@ async function synthesizeWithEleven(
   const audioChunks: ArrayBuffer[] = [];
 
   for (let index = 0; index < chunks.length; index += 1) {
-    const current = chunks[index];
-    const previous = index > 0 ? chunks[index - 1] : undefined;
-    const next = index < chunks.length - 1 ? chunks[index + 1] : undefined;
     audioChunks.push(
-      await synthesizeElevenChunk(current, voiceId, apiKey, settings, previous, next),
+      await synthesizeElevenChunk(
+        chunks[index],
+        voiceId,
+        apiKey,
+        settings,
+        index + 1,
+      ),
     );
   }
 
@@ -412,6 +465,55 @@ function audioResponse(chunks: ArrayBuffer[], engine: EngineName) {
 function readUnitInterval(value: unknown, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return value;
+}
+
+function containsAny(value: string, needles: string[]) {
+  const normalized = value.toLowerCase();
+  return needles.some((needle) => normalized.includes(needle));
+}
+
+function elevenErrorMessage(error: ElevenLabsError) {
+  const context = `${error.code} ${error.detail}`.trim();
+  const chunk = `第 ${error.chunkIndex} 段`;
+
+  if (
+    containsAny(context, [
+      "quota_exceeded",
+      "quota",
+      "credits",
+      "credit limit",
+      "character limit",
+      "exceeds your quota",
+    ])
+  ) {
+    return `ElevenLabs 额度不足或本次长文本超过可用额度（${chunk}）。短文本能生成说明 Key 是有效的；请减少文本长度、等待额度刷新或增加 ElevenLabs 额度。`;
+  }
+
+  if (containsAny(context, ["missing_permissions", "permission", "text_to_speech"])) {
+    return `ElevenLabs API Key 缺少文本转语音权限（${chunk}）。请给 Max 对应的 Key 开启“文本转语音 → 访问”。`;
+  }
+
+  if (containsAny(context, ["invalid_api_key", "invalid api key"])) {
+    return `Cloudflare 已读取到 Max，但 ElevenLabs 认为 API Key 无效（${chunk}）。请确认 Max 中保存的是完整的新 Key。`;
+  }
+
+  if (
+    containsAny(context, [
+      "max_character_limit_exceeded",
+      "text_too_long",
+      "too long",
+      "maximum allowed length",
+    ])
+  ) {
+    return `ElevenLabs 认为单段文本仍然过长（${chunk}）。网站已经自动分段，请再试一次；如果仍出现此提示，我会继续把分段长度调小。`;
+  }
+
+  if (error.status === 429) {
+    return `ElevenLabs 请求过于频繁或并发受限（${chunk}），请稍后几秒再生成。`;
+  }
+
+  const detail = error.detail ? `：${error.detail}` : "";
+  return `ElevenLabs 返回 ${error.status}${error.code ? ` / ${error.code}` : ""}（${chunk}）${detail}`;
 }
 
 export async function POST(request: Request) {
@@ -515,18 +617,8 @@ export async function POST(request: Request) {
     } catch (error) {
       console.error("ElevenLabs Kazakh speech synthesis failed", error);
       if (error instanceof ElevenLabsError) {
-        if (error.status === 401) {
-          return jsonError("Cloudflare 已读取到 Max，但 ElevenLabs 返回 401：这个 Key 无效、已删除、已过期，或复制的不是完整 API Key。", 502);
-        }
-        if (error.status === 403) {
-          return jsonError("Cloudflare 已读取到 Max，但 ElevenLabs 返回 403：Key 权限不足或设置了 IP 限制。", 502);
-        }
-        if (error.status === 429) {
-          return jsonError("ElevenLabs 当前额度不足或请求过于频繁，请稍后再试。", 429);
-        }
-        if (error.status === 422) {
-          return jsonError("ElevenLabs 无法使用当前文本、声线、倍速、音色参数或情绪标签生成语音，请调整后重试。", 422);
-        }
+        const status = error.status === 429 ? 429 : error.status === 422 ? 422 : 502;
+        return jsonError(elevenErrorMessage(error), status);
       }
       return jsonError("高质量语音服务暂时繁忙，请稍后重新生成。", 502);
     }
