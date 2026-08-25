@@ -20,9 +20,9 @@ const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-AigulNeural",
 ]);
 
-const CHINESE_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
-  "kk-KZ-DauletNeural": "zh-CN-YunyangNeural",
-  "kk-KZ-AigulNeural": "zh-CN-XiaoxiaoNeural",
+const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
+  "kk-KZ-DauletNeural": "zh-CN-YunyiMultilingualNeural",
+  "kk-KZ-AigulNeural": "zh-CN-XiaoxiaoMultilingualNeural",
 };
 
 const PRESETS = {
@@ -509,19 +509,53 @@ function buildEdgeSsml(
   preset: PresetName,
   settings: EdgeVoiceSettings,
   _documentPlan?: EdgeDocumentPlan,
+  useMultilingual = false,
 ) {
+  if (!useMultilingual) {
+    return [
+      '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
+      `<voice name="${voice}">`,
+      edgeNativeProsody(text, settings, voice, preset),
+      "</voice>",
+      "</speak>",
+    ].join("");
+  }
+
   const runs = splitEdgeLanguageRuns(text);
-  const chineseVoice = CHINESE_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyangNeural";
+  const multilingualVoice =
+    MULTILINGUAL_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyiMultilingualNeural";
+  const presetSettings = PRESETS[preset];
+  const isDauletProfile = voice === "kk-KZ-DauletNeural";
+  const antiCreakRate = isDauletProfile ? 1.002 : 1;
+  const antiCreakPitch = isDauletProfile ? 1.8 : 0;
+  const effectiveSpeed = clamp(
+    settings.speed * presetSettings.rateFactor * antiCreakRate,
+    0.58,
+    1.35,
+  );
+  const effectivePitch = clamp(
+    settings.pitch + presetSettings.pitch + antiCreakPitch,
+    -18,
+    18,
+  );
+  const effectiveVolume = clamp(
+    settings.volume + presetSettings.volume,
+    -7,
+    7,
+  );
   const body = runs
-    .map((run) => {
-      const runVoice = run.language === "zh" ? chineseVoice : voice;
-      return `<voice name="${runVoice}">${edgeNativeProsody(run.text, settings, runVoice, preset)}</voice>`;
-    })
+    .map((run) =>
+      `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+    )
     .join("");
 
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
+    `<voice name="${multilingualVoice}">`,
+    `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">`,
     body,
+    "</prosody>",
+    "</voice>",
     "</speak>",
   ].join("");
 }
@@ -533,6 +567,7 @@ async function synthesizeEdgeChunk(
   settings: EdgeVoiceSettings,
   endpoint: TranslatorEndpoint,
   documentPlan: EdgeDocumentPlan,
+  useMultilingual: boolean,
 ) {
   const response = await fetchWithTimeout(
     `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`,
@@ -544,7 +579,7 @@ async function synthesizeEdgeChunk(
         "User-Agent": "okhttp/4.5.0",
         "X-Microsoft-OutputFormat": "audio-24khz-96kbitrate-mono-mp3",
       },
-      body: buildEdgeSsml(text, voice, preset, settings, documentPlan),
+      body: buildEdgeSsml(text, voice, preset, settings, documentPlan, useMultilingual),
     },
     30000,
   );
@@ -655,9 +690,18 @@ async function synthesizeWithEdge(
     settings.speed * PRESETS[preset].rateFactor,
     EDGE_MAX_CHUNK_SIZE,
   );
+  const useMultilingual = hasHanCharacters(text);
   return Promise.all(
     chunks.map((chunk) =>
-      synthesizeEdgeChunk(chunk, voice, preset, settings, endpoint, documentPlan),
+      synthesizeEdgeChunk(
+        chunk,
+        voice,
+        preset,
+        settings,
+        endpoint,
+        documentPlan,
+        useMultilingual,
+      ),
     ),
   );
 }

@@ -409,7 +409,7 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段并按普通话朗读。
+            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。Edge 检测到中文后会让整篇稿件使用同一条 Multilingual Neural Voice，中哈两种语言保持同一音色。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / ElevenLabs</span>
@@ -480,7 +480,7 @@ export default function Home() {
                 <span className="voice-avatar">F</span>
                 <span className="voice-copy">
                   <strong>免费模式</strong>
-                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量 / 中文自动识别</small>
+                  <small>Edge TTS · 声线 / 倍速 / 音调 / 音量 / 中哈同音色混读</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -629,7 +629,7 @@ export default function Home() {
                 <div className="broadcast-index">EDGE</div>
                 <div>
                   <strong>Edge TTS · 免费增强模式</strong>
-                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格；稿件中出现中文汉字时，会自动切换匹配性别的普通话 Neural Voice，读完后无缝切回哈萨克语，不消耗 ElevenLabs 额度。</p>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格。纯哈萨克稿继续使用 Дәулет / Айгүл；只要检测到中文，整篇自动切换为匹配性别的一条 Multilingual Neural Voice，并在同一音色内分别按哈萨克语和普通话发音，不消耗 ElevenLabs 额度。</p>
                 </div>
               </div>
             </>
