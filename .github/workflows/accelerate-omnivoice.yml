@@ -1,4 +1,4 @@
-name: Implement Free OmniVoice UX
+name: Optimize Edge Naturalness
 
 on:
   push:
@@ -9,20 +9,20 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'Implement free OmniVoice UX'
+    if: github.event.head_commit.message == 'Optimize Edge naturalness'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply free OmniVoice experience
-        run: python scripts/apply_free_omnivoice.py
-      - name: Commit implementation
+      - name: Improve Edge TTS prosody
+        run: python scripts/optimize_edge_naturalness.py
+      - name: Commit Edge naturalness improvements
         run: |
           git config user.name "mahejiang653-maker"
           git config user.email "mahejiang653@gmail.com"
-          git add app/api/omnivoice/route.ts app/components/OmniVoiceStudio.tsx
+          git add app/api/synthesize/route.ts
           if git diff --cached --quiet; then
             echo "No changes needed"
           else
-            git commit -m "Add Edge preview warmup and OmniVoice cache"
+            git commit -m "Improve Edge TTS naturalness"
             git push
           fi
