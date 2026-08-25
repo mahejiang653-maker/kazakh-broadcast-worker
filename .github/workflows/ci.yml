@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-edge-anti-creak:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply Edge anti-creak compensation'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply Edge anti-creak compensation
-        run: python scripts/apply_edge_anti_creak.py
-      - name: Commit Edge anti-creak compensation
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/api/synthesize/route.ts
-          git commit -m "Reduce Daulet vocal fry in native news"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
