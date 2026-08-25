@@ -23,11 +23,11 @@ type ElevenVoicesPayload = {
 };
 
 export async function POST() {
-  const apiKey = process.env.Mahjan?.trim() || process.env.MA?.trim();
+  const apiKey = process.env.Mahjan?.trim();
 
   if (!apiKey) {
     return jsonError(
-      "高质量模式尚未完成配置。请先在 Cloudflare 设置 ElevenLabs API Key。",
+      "Cloudflare 当前运行版本没有读取到 Mahjan。请确认 Mahjan 已保存并部署到 Worker。",
       503,
     );
   }
@@ -44,20 +44,20 @@ export async function POST() {
     if (!response.ok) {
       if (response.status === 401) {
         return jsonError(
-          "ElevenLabs API Key 无效、已删除或已过期。请重新创建 API Key，并把新 Key 填入 Cloudflare 的 Mahjan。",
+          "Cloudflare 已读取到 Mahjan，但 ElevenLabs 返回 401：这个 Key 无效、已删除、已过期，或复制的不是完整 API Key。",
           502,
         );
       }
       if (response.status === 403) {
         return jsonError(
-          "ElevenLabs API Key 权限不足或设置了 IP 限制。请给 Key 开启 Voices 读取与 Text to Speech 权限，并取消 IP 限制。",
+          "Cloudflare 已读取到 Mahjan，但 ElevenLabs 返回 403：Key 权限不足或设置了 IP 限制。请开启 Voices 读取与 Text to Speech 权限，并取消 IP 限制。",
           502,
         );
       }
       if (response.status === 429) {
         return jsonError("ElevenLabs 当前请求过于频繁，请稍后再试。", 429);
       }
-      return jsonError("暂时无法读取 ElevenLabs 声线，请稍后再试。", 502);
+      return jsonError(`ElevenLabs 返回错误 ${response.status}，暂时无法读取声线。`, 502);
     }
 
     const payload = (await response.json()) as ElevenVoicesPayload;
