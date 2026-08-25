@@ -367,14 +367,14 @@ function segmentForFragment(text: string, plan?: EdgeDocumentPlan) {
 
 function roleMicro(role: EdgeDocumentRole): MicroProsody {
   const values: Record<EdgeDocumentRole, MicroProsody> = {
-    title: { rateFactor: 0.992, pitchDelta: -0.04, volumeDelta: 0.2 },
-    lead: { rateFactor: 0.997, pitchDelta: 0.02, volumeDelta: 0.08 },
+    title: { rateFactor: 0.994, pitchDelta: -0.015, volumeDelta: 0.11 },
+    lead: { rateFactor: 0.998, pitchDelta: 0.008, volumeDelta: 0.035 },
     body: NEUTRAL,
-    background: { rateFactor: 0.995, pitchDelta: -0.04, volumeDelta: -0.08 },
-    transition: { rateFactor: 0.998, pitchDelta: 0.05, volumeDelta: 0.06 },
-    key_number: { rateFactor: 0.988, pitchDelta: -0.02, volumeDelta: 0.14 },
-    climax: { rateFactor: 0.99, pitchDelta: 0.08, volumeDelta: 0.22 },
-    ending: { rateFactor: 0.992, pitchDelta: -0.14, volumeDelta: -0.04 },
+    background: { rateFactor: 0.997, pitchDelta: -0.015, volumeDelta: -0.035 },
+    transition: { rateFactor: 0.999, pitchDelta: 0.018, volumeDelta: 0.025 },
+    key_number: { rateFactor: 0.991, pitchDelta: -0.008, volumeDelta: 0.07 },
+    climax: { rateFactor: 0.993, pitchDelta: 0.028, volumeDelta: 0.11 },
+    ending: { rateFactor: 0.994, pitchDelta: -0.045, volumeDelta: -0.018 },
   };
   return values[role];
 }
@@ -389,19 +389,19 @@ function documentMicro(segment: EdgePlannedSegment | null, plan?: EdgeDocumentPl
 
   return {
     rateFactor: clamp(
-      1 + (role.rateFactor - 1) * importance - climaxLift * 0.002 - endingSettle * 0.004,
-      0.975,
-      1.012,
+      1 + (role.rateFactor - 1) * importance - climaxLift * 0.001 - endingSettle * 0.003,
+      0.982,
+      1.008,
     ),
     pitchDelta: clamp(
-      role.pitchDelta * importance + climaxLift * 0.025 - endingSettle * 0.08,
-      -0.28,
-      0.2,
+      role.pitchDelta * importance + climaxLift * 0.008 - endingSettle * 0.025,
+      -0.12,
+      0.1,
     ),
     volumeDelta: clamp(
-      role.volumeDelta * importance + climaxLift * 0.05 - endingSettle * 0.025,
-      -0.16,
-      0.3,
+      role.volumeDelta * importance + climaxLift * 0.018 - endingSettle * 0.01,
+      -0.08,
+      0.16,
     ),
   };
 }
@@ -424,41 +424,41 @@ function localMicro(text: string, kind: PunctuationKind) {
   if (averageWordLength >= 8) rateFactor *= 0.992;
 
   if (startsWithCue(clean, FOCUS_CUES)) {
-    rateFactor *= 0.994;
-    volumeDelta += 0.12;
+    rateFactor *= 0.996;
+    volumeDelta += 0.045;
   } else if (startsWithCue(clean, CONTRAST_CUES)) {
-    volumeDelta += 0.08;
-    pitchDelta += 0.025;
+    volumeDelta += 0.028;
+    pitchDelta += 0.008;
   } else if (startsWithCue(clean, RESULT_CUES)) {
-    volumeDelta += 0.06;
+    volumeDelta += 0.022;
   }
 
-  // Let Edge interpret punctuation naturally; only provide a very small contour hint.
-  if (kind === "period") pitchDelta -= 0.06;
-  else if (kind === "question") pitchDelta += 0.18;
+  // Native-first: punctuation already carries intonation for the neural voice.
+  // Only questions/exclamations get a nearly inaudible hint; statements are untouched.
+  if (kind === "question") pitchDelta += 0.065;
   else if (kind === "exclamation") {
-    pitchDelta += 0.1;
-    volumeDelta += 0.08;
+    pitchDelta += 0.038;
+    volumeDelta += 0.025;
   } else if (kind === "mixed") {
-    pitchDelta += 0.2;
-    volumeDelta += 0.07;
+    pitchDelta += 0.072;
+    volumeDelta += 0.022;
   } else if (kind === "ellipsis") {
-    rateFactor *= 0.992;
-    pitchDelta -= 0.05;
+    rateFactor *= 0.995;
+    pitchDelta -= 0.018;
   }
 
   return {
-    rateFactor: clamp(rateFactor, 0.955, 1.015),
-    pitchDelta: clamp(pitchDelta, -0.3, 0.3),
-    volumeDelta: clamp(volumeDelta, -0.2, 0.25),
+    rateFactor: clamp(rateFactor, 0.965, 1.01),
+    pitchDelta: clamp(pitchDelta, -0.12, 0.12),
+    volumeDelta: clamp(volumeDelta, -0.08, 0.12),
   };
 }
 
 function combine(a: MicroProsody, b: MicroProsody): MicroProsody {
   return {
-    rateFactor: clamp(a.rateFactor * b.rateFactor, 0.95, 1.025),
-    pitchDelta: clamp(a.pitchDelta + b.pitchDelta, -0.42, 0.42),
-    volumeDelta: clamp(a.volumeDelta + b.volumeDelta, -0.28, 0.46),
+    rateFactor: clamp(a.rateFactor * b.rateFactor, 0.96, 1.015),
+    pitchDelta: clamp(a.pitchDelta + b.pitchDelta, -0.18, 0.18),
+    volumeDelta: clamp(a.volumeDelta + b.volumeDelta, -0.12, 0.2),
   };
 }
 
@@ -501,70 +501,35 @@ function bidirectionalSmooth(phrases: Phrase[]) {
     const hardBefore = previous && ["paragraph", "newline"].includes(previous.punctuationKind);
     const hardAfter = ["paragraph", "newline"].includes(phrase.punctuationKind);
     const items: Array<{ micro: MicroProsody; weight: number }> = [
-      { micro: phrase.micro, weight: hardBefore || hardAfter ? 0.82 : 0.62 },
+      { micro: phrase.micro, weight: hardBefore || hardAfter ? 0.8 : 0.52 },
     ];
-    if (previous && !hardBefore) items.push({ micro: previous.micro, weight: 0.2 });
-    if (next && !hardAfter) items.push({ micro: next.micro, weight: 0.18 });
+    if (previous && !hardBefore) items.push({ micro: previous.micro, weight: 0.24 });
+    if (next && !hardAfter) items.push({ micro: next.micro, weight: 0.24 });
     return { ...phrase, micro: blendMicros(items) };
   });
 }
 
-function subtleBreak(kind: PunctuationKind, text: string) {
-  const seconds = estimateEdgeSpeechSeconds(text, 1);
-  const longClause = seconds >= 4.5;
+function subtleBreak(kind: PunctuationKind, _text: string) {
+  // Native-first: let punctuation drive Microsoft's learned cadence.
+  // Explicit breaks are reserved for layout boundaries and true hesitation only.
   switch (kind) {
     case "paragraph":
-      return 165;
+      return 132;
     case "newline":
-      return 82;
-    case "comma":
-      return longClause ? 8 : 0;
-    case "semicolon":
-      return 14;
-    case "colon":
-      return 10;
+      return 48;
     case "dash":
-      return 16;
+      return 4;
     case "ellipsis":
-      return 62;
-    case "question":
-      return 22;
-    case "exclamation":
-      return 18;
-    case "mixed":
-      return 24;
-    case "period":
-      return 20;
+      return 34;
     default:
       return 0;
   }
 }
 
 function naturalTextMarkup(text: string) {
-  const parts = text.split(/(\s+)/u);
-  let output = "";
-  let weightSinceBreath = 0;
-  for (const part of parts) {
-    if (!part) continue;
-    if (/^\s+$/u.test(part)) {
-      output += escapeXml(part);
-      continue;
-    }
-    const cue = part
-      .replace(/^[«“"'‘’(\[]+/u, "")
-      .replace(/[»”"'’),\]]+$/u, "")
-      .toLowerCase();
-    if (weightSinceBreath >= 105 && BREATH_CUES.has(cue)) {
-      output += '<break time="18ms"/>';
-      weightSinceBreath = 0;
-    } else if (weightSinceBreath >= 175) {
-      output += '<break time="14ms"/>';
-      weightSinceBreath = 0;
-    }
-    output += escapeXml(part);
-    weightSinceBreath += speechWeight(part);
-  }
-  return output;
+  // Kazakh is highly agglutinative and phrase prominence is more reliable than
+  // artificial word-level breaks. Preserve the phrase as one continuous stream.
+  return escapeXml(text);
 }
 
 function microDistance(a: MicroProsody, b: MicroProsody) {
@@ -628,8 +593,8 @@ export function renderEdgeOmniInspiredMarkup(
     const strongRoleBoundary = roleChanged &&
       (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
     const hardBoundary = ["paragraph", "newline"].includes(previous.punctuationKind);
-    const tooDifferent = microDistance(currentAverage, phrase.micro) > 1.55;
-    const tooLong = current.length >= 5;
+    const tooDifferent = microDistance(currentAverage, phrase.micro) > 2.35;
+    const tooLong = current.length >= 8;
 
     if (hardBoundary || strongRoleBoundary || tooDifferent || tooLong) flush();
     current.push(phrase);
