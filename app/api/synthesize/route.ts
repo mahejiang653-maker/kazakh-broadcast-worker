@@ -678,9 +678,15 @@ function hasRecognizedEdgeTag(text: string) {
   return false;
 }
 
-function edgeNativeProsody(text: string, settings: EdgeVoiceSettings) {
-  const effectiveSpeed = clamp(settings.speed, 0.58, 1.35);
-  const effectivePitch = clamp(settings.pitch, -18, 18);
+function edgeNativeProsody(text: string, settings: EdgeVoiceSettings, voice: string) {
+  // Daulet's natural register can become slightly creaky in the low end.
+  // A tiny register lift reduces vocal-fry perception without changing his identity.
+  const isDaulet = voice === "kk-KZ-DauletNeural";
+  const antiCreakRate = isDaulet ? 1.004 : 1;
+  const antiCreakPitch = isDaulet ? 1.4 : 0;
+
+  const effectiveSpeed = clamp(settings.speed * antiCreakRate, 0.58, 1.35);
+  const effectivePitch = clamp(settings.pitch + antiCreakPitch, -18, 18);
   const effectiveVolume = clamp(settings.volume, -7, 7);
   return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
 }
@@ -699,7 +705,7 @@ function buildEdgeSsml(
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
       `<voice name="${voice}">`,
-      edgeNativeProsody(text, settings),
+      edgeNativeProsody(text, settings, voice),
       "</voice>",
       "</speak>",
     ].join("");
