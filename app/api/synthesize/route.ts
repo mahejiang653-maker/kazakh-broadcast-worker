@@ -1,3 +1,5 @@
+import { renderEdgeDirectorMarkup } from "../../lib/edge-director";
+
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
@@ -650,7 +652,11 @@ function edgeProsody(
     7,
   );
 
-  return edgeNaturalMarkup(text, effectiveSpeed, effectivePitch, effectiveVolume);
+  return renderEdgeDirectorMarkup(text, {
+    speed: effectiveSpeed,
+    pitch: effectivePitch,
+    volume: effectiveVolume,
+  });
 }
 
 function buildEdgeSsml(
