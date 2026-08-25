@@ -23,11 +23,11 @@ type ElevenVoicesPayload = {
 };
 
 export async function POST() {
-  const apiKey = process.env.MA?.trim();
+  const apiKey = process.env.Mahjan?.trim() || process.env.MA?.trim();
 
   if (!apiKey) {
     return jsonError(
-      "高质量模式尚未完成配置。请先设置 ElevenLabs API Key。",
+      "高质量模式尚未完成配置。请先在 Cloudflare 设置 ElevenLabs API Key。",
       503,
     );
   }
@@ -44,7 +44,7 @@ export async function POST() {
     if (!response.ok) {
       if (response.status === 401) {
         return jsonError(
-          "ElevenLabs API Key 无效、已删除或已过期。请重新创建 API Key，并把新 Key 填入 Cloudflare 的 MA。",
+          "ElevenLabs API Key 无效、已删除或已过期。请重新创建 API Key，并把新 Key 填入 Cloudflare 的 Mahjan。",
           502,
         );
       }
