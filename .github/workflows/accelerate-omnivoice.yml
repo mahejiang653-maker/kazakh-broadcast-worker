@@ -1,4 +1,4 @@
-name: Configure Dedicated OmniVoice
+name: Implement Free OmniVoice UX
 
 on:
   push:
@@ -9,32 +9,20 @@ permissions:
 
 jobs:
   patch:
-    if: github.event.head_commit.message == 'Prepare dedicated OmniVoice backend switch'
+    if: github.event.head_commit.message == 'Implement free OmniVoice UX'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Make OmniVoice backend configurable
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          route = Path('app/api/omnivoice/route.ts')
-          text = route.read_text()
-          old = 'const OMNI_BASE = "https://shyngys879-kazakhtts-omnivoice-demo.hf.space";'
-          new = 'const OMNI_BASE = (process.env.OMNIVOICE_BASE_URL?.trim() || "https://shyngys879-kazakhtts-omnivoice-demo.hf.space").replace(/\\/$/u, "");'
-          if old not in text and 'OMNIVOICE_BASE_URL' not in text:
-              raise SystemExit('OMNI_BASE declaration not found')
-          if 'OMNIVOICE_BASE_URL' not in text:
-              text = text.replace(old, new)
-              route.write_text(text)
-          PY
-      - name: Commit backend switch
+      - name: Apply free OmniVoice experience
+        run: python scripts/apply_free_omnivoice.py
+      - name: Commit implementation
         run: |
           git config user.name "mahejiang653-maker"
           git config user.email "mahejiang653@gmail.com"
-          git add app/api/omnivoice/route.ts
+          git add app/api/omnivoice/route.ts app/components/OmniVoiceStudio.tsx
           if git diff --cached --quiet; then
             echo "No changes needed"
           else
-            git commit -m "Support dedicated OmniVoice backend"
+            git commit -m "Add Edge preview warmup and OmniVoice cache"
             git push
           fi
