@@ -10,21 +10,39 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     steps:
-      - name: Probe Gradio API
+      - name: Probe Gradio generation
         shell: bash
         run: |
+          set -euo pipefail
           BASE='https://shyngys879-kazakhtts-omnivoice-demo.hf.space'
-          curl -L --max-time 90 -sS "$BASE/gradio_api/info" -o /tmp/info
+          API='_design_fn'
+          BODY='{"data":["Сәлем! Бұл қысқа сынақ.","Kazakh",20,2.0,true,1.0,null,true,true,"Male","Middle-aged","Moderate Pitch","Auto","Auto","Auto"]}'
+          echo 'Submitting...'
+          EVENT_ID=$(curl -L --max-time 90 -sS -X POST "$BASE/gradio_api/call/$API" -H 'Content-Type: application/json' -d "$BODY" | python -c 'import json,sys; print(json.load(sys.stdin)["event_id"])')
+          echo "EVENT_ID=$EVENT_ID"
+          curl -L --max-time 180 -sS "$BASE/gradio_api/call/$API/$EVENT_ID" -o /tmp/events
+          cat /tmp/events
           python - <<'PY'
-          import json
-          info=json.load(open('/tmp/info'))
-          for name, spec in info.get('named_endpoints', {}).items():
-              print('ENDPOINT', name)
-              print('PARAMS')
-              for p in spec.get('parameters', []):
-                  print('-', p.get('parameter_name'), '| label=', p.get('label'), '| default=', repr(p.get('parameter_default')), '| component=', p.get('component'))
-              print('RETURNS')
-              for r in spec.get('returns', []):
-                  print('-', r.get('label'), '| component=', r.get('component'), '| type=', r.get('python_type'))
-              print()
+          import json,re,urllib.request
+          text=open('/tmp/events',errors='replace').read()
+          matches=re.findall(r'(?m)^data: (.+)$', text)
+          print('DATA_LINES',len(matches))
+          final=None
+          for s in matches:
+              try:
+                  obj=json.loads(s)
+                  if isinstance(obj,list) and obj:
+                      final=obj
+              except Exception:
+                  pass
+          print('FINAL',json.dumps(final,ensure_ascii=False)[:4000])
+          if final and isinstance(final[0],dict):
+              url=final[0].get('url')
+              path=final[0].get('path')
+              print('AUDIO_URL',url)
+              print('AUDIO_PATH',path)
+              if url:
+                  with urllib.request.urlopen(url, timeout=60) as r:
+                      data=r.read()
+                      print('AUDIO_BYTES',len(data),'CONTENT_TYPE',r.headers.get('content-type'),'HEAD',data[:16])
           PY
