@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-auto-emotion-status:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Apply auto emotion status'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply automatic emotion status
-        run: python scripts/apply_auto_emotion_status.py
-      - name: Commit automatic emotion status
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/page.tsx
-          git commit -m "Add automatic emotion analysis status"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
