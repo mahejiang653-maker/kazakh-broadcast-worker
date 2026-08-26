@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-safe-edge-controls:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Run safe Edge controls patch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply safe control patch
-        run: python scripts/apply_safe_edge_controls_v6.py
-      - name: Commit safe controls
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/page.tsx
-          git commit -m "Make Edge sliders resistant to accidental taps"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
