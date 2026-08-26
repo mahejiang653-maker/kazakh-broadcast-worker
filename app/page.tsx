@@ -27,7 +27,7 @@ const PRESETS = [
   { id: "news", label: "标准新闻", note: "原生自然 · 推荐", rateFactor: 1 },
   { id: "calm", label: "沉稳长稿", note: "原生自然 · 稍慢柔和", rateFactor: 0.94 },
   { id: "bulletin", label: "简明快讯", note: "原生自然 · 轻快紧凑", rateFactor: 1.035 },
-  { id: "expressive", label: "生动播报", note: "原生自然 · 轻度表现", rateFactor: 0.99 },
+  { id: "expressive", label: "生动播报", note: "全文情绪导演 · 自动分析", rateFactor: 0.99 },
 ] as const;
 
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
@@ -74,6 +74,7 @@ const TONE_PRESETS = [
 
 type Engine = "edge" | "eleven" | "omnivoice";
 type PresetId = (typeof PRESETS)[number]["id"];
+type EmotionAnalysisStatus = "idle" | "analyzing" | "completed" | "failed";
 type ElevenVoice = {
   id: string;
   name: string;
@@ -130,6 +131,8 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
+  const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
+  const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
   const audioUrlRef = useRef<string | null>(null);
 
   const wordCount = useMemo(
@@ -170,6 +173,11 @@ export default function Home() {
     }
     setAudioUrl(null);
     setGeneratedAt("");
+  }
+
+  function resetEmotionAnalysis() {
+    setEmotionAnalysisStatus("idle");
+    setEmotionSentenceCount(0);
   }
 
   async function loadElevenVoices() {
@@ -219,6 +227,7 @@ export default function Home() {
           : "",
     );
     setError("");
+    resetEmotionAnalysis();
     resetAudio();
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
@@ -263,6 +272,33 @@ export default function Home() {
     setError("");
 
     try {
+      const shouldAnalyzeEmotion = engine === "edge" && preset === "expressive";
+      if (shouldAnalyzeEmotion) {
+        setEmotionAnalysisStatus("analyzing");
+        setEmotionSentenceCount(0);
+
+        const analysisResponse = await fetch("/api/edge-emotion-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: cleanText }),
+        });
+        const analysisPayload = (await analysisResponse.json().catch(() => null)) as
+          | { status?: string; sentenceCount?: number; error?: string }
+          | null;
+
+        if (!analysisResponse.ok || analysisPayload?.status !== "completed") {
+          setEmotionAnalysisStatus("failed");
+          throw new Error(analysisPayload?.error || "情绪分析失败，请稍后重试。");
+        }
+
+        setEmotionSentenceCount(
+          typeof analysisPayload.sentenceCount === "number" ? analysisPayload.sentenceCount : 0,
+        );
+        setEmotionAnalysisStatus("completed");
+      } else {
+        resetEmotionAnalysis();
+      }
+
       const response = await fetch("/api/synthesize", {
         method: "POST",
         headers: {
@@ -319,6 +355,7 @@ export default function Home() {
   function clearText() {
     setText("");
     setError("");
+    resetEmotionAnalysis();
     resetAudio();
   }
 
@@ -451,12 +488,52 @@ export default function Home() {
                 maxLength={MAX_CHARACTERS}
                 onChange={(event) => {
                   setText(event.target.value);
+                  resetEmotionAnalysis();
                   if (error) setError("");
                 }}
                 placeholder="Осы жерге қазақша мәтінді енгізіңіз…"
                 spellCheck={false}
                 aria-describedby="character-count"
               />
+              {engine === "edge" && preset === "expressive" ? (
+                <div
+                  aria-live="polite"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    padding: "10px 17px",
+                    borderTop: "1px solid var(--line)",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color:
+                      emotionAnalysisStatus === "completed"
+                        ? "var(--mint)"
+                        : emotionAnalysisStatus === "failed"
+                          ? "#b42318"
+                          : "var(--muted)",
+                  }}
+                >
+                  <span aria-hidden="true">
+                    {emotionAnalysisStatus === "completed"
+                      ? "✓"
+                      : emotionAnalysisStatus === "failed"
+                        ? "✕"
+                        : emotionAnalysisStatus === "analyzing"
+                          ? "◌"
+                          : "○"}
+                  </span>
+                  <span>
+                    {emotionAnalysisStatus === "completed"
+                      ? `情绪分析完成${emotionSentenceCount ? ` · 已分析 ${emotionSentenceCount} 句` : ""}`
+                      : emotionAnalysisStatus === "failed"
+                        ? "情绪分析失败"
+                        : emotionAnalysisStatus === "analyzing"
+                          ? "正在分析全文情绪…"
+                          : "等待全文情绪分析"}
+                  </span>
+                </div>
+              ) : null}
               <div className="textarea-footer" id="character-count">
                 <span>{wordCount ? `${wordCount} 个词 · ${formatDuration(estimatedDuration)}` : "等待输入"}</span>
                 <span className={text.length > MAX_CHARACTERS * 0.9 ? "near-limit" : ""}>
@@ -563,6 +640,7 @@ export default function Home() {
                       key={item.id}
                       onClick={() => {
                         setPreset(item.id);
+                        resetEmotionAnalysis();
                         setError("");
                         resetAudio();
                       }}
