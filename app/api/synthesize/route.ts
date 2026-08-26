@@ -519,8 +519,8 @@ function renderEmotionDirectedBody(
 ) {
   const presetSettings = PRESETS[preset];
   const isDauletProfile = profileVoice === "kk-KZ-DauletNeural";
-  const antiCreakRate = isDauletProfile ? 1.002 : 1;
-  const antiCreakPitch = isDauletProfile ? 1.8 : 0;
+  const antiCreakRate = useMultilingual ? 1 : isDauletProfile ? 1.002 : 1;
+  const antiCreakPitch = useMultilingual ? 0 : isDauletProfile ? 1.8 : 0;
   const baseSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
     0.58,
@@ -584,8 +584,8 @@ function buildEdgeSsml(
     MULTILINGUAL_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyiMultilingualNeural";
   const presetSettings = PRESETS[preset];
   const isDauletProfile = voice === "kk-KZ-DauletNeural";
-  const antiCreakRate = isDauletProfile ? 1.002 : 1;
-  const antiCreakPitch = isDauletProfile ? 1.8 : 0;
+  const antiCreakRate = 1;
+  const antiCreakPitch = 0;
   const effectiveSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
     0.58,
@@ -762,7 +762,12 @@ async function synthesizeWithEdge(
     210,
     480,
   );
-  const useMultilingual = hasHanCharacters(preparedText);
+  // Keep the exact same timbre for pure Kazakh and mixed Kazakh+Chinese text.
+  // Daulet/Aigul are standard (not multilingual) voices, so switching only when
+  // Han text appears inevitably changes speaker identity. We therefore use the
+  // mapped multilingual voice for every Edge request and only switch language
+  // with <lang> inside that one voice.
+  const useMultilingual = true;
   const emotionPlan =
     preset === "expressive"
       ? analyzeEdgeEmotionPlan(preparedText, documentPlan)
