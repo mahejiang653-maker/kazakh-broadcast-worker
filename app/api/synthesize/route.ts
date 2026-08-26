@@ -24,11 +24,15 @@ const MAX_SPEED = 1.2;
 const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-DauletNeural",
   "kk-KZ-AigulNeural",
+  "edge-unified-male",
+  "edge-unified-female",
 ]);
 
 const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
   "kk-KZ-DauletNeural": "zh-CN-YunyiMultilingualNeural",
   "kk-KZ-AigulNeural": "zh-CN-XiaoxiaoMultilingualNeural",
+  "edge-unified-male": "zh-CN-YunyiMultilingualNeural",
+  "edge-unified-female": "zh-CN-XiaoxiaoMultilingualNeural",
 };
 
 const PRESETS = {
@@ -762,12 +766,13 @@ async function synthesizeWithEdge(
     210,
     480,
   );
-  // Keep the exact same timbre for pure Kazakh and mixed Kazakh+Chinese text.
-  // Daulet/Aigul are standard (not multilingual) voices, so switching only when
-  // Han text appears inevitably changes speaker identity. We therefore use the
-  // mapped multilingual voice for every Edge request and only switch language
-  // with <lang> inside that one voice.
-  const useMultilingual = true;
+  // Native profiles keep the original Daulet/Aigul acoustic voice for pure
+  // Kazakh. Unified profiles always use one multilingual voice. If a native
+  // profile receives Chinese, switch that whole request to the matching
+  // multilingual voice so the Chinese can be pronounced correctly.
+  const isUnifiedProfile =
+    voice === "edge-unified-male" || voice === "edge-unified-female";
+  const useMultilingual = isUnifiedProfile || hasHanCharacters(preparedText);
   const emotionPlan =
     preset === "expressive"
       ? analyzeEdgeEmotionPlan(preparedText, documentPlan)

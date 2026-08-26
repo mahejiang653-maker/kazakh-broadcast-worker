@@ -11,15 +11,27 @@ const MAX_CHARACTERS = 6000;
 const EDGE_VOICES = [
   {
     id: "kk-KZ-DauletNeural",
-    name: "统一男声",
-    meta: "中哈同音色 · 多语言",
+    name: "Дәулет",
+    meta: "原版男声 · 纯哈萨克语推荐",
     mark: "D",
   },
   {
     id: "kk-KZ-AigulNeural",
+    name: "Айгүл",
+    meta: "原版女声 · 纯哈萨克语推荐",
+    mark: "A",
+  },
+  {
+    id: "edge-unified-male",
+    name: "统一男声",
+    meta: "中哈同音色 · 多语言",
+    mark: "M",
+  },
+  {
+    id: "edge-unified-female",
     name: "统一女声",
     meta: "中哈同音色 · 多语言",
-    mark: "A",
+    mark: "F",
   },
 ] as const;
 
@@ -500,7 +512,7 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。Edge 现在无论纯哈萨克文还是中哈混合稿都固定使用同一条 Multilingual Neural Voice，只切换发音语言，不再因为出现中文而更换音色。
+            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。Edge 现在同时提供原版 Дәулет / Айгүл 与统一多语男声 / 女声。原版声线适合纯哈萨克语；统一声线可让中哈混合稿从头到尾保持同一音色。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / ElevenLabs</span>
@@ -761,7 +773,7 @@ export default function Home() {
                 <div className="broadcast-index">EDGE</div>
                 <div>
                   <strong>Edge TTS · 免费真人化模式</strong>
-                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格；新增长上下文合成与哈萨克语真人化文本前端，尽量减少长稿分段后的语气重置。纯哈萨克稿和中哈混合稿现在都固定使用匹配性别的同一条 Multilingual Neural Voice；中文只切换为普通话发音，哈萨克文使用 kk-KZ 发音，整篇不换音色，也不消耗 ElevenLabs 额度。</p>
+                  <p>支持 0.70×–1.20× 精细倍速、音调、音量和 4 种原生自然播音风格；新增长上下文合成与哈萨克语真人化文本前端，尽量减少长稿分段后的语气重置。可选择原版 Дәулет / Айгүл，或统一多语男声 / 女声。原版声线在纯哈萨克稿中保持原始音色；统一声线无论纯哈萨克文还是中哈混合稿都保持同一音色，中文仅切换普通话发音，不消耗 ElevenLabs 额度。</p>
                 </div>
               </div>
             </>
