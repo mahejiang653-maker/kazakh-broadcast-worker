@@ -1,6 +1,11 @@
 import { analyzeEdgeDocument, type EdgeDocumentPlan } from "../../lib/edge-director";
 import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
 import {
+  analyzeEdgeEmotionPlan,
+  resolveEdgeEmotionSentences,
+  type EdgeEmotionPlan,
+} from "../../lib/edge-emotion-director";
+import {
   renderEdgeOmniInspiredMarkup,
   splitEdgeTextByDuration,
 } from "../../lib/edge-omnivoice-inspired";
@@ -504,6 +509,53 @@ function edgeNativeProsody(
   return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
 }
 
+function renderEmotionDirectedBody(
+  text: string,
+  settings: EdgeVoiceSettings,
+  profileVoice: string,
+  preset: PresetName,
+  emotionPlan: EdgeEmotionPlan,
+  useMultilingual: boolean,
+) {
+  const presetSettings = PRESETS[preset];
+  const isDauletProfile = profileVoice === "kk-KZ-DauletNeural";
+  const antiCreakRate = isDauletProfile ? 1.002 : 1;
+  const antiCreakPitch = isDauletProfile ? 1.8 : 0;
+  const baseSpeed = clamp(
+    settings.speed * presetSettings.rateFactor * antiCreakRate,
+    0.58,
+    1.35,
+  );
+  const basePitch = clamp(
+    settings.pitch + presetSettings.pitch + antiCreakPitch,
+    -18,
+    18,
+  );
+  const baseVolume = clamp(
+    settings.volume + presetSettings.volume,
+    -7,
+    7,
+  );
+
+  return resolveEdgeEmotionSentences(text, emotionPlan)
+    .map((sentence) => {
+      const sentenceSpeed = clamp(baseSpeed * sentence.rateFactor, 0.72, 1.24);
+      const sentencePitch = clamp(basePitch + sentence.pitchDelta, -18, 18);
+      const sentenceVolume = clamp(baseVolume + sentence.volumeDelta, -7, 7);
+      const content = useMultilingual
+        ? splitEdgeLanguageRuns(sentence.text)
+            .map(
+              (run) =>
+                `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+            )
+            .join("")
+        : escapeXml(sentence.text);
+
+      return `<prosody rate="${speedToRate(sentenceSpeed)}" pitch="${signedPercent(sentencePitch)}" volume="${signedPercent(sentenceVolume)}">${content}</prosody>`;
+    })
+    .join(" ");
+}
+
 function buildEdgeSsml(
   text: string,
   voice: string,
@@ -511,12 +563,17 @@ function buildEdgeSsml(
   settings: EdgeVoiceSettings,
   _documentPlan?: EdgeDocumentPlan,
   useMultilingual = false,
+  emotionPlan: EdgeEmotionPlan | null = null,
 ) {
   if (!useMultilingual) {
+    const body =
+      preset === "expressive" && emotionPlan
+        ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, false)
+        : edgeNativeProsody(text, settings, voice, preset);
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
       `<voice name="${voice}">`,
-      edgeNativeProsody(text, settings, voice, preset),
+      body,
       "</voice>",
       "</speak>",
     ].join("");
@@ -544,18 +601,25 @@ function buildEdgeSsml(
     -7,
     7,
   );
-  const body = runs
-    .map((run) =>
-      `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
-    )
-    .join("");
+  const body =
+    preset === "expressive" && emotionPlan
+      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, true)
+      : runs
+          .map((run) =>
+            `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+          )
+          .join("");
 
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
     `<voice name="${multilingualVoice}">`,
-    `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">`,
-    body,
-    "</prosody>",
+    ...(preset === "expressive" && emotionPlan
+      ? [body]
+      : [
+          `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">`,
+          body,
+          "</prosody>",
+        ]),
     "</voice>",
     "</speak>",
   ].join("");
@@ -569,6 +633,7 @@ async function synthesizeEdgeChunk(
   endpoint: TranslatorEndpoint,
   documentPlan: EdgeDocumentPlan,
   useMultilingual: boolean,
+  emotionPlan: EdgeEmotionPlan | null,
 ) {
   const response = await fetchWithTimeout(
     `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`,
@@ -580,7 +645,7 @@ async function synthesizeEdgeChunk(
         "User-Agent": "okhttp/4.5.0",
         "X-Microsoft-OutputFormat": "audio-24khz-160kbitrate-mono-mp3",
       },
-      body: buildEdgeSsml(text, voice, preset, settings, documentPlan, useMultilingual),
+      body: buildEdgeSsml(text, voice, preset, settings, documentPlan, useMultilingual, emotionPlan),
     },
     120000,
   );
@@ -698,6 +763,10 @@ async function synthesizeWithEdge(
     480,
   );
   const useMultilingual = hasHanCharacters(preparedText);
+  const emotionPlan =
+    preset === "expressive"
+      ? analyzeEdgeEmotionPlan(preparedText, documentPlan)
+      : null;
   const audioChunks: ArrayBuffer[] = [];
 
   for (const chunk of chunks) {
@@ -711,6 +780,7 @@ async function synthesizeWithEdge(
           endpoint,
           documentPlan,
           useMultilingual,
+          emotionPlan,
         ),
       );
       continue;
@@ -737,6 +807,7 @@ async function synthesizeWithEdge(
             endpoint,
             documentPlan,
             useMultilingual,
+            emotionPlan,
           ),
         );
       }
