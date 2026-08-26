@@ -297,14 +297,8 @@ function normalizeKazakhSegment(source: string) {
  */
 export function normalizeKazakhSpeechText(source: string) {
   if (!source || !/\d|[%$€₸¥]/u.test(source)) return source;
+  if (!/\p{Script=Han}/u.test(source)) return normalizeKazakhSegment(source);
 
-  const parts = source.split(/(\p{Script=Han}[^\p{Script=Han}\n]*|[^\p{Script=Han}\n]*\p{Script=Han})/gu);
-  if (parts.length <= 1 || !/\p{Script=Han}/u.test(source)) {
-    return normalizeKazakhSegment(source);
-  }
-
-  // For mixed-language text, walk character runs and keep the Han run plus its
-  // immediately attached numeric/punctuation characters untouched.
   let output = "";
   let buffer = "";
   let hanMode = false;
@@ -315,20 +309,32 @@ export function normalizeKazakhSpeechText(source: string) {
     buffer = "";
   };
 
-  for (let index = 0; index < source.length; index += 1) {
-    const char = source[index];
+  for (const char of source) {
     const isHan = /\p{Script=Han}/u.test(char);
-    if (isHan !== hanMode && (isHan || /\p{Script=Han}/u.test(buffer))) {
+    const isCyrillic = /\p{Script=Cyrillic}/u.test(char);
+
+    if (!hanMode && isHan) {
       flush();
-      hanMode = isHan;
+      hanMode = true;
+      buffer = char;
+      continue;
     }
+
+    if (hanMode && isCyrillic) {
+      flush();
+      hanMode = false;
+      buffer = char;
+      continue;
+    }
+
     buffer += char;
 
-    if (hanMode && /[\s\n]/u.test(char)) {
+    if (hanMode && /\s/u.test(char)) {
       flush();
       hanMode = false;
     }
   }
+
   flush();
   return output;
 }

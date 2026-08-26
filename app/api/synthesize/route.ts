@@ -1,5 +1,6 @@
 import { analyzeEdgeDocument, type EdgeDocumentPlan } from "../../lib/edge-director";
 import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
+import { normalizeKazakhSpeechText } from "../../lib/kazakh-speech-normalizer";
 import {
   analyzeEdgeEmotionPlan,
   resolveEdgeEmotionSentences,
@@ -492,8 +493,8 @@ function renderStructuredNativeText(text: string) {
     .map(
       (paragraph) =>
         `<p>${paragraph.sentences
-          .map((sentence) => `<s>${escapeXml(sentence.text)}</s>`)
-          .join("")}</p>`,
+          .map((sentence) => escapeXml(sentence.text))
+          .join(" ")}</p>`,
     )
     .join("");
 }
@@ -530,6 +531,12 @@ function edgeNativeProsody(
   // We keep one global prosody envelope so the speaker does not restart its
   // acoustic character at every sentence.
   return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${renderStructuredNativeText(text)}</prosody>`;
+}
+
+function emotionTempoZone(mood: string) {
+  if (mood === "urgent" || mood === "positive" || mood === "transition") return "forward";
+  if (mood === "sad" || mood === "concern" || mood === "emphasis" || mood === "ending") return "slow";
+  return "steady";
 }
 
 function renderEmotionDirectedBody(
@@ -573,42 +580,76 @@ function renderEmotionDirectedBody(
     return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${fallback}</prosody>`;
   }
 
+  type DeliveryGroup = {
+    paragraphIndex: number;
+    zone: string;
+    sentences: typeof sentences;
+  };
+
+  const groups: DeliveryGroup[] = [];
+  for (const sentence of sentences) {
+    const zone = emotionTempoZone(sentence.mood);
+    const previous = groups[groups.length - 1];
+    const previousChars = previous
+      ? previous.sentences.reduce((sum, item) => sum + item.text.length, 0)
+      : 0;
+    const canJoin =
+      previous &&
+      previous.paragraphIndex === sentence.paragraphIndex &&
+      previous.zone === zone &&
+      previous.sentences.length < 3 &&
+      previousChars + sentence.text.length <= 300;
+
+    if (canJoin) previous.sentences.push(sentence);
+    else groups.push({ paragraphIndex: sentence.paragraphIndex, zone, sentences: [sentence] });
+  }
+
   let body = "";
   let openParagraph: number | null = null;
 
-  for (const sentence of sentences) {
-    if (openParagraph !== sentence.paragraphIndex) {
+  for (const group of groups) {
+    if (openParagraph !== group.paragraphIndex) {
       if (openParagraph !== null) body += "</p>";
       body += "<p>";
-      openParagraph = sentence.paragraphIndex;
+      openParagraph = group.paragraphIndex;
     }
 
+    const totalChars = Math.max(1, group.sentences.reduce((sum, item) => sum + item.text.length, 0));
+    const weighted = group.sentences.reduce(
+      (acc, sentence) => {
+        const weight = sentence.text.length / totalChars;
+        acc.rate += (sentence.rateFactor - 1) * 100 * weight;
+        acc.pitch += sentence.pitchDelta * weight;
+        acc.volume += sentence.volumeDelta * weight;
+        return acc;
+      },
+      { rate: 0, pitch: 0, volume: 0 },
+    );
+
+    const rawText = group.sentences.map((sentence) => sentence.text).join(" ");
     const content = useMultilingual
-      ? splitEdgeLanguageRuns(sentence.text)
+      ? splitEdgeLanguageRuns(rawText)
           .map(
             (run) =>
               `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
           )
           .join("")
-      : escapeXml(sentence.text);
+      : escapeXml(rawText);
 
-    const rateDelta = (sentence.rateFactor - 1) * 100;
     const hasLocalDirection =
-      Math.abs(rateDelta) >= 0.35 ||
-      Math.abs(sentence.pitchDelta) >= 0.02 ||
-      Math.abs(sentence.volumeDelta) >= 0.02;
+      Math.abs(weighted.rate) >= 0.35 ||
+      Math.abs(weighted.pitch) >= 0.02 ||
+      Math.abs(weighted.volume) >= 0.02;
 
     if (hasLocalDirection) {
-      body += `<s><prosody rate="${signedPercent(rateDelta)}" pitch="${signedPercent(sentence.pitchDelta)}" volume="${signedPercent(sentence.volumeDelta)}">${content}</prosody></s>`;
+      body += `<prosody rate="${signedPercent(weighted.rate)}" pitch="${signedPercent(weighted.pitch)}" volume="${signedPercent(weighted.volume)}">${content}</prosody> `;
     } else {
-      body += `<s>${content}</s>`;
+      body += `${content} `;
     }
   }
 
   if (openParagraph !== null) body += "</p>";
 
-  // One global envelope preserves speaker identity; sentence-level directions
-  // are small relative adjustments rather than absolute per-sentence resets.
   return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body}</prosody>`;
 }
 
@@ -802,7 +843,11 @@ async function synthesizeWithEdge(
   settings: EdgeVoiceSettings,
 ) {
   const endpoint = await getEndpoint();
-  const preparedText = prepareEdgeHumanText(text);
+  // Build a hidden spoken form first (numbers, years, percentages, dates,
+  // common units), then do typography cleanup. The user's visible article is
+  // never changed.
+  const spokenText = normalizeKazakhSpeechText(text);
+  const preparedText = prepareEdgeHumanText(spokenText);
   if (!preparedText) return [];
 
   // Preserve one coherent article context for as long as the service allows.
