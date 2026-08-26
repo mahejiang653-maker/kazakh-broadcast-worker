@@ -5,26 +5,7 @@ on:
     branches: [main]
   pull_request:
 
-permissions:
-  contents: write
-
 jobs:
-  patch-edge-unified-voice:
-    if: github.event_name == 'push' && github.event.head_commit.message == 'Run Edge unified voice patch'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Apply unified multilingual voice
-        run: python scripts/apply_edge_unified_multilingual_voice.py
-      - name: Commit unified voice wiring
-        run: |
-          git config user.name "mahejiang653-maker"
-          git config user.email "mahejiang653@gmail.com"
-          git add app/api/synthesize/route.ts app/page.tsx
-          git commit -m "Unify Edge voice across pure and mixed text"
-          git push
-
   build-and-test:
     runs-on: ubuntu-latest
     steps:
