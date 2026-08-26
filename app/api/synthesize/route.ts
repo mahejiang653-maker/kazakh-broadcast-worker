@@ -1,5 +1,6 @@
 import { analyzeEdgeDocument, type EdgeDocumentPlan } from "../../lib/edge-director";
 import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
+import { prepareNativeKazakhEnglishPronunciation } from "../../lib/edge-english-pronunciation";
 import { normalizeKazakhSpeechText } from "../../lib/kazakh-speech-normalizer";
 import {
   analyzeEdgeEmotionPlan,
@@ -143,7 +144,7 @@ function speedToRate(speed: number) {
   return signedPercent((speed - 1) * 100);
 }
 
-type EdgeTextLanguage = "kk" | "zh";
+type EdgeTextLanguage = "kk" | "zh" | "en";
 type EdgeLanguageRun = { language: EdgeTextLanguage; text: string };
 
 function hasHanCharacters(text: string) {
@@ -152,8 +153,15 @@ function hasHanCharacters(text: string) {
 
 function edgeLanguageForCharacter(character: string): EdgeTextLanguage | null {
   if (/\p{Script=Han}/u.test(character)) return "zh";
+  if (/[A-Za-z]/u.test(character)) return "en";
   if (/\p{Script=Cyrillic}/u.test(character)) return "kk";
   return null;
+}
+
+function edgeLanguageCode(language: EdgeTextLanguage) {
+  if (language === "zh") return "zh-CN";
+  if (language === "en") return "en-US";
+  return "kk-KZ";
 }
 
 function splitEdgeLanguageRuns(text: string): EdgeLanguageRun[] {
@@ -573,7 +581,7 @@ function renderEmotionDirectedBody(
       ? splitEdgeLanguageRuns(text)
           .map(
             (run) =>
-              `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+              `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
           )
           .join("")
       : renderStructuredNativeText(text);
@@ -631,7 +639,7 @@ function renderEmotionDirectedBody(
       ? splitEdgeLanguageRuns(rawText)
           .map(
             (run) =>
-              `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+              `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
           )
           .join("")
       : escapeXml(rawText);
@@ -703,7 +711,7 @@ function buildEdgeSsml(
       ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, true)
       : runs
           .map((run) =>
-            `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+            `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
           )
           .join("");
 
@@ -843,10 +851,18 @@ async function synthesizeWithEdge(
   settings: EdgeVoiceSettings,
 ) {
   const endpoint = await getEndpoint();
-  // Build a hidden spoken form first (numbers, years, percentages, dates,
-  // common units), then do typography cleanup. The user's visible article is
-  // never changed.
-  const spokenText = normalizeKazakhSpeechText(text);
+  const isUnifiedProfile =
+    voice === "edge-unified-male" || voice === "edge-unified-female";
+  const articleHasHan = hasHanCharacters(text);
+  const pronunciationPreparedText =
+    isUnifiedProfile || articleHasHan
+      ? text
+      : prepareNativeKazakhEnglishPronunciation(text);
+
+  // Build a hidden spoken form first (English acronym pronunciation for native
+  // voices, then numbers/years/percentages/dates), followed by typography
+  // cleanup. The user's visible article is never changed.
+  const spokenText = normalizeKazakhSpeechText(pronunciationPreparedText);
   const preparedText = prepareEdgeHumanText(spokenText);
   if (!preparedText) return [];
 
@@ -867,9 +883,7 @@ async function synthesizeWithEdge(
   // Kazakh. Unified profiles always use one multilingual voice. If a native
   // profile receives Chinese, switch that whole request to the matching
   // multilingual voice so the Chinese can be pronounced correctly.
-  const isUnifiedProfile =
-    voice === "edge-unified-male" || voice === "edge-unified-female";
-  const useMultilingual = isUnifiedProfile || hasHanCharacters(preparedText);
+  const useMultilingual = isUnifiedProfile || articleHasHan;
   const emotionPlan =
     preset === "expressive"
       ? analyzeEdgeEmotionPlan(preparedText, documentPlan)
