@@ -5,6 +5,7 @@ import {
   resolveEdgeEmotionSentences,
   type EdgeEmotionPlan,
 } from "../../lib/edge-emotion-director";
+import { structureEdgeText } from "../../lib/edge-natural-structure";
 import {
   renderEdgeOmniInspiredMarkup,
   splitEdgeTextByDuration,
@@ -483,6 +484,20 @@ function edgeNaturalMarkup(
   return output;
 }
 
+function renderStructuredNativeText(text: string) {
+  const paragraphs = structureEdgeText(text);
+  if (!paragraphs.length) return escapeXml(text);
+
+  return paragraphs
+    .map(
+      (paragraph) =>
+        `<p>${paragraph.sentences
+          .map((sentence) => `<s>${escapeXml(sentence.text)}</s>`)
+          .join("")}</p>`,
+    )
+    .join("");
+}
+
 function edgeNativeProsody(
   text: string,
   settings: EdgeVoiceSettings,
@@ -510,7 +525,11 @@ function edgeNativeProsody(
     7,
   );
 
-  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${escapeXml(text)}</prosody>`;
+  // Explicit paragraph/sentence structure gives the neural voice the same
+  // punctuation hierarchy that OmniVoice preserves during long-form inference.
+  // We keep one global prosody envelope so the speaker does not restart its
+  // acoustic character at every sentence.
+  return `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">${renderStructuredNativeText(text)}</prosody>`;
 }
 
 function renderEmotionDirectedBody(
@@ -541,23 +560,56 @@ function renderEmotionDirectedBody(
     7,
   );
 
-  return resolveEdgeEmotionSentences(text, emotionPlan)
-    .map((sentence) => {
-      const sentenceSpeed = clamp(baseSpeed * sentence.rateFactor, 0.72, 1.24);
-      const sentencePitch = clamp(basePitch + sentence.pitchDelta, -18, 18);
-      const sentenceVolume = clamp(baseVolume + sentence.volumeDelta, -7, 7);
-      const content = useMultilingual
-        ? splitEdgeLanguageRuns(sentence.text)
-            .map(
-              (run) =>
-                `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
-            )
-            .join("")
-        : escapeXml(sentence.text);
+  const sentences = resolveEdgeEmotionSentences(text, emotionPlan);
+  if (!sentences.length) {
+    const fallback = useMultilingual
+      ? splitEdgeLanguageRuns(text)
+          .map(
+            (run) =>
+              `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+          )
+          .join("")
+      : renderStructuredNativeText(text);
+    return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${fallback}</prosody>`;
+  }
 
-      return `<prosody rate="${speedToRate(sentenceSpeed)}" pitch="${signedPercent(sentencePitch)}" volume="${signedPercent(sentenceVolume)}">${content}</prosody>`;
-    })
-    .join(" ");
+  let body = "";
+  let openParagraph: number | null = null;
+
+  for (const sentence of sentences) {
+    if (openParagraph !== sentence.paragraphIndex) {
+      if (openParagraph !== null) body += "</p>";
+      body += "<p>";
+      openParagraph = sentence.paragraphIndex;
+    }
+
+    const content = useMultilingual
+      ? splitEdgeLanguageRuns(sentence.text)
+          .map(
+            (run) =>
+              `<lang xml:lang="${run.language === "zh" ? "zh-CN" : "kk-KZ"}">${escapeXml(run.text)}</lang>`,
+          )
+          .join("")
+      : escapeXml(sentence.text);
+
+    const rateDelta = (sentence.rateFactor - 1) * 100;
+    const hasLocalDirection =
+      Math.abs(rateDelta) >= 0.35 ||
+      Math.abs(sentence.pitchDelta) >= 0.02 ||
+      Math.abs(sentence.volumeDelta) >= 0.02;
+
+    if (hasLocalDirection) {
+      body += `<s><prosody rate="${signedPercent(rateDelta)}" pitch="${signedPercent(sentence.pitchDelta)}" volume="${signedPercent(sentence.volumeDelta)}">${content}</prosody></s>`;
+    } else {
+      body += `<s>${content}</s>`;
+    }
+  }
+
+  if (openParagraph !== null) body += "</p>";
+
+  // One global envelope preserves speaker identity; sentence-level directions
+  // are small relative adjustments rather than absolute per-sentence resets.
+  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body}</prosody>`;
 }
 
 function buildEdgeSsml(
