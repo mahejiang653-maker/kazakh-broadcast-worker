@@ -166,6 +166,60 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const cleanText = text.trim();
+
+    if (engine !== "edge" || preset !== "expressive" || !cleanText) {
+      setEmotionAnalysisStatus("idle");
+      setEmotionSentenceCount(0);
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+    setEmotionAnalysisStatus("idle");
+    setEmotionSentenceCount(0);
+
+    const timer = window.setTimeout(async () => {
+      if (!active) return;
+      setEmotionAnalysisStatus("analyzing");
+
+      try {
+        const response = await fetch("/api/edge-emotion-analysis", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: cleanText }),
+          signal: controller.signal,
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { status?: string; sentenceCount?: number }
+          | null;
+
+        if (!active) return;
+        if (!response.ok || payload?.status !== "completed") {
+          setEmotionAnalysisStatus("failed");
+          setEmotionSentenceCount(0);
+          return;
+        }
+
+        setEmotionSentenceCount(
+          typeof payload.sentenceCount === "number" ? payload.sentenceCount : 0,
+        );
+        setEmotionAnalysisStatus("completed");
+      } catch (caught) {
+        if (!active || (caught instanceof DOMException && caught.name === "AbortError")) return;
+        setEmotionAnalysisStatus("failed");
+        setEmotionSentenceCount(0);
+      }
+    }, 800);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [text, engine, preset]);
+
   function resetAudio() {
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
@@ -530,7 +584,7 @@ export default function Home() {
                         ? "情绪分析失败"
                         : emotionAnalysisStatus === "analyzing"
                           ? "正在分析全文情绪…"
-                          : "等待全文情绪分析"}
+                          : "等待输入完成后自动分析"}
                   </span>
                 </div>
               ) : null}
