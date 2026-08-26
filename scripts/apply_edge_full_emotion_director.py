@@ -94,11 +94,15 @@ new_after_use_multi = '''  const useMultilingual = hasHanCharacters(preparedText
 assert old_after_use_multi in route
 route = route.replace(old_after_use_multi, new_after_use_multi, 1)
 
-needle = '''          documentPlan,\n          useMultilingual,\n        ),'''
-replacement = '''          documentPlan,\n          useMultilingual,\n          emotionPlan,\n        ),'''
-count = route.count(needle)
-assert count >= 2, f'expected >=2 synthesizeEdgeChunk calls, found {count}'
-route = route.replace(needle, replacement)
+main_call = '''          documentPlan,\n          useMultilingual,\n        ),'''
+main_replacement = '''          documentPlan,\n          useMultilingual,\n          emotionPlan,\n        ),'''
+assert main_call in route
+route = route.replace(main_call, main_replacement, 1)
+
+fallback_call = '''            documentPlan,\n            useMultilingual,\n          ),'''
+fallback_replacement = '''            documentPlan,\n            useMultilingual,\n            emotionPlan,\n          ),'''
+assert fallback_call in route
+route = route.replace(fallback_call, fallback_replacement, 1)
 
 route_path.write_text(route)
 print('wired full-article emotion director into expressive Edge preset')
