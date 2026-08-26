@@ -125,6 +125,74 @@ function signed(value: number, suffix = "%") {
   return `${rounded > 0 ? "+" : ""}${rounded}${suffix}`;
 }
 
+
+type SafeRangeProps = {
+  ariaLabel: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number;
+  onValueChange: (value: number) => void;
+};
+
+function SafeRange({ ariaLabel, min, max, step, value, onValueChange }: SafeRangeProps) {
+  const dragArmedRef = useRef(false);
+  const keyboardArmedRef = useRef(false);
+
+  return (
+    <input
+      aria-label={ariaLabel}
+      type="range"
+      min={min}
+      max={max}
+      step={step}
+      value={value}
+      onPointerDown={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const span = Math.max(1, max - min);
+        const fraction = Math.min(1, Math.max(0, (value - min) / span));
+        const edgePadding = 12;
+        const usableWidth = Math.max(1, rect.width - edgePadding * 2);
+        const thumbX = rect.left + edgePadding + usableWidth * fraction;
+        const tolerance = event.pointerType === "touch" ? 30 : 20;
+
+        if (Math.abs(event.clientX - thumbX) > tolerance) {
+          dragArmedRef.current = false;
+          event.preventDefault();
+          return;
+        }
+
+        dragArmedRef.current = true;
+      }}
+      onPointerUp={() => {
+        dragArmedRef.current = false;
+      }}
+      onPointerCancel={() => {
+        dragArmedRef.current = false;
+      }}
+      onKeyDown={() => {
+        keyboardArmedRef.current = true;
+      }}
+      onKeyUp={() => {
+        keyboardArmedRef.current = false;
+      }}
+      onBlur={() => {
+        dragArmedRef.current = false;
+        keyboardArmedRef.current = false;
+      }}
+      onChange={(event) => {
+        if (!dragArmedRef.current && !keyboardArmedRef.current) return;
+        onValueChange(Number(event.target.value));
+      }}
+      style={{
+        width: "100%",
+        accentColor: "var(--mint)",
+        touchAction: "pan-y",
+      }}
+    />
+  );
+}
+
 export default function Home() {
   const [text, setText] = useState(SAMPLE_TEXT);
   const [engine, setEngine] = useState<Engine>("edge");
@@ -143,6 +211,7 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
+  const [audioSettingsDirty, setAudioSettingsDirty] = useState(false);
   const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
   const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
   const audioUrlRef = useRef<string | null>(null);
@@ -239,6 +308,11 @@ export default function Home() {
     }
     setAudioUrl(null);
     setGeneratedAt("");
+    setAudioSettingsDirty(false);
+  }
+
+  function markAudioSettingsDirty() {
+    if (audioUrlRef.current) setAudioSettingsDirty(true);
   }
 
   function resetEmotionAnalysis() {
@@ -399,6 +473,7 @@ export default function Home() {
       const nextUrl = URL.createObjectURL(audioBlob);
       audioUrlRef.current = nextUrl;
       setAudioUrl(nextUrl);
+      setAudioSettingsDirty(false);
       setGeneratedAt(
         new Date().toLocaleTimeString("zh-CN", {
           hour: "2-digit",
@@ -433,18 +508,16 @@ export default function Home() {
           <span style={{ minWidth: 48, fontWeight: 700, fontSize: 15 }}>
             {speed.toFixed(2)}×
           </span>
-          <input
-            aria-label={`${label}倍速`}
-            type="range"
-            min="0.7"
-            max="1.2"
-            step="0.01"
+          <SafeRange
+            ariaLabel={`${label}倍速`}
+            min={0.7}
+            max={1.2}
+            step={0.01}
             value={speed}
-            onChange={(event) => {
-              setSpeed(Number(event.target.value));
-              resetAudio();
+            onValueChange={(nextValue) => {
+              setSpeed(nextValue);
+              markAudioSettingsDirty();
             }}
-            style={{ width: "100%", accentColor: "var(--mint)" }}
           />
         </div>
         <div className="preset-grid" style={{ marginTop: 14 }}>
@@ -455,7 +528,7 @@ export default function Home() {
               key={item}
               onClick={() => {
                 setSpeed(item);
-                resetAudio();
+                markAudioSettingsDirty();
               }}
               aria-pressed={Math.abs(speed - item) < 0.001}
             >
@@ -464,6 +537,9 @@ export default function Home() {
             </button>
           ))}
         </div>
+        <small style={{ display: "block", marginTop: 10 }}>
+          防误触：请按住圆形滑块再拖动；轻点滑轨不会改变参数。
+        </small>
         <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
           <span>精细步进 0.01×</span>
           <span>0.70× – 1.20×</span>
@@ -724,18 +800,16 @@ export default function Home() {
                       <strong>音调</strong>
                       <span>{signed(edgePitch)}</span>
                     </div>
-                    <input
-                      aria-label="Edge TTS 音调"
-                      type="range"
-                      min="-20"
-                      max="20"
-                      step="1"
+                    <SafeRange
+                      ariaLabel="Edge TTS 音调"
+                      min={-20}
+                      max={20}
+                      step={1}
                       value={edgePitch}
-                      onChange={(event) => {
-                        setEdgePitch(Number(event.target.value));
-                        resetAudio();
+                      onValueChange={(nextValue) => {
+                        setEdgePitch(nextValue);
+                        markAudioSettingsDirty();
                       }}
-                      style={{ width: "100%", accentColor: "var(--mint)" }}
                     />
                     <small>降低更沉稳，提高更明亮；新闻建议 -5% 到 +5%</small>
                   </label>
@@ -745,22 +819,34 @@ export default function Home() {
                       <strong>音量</strong>
                       <span>{signed(edgeVolume, "dB")}</span>
                     </div>
-                    <input
-                      aria-label="Edge TTS 音量"
-                      type="range"
-                      min="-8"
-                      max="8"
-                      step="0.5"
+                    <SafeRange
+                      ariaLabel="Edge TTS 音量"
+                      min={-8}
+                      max={8}
+                      step={0.5}
                       value={edgeVolume}
-                      onChange={(event) => {
-                        setEdgeVolume(Number(event.target.value));
-                        resetAudio();
+                      onValueChange={(nextValue) => {
+                        setEdgeVolume(nextValue);
+                        markAudioSettingsDirty();
                       }}
-                      style={{ width: "100%", accentColor: "var(--mint)" }}
                     />
                     <small>整体增减播音强度；过高可能听起来偏硬</small>
                   </label>
 
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginTop: 10 }}>
+                    <small>防误触：按住滑块拖动，点击滑轨不会跳值。</small>
+                    <button
+                      className="text-action"
+                      type="button"
+                      onClick={() => {
+                        setEdgePitch(0);
+                        setEdgeVolume(0);
+                        markAudioSettingsDirty();
+                      }}
+                    >
+                      恢复默认
+                    </button>
+                  </div>
                   <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
                     <span>Edge SSML 实时调整</span>
                     <span>无需 ElevenLabs 额度</span>
@@ -1029,6 +1115,12 @@ export default function Home() {
               </div>
               {generatedAt ? <time>{generatedAt}</time> : <span>等待生成</span>}
             </div>
+
+            {audioUrl && audioSettingsDirty ? (
+              <p style={{ margin: "10px 0 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
+                参数已修改 · 当前播放器仍保留上一次生成结果；重新生成后才会应用新参数。
+              </p>
+            ) : null}
 
             {audioUrl ? (
               <div className="audio-ready">
