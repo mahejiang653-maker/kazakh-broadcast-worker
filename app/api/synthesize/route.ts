@@ -16,7 +16,7 @@ import {
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
-const MAX_CHARACTERS = 6000;
+const MAX_CHARACTERS = 15000;
 const EDGE_MAX_CHUNK_SIZE = 4800;
 const ELEVEN_MAX_CHUNK_SIZE = 2200;
 const ELEVEN_MODEL_ID = "eleven_v3";

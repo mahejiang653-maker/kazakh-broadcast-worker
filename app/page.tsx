@@ -6,7 +6,7 @@ import OmniVoiceStudio from "./components/OmniVoiceStudio";
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
 
-const MAX_CHARACTERS = 6000;
+const MAX_CHARACTERS = 15000;
 
 const EDGE_VOICES = [
   {

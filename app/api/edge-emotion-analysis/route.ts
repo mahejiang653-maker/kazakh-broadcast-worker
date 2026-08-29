@@ -2,7 +2,7 @@ import { analyzeEdgeDocument } from "../../lib/edge-director";
 import { analyzeEdgeEmotionPlan } from "../../lib/edge-emotion-director";
 import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
 
-const MAX_CHARACTERS = 6000;
+const MAX_CHARACTERS = 15000;
 
 export async function POST(request: Request) {
   let payload: unknown;
