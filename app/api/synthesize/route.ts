@@ -46,6 +46,15 @@ const PRESETS = {
   expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
 } as const;
 
+// Every Edge style uses the same full-article emotion plan, but each style
+// applies a different amount of local direction so they remain audibly distinct.
+const EMOTION_STRENGTH_BY_PRESET: Record<keyof typeof PRESETS, number> = {
+  news: 0.55,
+  calm: 0.45,
+  bulletin: 0.7,
+  expressive: 1,
+};
+
 
 type PresetName = keyof typeof PRESETS;
 type EngineName = "edge" | "eleven";
@@ -556,6 +565,7 @@ function renderEmotionDirectedBody(
   useMultilingual: boolean,
 ) {
   const presetSettings = PRESETS[preset];
+  const emotionStrength = EMOTION_STRENGTH_BY_PRESET[preset];
   const isDauletProfile = profileVoice === "kk-KZ-DauletNeural";
   const antiCreakRate = useMultilingual ? 1 : isDauletProfile ? 1.002 : 1;
   const antiCreakPitch = useMultilingual ? 0 : isDauletProfile ? 1.8 : 0;
@@ -633,6 +643,9 @@ function renderEmotionDirectedBody(
       },
       { rate: 0, pitch: 0, volume: 0 },
     );
+    weighted.rate *= emotionStrength;
+    weighted.pitch *= emotionStrength;
+    weighted.volume *= emotionStrength;
 
     const rawText = group.sentences.map((sentence) => sentence.text).join(" ");
     const content = useMultilingual
@@ -671,10 +684,9 @@ function buildEdgeSsml(
   emotionPlan: EdgeEmotionPlan | null = null,
 ) {
   if (!useMultilingual) {
-    const body =
-      preset === "expressive" && emotionPlan
-        ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, false)
-        : edgeNativeProsody(text, settings, voice, preset);
+    const body = emotionPlan
+      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, false)
+      : edgeNativeProsody(text, settings, voice, preset);
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
       `<voice name="${voice}">`,
@@ -706,19 +718,18 @@ function buildEdgeSsml(
     -7,
     7,
   );
-  const body =
-    preset === "expressive" && emotionPlan
-      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, true)
-      : runs
-          .map((run) =>
-            `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
-          )
-          .join("");
+  const body = emotionPlan
+    ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, true)
+    : runs
+        .map((run) =>
+          `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
+        )
+        .join("");
 
   return [
     '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
     `<voice name="${multilingualVoice}">`,
-    ...(preset === "expressive" && emotionPlan
+    ...(emotionPlan
       ? [body]
       : [
           `<prosody rate="${speedToRate(effectiveSpeed)}" pitch="${signedPercent(effectivePitch)}" volume="${signedPercent(effectiveVolume)}">`,
@@ -884,10 +895,7 @@ async function synthesizeWithEdge(
   // profile receives Chinese, switch that whole request to the matching
   // multilingual voice so the Chinese can be pronounced correctly.
   const useMultilingual = isUnifiedProfile || articleHasHan;
-  const emotionPlan =
-    preset === "expressive"
-      ? analyzeEdgeEmotionPlan(preparedText, documentPlan)
-      : null;
+  const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
   const audioChunks: ArrayBuffer[] = [];
 
   for (const chunk of chunks) {

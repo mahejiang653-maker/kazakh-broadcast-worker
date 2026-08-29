@@ -36,10 +36,10 @@ const EDGE_VOICES = [
 ] as const;
 
 const PRESETS = [
-  { id: "news", label: "标准新闻", note: "原生自然 · 推荐", rateFactor: 1 },
-  { id: "calm", label: "沉稳长稿", note: "原生自然 · 稍慢柔和", rateFactor: 0.94 },
-  { id: "bulletin", label: "简明快讯", note: "原生自然 · 轻快紧凑", rateFactor: 1.035 },
-  { id: "expressive", label: "生动播报", note: "全文情绪导演 · 自动分析", rateFactor: 0.99 },
+  { id: "news", label: "标准新闻", note: "全文情绪分析 · 克制表达", rateFactor: 1 },
+  { id: "calm", label: "沉稳长稿", note: "全文情绪分析 · 平稳柔和", rateFactor: 0.94 },
+  { id: "bulletin", label: "简明快讯", note: "全文情绪分析 · 轻快紧凑", rateFactor: 1.035 },
+  { id: "expressive", label: "生动播报", note: "全文情绪分析 · 完整表现", rateFactor: 0.99 },
 ] as const;
 
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
@@ -250,7 +250,7 @@ export default function Home() {
   useEffect(() => {
     const cleanText = text.trim();
 
-    if (engine !== "edge" || preset !== "expressive" || !cleanText) {
+    if (engine !== "edge" || !cleanText) {
       setEmotionAnalysisStatus("idle");
       setEmotionSentenceCount(0);
       return;
@@ -412,7 +412,7 @@ export default function Home() {
     setError("");
 
     try {
-      const shouldAnalyzeEmotion = engine === "edge" && preset === "expressive";
+      const shouldAnalyzeEmotion = engine === "edge";
       if (shouldAnalyzeEmotion) {
         setEmotionAnalysisStatus("analyzing");
         setEmotionSentenceCount(0);
@@ -637,7 +637,7 @@ export default function Home() {
                 spellCheck={false}
                 aria-describedby="character-count"
               />
-              {engine === "edge" && preset === "expressive" ? (
+              {engine === "edge" ? (
                 <div
                   aria-live="polite"
                   style={{
