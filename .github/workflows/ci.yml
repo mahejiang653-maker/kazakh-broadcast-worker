@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
+  patch-15k-mixed-emotion:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Run 15k mixed emotion patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply 15k mixed emotion patch
+        run: python scripts/apply_15k_mixed_emotion_v7.py
+      - name: Commit 15k mixed emotion update
+        run: |
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/page.tsx app/api/synthesize/route.ts app/api/edge-emotion-analysis/route.ts app/lib/edge-emotion-director.ts
+          git commit -m "Support 15k text and Chinese-Kazakh emotion analysis"
+          git push
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
