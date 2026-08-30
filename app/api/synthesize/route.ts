@@ -45,7 +45,7 @@ const PRESETS = {
   calm: { rateFactor: 0.94, pitch: 0, volume: -0.2 },
   bulletin: { rateFactor: 1.035, pitch: 0.2, volume: 0.2 },
   expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
-  story: { rateFactor: 0.965, pitch: 0.1, volume: -0.05 },
+  story: { rateFactor: 0.985, pitch: 0.05, volume: -0.03 },
 } as const;
 
 // Every Edge style uses the same full-article emotion plan, but each style
@@ -55,7 +55,7 @@ const EMOTION_STRENGTH_BY_PRESET: Record<keyof typeof PRESETS, number> = {
   calm: 0.45,
   bulletin: 0.7,
   expressive: 1,
-  story: 1.15,
+  story: 1,
 };
 
 
@@ -602,11 +602,6 @@ const STORY_HUMOR_CUES = [
   "күліп", "күлді", "әзіл", "қалжың", "жымиды", "қарқылдап", "哈哈", "笑了", "大笑", "玩笑",
   "滑稽", "调皮", "忍不住笑", "扑哧",
 ];
-const STORY_SPEECH_CUES = [
-  "деді", "деген еді", "деп сұрады", "сұрады", "жауап берді", "айқайлады", "сыбырлады",
-  "деді де", "деп жауап", "说道", "问道", "回答", "喊道", "低声说", "轻声说", "大声说",
-];
-
 function storyContainsCue(value: string, cues: string[]) {
   const normalized = value.toLowerCase();
   return cues.some((cue) => normalized.includes(cue));
@@ -616,9 +611,8 @@ function isStoryDialogue(value: string) {
   const trimmed = value.trim();
   return (
     /^[—–-]\s*\S/u.test(trimmed) ||
-    /[«“][^»”]{1,260}[»”]/u.test(trimmed) ||
-    /"[^"\n]{1,260}"/u.test(trimmed) ||
-    storyContainsCue(trimmed, STORY_SPEECH_CUES)
+    /[«“][^»”]{1,320}[»”]/u.test(trimmed) ||
+    /"[^"\n]{1,320}"/u.test(trimmed)
   );
 }
 
@@ -632,53 +626,58 @@ function storyDirectionForSentence(
   const hasExclamation = /[!！]/u.test(text);
   const hasEllipsis = /…|\.\.\./u.test(text);
 
-  // Story mode intentionally uses clearly audible ranges. The previous values
-  // were mostly below 0.5%, then rounded to zero by signedPercent(). These
-  // values remain gentle enough to preserve one speaker identity while making
-  // the narrative beat perceptible.
+  // Story V3: narration is the anchor. We deliberately do NOT continuously
+  // modulate ordinary narration. Local prosody is reserved for real story beats,
+  // which avoids the "one sentence = one synthetic state" effect.
   if (role === "ending" || mood === "ending") {
-    return { beat: "ending", ratePercent: -5.5, pitchDelta: -1.3, volumeDelta: -1.0 };
+    return { beat: "ending", ratePercent: -3.5, pitchDelta: -0.8, volumeDelta: -0.6 };
   }
   if (mood === "sad" || (mood === "concern" && storyContainsCue(text, STORY_TENDER_CUES))) {
-    return { beat: "sorrow", ratePercent: -7.0, pitchDelta: -1.6, volumeDelta: -1.5 };
+    return { beat: "sorrow", ratePercent: -4.5, pitchDelta: -0.9, volumeDelta: -0.9 };
   }
   if (storyContainsCue(text, STORY_SUSPENSE_CUES) || hasEllipsis) {
-    return { beat: "suspense", ratePercent: -6.2, pitchDelta: -1.2, volumeDelta: -1.0 };
+    return { beat: "suspense", ratePercent: -4.0, pitchDelta: -0.7, volumeDelta: -0.6 };
   }
   if (mood === "urgent" || storyContainsCue(text, STORY_ACTION_CUES)) {
-    return { beat: "action", ratePercent: 6.2, pitchDelta: 1.3, volumeDelta: 1.4 };
+    return { beat: "action", ratePercent: 3.8, pitchDelta: 0.8, volumeDelta: 0.9 };
   }
   if (storyContainsCue(text, STORY_TENDER_CUES)) {
-    return { beat: "tender", ratePercent: -4.2, pitchDelta: 0.7, volumeDelta: -1.1 };
+    return { beat: "tender", ratePercent: -2.8, pitchDelta: 0.6, volumeDelta: -0.7 };
   }
   if (storyContainsCue(text, STORY_WONDER_CUES)) {
-    return { beat: "wonder", ratePercent: -2.2, pitchDelta: 1.8, volumeDelta: 0.5 };
+    return { beat: "wonder", ratePercent: -1.5, pitchDelta: 0.8, volumeDelta: 0.2 };
   }
   if (storyContainsCue(text, STORY_HUMOR_CUES)) {
-    return { beat: "humor", ratePercent: 2.8, pitchDelta: 1.1, volumeDelta: 0.5 };
+    return { beat: "humor", ratePercent: 1.8, pitchDelta: 0.7, volumeDelta: 0.2 };
   }
+
   if (dialogue) {
+    // Let punctuation do most of the acting. Neutral dialogue receives no
+    // synthetic pitch lift; questions/exclamations only get a small assist.
     if (hasQuestion) {
-      return { beat: "dialogue", ratePercent: -1.2, pitchDelta: 2.0, volumeDelta: 0.4 };
+      return { beat: "dialogue", ratePercent: -1.0, pitchDelta: 0.8, volumeDelta: 0.1 };
     }
     if (hasExclamation) {
-      return { beat: "dialogue", ratePercent: 4.0, pitchDelta: 1.4, volumeDelta: 1.6 };
+      return { beat: "dialogue", ratePercent: 2.2, pitchDelta: 0.8, volumeDelta: 0.9 };
     }
     if (mood === "concern" || mood === "sad") {
-      return { beat: "dialogue", ratePercent: -3.2, pitchDelta: -0.8, volumeDelta: -0.8 };
+      return { beat: "dialogue", ratePercent: -2.2, pitchDelta: -0.6, volumeDelta: -0.6 };
     }
-    return { beat: "dialogue", ratePercent: 0.8, pitchDelta: 0.8, volumeDelta: 0.3 };
+    return { beat: "dialogue", ratePercent: 0, pitchDelta: 0, volumeDelta: 0 };
   }
+
   if (mood === "positive") {
-    return { beat: "tender", ratePercent: -1.0, pitchDelta: 0.8, volumeDelta: 0.3 };
+    return { beat: "tender", ratePercent: -0.8, pitchDelta: 0.5, volumeDelta: 0.1 };
   }
   if (mood === "concern") {
-    return { beat: "suspense", ratePercent: -3.2, pitchDelta: -0.7, volumeDelta: -0.5 };
+    return { beat: "suspense", ratePercent: -2.2, pitchDelta: -0.6, volumeDelta: -0.4 };
   }
   if (mood === "emphasis") {
-    return { beat: "wonder", ratePercent: -2.6, pitchDelta: 0.9, volumeDelta: 0.8 };
+    return { beat: "wonder", ratePercent: -1.2, pitchDelta: 0.5, volumeDelta: 0.4 };
   }
-  return { beat: "narrator", ratePercent: -1.0, pitchDelta: 0, volumeDelta: 0 };
+
+  // Ordinary narration stays completely native inside one long outer prosody.
+  return { beat: "narrator", ratePercent: 0, pitchDelta: 0, volumeDelta: 0 };
 }
 
 function renderEmotionDirectedBody(
@@ -743,10 +742,17 @@ function renderEmotionDirectedBody(
     const storyGroupLimit =
       preset === "story"
         ? storyDirection?.beat === "narrator"
-          ? 3
-          : 2
+          ? 6
+          : storyDirection?.beat === "dialogue"
+            ? 1
+            : 2
         : 3;
-    const storyCharLimit = preset === "story" ? 230 : 300;
+    const storyCharLimit =
+      preset === "story"
+        ? storyDirection?.beat === "narrator"
+          ? 520
+          : 260
+        : 300;
     const canJoin =
       previous &&
       previous.paragraphIndex === sentence.paragraphIndex &&
@@ -776,12 +782,15 @@ function renderEmotionDirectedBody(
           preset === "story"
             ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role)
             : null;
-        acc.rate +=
-          ((sentence.rateFactor - 1) * 100 + (storyDirection?.ratePercent ?? 0)) * weight;
-        acc.pitch +=
-          (sentence.pitchDelta + (storyDirection?.pitchDelta ?? 0)) * weight;
-        acc.volume +=
-          (sentence.volumeDelta + (storyDirection?.volumeDelta ?? 0)) * weight;
+        if (preset === "story") {
+          acc.rate += (storyDirection?.ratePercent ?? 0) * weight;
+          acc.pitch += (storyDirection?.pitchDelta ?? 0) * weight;
+          acc.volume += (storyDirection?.volumeDelta ?? 0) * weight;
+        } else {
+          acc.rate += (sentence.rateFactor - 1) * 100 * weight;
+          acc.pitch += sentence.pitchDelta * weight;
+          acc.volume += sentence.volumeDelta * weight;
+        }
         return acc;
       },
       { rate: 0, pitch: 0, volume: 0 },
