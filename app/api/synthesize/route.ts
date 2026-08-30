@@ -39,11 +39,13 @@ const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
 };
 
 const PRESETS = {
-  // All four styles are native-first. They differ only by a very small global bias.
+  // All five styles are native-first. Each one keeps a continuous speaker identity
+  // while applying a different global pacing bias.
   news: { rateFactor: 1, pitch: 0, volume: 0 },
   calm: { rateFactor: 0.94, pitch: 0, volume: -0.2 },
   bulletin: { rateFactor: 1.035, pitch: 0.2, volume: 0.2 },
   expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
+  story: { rateFactor: 0.965, pitch: 0.1, volume: -0.05 },
 } as const;
 
 // Every Edge style uses the same full-article emotion plan, but each style
@@ -53,6 +55,7 @@ const EMOTION_STRENGTH_BY_PRESET: Record<keyof typeof PRESETS, number> = {
   calm: 0.45,
   bulletin: 0.7,
   expressive: 1,
+  story: 1.05,
 };
 
 
@@ -556,6 +559,102 @@ function emotionTempoZone(mood: string) {
   return "steady";
 }
 
+
+type StoryBeat =
+  | "narrator"
+  | "dialogue"
+  | "suspense"
+  | "action"
+  | "tender"
+  | "sorrow"
+  | "wonder"
+  | "humor"
+  | "ending";
+
+type StoryDirection = {
+  beat: StoryBeat;
+  ratePercent: number;
+  pitchDelta: number;
+  volumeDelta: number;
+};
+
+const STORY_SUSPENSE_CUES = [
+  "кенет", "бір кезде", "сол сәтте", "дәл сол кезде", "қараса", "үнсіз", "сыбыр",
+  "қараңғы", "қорқыныш", "аяқ дыбысы", "құпия", "忽然", "突然", "就在这时", "这时",
+  "悄悄", "沉默", "黑暗", "脚步声", "秘密", "神秘",
+];
+const STORY_ACTION_CUES = [
+  "жүгір", "айқай", "ұмтыл", "секір", "қаш", "қуып", "соққы", "тартыс", "күрес",
+  "抓", "冲", "跑", "喊", "跳", "追", "打", "扑", "逃", "搏斗", "冲向",
+];
+const STORY_TENDER_CUES = [
+  "жылы", "мейір", "күлім", "құшақ", "ақырын", "жай ғана", "еркелет", "жұмсақ",
+  "温柔", "微笑", "拥抱", "轻声", "轻轻", "温暖", "柔和", "抚摸",
+];
+const STORY_WONDER_CUES = [
+  "таңғ", "ғажап", "керемет", "сенбеді", "күтпеген", "惊讶", "惊奇", "奇怪",
+  "没想到", "不可思议", "竟然", "原来",
+];
+const STORY_HUMOR_CUES = [
+  "күліп", "күлді", "әзіл", "қалжың", "жымиды", "哈哈", "笑了", "大笑", "玩笑",
+  "滑稽", "调皮", "忍不住笑",
+];
+
+function storyContainsCue(value: string, cues: string[]) {
+  const normalized = value.toLowerCase();
+  return cues.some((cue) => normalized.includes(cue));
+}
+
+function isStoryDialogue(value: string) {
+  const trimmed = value.trim();
+  return (
+    /^[—–-]\s*\S/u.test(trimmed) ||
+    /[«“][^»”]{1,220}[»”]/u.test(trimmed) ||
+    /^"[^"\n]{1,220}"/u.test(trimmed)
+  );
+}
+
+function storyDirectionForSentence(
+  text: string,
+  mood: string,
+  role: string | null,
+): StoryDirection {
+  if (role === "ending" || mood === "ending") {
+    return { beat: "ending", ratePercent: -1.7, pitchDelta: -0.06, volumeDelta: -0.03 };
+  }
+  if (mood === "sad" || (mood === "concern" && storyContainsCue(text, STORY_TENDER_CUES))) {
+    return { beat: "sorrow", ratePercent: -2.0, pitchDelta: -0.08, volumeDelta: -0.08 };
+  }
+  if (storyContainsCue(text, STORY_SUSPENSE_CUES)) {
+    return { beat: "suspense", ratePercent: -1.8, pitchDelta: -0.1, volumeDelta: -0.05 };
+  }
+  if (mood === "urgent" || storyContainsCue(text, STORY_ACTION_CUES)) {
+    return { beat: "action", ratePercent: 1.7, pitchDelta: 0.1, volumeDelta: 0.08 };
+  }
+  if (storyContainsCue(text, STORY_TENDER_CUES)) {
+    return { beat: "tender", ratePercent: -1.4, pitchDelta: 0.03, volumeDelta: -0.06 };
+  }
+  if (storyContainsCue(text, STORY_WONDER_CUES)) {
+    return { beat: "wonder", ratePercent: -0.5, pitchDelta: 0.1, volumeDelta: 0.02 };
+  }
+  if (storyContainsCue(text, STORY_HUMOR_CUES)) {
+    return { beat: "humor", ratePercent: 0.6, pitchDelta: 0.06, volumeDelta: 0.02 };
+  }
+  if (isStoryDialogue(text)) {
+    if (/[?？]/u.test(text)) {
+      return { beat: "dialogue", ratePercent: 0.2, pitchDelta: 0.12, volumeDelta: 0.02 };
+    }
+    if (/[!！]/u.test(text)) {
+      return { beat: "dialogue", ratePercent: 0.8, pitchDelta: 0.08, volumeDelta: 0.06 };
+    }
+    return { beat: "dialogue", ratePercent: 0.1, pitchDelta: 0.04, volumeDelta: 0.01 };
+  }
+  if (mood === "positive") {
+    return { beat: "tender", ratePercent: -0.3, pitchDelta: 0.04, volumeDelta: 0.01 };
+  }
+  return { beat: "narrator", ratePercent: -0.3, pitchDelta: 0, volumeDelta: 0 };
+}
+
 function renderEmotionDirectedBody(
   text: string,
   settings: EdgeVoiceSettings,
@@ -606,7 +705,11 @@ function renderEmotionDirectedBody(
 
   const groups: DeliveryGroup[] = [];
   for (const sentence of sentences) {
-    const zone = emotionTempoZone(sentence.mood);
+    const storyDirection =
+      preset === "story"
+        ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role)
+        : null;
+    const zone = storyDirection ? `story:${storyDirection.beat}` : emotionTempoZone(sentence.mood);
     const previous = groups[groups.length - 1];
     const previousChars = previous
       ? previous.sentences.reduce((sum, item) => sum + item.text.length, 0)
@@ -636,9 +739,16 @@ function renderEmotionDirectedBody(
     const weighted = group.sentences.reduce(
       (acc, sentence) => {
         const weight = sentence.text.length / totalChars;
-        acc.rate += (sentence.rateFactor - 1) * 100 * weight;
-        acc.pitch += sentence.pitchDelta * weight;
-        acc.volume += sentence.volumeDelta * weight;
+        const storyDirection =
+          preset === "story"
+            ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role)
+            : null;
+        acc.rate +=
+          ((sentence.rateFactor - 1) * 100 + (storyDirection?.ratePercent ?? 0)) * weight;
+        acc.pitch +=
+          (sentence.pitchDelta + (storyDirection?.pitchDelta ?? 0)) * weight;
+        acc.volume +=
+          (sentence.volumeDelta + (storyDirection?.volumeDelta ?? 0)) * weight;
         return acc;
       },
       { rate: 0, pitch: 0, volume: 0 },
