@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
+  patch-storytelling:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Run story mode natural storytelling patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply storytelling patch
+        run: python scripts/apply_storytelling_v9.py
+      - name: Commit storytelling update
+        run: |
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/page.tsx app/api/synthesize/route.ts
+          git commit -m "Make Edge story mode more human and expressive"
+          git push
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
