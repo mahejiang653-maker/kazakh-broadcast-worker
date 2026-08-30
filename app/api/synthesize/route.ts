@@ -55,7 +55,7 @@ const EMOTION_STRENGTH_BY_PRESET: Record<keyof typeof PRESETS, number> = {
   calm: 0.45,
   bulletin: 0.7,
   expressive: 1,
-  story: 1.05,
+  story: 1.15,
 };
 
 
@@ -580,24 +580,31 @@ type StoryDirection = {
 
 const STORY_SUSPENSE_CUES = [
   "кенет", "бір кезде", "сол сәтте", "дәл сол кезде", "қараса", "үнсіз", "сыбыр",
-  "қараңғы", "қорқыныш", "аяқ дыбысы", "құпия", "忽然", "突然", "就在这时", "这时",
-  "悄悄", "沉默", "黑暗", "脚步声", "秘密", "神秘",
+  "қараңғы", "қорқыныш", "аяқ дыбысы", "құпия", "сезді", "тың тыңдап", "демін ішіне",
+  "忽然", "突然", "就在这时", "这时", "悄悄", "沉默", "黑暗", "脚步声", "秘密", "神秘",
+  "屏住呼吸", "没出声", "静静地",
 ];
 const STORY_ACTION_CUES = [
   "жүгір", "айқай", "ұмтыл", "секір", "қаш", "қуып", "соққы", "тартыс", "күрес",
-  "抓", "冲", "跑", "喊", "跳", "追", "打", "扑", "逃", "搏斗", "冲向",
+  "атып шық", "жалма-жан", "тұра ұмтыл", "抓", "冲", "跑", "喊", "跳", "追", "打",
+  "扑", "逃", "搏斗", "冲向", "猛地", "飞快",
 ];
 const STORY_TENDER_CUES = [
   "жылы", "мейір", "күлім", "құшақ", "ақырын", "жай ғана", "еркелет", "жұмсақ",
-  "温柔", "微笑", "拥抱", "轻声", "轻轻", "温暖", "柔和", "抚摸",
+  "аялап", "маңдайынан", "温柔", "微笑", "拥抱", "轻声", "轻轻", "温暖", "柔和", "抚摸",
+  "慢慢地", "柔声",
 ];
 const STORY_WONDER_CUES = [
-  "таңғ", "ғажап", "керемет", "сенбеді", "күтпеген", "惊讶", "惊奇", "奇怪",
-  "没想到", "不可思议", "竟然", "原来",
+  "таңғ", "ғажап", "керемет", "сенбеді", "күтпеген", "сөйтсе", "расында",
+  "惊讶", "惊奇", "奇怪", "没想到", "不可思议", "竟然", "原来", "没想到的是",
 ];
 const STORY_HUMOR_CUES = [
-  "күліп", "күлді", "әзіл", "қалжың", "жымиды", "哈哈", "笑了", "大笑", "玩笑",
-  "滑稽", "调皮", "忍不住笑",
+  "күліп", "күлді", "әзіл", "қалжың", "жымиды", "қарқылдап", "哈哈", "笑了", "大笑", "玩笑",
+  "滑稽", "调皮", "忍不住笑", "扑哧",
+];
+const STORY_SPEECH_CUES = [
+  "деді", "деген еді", "деп сұрады", "сұрады", "жауап берді", "айқайлады", "сыбырлады",
+  "деді де", "деп жауап", "说道", "问道", "回答", "喊道", "低声说", "轻声说", "大声说",
 ];
 
 function storyContainsCue(value: string, cues: string[]) {
@@ -609,8 +616,9 @@ function isStoryDialogue(value: string) {
   const trimmed = value.trim();
   return (
     /^[—–-]\s*\S/u.test(trimmed) ||
-    /[«“][^»”]{1,220}[»”]/u.test(trimmed) ||
-    /^"[^"\n]{1,220}"/u.test(trimmed)
+    /[«“][^»”]{1,260}[»”]/u.test(trimmed) ||
+    /"[^"\n]{1,260}"/u.test(trimmed) ||
+    storyContainsCue(trimmed, STORY_SPEECH_CUES)
   );
 }
 
@@ -619,40 +627,58 @@ function storyDirectionForSentence(
   mood: string,
   role: string | null,
 ): StoryDirection {
+  const dialogue = isStoryDialogue(text);
+  const hasQuestion = /[?？]/u.test(text);
+  const hasExclamation = /[!！]/u.test(text);
+  const hasEllipsis = /…|\.\.\./u.test(text);
+
+  // Story mode intentionally uses clearly audible ranges. The previous values
+  // were mostly below 0.5%, then rounded to zero by signedPercent(). These
+  // values remain gentle enough to preserve one speaker identity while making
+  // the narrative beat perceptible.
   if (role === "ending" || mood === "ending") {
-    return { beat: "ending", ratePercent: -1.7, pitchDelta: -0.06, volumeDelta: -0.03 };
+    return { beat: "ending", ratePercent: -5.5, pitchDelta: -1.3, volumeDelta: -1.0 };
   }
   if (mood === "sad" || (mood === "concern" && storyContainsCue(text, STORY_TENDER_CUES))) {
-    return { beat: "sorrow", ratePercent: -2.0, pitchDelta: -0.08, volumeDelta: -0.08 };
+    return { beat: "sorrow", ratePercent: -7.0, pitchDelta: -1.6, volumeDelta: -1.5 };
   }
-  if (storyContainsCue(text, STORY_SUSPENSE_CUES)) {
-    return { beat: "suspense", ratePercent: -1.8, pitchDelta: -0.1, volumeDelta: -0.05 };
+  if (storyContainsCue(text, STORY_SUSPENSE_CUES) || hasEllipsis) {
+    return { beat: "suspense", ratePercent: -6.2, pitchDelta: -1.2, volumeDelta: -1.0 };
   }
   if (mood === "urgent" || storyContainsCue(text, STORY_ACTION_CUES)) {
-    return { beat: "action", ratePercent: 1.7, pitchDelta: 0.1, volumeDelta: 0.08 };
+    return { beat: "action", ratePercent: 6.2, pitchDelta: 1.3, volumeDelta: 1.4 };
   }
   if (storyContainsCue(text, STORY_TENDER_CUES)) {
-    return { beat: "tender", ratePercent: -1.4, pitchDelta: 0.03, volumeDelta: -0.06 };
+    return { beat: "tender", ratePercent: -4.2, pitchDelta: 0.7, volumeDelta: -1.1 };
   }
   if (storyContainsCue(text, STORY_WONDER_CUES)) {
-    return { beat: "wonder", ratePercent: -0.5, pitchDelta: 0.1, volumeDelta: 0.02 };
+    return { beat: "wonder", ratePercent: -2.2, pitchDelta: 1.8, volumeDelta: 0.5 };
   }
   if (storyContainsCue(text, STORY_HUMOR_CUES)) {
-    return { beat: "humor", ratePercent: 0.6, pitchDelta: 0.06, volumeDelta: 0.02 };
+    return { beat: "humor", ratePercent: 2.8, pitchDelta: 1.1, volumeDelta: 0.5 };
   }
-  if (isStoryDialogue(text)) {
-    if (/[?？]/u.test(text)) {
-      return { beat: "dialogue", ratePercent: 0.2, pitchDelta: 0.12, volumeDelta: 0.02 };
+  if (dialogue) {
+    if (hasQuestion) {
+      return { beat: "dialogue", ratePercent: -1.2, pitchDelta: 2.0, volumeDelta: 0.4 };
     }
-    if (/[!！]/u.test(text)) {
-      return { beat: "dialogue", ratePercent: 0.8, pitchDelta: 0.08, volumeDelta: 0.06 };
+    if (hasExclamation) {
+      return { beat: "dialogue", ratePercent: 4.0, pitchDelta: 1.4, volumeDelta: 1.6 };
     }
-    return { beat: "dialogue", ratePercent: 0.1, pitchDelta: 0.04, volumeDelta: 0.01 };
+    if (mood === "concern" || mood === "sad") {
+      return { beat: "dialogue", ratePercent: -3.2, pitchDelta: -0.8, volumeDelta: -0.8 };
+    }
+    return { beat: "dialogue", ratePercent: 0.8, pitchDelta: 0.8, volumeDelta: 0.3 };
   }
   if (mood === "positive") {
-    return { beat: "tender", ratePercent: -0.3, pitchDelta: 0.04, volumeDelta: 0.01 };
+    return { beat: "tender", ratePercent: -1.0, pitchDelta: 0.8, volumeDelta: 0.3 };
   }
-  return { beat: "narrator", ratePercent: -0.3, pitchDelta: 0, volumeDelta: 0 };
+  if (mood === "concern") {
+    return { beat: "suspense", ratePercent: -3.2, pitchDelta: -0.7, volumeDelta: -0.5 };
+  }
+  if (mood === "emphasis") {
+    return { beat: "wonder", ratePercent: -2.6, pitchDelta: 0.9, volumeDelta: 0.8 };
+  }
+  return { beat: "narrator", ratePercent: -1.0, pitchDelta: 0, volumeDelta: 0 };
 }
 
 function renderEmotionDirectedBody(
@@ -714,12 +740,19 @@ function renderEmotionDirectedBody(
     const previousChars = previous
       ? previous.sentences.reduce((sum, item) => sum + item.text.length, 0)
       : 0;
+    const storyGroupLimit =
+      preset === "story"
+        ? storyDirection?.beat === "narrator"
+          ? 3
+          : 2
+        : 3;
+    const storyCharLimit = preset === "story" ? 230 : 300;
     const canJoin =
       previous &&
       previous.paragraphIndex === sentence.paragraphIndex &&
       previous.zone === zone &&
-      previous.sentences.length < 3 &&
-      previousChars + sentence.text.length <= 300;
+      previous.sentences.length < storyGroupLimit &&
+      previousChars + sentence.text.length <= storyCharLimit;
 
     if (canJoin) previous.sentences.push(sentence);
     else groups.push({ paragraphIndex: sentence.paragraphIndex, zone, sentences: [sentence] });
