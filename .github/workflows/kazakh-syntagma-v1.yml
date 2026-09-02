@@ -1,0 +1,116 @@
+name: Kazakh syntagma prosody V1
+
+on:
+  push:
+    paths:
+      - '.deploy-kazakh-syntagma-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add conservative Kazakh syntagma prosody
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/lib/edge-omnivoice-inspired.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          if 'SOFT_SYNTAGMA_PATTERN' not in text:
+              start = text.index('const BREATH_CUES = new Set([')
+              end = text.index('\n]);', start) + len('\n]);')
+              block = r'''
+
+// Conservative clause-level boundaries for long Kazakh phrases. These are
+// stronger semantic connectors than simple coordination (және/әрі), so they
+// are less likely to split a modifier from its head or a number from its unit.
+const SOFT_SYNTAGMA_PATTERN =
+  /(?<![\p{L}\p{N}])(?:бірақ|алайда|дегенмен|өйткені|сондықтан|сол себепті|нәтижесінде|осылайша|яғни|демек|керісінше|соған қарамастан)(?![\p{L}\p{N}])/giu;
+'''
+              text = text[:end] + block + text[end:]
+
+          old_punctuation = '''  if (kind === "question") pitchDelta += 0.065;
+  else if (kind === "exclamation") {'''
+          new_punctuation = '''  // Kazakh experimental phonetics describes non-final comma syntagms as
+  // commonly level/rising, while semicolon/colon boundaries tend to settle.
+  // Keep the hints tiny: punctuation remains the neural voice's primary cue.
+  if (kind === "comma") pitchDelta += 0.008;
+  else if (kind === "semicolon") {
+    rateFactor *= 0.997;
+    pitchDelta -= 0.006;
+  } else if (kind === "colon") {
+    rateFactor *= 0.996;
+    pitchDelta -= 0.008;
+  } else if (kind === "dash") {
+    pitchDelta += 0.005;
+  } else if (kind === "question") pitchDelta += 0.065;
+  else if (kind === "exclamation") {'''
+          if old_punctuation in text:
+              text = text.replace(old_punctuation, new_punctuation, 1)
+
+          old_markup = '''function naturalTextMarkup(text: string) {
+  // Kazakh is highly agglutinative and phrase prominence is more reliable than
+  // artificial word-level breaks. Preserve the phrase as one continuous stream.
+  return escapeXml(text);
+}'''
+          new_markup = '''function naturalTextMarkup(text: string) {
+  // Short and normally punctuated phrases are best left entirely to the neural
+  // voice. Only unusually long, punctuation-free spans receive soft syntagma
+  // breathing, and only at strong semantic connectors.
+  const clean = text.trim();
+  const wordCount = clean ? clean.split(/\\s+/u).filter(Boolean).length : 0;
+  if (clean.length < 96 || wordCount < 15) return escapeXml(text);
+
+  SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
+  let output = "";
+  let cursor = 0;
+  let lastBoundary = -1000;
+  let inserted = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = SOFT_SYNTAGMA_PATTERN.exec(text)) && inserted < 2) {
+    const boundary = match.index;
+    const left = text.slice(cursor, boundary).trim();
+    const right = text.slice(boundary).trim();
+
+    // Avoid tiny fragments and avoid placing two artificial breaths close
+    // together. This preserves modifier-head, name-title and number-unit groups.
+    if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
+
+    output += escapeXml(text.slice(cursor, boundary));
+    output += '<break time="16ms"/>';
+    cursor = boundary;
+    lastBoundary = boundary;
+    inserted += 1;
+  }
+
+  if (!inserted) return escapeXml(text);
+  output += escapeXml(text.slice(cursor));
+  return output;
+}'''
+          if old_markup in text:
+              text = text.replace(old_markup, new_markup, 1)
+
+          if text == original:
+              raise SystemExit('No Kazakh syntagma changes were made.')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-kazakh-syntagma-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-kazakh-syntagma-v1
+          git commit -m "Add conservative Kazakh syntagma prosody"
+          git push
