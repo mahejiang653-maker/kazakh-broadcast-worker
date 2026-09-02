@@ -15,6 +15,53 @@ function isDecimalBoundary(text: string, index: number) {
   return /\d/u.test(text[index - 1] ?? "") && /\d/u.test(text[index + 1] ?? "");
 }
 
+function nextNonSpace(text: string, index: number) {
+  for (let cursor = index + 1; cursor < text.length; cursor += 1) {
+    if (!/\s/u.test(text[cursor])) return text[cursor];
+  }
+  return "";
+}
+
+/**
+ * A period is not always a sentence boundary in Kazakh news text. Common forms
+ * such as т.б., т.с.с., б.з.д. and personal-name initials otherwise cause the
+ * TTS frontend to restart prosody several times inside one sentence.
+ */
+function isAbbreviationPeriod(text: string, index: number) {
+  if (text[index] !== ".") return false;
+
+  const previous = text[index - 1] ?? "";
+  const immediateNext = text[index + 1] ?? "";
+
+  // Internal dot in an initialism/abbreviation: т.б. / б.з.д. / А.Байтұрсынұлы
+  if (/\p{L}/u.test(previous) && /\p{L}/u.test(immediateNext)) return true;
+
+  const beforePrevious = text[index - 2] ?? "";
+  const following = nextNonSpace(text, index);
+
+  // Single-letter personal initial before a capitalized name: А. Байтұрсынұлы
+  if (
+    /\p{L}/u.test(previous) &&
+    !/\p{L}|\p{N}/u.test(beforePrevious) &&
+    /\p{Lu}/u.test(following)
+  ) {
+    return true;
+  }
+
+  // Final dot of a multi-part abbreviation when the same sentence continues
+  // with lowercase text or a number. If a new capitalized sentence follows, we
+  // keep the normal sentence boundary.
+  const tail = text.slice(Math.max(0, index - 18), index + 1);
+  if (
+    /(?:\p{L}\.){1,5}\p{L}\.$/u.test(tail) &&
+    (/[\p{Ll}\p{N}]/u.test(following) || !following)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function splitSentences(paragraph: string, paragraphIndex: number) {
   const sentences: EdgeStructuredSentence[] = [];
   let buffer = "";
@@ -36,6 +83,7 @@ function splitSentences(paragraph: string, paragraphIndex: number) {
     buffer += char;
 
     if (isDecimalBoundary(paragraph, index)) continue;
+    if (isAbbreviationPeriod(paragraph, index)) continue;
     if (!/[.!?。！？…]/u.test(char)) continue;
 
     while (/[.!?。！？…]/u.test(paragraph[index + 1] ?? "")) {
@@ -55,9 +103,9 @@ function splitSentences(paragraph: string, paragraphIndex: number) {
 
 /**
  * Keep the user's paragraph and sentence structure explicit for Microsoft TTS.
- * OmniVoice's long-form pipeline is punctuation-aware; Edge can express the
- * same intent more directly with SSML <p>/<s> elements while still sending the
- * whole article in one synthesis request.
+ * Long-form systems are punctuation-aware; Edge can express the same intent
+ * with semantic sentence/paragraph structure while still sending a large
+ * article context in one synthesis request.
  */
 export function structureEdgeText(source: string): EdgeStructuredParagraph[] {
   const normalized = source
