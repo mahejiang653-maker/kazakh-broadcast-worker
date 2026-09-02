@@ -1,4 +1,5 @@
 import type { EdgeDocumentPlan, EdgeDocumentRole, EdgePlannedSegment } from "./edge-director";
+import { structureEdgeText } from "./edge-natural-structure";
 
 export type EdgeOmniSettings = {
   speed: number;
@@ -142,35 +143,18 @@ export function estimateEdgeSpeechSeconds(text: string, speed = 1) {
   return Math.max(0.15, speechWeight(text) / (18 * effectiveSpeed));
 }
 
-function sentenceFragments(source: string) {
-  const text = source.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
-  const fragments: string[] = [];
-  let start = 0;
+type DurationFragment = {
+  text: string;
+  paragraphIndex: number;
+};
 
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index];
-    const previous = text[index - 1];
-    const next = text[index + 1];
-    const decimal = (char === "." || char === ":" || char === ",") && isDigit(previous) && isDigit(next);
-    if (decimal) continue;
-
-    const terminal = /[.!?。！？]/u.test(char) || char === "\n";
-    if (!terminal) continue;
-
-    let end = index + 1;
-    while (/[.!?。！？]/u.test(text[end] ?? "")) end += 1;
-    while (/[»”"'’）\])}]/u.test(text[end] ?? "")) end += 1;
-
-
-    const fragment = text.slice(start, end).trim();
-    if (fragment) fragments.push(fragment);
-    start = end;
-    index = Math.max(index, end - 1);
-  }
-
-  const tail = text.slice(start).trim();
-  if (tail) fragments.push(tail);
-  return fragments;
+function sentenceFragments(source: string): DurationFragment[] {
+  return structureEdgeText(source).flatMap((paragraph) =>
+    paragraph.sentences.map((sentence) => ({
+      text: sentence.text,
+      paragraphIndex: paragraph.index,
+    })),
+  );
 }
 
 function splitOversizedFragment(fragment: string, maxChars: number) {
@@ -219,21 +203,35 @@ export function splitEdgeTextByDuration(
     return [normalized];
   }
 
-  const atomic = sentenceFragments(normalized).flatMap((item) => splitOversizedFragment(item, maxChars));
+  const atomic = sentenceFragments(normalized).flatMap((item) =>
+    splitOversizedFragment(item.text, maxChars).map((fragmentText) => ({
+      text: fragmentText,
+      paragraphIndex: item.paragraphIndex,
+    })),
+  );
   const chunks: string[] = [];
   let current = "";
   let currentSeconds = 0;
+  let currentParagraphIndex: number | null = null;
 
   const flush = () => {
     const value = current.trim();
     if (value) chunks.push(value);
     current = "";
     currentSeconds = 0;
+    currentParagraphIndex = null;
   };
 
   for (const fragment of atomic) {
-    const fragmentSeconds = estimateEdgeSpeechSeconds(fragment, speed);
-    const candidate = current ? `${current} ${fragment}` : fragment;
+    const fragmentSeconds = estimateEdgeSpeechSeconds(fragment.text, speed);
+    const paragraphBreak =
+      current.length > 0 &&
+      currentParagraphIndex !== null &&
+      currentParagraphIndex !== fragment.paragraphIndex;
+    const separator = current ? (paragraphBreak ? "
+
+" : " ") : "";
+    const candidate = current ? `${current}${separator}${fragment.text}` : fragment.text;
     const candidateSeconds = currentSeconds + fragmentSeconds;
     const wouldOverflowChars = candidate.length > maxChars;
     const goodCurrentSize = currentSeconds >= targetSeconds * 0.62;
@@ -243,7 +241,15 @@ export function splitEdgeTextByDuration(
       flush();
     }
 
-    current = current ? `${current} ${fragment}` : fragment;
+    const nextParagraphBreak =
+      current.length > 0 &&
+      currentParagraphIndex !== null &&
+      currentParagraphIndex !== fragment.paragraphIndex;
+    const nextSeparator = current ? (nextParagraphBreak ? "
+
+" : " ") : "";
+    current = current ? `${current}${nextSeparator}${fragment.text}` : fragment.text;
+    currentParagraphIndex = fragment.paragraphIndex;
     currentSeconds += fragmentSeconds;
   }
   flush();
