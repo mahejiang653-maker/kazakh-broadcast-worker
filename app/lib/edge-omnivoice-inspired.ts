@@ -228,9 +228,7 @@ export function splitEdgeTextByDuration(
       current.length > 0 &&
       currentParagraphIndex !== null &&
       currentParagraphIndex !== fragment.paragraphIndex;
-    const separator = current ? (paragraphBreak ? "
-
-" : " ") : "";
+    const separator = current ? (paragraphBreak ? "\n\n" : " ") : "";
     const candidate = current ? `${current}${separator}${fragment.text}` : fragment.text;
     const candidateSeconds = currentSeconds + fragmentSeconds;
     const wouldOverflowChars = candidate.length > maxChars;
@@ -245,9 +243,7 @@ export function splitEdgeTextByDuration(
       current.length > 0 &&
       currentParagraphIndex !== null &&
       currentParagraphIndex !== fragment.paragraphIndex;
-    const nextSeparator = current ? (nextParagraphBreak ? "
-
-" : " ") : "";
+    const nextSeparator = current ? (nextParagraphBreak ? "\n\n" : " ") : "";
     current = current ? `${current}${nextSeparator}${fragment.text}` : fragment.text;
     currentParagraphIndex = fragment.paragraphIndex;
     currentSeconds += fragmentSeconds;
