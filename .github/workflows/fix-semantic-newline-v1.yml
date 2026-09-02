@@ -1,0 +1,52 @@
+name: Fix semantic newline V1
+
+on:
+  push:
+    paths:
+      - '.deploy-fix-semantic-newline-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fix escaped paragraph separators
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/lib/edge-omnivoice-inspired.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          bad1 = 'const separator = current ? (paragraphBreak ? "' + '\n\n' + '" : " ") : "";'
+          good1 = 'const separator = current ? (paragraphBreak ? "\\n\\n" : " ") : "";'
+          bad2 = 'const nextSeparator = current ? (nextParagraphBreak ? "' + '\n\n' + '" : " ") : "";'
+          good2 = 'const nextSeparator = current ? (nextParagraphBreak ? "\\n\\n" : " ") : "";'
+
+          text = text.replace(bad1, good1, 1)
+          text = text.replace(bad2, good2, 1)
+
+          if text == original:
+              raise SystemExit('Expected malformed paragraph separators were not found.')
+          if bad1 in text or bad2 in text:
+              raise SystemExit('Malformed paragraph separators remain after patch.')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit fix
+        run: |
+          rm -f .deploy-fix-semantic-newline-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-fix-semantic-newline-v1
+          git commit -m "Fix paragraph separator escaping in Edge chunker"
+          git push
