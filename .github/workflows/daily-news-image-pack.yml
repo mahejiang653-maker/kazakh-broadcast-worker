@@ -8,7 +8,7 @@ on:
     paths:
       - 'daily-news-image-pack/news.json'
       - 'daily-news-image-pack/curated_pool.json'
-      - 'daily-news-image-pack/full_web_pack_v13.py'
+      - 'daily-news-image-pack/full_web_pack_v14.py'
       - 'daily-news-image-pack/requirements.txt'
   schedule:
     - cron: '20 4 * * *'  # 12:20 Beijing time
@@ -36,8 +36,9 @@ jobs:
           MIN_WIDTH: '1200'
           MIN_HEIGHT: '675'
           MIN_RECENT_YEAR: '2025'
+          COMMONS_LIMIT: '80'
           BING_LIMIT: '80'
-        run: python daily-news-image-pack/full_web_pack_v13.py
+        run: python daily-news-image-pack/full_web_pack_v14.py
 
       - name: Locate ZIP
         id: zip
