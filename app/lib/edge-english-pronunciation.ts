@@ -53,21 +53,58 @@ const WHOLE_TOKEN_PRONUNCIATION: Record<string, string> = {
 
 function spellEnglishLetters(token: string) {
   return [...token]
-    .map((letter) => ENGLISH_LETTER_NAMES[letter])
+    .map((letter) => ENGLISH_LETTER_NAMES[letter.toUpperCase()])
     .filter(Boolean)
     .join(" ");
 }
 
+function pronunciationForAlphaPart(part: string) {
+  const dictionary = WHOLE_TOKEN_PRONUNCIATION[part];
+  if (dictionary) return dictionary;
+
+  if (/^[A-Z]{2,8}$/u.test(part)) return spellEnglishLetters(part);
+  if (/^[A-Z]$/u.test(part)) return spellEnglishLetters(part);
+  return null;
+}
+
+/**
+ * Models and weapon/product names are frequently mixed alphanumeric strings:
+ * GPT-5, AIM-9X, H1N1, O3, etc. Neural TTS systems are more stable when those
+ * ambiguous forms are normalized before synthesis. Spell only high-confidence
+ * Latin acronym groups; leave digit groups intact so the Kazakh number
+ * normalizer that runs next can pronounce them in Kazakh.
+ */
+function pronounceAlphaNumericToken(token: string) {
+  if (!/\d/u.test(token)) return null;
+
+  const parts = token.match(/[A-Za-z]+|\d+/gu);
+  if (!parts?.length) return null;
+
+  const spoken: string[] = [];
+  for (const part of parts) {
+    if (/^\d+$/u.test(part)) {
+      spoken.push(part);
+      continue;
+    }
+
+    const pronunciation = pronunciationForAlphaPart(part);
+    if (!pronunciation) return null;
+    spoken.push(pronunciation);
+  }
+
+  return spoken.join(" ");
+}
+
 /**
  * Rewrite only high-confidence English tokens for non-multilingual Kazakh
- * voices. All-uppercase acronyms (2-8 letters) are spelled with English letter
- * names. A small dictionary handles globally common brands/word-like acronyms.
- * Unknown mixed/lowercase words are left untouched rather than guessed.
+ * voices. All-uppercase acronyms are spelled with English letter names. A small
+ * dictionary handles globally common brands/word-like acronyms. Mixed model
+ * names are decomposed only when every alphabetic part is unambiguous.
  */
 export function prepareNativeKazakhEnglishPronunciation(source: string) {
   if (!/[A-Za-z]/u.test(source)) return source;
 
-  return source.replace(/\b[A-Za-z][A-Za-z0-9-]{1,30}\b/gu, (token) => {
+  return source.replace(/\b[A-Za-z][A-Za-z0-9-]{0,30}\b/gu, (token) => {
     const dictionary = WHOLE_TOKEN_PRONUNCIATION[token];
     if (dictionary) return dictionary;
 
@@ -75,10 +112,8 @@ export function prepareNativeKazakhEnglishPronunciation(source: string) {
       return spellEnglishLetters(token);
     }
 
-    // Common mixed acronym suffixes such as GPT-5: spell the acronym but keep
-    // the numeric/model suffix for the existing Kazakh number frontend.
-    const model = token.match(/^([A-Z]{2,8})-(\d{1,4})$/u);
-    if (model) return `${spellEnglishLetters(model[1])} ${model[2]}`;
+    const alphaNumeric = pronounceAlphaNumericToken(token);
+    if (alphaNumeric) return alphaNumeric;
 
     return token;
   });
