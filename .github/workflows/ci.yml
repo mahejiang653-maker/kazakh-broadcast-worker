@@ -5,7 +5,26 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
+  patch-story-v5:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Run Story V5 patch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply Story V5 patch
+        run: python scripts/apply_story_v5_short_comma.py
+      - name: Commit Story V5 update
+        run: |
+          git config user.name "mahejiang653-maker"
+          git config user.email "mahejiang653@gmail.com"
+          git add app/page.tsx app/api/synthesize/route.ts
+          git commit -m "Improve Story mode emotion and comma pauses"
+          git push
+
   build-and-test:
     runs-on: ubuntu-latest
     steps:
