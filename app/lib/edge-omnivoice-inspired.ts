@@ -40,6 +40,8 @@ type Phrase = {
   micro: MicroProsody;
 };
 
+type EdgeMarkupRenderer = (text: string) => string;
+
 const NEUTRAL: MicroProsody = { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 };
 
 const CONTRAST_CUES = ["бірақ", "алайда", "дегенмен", "соған қарамастан", "керісінше"];
@@ -585,6 +587,65 @@ function bidirectionalSmooth(phrases: Phrase[]) {
   });
 }
 
+function logicalFocusScore(phrase: Phrase) {
+  const role = phrase.segment?.role;
+  let score = 0;
+
+  if (role === "key_number") score += 0.95;
+  else if (role === "climax") score += 0.9;
+  else if (role === "title") score += 0.35;
+
+  if (startsWithCue(phrase.text, FOCUS_CUES)) score += 0.62;
+  if (startsWithCue(phrase.text, RESULT_CUES)) score += 0.24;
+  if ((phrase.segment?.importance ?? 0) >= 0.78) score += 0.22;
+
+  return clamp(score, 0, 1);
+}
+
+function applyLogicalFocusContrast(phrases: Phrase[]) {
+  const sentenceTerminal = new Set<PunctuationKind>([
+    "period",
+    "question",
+    "exclamation",
+    "mixed",
+    "paragraph",
+    "newline",
+  ]);
+
+  return phrases.map((phrase, index) => {
+    const score = logicalFocusScore(phrase);
+    const next = phrases[index + 1];
+    const nextScore = next ? logicalFocusScore(next) : 0;
+    let rateFactor = phrase.micro.rateFactor;
+    let pitchDelta = phrase.micro.pitchDelta;
+    let volumeDelta = phrase.micro.volumeDelta;
+
+    // Kazakh logical prominence is phrase-based. At sentence-final focus we rely
+    // on duration + dynamics; non-final focus may receive only a tiny pitch cue.
+    if (score >= 0.45) {
+      rateFactor *= 1 - 0.006 * score;
+      volumeDelta += 0.018 * score;
+      if (!sentenceTerminal.has(phrase.punctuationKind)) pitchDelta += 0.006 * score;
+    }
+
+    // Human emphasis is relative: slightly release the setup phrase before a
+    // strong focus target instead of making the target unnaturally loud.
+    if (nextScore >= 0.65 && !sentenceTerminal.has(phrase.punctuationKind)) {
+      rateFactor *= 1 + 0.003 * nextScore;
+      volumeDelta -= 0.006 * nextScore;
+    }
+
+    return {
+      ...phrase,
+      micro: {
+        rateFactor: clamp(rateFactor, 0.95, 1.03),
+        pitchDelta: clamp(pitchDelta, -0.18, 0.18),
+        volumeDelta: clamp(volumeDelta, -0.12, 0.2),
+      },
+    };
+  });
+}
+
 function subtleBreak(kind: PunctuationKind, _text: string) {
   // Native-first: let punctuation drive Microsoft's learned cadence.
   // Explicit breaks are reserved for layout boundaries and true hesitation only.
@@ -602,13 +663,13 @@ function subtleBreak(kind: PunctuationKind, _text: string) {
   }
 }
 
-function naturalTextMarkup(text: string) {
+function naturalTextMarkup(text: string, renderText: EdgeMarkupRenderer = escapeXml) {
   // Short and normally punctuated phrases are best left entirely to the neural
   // voice. Only unusually long, punctuation-free spans receive soft syntagma
   // breathing, and only at strong semantic connectors.
   const clean = text.trim();
   const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
-  if (clean.length < 96 || wordCount < 15) return escapeXml(text);
+  if (clean.length < 96 || wordCount < 15) return renderText(text);
 
   SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
   let output = "";
@@ -626,15 +687,15 @@ function naturalTextMarkup(text: string) {
     // together. This preserves modifier-head, name-title and number-unit groups.
     if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
 
-    output += escapeXml(text.slice(cursor, boundary));
+    output += renderText(text.slice(cursor, boundary));
     output += '<break time="16ms"/>';
     cursor = boundary;
     lastBoundary = boundary;
     inserted += 1;
   }
 
-  if (!inserted) return escapeXml(text);
-  output += escapeXml(text.slice(cursor));
+  if (!inserted) return renderText(text);
+  output += renderText(text.slice(cursor));
   return output;
 }
 
@@ -650,7 +711,11 @@ function isEmphasisRole(role: EdgeDocumentRole | undefined) {
   return role === "title" || role === "key_number" || role === "climax";
 }
 
-function renderGroup(group: Phrase[], settings: EdgeOmniSettings) {
+function renderGroup(
+  group: Phrase[],
+  settings: EdgeOmniSettings,
+  renderText: EdgeMarkupRenderer,
+) {
   const average = blendMicros(group.map((item) => ({ micro: item.micro, weight: 1 })));
   const phraseSpeed = clamp(settings.speed * average.rateFactor, 0.6, 1.35);
   const phrasePitch = clamp(settings.pitch + average.pitchDelta, -18, 18);
@@ -658,7 +723,7 @@ function renderGroup(group: Phrase[], settings: EdgeOmniSettings) {
   let body = "";
 
   for (const item of group) {
-    body += naturalTextMarkup(item.text);
+    body += naturalTextMarkup(item.text, renderText);
     if (!/^\n+$/u.test(item.punctuation)) body += escapeXml(item.punctuation);
     const pause = subtleBreak(item.punctuationKind, item.text);
     if (pause) body += `<break time="${pause}ms"/>`;
@@ -675,9 +740,10 @@ export function renderEdgeOmniInspiredMarkup(
   text: string,
   settings: EdgeOmniSettings,
   plan?: EdgeDocumentPlan,
+  renderText: EdgeMarkupRenderer = escapeXml,
 ) {
-  const phrases = bidirectionalSmooth(buildPhrases(text, plan));
-  if (!phrases.length) return escapeXml(text);
+  const phrases = applyLogicalFocusContrast(bidirectionalSmooth(buildPhrases(text, plan)));
+  if (!phrases.length) return renderText(text);
 
   const groups: Phrase[][] = [];
   let current: Phrase[] = [];
@@ -712,5 +778,5 @@ export function renderEdgeOmniInspiredMarkup(
   }
   flush();
 
-  return groups.map((group) => renderGroup(group, settings)).join("");
+  return groups.map((group) => renderGroup(group, settings, renderText)).join("");
 }

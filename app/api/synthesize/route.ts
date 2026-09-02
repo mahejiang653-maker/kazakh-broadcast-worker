@@ -851,6 +851,7 @@ function renderEmotionDirectedBody(
   profileVoice: string,
   preset: PresetName,
   emotionPlan: EdgeEmotionPlan,
+  documentPlan: EdgeDocumentPlan | undefined,
   useMultilingual: boolean,
 ) {
   const presetSettings = PRESETS[preset];
@@ -921,13 +922,23 @@ function renderEmotionDirectedBody(
           : storyDirection?.beat === "dialogue"
             ? 1
             : 2
-        : 3;
+        : preset === "calm"
+          ? 6
+          : preset === "news"
+            ? 5
+            : 4;
     const storyCharLimit =
       preset === "story"
         ? storyDirection?.beat === "narrator"
           ? 520
           : 260
-        : 300;
+        : preset === "calm"
+          ? 650
+          : preset === "news"
+            ? 540
+            : preset === "bulletin"
+              ? 430
+              : 420;
     const canJoin =
       previous &&
       previous.paragraphIndex === sentence.paragraphIndex &&
@@ -989,7 +1000,27 @@ function renderEmotionDirectedBody(
       Math.abs(weighted.pitch) >= 0.02 ||
       Math.abs(weighted.volume) >= 0.02;
 
-    if (hasLocalDirection) {
+    if (documentPlan) {
+      const renderLanguageAwareText = useMultilingual
+        ? (value: string) =>
+            splitEdgeLanguageRuns(value)
+              .map(
+                (run) =>
+                  `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
+              )
+              .join("")
+        : undefined;
+      body += `${renderEdgeOmniInspiredMarkup(
+        rawText,
+        {
+          speed: clamp(1 + weighted.rate / 100, 0.94, 1.06),
+          pitch: weighted.pitch,
+          volume: weighted.volume,
+        },
+        documentPlan,
+        renderLanguageAwareText,
+      )} `;
+    } else if (hasLocalDirection) {
       body += `<prosody rate="${signedPercent(weighted.rate)}" pitch="${signedPercent(weighted.pitch)}" volume="${signedPercent(weighted.volume)}">${content}</prosody> `;
     } else {
       body += `${content} `;
@@ -1006,13 +1037,13 @@ function buildEdgeSsml(
   voice: string,
   preset: PresetName,
   settings: EdgeVoiceSettings,
-  _documentPlan?: EdgeDocumentPlan,
+  documentPlan?: EdgeDocumentPlan,
   useMultilingual = false,
   emotionPlan: EdgeEmotionPlan | null = null,
 ) {
   if (!useMultilingual) {
     const body = emotionPlan
-      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, false)
+      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, documentPlan, false)
       : edgeNativeProsody(text, settings, voice, preset);
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
@@ -1046,7 +1077,7 @@ function buildEdgeSsml(
     7,
   );
   const body = emotionPlan
-    ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, true)
+    ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, documentPlan, true)
     : runs
         .map((run) =>
           `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
