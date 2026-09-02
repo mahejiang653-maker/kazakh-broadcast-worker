@@ -17,7 +17,7 @@ const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-ve
 const SIGNATURE_KEY =
   "oik6PdDdMnOXemTbwvMn9de/h9lFnfBaCWbGMMZqqoSaQaqUOqjVGm5NqsmjcBI1x+sS9ugjB55HEJWRiFXYFw==";
 const MAX_CHARACTERS = 15000;
-const EDGE_MAX_CHUNK_SIZE = 4800;
+const EDGE_MAX_CHUNK_SIZE = 9000;
 const ELEVEN_MAX_CHUNK_SIZE = 2200;
 const ELEVEN_MODEL_ID = "eleven_v3";
 const ELEVEN_OUTPUT_FORMAT = "mp3_44100_128";
@@ -1214,8 +1214,8 @@ async function synthesizeWithEdge(
     preparedText,
     effectiveSpeed,
     EDGE_MAX_CHUNK_SIZE,
-    210,
-    480,
+    300,
+    420,
   );
   // Native profiles keep the original Daulet/Aigul acoustic voice for pure
   // Kazakh. Unified profiles always use one multilingual voice. If a native
