@@ -84,9 +84,10 @@ const EMPHASIS = [
   "最高", "最低", "关键", "核心", "重点", "必须指出",
 ];
 
-// OmniVoice primarily controls timing/duration and lets the acoustic model own
-// fine prosody. Edge cannot reproduce OmniVoice's acoustic-token generation, so
-// these cues deliberately make rate the main control and keep pitch/volume tiny.
+// Modern long-form TTS systems sound more human when semantic context owns most
+// of the delivery and local controls stay subtle. Edge does not expose a true
+// long-form acoustic context API, so rate is our main signal while pitch/volume
+// remain deliberately tiny suggestions.
 const MOOD_BASE: Record<EdgeDeliveryMood, Omit<EdgeEmotionInstruction, "mood" | "confidence">> = {
   neutral: { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 },
   serious: { rateFactor: 0.994, pitchDelta: -0.03, volumeDelta: 0.01 },
@@ -198,10 +199,73 @@ function lengthAdjustment(text: string) {
   return 1;
 }
 
+function instructionForMood(sentence: EdgeEmotionSentence, mood: EdgeDeliveryMood, confidence: number) {
+  const base = MOOD_BASE[mood];
+  return {
+    ...sentence,
+    mood,
+    confidence,
+    rateFactor: clamp(base.rateFactor * lengthAdjustment(sentence.text), 0.97, 1.02),
+    pitchDelta: base.pitchDelta,
+    volumeDelta: base.volumeDelta,
+  } satisfies EdgeEmotionSentence;
+}
+
+function isProtectedRole(role: EdgeDocumentRole | null) {
+  return role === "title" || role === "lead" || role === "climax" || role === "key_number" || role === "ending";
+}
+
 /**
- * Preserve local tempo contrast instead of averaging three sentences into one
- * flat contour. We only cap the step from one sentence to the next, which is
- * closer to how a human speaker changes delivery continuously.
+ * Long-form systems such as ElevenLabs and generative/long-form TTS use wider
+ * context so one weak keyword does not make a single sentence suddenly act in
+ * a different voice. Reproduce that behaviour conservatively: only low-
+ * confidence isolated moods are reconciled with matching neighbours. Strong
+ * urgent/sad cues and document-role decisions are never flattened.
+ */
+function contextualizeMoods(sentences: EdgeEmotionSentence[]) {
+  return sentences.map((sentence, index) => {
+    if (isProtectedRole(sentence.role) || sentence.confidence >= 0.76) return sentence;
+    if (sentence.mood === "urgent" || sentence.mood === "sad" || sentence.mood === "ending") return sentence;
+
+    const previous = sentences[index - 1];
+    const next = sentences[index + 1];
+    const sameParagraphPrevious = previous?.paragraphIndex === sentence.paragraphIndex ? previous : null;
+    const sameParagraphNext = next?.paragraphIndex === sentence.paragraphIndex ? next : null;
+
+    if (
+      sameParagraphPrevious &&
+      sameParagraphNext &&
+      sameParagraphPrevious.mood === sameParagraphNext.mood &&
+      sameParagraphPrevious.mood !== "transition" &&
+      sameParagraphPrevious.confidence >= 0.58 &&
+      sameParagraphNext.confidence >= 0.58
+    ) {
+      const inheritedConfidence = Math.min(
+        0.72,
+        Math.max(0.58, (sameParagraphPrevious.confidence + sameParagraphNext.confidence) * 0.45),
+      );
+      return instructionForMood(sentence, sameParagraphPrevious.mood, inheritedConfidence);
+    }
+
+    // A weak one-off positive/concern/emphasis reading between neutral delivery
+    // should sound like a natural shading, not a fresh synthetic prosody state.
+    if (
+      sentence.confidence < 0.66 &&
+      sentence.mood !== "transition" &&
+      (sameParagraphPrevious?.mood === "neutral" || !sameParagraphPrevious) &&
+      (sameParagraphNext?.mood === "neutral" || !sameParagraphNext)
+    ) {
+      return instructionForMood(sentence, "neutral", 0.54);
+    }
+
+    return sentence;
+  });
+}
+
+/**
+ * Preserve local tempo contrast while limiting abrupt sentence-to-sentence
+ * control jumps. Narrower deltas reduce the audible "new setting every sentence"
+ * effect and let Microsoft's acoustic model keep a continuous speaker identity.
  */
 function smoothInstructions(sentences: EdgeEmotionSentence[]) {
   const output: EdgeEmotionSentence[] = [];
@@ -215,9 +279,9 @@ function smoothInstructions(sentences: EdgeEmotionSentence[]) {
 
     output.push({
       ...sentence,
-      rateFactor: clamp(sentence.rateFactor, previous.rateFactor - 0.012, previous.rateFactor + 0.012),
-      pitchDelta: clamp(sentence.pitchDelta, previous.pitchDelta - 0.07, previous.pitchDelta + 0.07),
-      volumeDelta: clamp(sentence.volumeDelta, previous.volumeDelta - 0.05, previous.volumeDelta + 0.05),
+      rateFactor: clamp(sentence.rateFactor, previous.rateFactor - 0.009, previous.rateFactor + 0.009),
+      pitchDelta: clamp(sentence.pitchDelta, previous.pitchDelta - 0.05, previous.pitchDelta + 0.05),
+      volumeDelta: clamp(sentence.volumeDelta, previous.volumeDelta - 0.04, previous.volumeDelta + 0.04),
     });
   }
 
@@ -249,7 +313,7 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
   return {
     version: 2,
     sourceLength: source.length,
-    sentences: smoothInstructions(raw),
+    sentences: smoothInstructions(contextualizeMoods(raw)),
   };
 }
 
