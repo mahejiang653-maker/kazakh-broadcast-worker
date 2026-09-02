@@ -9,6 +9,7 @@
 
 const INVALID_XML_CONTROLS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFE\uFFFF]/gu;
 const END_PUNCTUATION = /[.!?。！？…;；:：,，)\]】}»”’]$/u;
+const SOFT_LINE_END = /[,，]$/u;
 
 function normalizeTypography(source: string) {
   return source
@@ -38,12 +39,42 @@ function ensureTerminalPunctuation(value: string) {
 }
 
 /**
+ * A line break immediately after a comma is usually formatting from copied
+ * news/script text, not a real breath boundary. Merge only that narrow case so
+ * the acoustic model keeps one clause and does not restart its delivery.
+ * Blank lines are still preserved as genuine paragraph boundaries.
+ */
+function mergeSoftWrappedLines(value: string) {
+  const lines = value.split("\n");
+  const output: string[] = [];
+
+  for (const line of lines) {
+    const clean = line.trim();
+    if (!clean) {
+      output.push("");
+      continue;
+    }
+
+    const previousIndex = output.length - 1;
+    const previous = previousIndex >= 0 ? output[previousIndex] : "";
+    if (previous && SOFT_LINE_END.test(previous)) {
+      output[previousIndex] = `${previous} ${clean}`;
+      continue;
+    }
+
+    output.push(clean);
+  }
+
+  return output.join("\n");
+}
+
+/**
  * OmniVoice explicitly adds missing terminal punctuation before synthesis and
  * otherwise preserves punctuation-aware phrasing. We mirror that conservative
  * behaviour here instead of injecting synthetic pauses or commas.
  */
 export function prepareEdgeHumanText(source: string) {
-  const normalized = normalizeTypography(source);
+  const normalized = mergeSoftWrappedLines(normalizeTypography(source));
   if (!normalized) return "";
 
   return normalized
