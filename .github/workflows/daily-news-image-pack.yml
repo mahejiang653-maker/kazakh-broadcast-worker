@@ -8,7 +8,7 @@ on:
     paths:
       - 'daily-news-image-pack/news.json'
       - 'daily-news-image-pack/curated_pool.json'
-      - 'daily-news-image-pack/fetch_images.py'
+      - 'daily-news-image-pack/direct_pack_v8.py'
       - 'daily-news-image-pack/requirements.txt'
   schedule:
     - cron: '20 4 * * *'  # 12:20 Beijing time
@@ -33,12 +33,9 @@ jobs:
       - name: Fetch real images and build ZIP
         env:
           IMAGES_PER_NEWS: '3'
-          MIN_WIDTH: '1600'
-          MIN_HEIGHT: '900'
-          FALLBACK_MIN_WIDTH: '1200'
-          FALLBACK_MIN_HEIGHT: '675'
-          SEARCH_LIMIT: '60'
-        run: python daily-news-image-pack/fetch_images.py
+          MIN_WIDTH: '1200'
+          MIN_HEIGHT: '675'
+        run: python daily-news-image-pack/direct_pack_v8.py
 
       - name: Locate ZIP
         id: zip
