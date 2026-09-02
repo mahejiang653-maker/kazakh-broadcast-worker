@@ -1,0 +1,15 @@
+[
+  {"id":1,"title":"示例：霍尔木兹海峡航运","queries":["Strait of Hormuz tanker","Gulf of Oman oil tanker","Strait of Hormuz satellite"]},
+  {"id":2,"title":"示例：基辅城市安全局势","queries":["Kyiv city skyline","Kyiv infrastructure","Kyiv aerial city"]},
+  {"id":3,"title":"示例：伊朗军事设施","queries":["Iran military facility","Iran radar installation","Iran air base"]},
+  {"id":4,"title":"示例：海湾商船通航","queries":["Persian Gulf cargo ship","oil tanker Persian Gulf","merchant ship Gulf of Oman"]},
+  {"id":5,"title":"示例：海峡油轮","queries":["oil tanker Strait of Hormuz","tanker Oman coast","Persian Gulf tanker"]},
+  {"id":6,"title":"示例：LNG运输","queries":["LNG carrier Qatar","LNG tanker Gulf","liquefied natural gas carrier"]},
+  {"id":7,"title":"示例：黑海商船","queries":["Black Sea cargo ship","Bosphorus cargo ship","merchant ship Black Sea"]},
+  {"id":8,"title":"示例：AI治理","queries":["data center server racks","AI data center China","server room"]},
+  {"id":9,"title":"示例：物流网络","queries":["China freight train containers","intermodal freight terminal China","container logistics China"]},
+  {"id":10,"title":"示例：电网建设","queries":["China transmission tower","power grid China","substation China"]},
+  {"id":11,"title":"示例：劳动防护","queries":["construction worker safety helmet China","industrial protective equipment China","construction site PPE China"]},
+  {"id":12,"title":"示例：新疆新能源","queries":["Xinjiang solar power station","Xinjiang energy storage","Xinjiang solar farm aerial"]},
+  {"id":13,"title":"示例：霍尔果斯口岸","queries":["Khorgos port Xinjiang","Khorgos freight terminal","Khorgos border port"]}
+]
