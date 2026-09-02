@@ -209,6 +209,14 @@ export function splitEdgeTextByDuration(
       paragraphIndex: item.paragraphIndex,
     })),
   );
+  const paragraphCharBudgets = new Map<number, number>();
+  for (const fragment of atomic) {
+    paragraphCharBudgets.set(
+      fragment.paragraphIndex,
+      (paragraphCharBudgets.get(fragment.paragraphIndex) ?? 0) + fragment.text.length + 1,
+    );
+  }
+
   const chunks: string[] = [];
   let current = "";
   let currentSeconds = 0;
@@ -234,8 +242,20 @@ export function splitEdgeTextByDuration(
     const wouldOverflowChars = candidate.length > maxChars;
     const goodCurrentSize = currentSeconds >= targetSeconds * 0.62;
     const wouldOvershoot = candidateSeconds > targetSeconds * 1.22;
+    const incomingParagraphChars =
+      paragraphCharBudgets.get(fragment.paragraphIndex) ?? fragment.text.length;
+    const safeParagraphCut =
+      paragraphBreak &&
+      current.length >= Math.min(1800, maxChars * 0.28) &&
+      current.length + 2 + incomingParagraphChars > maxChars;
 
-    if (current && (wouldOverflowChars || (goodCurrentSize && wouldOvershoot))) {
+    // Preserve context whenever the next full paragraph still fits. When it
+    // cannot fit, prefer ending this request at the existing paragraph boundary
+    // instead of carrying part of the next paragraph into a separate MP3 seam.
+    if (
+      current &&
+      (safeParagraphCut || wouldOverflowChars || (goodCurrentSize && wouldOvershoot))
+    ) {
       flush();
     }
 
