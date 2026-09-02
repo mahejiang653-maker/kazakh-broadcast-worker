@@ -1,15 +1,15 @@
 [
-  {"id":1,"title":"美伊出现7月以来最大规模交锋","queries":["Strait of Hormuz tanker 2026","Gulf of Oman military vessel 2026","Strait of Hormuz satellite 2026"]},
-  {"id":2,"title":"俄罗斯连续第七天对基辅发动空中行动","queries":["Kyiv city 2026","Kyiv infrastructure 2026","Kyiv aerial city 2026"]},
-  {"id":3,"title":"特朗普政府评估伊朗行动规模","queries":["Iran military facility 2026","Iran radar installation 2026","Iran air base 2026"]},
-  {"id":4,"title":"霍尔木兹海峡商船通航量持续低位","queries":["Strait of Hormuz merchant ship 2026","Persian Gulf cargo ship 2026","Gulf of Oman tanker 2026"]},
-  {"id":5,"title":"伊朗扩大霍尔木兹船舶黑名单","queries":["oil tanker Strait of Hormuz 2026","tanker Oman coast 2026","Persian Gulf tanker 2026"]},
-  {"id":6,"title":"海湾LNG货物采用船对船转运","queries":["LNG carrier Qatar 2026","LNG tanker Gulf 2026","QatarEnergy LNG carrier"]},
-  {"id":7,"title":"黑海商船增加防护措施","queries":["Black Sea cargo ship 2026","Bosphorus cargo ship 2026","merchant ship Black Sea 2026"]},
-  {"id":8,"title":"我国整治人工智能技术滥用","queries":["China data center server racks 2026","server room China 2026","AI data center China 2026"]},
-  {"id":9,"title":"我国现代物流网络加快建设","queries":["China freight train containers 2026","intermodal freight terminal China 2026","container logistics China 2026"]},
-  {"id":10,"title":"我国部署新型电网建设","queries":["China transmission tower 2026","power grid China 2026","substation China 2026"]},
-  {"id":11,"title":"四十项劳动防护强制标准实施","queries":["construction worker safety helmet China 2026","industrial protective equipment China","construction site PPE China 2026"]},
-  {"id":12,"title":"新疆绿色智能能源转型加速","queries":["Xinjiang solar power station 2026","Xinjiang energy storage 2026","Xinjiang solar farm aerial 2026"]},
-  {"id":13,"title":"新疆优化法治化营商环境","queries":["Khorgos port Xinjiang 2026","Khorgos freight terminal 2026","Khorgos border port 2026"]}
+  {"id":1,"title":"美伊出现7月以来最大规模交锋","queries":["Strait of Hormuz ship","Gulf of Oman naval ship","Strait of Hormuz satellite"],"must_any":["hormuz","oman","persian gulf","ship","vessel","satellite"],"prefer":["strait of hormuz","gulf of oman","tanker","naval","satellite"],"avoid":["museum","model","memorial","portrait"]},
+  {"id":2,"title":"俄罗斯连续第七天对基辅发动空中行动","queries":["Kyiv city Ukraine","Kyiv damaged building","Kyiv infrastructure"],"must_any":["kyiv","kiev","ukraine"],"prefer":["kyiv","building","city","infrastructure","damage"],"avoid":["painting","museum","portrait"]},
+  {"id":3,"title":"特朗普政府评估伊朗行动规模","queries":["Iran military facility","Iran radar installation","Iran air base satellite"],"must_any":["iran","iranian","tehran","radar","air base","military facility"],"prefer":["iran","radar","facility","air base","satellite"],"avoid":["museum","model","1958","1960","1970","portrait"]},
+  {"id":4,"title":"霍尔木兹海峡商船通航量持续低位","queries":["Strait of Hormuz merchant ship","Strait of Hormuz tanker","Gulf of Oman cargo ship"],"must_any":["hormuz","oman","persian gulf","merchant ship","cargo ship","tanker"],"prefer":["hormuz","merchant","cargo","tanker","strait"],"avoid":["museum","model"]},
+  {"id":5,"title":"伊朗扩大霍尔木兹船舶黑名单","queries":["oil tanker Persian Gulf","oil tanker Strait of Hormuz","tanker Gulf of Oman"],"must_any":["tanker","oil tanker","hormuz","oman","persian gulf"],"prefer":["oil tanker","hormuz","gulf","ship"],"avoid":["museum","model"]},
+  {"id":6,"title":"海湾LNG货物采用船对船转运","queries":["LNG carrier Qatar","QatarGas LNG carrier","QatarEnergy LNG ship"],"must_any":["lng","qatar","qatargas","qatarenergy","gas carrier"],"prefer":["lng carrier","qatar","gas","tanker"],"avoid":["model","museum"]},
+  {"id":7,"title":"黑海商船增加防护措施","queries":["Black Sea cargo ship","Bosphorus cargo ship","Black Sea merchant vessel"],"must_any":["black sea","bosphorus","cargo ship","merchant ship"],"prefer":["black sea","bosphorus","cargo","merchant"],"avoid":["model","museum"]},
+  {"id":8,"title":"我国整治人工智能技术滥用","queries":["China data center server racks","China server room","Chinese data centre"],"must_any":["china","chinese","server","data center","data centre"],"prefer":["server rack","data center","data centre","china"],"avoid":["diagram","render","illustration"]},
+  {"id":9,"title":"我国现代物流网络加快建设","queries":["China freight train containers","China intermodal terminal","China container railway freight"],"must_any":["china","chinese","freight","container","intermodal","railway"],"prefer":["freight train","container","terminal","rail"],"avoid":["model","museum"]},
+  {"id":10,"title":"我国部署新型电网建设","queries":["China transmission tower","China power grid substation","Chinese high voltage power line"],"must_any":["china","chinese","transmission","power grid","substation","power line"],"prefer":["transmission tower","substation","high voltage","china"],"avoid":["diagram","model"]},
+  {"id":11,"title":"四十项劳动防护强制标准实施","queries":["China construction worker safety helmet","Chinese construction workers PPE","China industrial worker helmet"],"must_any":["china","chinese","worker","construction","helmet","safety"],"prefer":["worker","helmet","construction site","safety"],"avoid":["mannequin","product","catalog"]},
+  {"id":12,"title":"新疆绿色智能能源转型加速","queries":["Xinjiang solar power station","Turpan solar power station","Xinjiang solar farm"],"must_any":["xinjiang","turpan","solar","photovoltaic"],"prefer":["xinjiang","turpan","solar power","solar farm","photovoltaic"],"avoid":["diagram","model"]},
+  {"id":13,"title":"新疆优化法治化营商环境","queries":["Khorgos Port Xinjiang","Khorgos freight terminal","Khorgos border port"],"must_any":["khorgos","horgos","xinjiang","border port","freight"],"prefer":["khorgos","port","freight","container","truck"],"avoid":["map","diagram","model"]}
 ]
