@@ -483,9 +483,20 @@ function localMicro(text: string, kind: PunctuationKind) {
     volumeDelta += 0.022;
   }
 
-  // Native-first: punctuation already carries intonation for the neural voice.
-  // Only questions/exclamations get a nearly inaudible hint; statements are untouched.
-  if (kind === "question") pitchDelta += 0.065;
+  // Native-first: punctuation remains the neural voice's primary cue.
+  // Kazakh experimental phonetics commonly finds a level/rising contour at
+  // non-final comma syntagms, while semicolon/colon boundaries settle more.
+  // These hints are deliberately tiny and add no extra audible pause.
+  if (kind === "comma") pitchDelta += 0.008;
+  else if (kind === "semicolon") {
+    rateFactor *= 0.997;
+    pitchDelta -= 0.006;
+  } else if (kind === "colon") {
+    rateFactor *= 0.996;
+    pitchDelta -= 0.008;
+  } else if (kind === "dash") {
+    pitchDelta += 0.005;
+  } else if (kind === "question") pitchDelta += 0.065;
   else if (kind === "exclamation") {
     pitchDelta += 0.038;
     volumeDelta += 0.025;
