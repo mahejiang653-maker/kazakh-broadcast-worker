@@ -1,0 +1,53 @@
+name: Long-form paragraph boundary V1
+
+on:
+  push:
+    paths:
+      - '.deploy-longform-paragraph-boundary-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prefer safe paragraph boundaries for long-form Edge chunks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/lib/edge-omnivoice-inspired.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          old_atomic_tail = '''  const chunks: string[] = [];\n  let current = "";'''
+          new_atomic_tail = '''  const paragraphCharBudgets = new Map<number, number>();\n  for (const fragment of atomic) {\n    paragraphCharBudgets.set(\n      fragment.paragraphIndex,\n      (paragraphCharBudgets.get(fragment.paragraphIndex) ?? 0) + fragment.text.length + 1,\n    );\n  }\n\n  const chunks: string[] = [];\n  let current = "";'''
+          if old_atomic_tail not in text:
+              raise SystemExit('Could not find paragraph budget insertion point.')
+          text = text.replace(old_atomic_tail, new_atomic_tail, 1)
+
+          old_condition = '''    const candidateSeconds = currentSeconds + fragmentSeconds;\n    const wouldOverflowChars = candidate.length > maxChars;\n    const goodCurrentSize = currentSeconds >= targetSeconds * 0.62;\n    const wouldOvershoot = candidateSeconds > targetSeconds * 1.22;\n\n    if (current && (wouldOverflowChars || (goodCurrentSize && wouldOvershoot))) {\n      flush();\n    }'''
+          new_condition = '''    const candidateSeconds = currentSeconds + fragmentSeconds;\n    const wouldOverflowChars = candidate.length > maxChars;\n    const goodCurrentSize = currentSeconds >= targetSeconds * 0.62;\n    const wouldOvershoot = candidateSeconds > targetSeconds * 1.22;\n    const incomingParagraphChars =\n      paragraphCharBudgets.get(fragment.paragraphIndex) ?? fragment.text.length;\n    const safeParagraphCut =\n      paragraphBreak &&\n      current.length >= Math.min(1800, maxChars * 0.28) &&\n      current.length + 2 + incomingParagraphChars > maxChars;\n\n    // Preserve context whenever the next full paragraph still fits. When it\n    // cannot fit, prefer ending this request at the existing paragraph boundary\n    // instead of carrying part of the next paragraph into a separate MP3 seam.\n    if (\n      current &&\n      (safeParagraphCut || wouldOverflowChars || (goodCurrentSize && wouldOvershoot))\n    ) {\n      flush();\n    }'''
+          if old_condition not in text:
+              raise SystemExit('Could not find chunk boundary decision block.')
+          text = text.replace(old_condition, new_condition, 1)
+
+          if text == original:
+              raise SystemExit('No long-form paragraph-boundary changes were made.')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-longform-paragraph-boundary-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-longform-paragraph-boundary-v1
+          git commit -m "Prefer paragraph boundaries in Edge long-form chunks"
+          git push
