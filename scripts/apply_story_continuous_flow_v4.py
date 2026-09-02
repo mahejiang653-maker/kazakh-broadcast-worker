@@ -1,5 +1,6 @@
 from pathlib import Path
 
+# trigger: story continuous-flow V4
 route_path = Path('app/api/synthesize/route.ts')
 route = route_path.read_text()
 
