@@ -1,0 +1,97 @@
+name: Semantic chunker V1
+
+on:
+  push:
+    paths:
+      - '.deploy-semantic-chunker-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Make long-form splitting paragraph aware
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('app/lib/edge-omnivoice-inspired.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          import_anchor = 'import type { EdgeDocumentPlan, EdgeDocumentRole, EdgePlannedSegment } from "./edge-director";\n'
+          if 'from "./edge-natural-structure"' not in text:
+              text = text.replace(
+                  import_anchor,
+                  import_anchor + 'import { structureEdgeText } from "./edge-natural-structure";\n',
+                  1,
+              )
+
+          function_pattern = re.compile(
+              r'function sentenceFragments\(source: string\) \{.*?\n\}\n\nfunction splitOversizedFragment',
+              re.S,
+          )
+          function_replacement = '''type DurationFragment = {\n  text: string;\n  paragraphIndex: number;\n};\n\nfunction sentenceFragments(source: string): DurationFragment[] {\n  return structureEdgeText(source).flatMap((paragraph) =>\n    paragraph.sentences.map((sentence) => ({\n      text: sentence.text,\n      paragraphIndex: paragraph.index,\n    })),\n  );\n}\n\nfunction splitOversizedFragment'''
+          text, count = function_pattern.subn(function_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Could not replace sentenceFragments safely.')
+
+          old_atomic = '  const atomic = sentenceFragments(normalized).flatMap((item) => splitOversizedFragment(item, maxChars));'
+          new_atomic = '''  const atomic = sentenceFragments(normalized).flatMap((item) =>\n    splitOversizedFragment(item.text, maxChars).map((fragmentText) => ({\n      text: fragmentText,\n      paragraphIndex: item.paragraphIndex,\n    })),\n  );'''
+          if old_atomic not in text:
+              raise SystemExit('Could not find the atomic fragment construction.')
+          text = text.replace(old_atomic, new_atomic, 1)
+
+          text = text.replace(
+              '  let currentSeconds = 0;\n\n  const flush = () => {',
+              '  let currentSeconds = 0;\n  let currentParagraphIndex: number | null = null;\n\n  const flush = () => {',
+              1,
+          )
+          text = text.replace(
+              '    current = "";\n    currentSeconds = 0;\n  };',
+              '    current = "";\n    currentSeconds = 0;\n    currentParagraphIndex = null;\n  };',
+              1,
+          )
+
+          loop_pattern = re.compile(
+              r'  for \(const fragment of atomic\) \{\n'
+              r'    const fragmentSeconds = estimateEdgeSpeechSeconds\(fragment, speed\);\n'
+              r'    const candidate = current \? `\$\{current\} \$\{fragment\}` : fragment;\n'
+              r'    const candidateSeconds = currentSeconds \+ fragmentSeconds;\n'
+              r'    const wouldOverflowChars = candidate.length > maxChars;\n'
+              r'    const goodCurrentSize = currentSeconds >= targetSeconds \* 0\.62;\n'
+              r'    const wouldOvershoot = candidateSeconds > targetSeconds \* 1\.22;\n\n'
+              r'    if \(current && \(wouldOverflowChars \|\| \(goodCurrentSize && wouldOvershoot\)\)\) \{\n'
+              r'      flush\(\);\n'
+              r'    \}\n\n'
+              r'    current = current \? `\$\{current\} \$\{fragment\}` : fragment;\n'
+              r'    currentSeconds \+= fragmentSeconds;\n'
+              r'  \}',
+              re.S,
+          )
+          loop_replacement = '''  for (const fragment of atomic) {\n    const fragmentSeconds = estimateEdgeSpeechSeconds(fragment.text, speed);\n    const paragraphBreak =\n      current.length > 0 &&\n      currentParagraphIndex !== null &&\n      currentParagraphIndex !== fragment.paragraphIndex;\n    const separator = current ? (paragraphBreak ? "\\n\\n" : " ") : "";\n    const candidate = current ? `${current}${separator}${fragment.text}` : fragment.text;\n    const candidateSeconds = currentSeconds + fragmentSeconds;\n    const wouldOverflowChars = candidate.length > maxChars;\n    const goodCurrentSize = currentSeconds >= targetSeconds * 0.62;\n    const wouldOvershoot = candidateSeconds > targetSeconds * 1.22;\n\n    if (current && (wouldOverflowChars || (goodCurrentSize && wouldOvershoot))) {\n      flush();\n    }\n\n    const nextParagraphBreak =\n      current.length > 0 &&\n      currentParagraphIndex !== null &&\n      currentParagraphIndex !== fragment.paragraphIndex;\n    const nextSeparator = current ? (nextParagraphBreak ? "\\n\\n" : " ") : "";\n    current = current ? `${current}${nextSeparator}${fragment.text}` : fragment.text;\n    currentParagraphIndex = fragment.paragraphIndex;\n    currentSeconds += fragmentSeconds;\n  }'''
+          text, count = loop_pattern.subn(loop_replacement, text, count=1)
+          if count != 1:
+              raise SystemExit('Could not replace the chunk assembly loop safely.')
+
+          if text == original:
+              raise SystemExit('No semantic chunker changes were made.')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-semantic-chunker-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-semantic-chunker-v1
+          git commit -m "Preserve paragraph structure in Edge long-form chunks"
+          git push
