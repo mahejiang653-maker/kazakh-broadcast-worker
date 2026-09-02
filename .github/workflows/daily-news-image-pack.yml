@@ -8,7 +8,7 @@ on:
     paths:
       - 'daily-news-image-pack/news.json'
       - 'daily-news-image-pack/curated_pool.json'
-      - 'daily-news-image-pack/full_web_pack_v14.py'
+      - 'daily-news-image-pack/full_web_pack_v15.py'
       - 'daily-news-image-pack/requirements.txt'
   schedule:
     - cron: '20 4 * * *'  # 12:20 Beijing time
@@ -30,15 +30,15 @@ jobs:
       - name: Install dependencies
         run: pip install -r daily-news-image-pack/requirements.txt
 
-      - name: Full-web recent real-photo search and ZIP
+      - name: Verified recent-capture real-photo search and ZIP
         env:
           IMAGES_PER_NEWS: '3'
           MIN_WIDTH: '1200'
           MIN_HEIGHT: '675'
           MIN_RECENT_YEAR: '2025'
-          COMMONS_LIMIT: '80'
-          BING_LIMIT: '80'
-        run: python daily-news-image-pack/full_web_pack_v14.py
+          COMMONS_LIMIT: '100'
+          BING_LIMIT: '100'
+        run: python daily-news-image-pack/full_web_pack_v15.py
 
       - name: Locate ZIP
         id: zip
