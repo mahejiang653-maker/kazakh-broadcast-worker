@@ -1,0 +1,15 @@
+{
+  "1": {"files": ["File:ISS-63 Persian Gulf at night.jpg", "File:ISS-64 Persian Gulf and Gulf of Oman at night.jpg", "File:ISS047-E-139569 Strait of Hormuz.jpg"], "queries": ["Strait of Hormuz ship", "Gulf of Oman vessel"]},
+  "2": {"files": ["File:Destructions in Kyiv after Russian attack, 2026-05-24 (11).jpg", "File:Destructions in Kyiv after Russian attack, 2026-06-15 (01).jpg", "File:Destructions in Kyiv after Russian attack, 2026-07-02 (80).jpg"], "queries": ["Kyiv destruction 2026"]},
+  "3": {"files": [], "queries": ["Iran radar military facility", "Iranian air base satellite", "Iran military installation"]},
+  "4": {"files": ["File:ISS-63 Persian Gulf at night.jpg", "File:ISS-64 Persian Gulf and Gulf of Oman at night.jpg"], "queries": ["Strait of Hormuz merchant ship", "Gulf of Oman cargo ship"]},
+  "5": {"files": ["File:Oil tanker off of the Yemen coast (oil-tanker-yemen-coast).jpg", "File:Oil Tanker Koala. Saint Petersburg. 2026.jpg"], "queries": ["oil tanker Persian Gulf", "oil tanker Gulf of Oman"]},
+  "6": {"files": ["File:Lijmiliya LNG carrier QatarGas.jpg"], "queries": ["QatarGas LNG carrier", "Qatar LNG carrier", "LNG carrier Persian Gulf"]},
+  "7": {"files": ["File:General cargo ship Janet passing through the Bosphorus, March 2024 10.jpg", "File:General cargo ship Janet passing through the Bosphorus, March 2024 02.jpg"], "queries": ["Bosphorus cargo ship 2024", "Black Sea cargo ship"]},
+  "8": {"files": ["File:Datacenter Server Racks (22370909788).jpg", "File:Virginia Tech - data center.jpg"], "queries": ["data center server racks", "server room racks"]},
+  "9": {"files": [], "queries": ["China freight train containers", "China intermodal freight terminal", "container freight train China"]},
+  "10": {"files": ["File:A TRANSMISSION TOWER IN SHENZHEN (65).jpg"], "queries": ["Shenzhen transmission tower", "China power grid substation", "China high voltage transmission"]},
+  "11": {"files": ["File:Construction helmet.jpg", "File:A worker wears a helmet and visor at a Hong Kong construction site during a heatwave.jpg"], "queries": ["Hong Kong construction worker helmet", "China construction safety helmet"]},
+  "12": {"files": ["File:Turpan Solar Power Station - view from an airplane.jpg"], "queries": ["Turpan solar power station", "Xinjiang solar farm", "Xinjiang photovoltaic power station"]},
+  "13": {"files": ["File:XM - Khorgos Port - Ban Chao.jpg"], "queries": ["Khorgos port freight", "Khorgos border port Xinjiang", "Khorgos freight train"]}
+}
