@@ -9,7 +9,7 @@ on:
       - 'daily-news-image-pack/news.json'
       - 'daily-news-image-pack/curated_pool.json'
       - 'daily-news-image-pack/full_web_pack_v15.py'
-      - 'daily-news-image-pack/fill_search_thumbnails_v18.py'
+      - 'daily-news-image-pack/fill_search_thumbnails_v19.py'
       - 'daily-news-image-pack/requirements.txt'
   schedule:
     - cron: '20 4 * * *'  # 12:20 Beijing time
@@ -43,10 +43,10 @@ jobs:
           BING_LIMIT: '100'
         run: python daily-news-image-pack/full_web_pack_v15.py
 
-      - name: Fill missing slots with counted search-thumbnail screenshots
+      - name: Fill missing slots with robust counted image-search screenshots
         env:
           IMAGES_PER_NEWS: '3'
-        run: python daily-news-image-pack/fill_search_thumbnails_v18.py
+        run: python daily-news-image-pack/fill_search_thumbnails_v19.py
 
       - name: Locate ZIP
         id: zip
