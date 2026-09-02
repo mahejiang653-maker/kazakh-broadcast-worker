@@ -18,105 +18,23 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Add high-confidence spoken unit normalization
+        env:
+          UNIT_BLOCK_B64: "ICAvLyBIaWdoLWNvbmZpZGVuY2UgbWVhc3VyZW1lbnQgZm9ybXMgdXNlZCBmcmVxdWVudGx5IGluIG5ld3MgY29weS4gRXhwYW5kCiAgLy8gdGhlbSBpbiB0aGUgaGlkZGVuIHNwb2tlbiB0ZXh0IGJlZm9yZSBnZW5lcmljIG51bWJlciBub3JtYWxpemF0aW9uLiBUaGlzCiAgLy8gbWlycm9ycyB0aGUgdGV4dC1ub3JtYWxpemF0aW9uIHN0ZXAgdXNlZCBieSBoaWdoLXF1YWxpdHkgVFRTIGNvcnBvcmEgd2hpbGUKICAvLyBsZWF2aW5nIHRoZSB1c2VyJ3MgdmlzaWJsZSBhcnRpY2xlIHVudG91Y2hlZC4KICB0ZXh0ID0gdGV4dAogICAgLnJlcGxhY2UoL1xiKFxkezEsMTJ9KD86Wy4sXVxkezEsM30pPylccyp60LrQvFxzKlwvXHMq0YHQsNKTKD8hW1xwe0x9XHB7Tn1dKS9naXUsICLRgdCw0pPRiyDQvdCwICQxINC60LjQu9C+0LzQtdGC0YAiKQogICAgLnJlcGxhY2UoL1xiKFxkezEsMTJ9KD86Wy4sXVxkezEsM30pPylccyrQvFxzKlwvXHMq0YEoPyFbXHB7TH1ccHtOfV0pL2dpdSwgItGB0LXQutGD0L3QtNGL0L3QsCAkMSDQvNC10YLRgCIpCiAgICAucmVwbGFjZSgvXGIoXGR7MSwxMn0oPzpbLixdXGR7MSwzfSk/KVxzKtC60JLQvFxzKig/OltCtyvCiipdXHMqKT/Qv9Cw0pMoPyFbXHB7TH1ccHtOfV0pL2dpdSwgIiQxINC60LjQu9C+0LLQsNGC0YIg0YHQsNCSo9Cw0YIiKTsKCiAgdGV4dCA9IHRleHQucmVwbGFjZSgKICAgIC9cYihcZHsxLDEyfSg/Ol suLF1cZHsxLDN9KT8pXHMqKNC60Lx80Lx80YHQvHzQvNC8KSFbwrLCs10pKD8hW1xwe0x9XHB7Tn1dKS9naXUsCiAgICAoX21hdGNoLCBhbW91bnQsIHJhd1VuaXQsIGRpbWVuc2lvbikgPT4gewogICAgICBjb25zdCB1bml0czogUmVjb3JkPHN0cmluZywgc3RyaW5nPiA9IHsKICAgICAgICAi0LrQvCI6ICLQutC40LvQvtC80LXRgtGAIiwKICAgICAgICAi0LwiOiAi0LzQtdGC0YAiLAogICAgICAgICLRgdC8IjogItGB0LDQvdGC0LjQvNC10YLRgCIsCiAgICAgICAgItC80LwiOiAi0LzQuNC70LvQuNC80LXRgtGAIiwKICAgICAgfTsKICAgICAgY29uc3QgdW5pdCA9IHVuaXRzW1N0cmluZyhyYXdVbml0KS50b0xvd2VyQ2FzZSgpXSA/PyBTdHJpbmcocmF3VW5pdCk7CiAgICAgIHJldHVybiBgJHthbW91bnR9ICR7ZGltZW5zaW9uID09PSAiwrIiID8gItGI0LDRgNGI0YsiIDogItGC0LXQutGI0LUifSAke3VuaXR9YDsKICAgIH0sCiAgKTsKCiAgdGV4dCA9IHRleHQucmVwbGFjZSgKICAgIC9cYihcZHsxLDEyfSg/Ol suLF1cZHsxLDN9KT8pXHMqKNC60JLQvHzQnNCJL9CT0JLQvHzQotCS0YIpKD8hW1xwe0x9XHB7Tn1dKS9naXUsCiAgICAoX21hdGNoLCBhbW91bnQsIHJhd1VuaXQpID0+IHsKICAgICAgY29uc3QgdW5pdHM6IFJlY29yZDxzdHJpbmcsIHN0cmluZz4gPSB7CiAgICAgICAgItC60LLRgiI6ICLQutC40LvQvtCy0LDRgtGCIiwKICAgICAgICAi0LzQstGCIjogItC80LXQs9Cw0LLQsNGC0YIiLAogICAgICAgICLRltCy0YIiOiAi0LPQuNCz0LDQstCw0YLRgiIsCiAgICAgICAgItGC0LLRgiI6ICLRgtC10YDQsNCy0LDRgtGCIiwKICAgICAgfTsKICAgICAgcmV0dXJuIGAke2Ftb3VudH0gJHt1bml0c1tTdHJpbmcocmF3VW5pdCkudG9Mb3dlckNhc2UoKV0gPz8gU3RyaW5nKHJhd1VuaXQpfWA7CiAgICB9LAogICk7CgogIHRleHQgPSB0ZXh0LnJlcGxhY2UoCiAgICAvXGIoXGR7MSwxMn0oPzpbLixdXGR7MSwzfSk/KVxzKihLQnxNQnxHQnxUQikoPyFbQS1aYS16MC05XSkvZ3UsCiAgICAoX21hdGNoLCBhbW91bnQsIHJhd1VuaXQpID0+IHsKICAgICAgY29uc3QgdW5pdHM6IFJlY29yZDxzdHJpbmcsIHN0cmluZz4gPSB7CiAgICAgICAgS0I6ICLQutC40LvQvtCx0LDQudGCIiwKICAgICAgICBNQjogItC80LXQs9Cw0LHQsNC50YIiLAogICAgICAgIEdCOiAi0LPQuNCz0LDQsdCw0LnRgiIsCiAgICAgICAgVEI6ICLRgtC10YDQsNCx0LDQudGCIiwKICAgICAgfTsKICAgICAgcmV0dXJuIGAke2Ftb3VudH0gJHt1bml0c1tTdHJpbmcocmF3VW5pdCkudG9VcHBlckNhc2UoKV0gPz8gU3RyaW5nKHJhd1VuaXQpfWA7CiAgICB9LAogICk7CgogIHRleHQgPSB0ZXh0LnJlcGxhY2UoCiAgICAvXGIoXGR7MSwxMn0oPzpbLixdXGR7MSwzfSk/KVxzKihrSHp8TUh6fEdIenxUSHopKD8hW0EtWmEtejAtOV0pL2dpdSwKICAgIChfbWF0Y2gsIGFtb3VudCwgcmF3VW5pdCkgPT4gewogICAgICBjb25zdCB1bml0czogUmVjb3JkPHN0cmluZywgc3RyaW5nPiA9IHsKICAgICAgICBLSFo6ICLQutC40LvQvtCz0LXRgNGGIiwKICAgICAgICBNSFo6ICLQvNC10LPQsNCz0LXRgNGGIiwKICAgICAgICBH SFo6ICLQs9C40LPQsNCz0LXRgNGGIiwKICAgICAgICBU SFo6ICLRgtC10YDQsNCz0LXRgNGGIiwKICAgICAgfTsKICAgICAgcmV0dXJuIGAke2Ftb3VudH0gJHt1bml0c1tTdHJpbmcocmF3VW5pdCkudG9VcHBlckNhc2UoKV0gPz8gU3RyaW5nKHJhd1VuaXQpfWA7CiAgICB9LAogICk7CgogIHRleHQgPSB0ZXh0LnJlcGxhY2UoCiAgICAvKFsrLV0/KVxzKihcZHsxLDEyfSg/Ol suLF1cZHsxLDN9KT8pXHMqwrBccypbQ9ChXSg/IVtccHtMfVxwe059XSkvZ2l1LAogICAgKF9tYXRjaCwgc2lnbiwgYW1vdW50KSA9PiBgJHtzaWduID09PSAiLSIgPyAi0LzQuNC90YPRgSAiIDogc2lnbiA9PT0gIisiID8gItC/0LvRjtGBICIgOiAiIn0ke2Ftb3VudH0g0LPRgNCw0LTRg9GBINCm0LXQu9GM0YHQuNC5YCwKICApOwoKICB0ZXh0ID0gdGV4dC5yZXBsYWNlKAogICAgL1xiKFxkezEsMTJ9KD86Wy4sXVxkezEsM30pPylccyoo0LzQvHzRgdC8fNC60Lx80Lx80L7QvHzQu9C80LvQutCzfNCzfNGCfNCz0LApKD8hW1xwe0x9XHB7Tn1dKS9naXUsCiAgICAoX21hdGNoLCBhbW91bnQsIHJhd1VuaXQpID0+IHsKICAgICAgY29uc3QgdW5pdHM6IFJlY29yZDxzdHJpbmcsIHN0cmluZz4gPSB7CiAgICAgICAgItC80LwiOiAi0LzQuNC70LvQuNC80LXRgtGAIiwKICAgICAgICAi0YHQvCI6ICLRgdCw0L3RgtC40LzQtdGC0YAiLAogICAgICAgICLRmtC8IjogItC60LjQu9C+0LzQtdGC0YAiLAogICAgICAgICLQvCI6ICLQvNC10YLRgCIsCiAgICAgICAgItC80LsiOiAi0LzQuNC70LvQuNC70LjRgtGAIiwKICAgICAgICAi0LsiOiAi0LvQuNGC0YAiLAogICAgICAgICLQutCzIjogItC60LjQu9C+0LPRgNCw0LzQvCIsCiAgICAgICAgItCzIjogItCz0YDQsNC80LwiLAogICAgICAgICLRgiI6ICLRgtC+0L3QvdCwIiwKICAgICAgICAi0LPQsCI6ICLQs9C10LrRgtCw0YAiLAogICAgICB9OwogICAgICByZXR1cm4gYCR7YW1vdW50fSAke3VuaXRzW1N0cmluZyhyYXdVbml0KS50b0xvd2VyQ2FzZSgpXSA/PyBTdHJpbmcocmF3VW5pdCl9YDsKICAgIH0sCiAgKTsKCiI=
         run: |
           python - <<'PY'
+          import base64
+          import os
           from pathlib import Path
 
           path = Path('app/lib/kazakh-speech-normalizer.ts')
           text = path.read_text(encoding='utf-8')
-          anchor = '''  // Common news abbreviations that sound better expanded than letter-by-letter.\n'''
+          anchor = "  // Common news abbreviations that sound better expanded than letter-by-letter.\n"
           if anchor not in text:
               raise SystemExit('Unit normalization insertion anchor not found.')
           if 'High-confidence measurement forms used frequently in news copy.' in text:
               raise SystemExit('Unit normalization is already installed.')
 
-          block = r'''  // High-confidence measurement forms used frequently in news copy. Expand
-  // them in the hidden spoken text before generic number normalization. This
-  // mirrors the text-normalization step used by high-quality TTS corpora while
-  // leaving the user's visible article untouched.
-  text = text
-    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*км\s*\/\s*сағ(?![\p{L}\p{N}])/giu, "сағатына $1 километр")
-    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*м\s*\/\s*с(?![\p{L}\p{N}])/giu, "секундына $1 метр")
-    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*кВт\s*(?:[·⋅*]\s*)?сағ(?![\p{L}\p{N}])/giu, "$1 киловатт сағат");
-
-  text = text.replace(
-    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(км|м|см|мм)([²³])(?![\p{L}\p{N}])/giu,
-    (_match, amount, rawUnit, dimension) => {
-      const units: Record<string, string> = {
-        "км": "километр",
-        "м": "метр",
-        "см": "сантиметр",
-        "мм": "миллиметр",
-      };
-      const unit = units[String(rawUnit).toLowerCase()] ?? String(rawUnit);
-      return `${amount} ${dimension === "²" ? "шаршы" : "текше"} ${unit}`;
-    },
-  );
-
-  text = text.replace(
-    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(кВт|МВт|ГВт|ТВт)(?![\p{L}\p{N}])/giu,
-    (_match, amount, rawUnit) => {
-      const units: Record<string, string> = {
-        "квт": "киловатт",
-        "мвт": "мегаватт",
-        "гвт": "гигаватт",
-        "твт": "тераватт",
-      };
-      return `${amount} ${units[String(rawUnit).toLowerCase()] ?? String(rawUnit)}`;
-    },
-  );
-
-  text = text.replace(
-    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(KB|MB|GB|TB)(?![A-Za-z0-9])/gu,
-    (_match, amount, rawUnit) => {
-      const units: Record<string, string> = {
-        KB: "килобайт",
-        MB: "мегабайт",
-        GB: "гигабайт",
-        TB: "терабайт",
-      };
-      return `${amount} ${units[String(rawUnit).toUpperCase()] ?? String(rawUnit)}`;
-    },
-  );
-
-  text = text.replace(
-    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(kHz|MHz|GHz|THz)(?![A-Za-z0-9])/giu,
-    (_match, amount, rawUnit) => {
-      const units: Record<string, string> = {
-        KHZ: "килогерц",
-        MHZ: "мегагерц",
-        GHZ: "гигагерц",
-        THZ: "терагерц",
-      };
-      return `${amount} ${units[String(rawUnit).toUpperCase()] ?? String(rawUnit)}`;
-    },
-  );
-
-  text = text.replace(
-    /([+-]?)\s*(\d{1,12}(?:[.,]\d{1,3})?)\s*°\s*[CС](?![\p{L}\p{N}])/giu,
-    (_match, sign, amount) => `${sign === "-" ? "минус " : sign === "+" ? "плюс " : ""}${amount} градус Цельсий`,
-  );
-
-  text = text.replace(
-    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(мм|см|км|м|мл|л|кг|г|т|га)(?![\p{L}\p{N}])/giu,
-    (_match, amount, rawUnit) => {
-      const units: Record<string, string> = {
-        "мм": "миллиметр",
-        "см": "сантиметр",
-        "км": "километр",
-        "м": "метр",
-        "мл": "миллилитр",
-        "л": "литр",
-        "кг": "килограмм",
-        "г": "грамм",
-        "т": "тонна",
-        "га": "гектар",
-      };
-      return `${amount} ${units[String(rawUnit).toLowerCase()] ?? String(rawUnit)}`;
-    },
-  );
-
-'''
+          block = base64.b64decode(os.environ['UNIT_BLOCK_B64']).decode('utf-8')
           text = text.replace(anchor, block + anchor, 1)
           path.write_text(text, encoding='utf-8')
           PY
