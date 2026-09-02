@@ -1,0 +1,51 @@
+name: Long-form continuity V1
+
+on:
+  push:
+    paths:
+      - '.deploy-longform-continuity-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Expand Edge long-form context window
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/api/synthesize/route.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          text = text.replace(
+              'const EDGE_MAX_CHUNK_SIZE = 4800;',
+              'const EDGE_MAX_CHUNK_SIZE = 9000;',
+          )
+          text = text.replace(
+              '    EDGE_MAX_CHUNK_SIZE,\n    210,\n    480,',
+              '    EDGE_MAX_CHUNK_SIZE,\n    300,\n    420,',
+          )
+
+          if text == original:
+              raise SystemExit('Expected long-form chunk settings were not found; refusing a blind patch.')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-longform-continuity-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/synthesize/route.ts .deploy-longform-continuity-v1
+          git commit -m "Expand Edge long-form context window"
+          git push
