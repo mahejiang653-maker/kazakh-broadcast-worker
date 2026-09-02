@@ -1,0 +1,42 @@
+name: Kazakh punctuation contour V1
+
+on:
+  push:
+    paths:
+      - '.deploy-kazakh-punctuation-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Add conservative punctuation contours
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/lib/edge-omnivoice-inspired.ts')
+          text = path.read_text(encoding='utf-8')
+          old = '  // Native-first: punctuation already carries intonation for the neural voice.\n  // Only questions/exclamations get a nearly inaudible hint; statements are untouched.\n  if (kind === "question") pitchDelta += 0.065;\n  else if (kind === "exclamation") {'
+          new = '  // Native-first: punctuation remains the neural voice\'s primary cue.\n  // Kazakh experimental phonetics commonly finds a level/rising contour at\n  // non-final comma syntagms, while semicolon/colon boundaries settle more.\n  // These hints are deliberately tiny and add no extra audible pause.\n  if (kind === "comma") pitchDelta += 0.008;\n  else if (kind === "semicolon") {\n    rateFactor *= 0.997;\n    pitchDelta -= 0.006;\n  } else if (kind === "colon") {\n    rateFactor *= 0.996;\n    pitchDelta -= 0.008;\n  } else if (kind === "dash") {\n    pitchDelta += 0.005;\n  } else if (kind === "question") pitchDelta += 0.065;\n  else if (kind === "exclamation") {'
+          if old not in text:
+              raise SystemExit('Punctuation contour anchor not found.')
+          text = text.replace(old, new, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-kazakh-punctuation-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-kazakh-punctuation-v1
+          git commit -m "Tune Kazakh punctuation contours"
+          git push
