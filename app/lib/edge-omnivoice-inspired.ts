@@ -646,6 +646,11 @@ function logicalFocusScore(phrase: Phrase) {
   if (CORRECTION_FOCUS_PATTERN.test(normalize(phrase.text))) score += 0.46;
   if (role !== "background" && hasEntityActionAnchor(phrase.text)) score += role === "lead" ? 0.28 : 0.2;
 
+  const novelty = phrase.segment?.noveltyScore ?? 0;
+  const repetition = phrase.segment?.repetitionScore ?? 0;
+  if (role !== "background" && novelty >= 0.55) score += 0.12 * novelty;
+  if (role === "background" && repetition >= 0.55) score -= 0.1 * repetition;
+
   if (startsWithCue(phrase.text, FOCUS_CUES)) score += 0.62;
   if (startsWithCue(phrase.text, RESULT_CUES)) score += 0.24;
   if ((phrase.segment?.importance ?? 0) >= 0.78) score += 0.18;
@@ -670,6 +675,20 @@ function applyLogicalFocusContrast(phrases: Phrase[]) {
     let rateFactor = phrase.micro.rateFactor;
     let pitchDelta = phrase.micro.pitchDelta;
     let volumeDelta = phrase.micro.volumeDelta;
+    const novelty = phrase.segment?.noveltyScore ?? 0;
+    const repetition = phrase.segment?.repetitionScore ?? 0;
+
+    // Discourse memory is much weaker than explicit focus. It gently lifts new
+    // material and relaxes highly repeated recap material without assuming that
+    // every repeated mention must be deaccented.
+    if (phrase.segment?.role !== "background" && novelty >= 0.55) {
+      rateFactor *= 1 - 0.0028 * novelty;
+      volumeDelta += 0.008 * novelty;
+    }
+    if (phrase.segment?.role === "background" && repetition >= 0.55) {
+      rateFactor *= 1 + 0.0022 * repetition;
+      volumeDelta -= 0.006 * repetition;
+    }
 
     // Kazakh logical prominence is phrase-based. At sentence-final focus we rely
     // on duration + dynamics; non-final focus may receive only a tiny pitch cue.

@@ -48,6 +48,8 @@ export type EdgePlannedSegment = {
   importance: number;
   numericScore: number;
   impactScore: number;
+  noveltyScore: number;
+  repetitionScore: number;
 };
 
 export type EdgeDocumentPlan = {
@@ -439,6 +441,82 @@ function impactScore(text: string) {
   return clamp(impact + focus + punctuation, 0, 3.2);
 }
 
+const DISCOURSE_STOPWORDS = new Set([
+  "және", "мен", "пен", "бен", "да", "де", "та", "те", "бұл", "сол", "осы",
+  "бір", "екі", "үшін", "туралы", "бойынша", "кейін", "дейін", "тағы", "ғана",
+  "ретінде", "болды", "болып", "бар", "жоқ", "деп", "деді", "екен", "оның",
+  "олар", "ол", "ал", "әрі", "сондай", "сондай-ақ", "the", "and", "that", "with",
+  "from", "this", "have", "has", "was", "were", "for", "but", "not", "only",
+]);
+
+function discourseContentKeys(text: string) {
+  const normalized = normalizeForAnalysis(text);
+  const keys = new Set<string>();
+  for (const match of normalized.matchAll(/[\p{L}]{4,}/gu)) {
+    const value = match[0];
+    if (!DISCOURSE_STOPWORDS.has(value)) keys.add(value);
+  }
+  for (const match of text.matchAll(/[\u3400-\u9fff]{2,8}/gu)) keys.add(match[0]);
+  return keys;
+}
+
+function discourseEntityKeys(text: string) {
+  const keys = new Set<string>();
+  const multiName = /(?:^|\s)([A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}(?:\s+[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,})+)(?=\s|[,，.:;!?]|$)/gu;
+  const acronym = /(?:^|\s)([A-ZА-ЯӘҒҚҢӨҰҮҺІ]{2,8})(?=\s|[,，.:;!?]|$)/gu;
+  for (const match of text.matchAll(multiName)) keys.add(normalizeForAnalysis(match[1]));
+  for (const match of text.matchAll(acronym)) keys.add(match[1].toLowerCase());
+  for (const match of text.matchAll(/[\u3400-\u9fff]{2,8}/gu)) keys.add(match[0]);
+  return keys;
+}
+
+function setOverlapRatio(current: Set<string>, recent: Set<string>) {
+  if (!current.size || !recent.size) return 0;
+  let overlap = 0;
+  for (const key of current) if (recent.has(key)) overlap += 1;
+  return overlap / Math.max(1, current.size);
+}
+
+function discourseSignals(units: AnalyzedUnit[]) {
+  const seenEntities = new Set<string>();
+  const recentBuckets: Set<string>[] = [];
+
+  return units.map((unit) => {
+    const keys = discourseContentKeys(unit.text);
+    const entities = discourseEntityKeys(unit.text);
+    const recent = new Set<string>();
+    for (const bucket of recentBuckets) for (const key of bucket) recent.add(key);
+
+    const overlap = setOverlapRatio(keys, recent);
+    let unseenEntities = 0;
+    for (const entity of entities) if (!seenEntities.has(entity)) unseenEntities += 1;
+    const entityNovelty = entities.size ? unseenEntities / entities.size : 0;
+    const topicShift = keys.size >= 4 ? 1 - overlap : 0;
+    const hasKeyNumber = numericScore(unit.text) >= 0.9;
+
+    // Newness is intentionally conservative. A first entity/topic shift is a
+    // small prominence hint, never a license to accent every unseen word.
+    const noveltyScore = clamp(
+      entityNovelty * 0.55 +
+        (topicShift >= 0.72 ? 0.2 : topicShift * 0.1) +
+        (hasKeyNumber ? 0.08 : 0),
+      0,
+      1,
+    );
+
+    // Repetition only becomes strong when lexical overlap is high. Background
+    // cues make it more likely that the sentence is genuinely recap material.
+    const backgroundBoost = containsCue(unit.text, BACKGROUND_CUES) ? 1.12 : 0.72;
+    const repetitionScore = clamp(overlap * backgroundBoost, 0, 1);
+
+    for (const entity of entities) seenEntities.add(entity);
+    recentBuckets.push(keys);
+    if (recentBuckets.length > 2) recentBuckets.shift();
+
+    return { noveltyScore, repetitionScore };
+  });
+}
+
 function isLikelyTitle(unit: AnalyzedUnit, totalUnits: number) {
   if (unit.index !== 0 || totalUnits < 2) return false;
   const length = unit.normalized.length;
@@ -530,6 +608,7 @@ export function analyzeEdgeDocument(source: string): EdgeDocumentPlan {
     units.length - endingCount,
   );
 
+  const discourse = discourseSignals(units);
   const segments = units.map((unit) => {
     const progress = units.length <= 1 ? 0.5 : unit.index / (units.length - 1);
     const numeric = numericScore(unit.text);
@@ -551,6 +630,8 @@ export function analyzeEdgeDocument(source: string): EdgeDocumentPlan {
       importance: roleImportance(role, numeric, impact),
       numericScore: numeric,
       impactScore: impact,
+      noveltyScore: discourse[unit.index]?.noveltyScore ?? 0,
+      repetitionScore: discourse[unit.index]?.repetitionScore ?? 0,
     };
   });
 
