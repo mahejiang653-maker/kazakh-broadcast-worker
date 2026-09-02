@@ -49,6 +49,21 @@ const URGENT = [
   "大火", "火灾", "撤离", "疏散", "危险", "立即", "导弹", "无人机",
 ];
 
+const ANGER = [
+  "ашулан", "ызал", "ызаға", "қаһар", "долдан", "айғайлап",
+  "愤怒", "震怒", "怒斥", "暴怒", "大发雷霆", "怒不可遏",
+];
+
+const FEAR = [
+  "қорық", "үрей", "сескен", "шош", "зәресі", "қобалж",
+  "害怕", "恐惧", "惊恐", "恐慌", "惶恐", "吓坏",
+];
+
+const SURPRISE = [
+  "таңғал", "таңқал", "күтпеген", "ойламаған", "ғажап", "сенбеді",
+  "惊讶", "震惊", "没想到", "出乎意料", "意想不到", "令人吃惊",
+];
+
 const SAD = [
   "қаза", "қайтыс", "мерт", "жараланды", "жараланған", "аза", "апат", "құрбан",
   "жоғалды", "үйінді", "қайғ",
@@ -161,6 +176,9 @@ function chooseMood(
 ): { mood: EdgeDeliveryMood; confidence: number } {
   const value = normalize(text);
   const urgent = countHits(value, URGENT);
+  const angry = countHits(value, ANGER);
+  const fear = countHits(value, FEAR);
+  const surprise = countHits(value, SURPRISE);
   const sad = countHits(value, SAD);
   const concern = countHits(value, CONCERN);
   const positive = countHits(value, POSITIVE);
@@ -176,7 +194,16 @@ function chooseMood(
   if (urgent >= 2 || (urgent >= 1 && role === "climax") || (urgent >= 1 && strongPunctuation >= 1)) {
     return { mood: "urgent", confidence: 0.88 };
   }
+  if (angry >= 2 || (angry >= 1 && (role === "climax" || strongPunctuation >= 1))) {
+    return { mood: "urgent", confidence: 0.79 };
+  }
+  if (fear >= 2 || (fear >= 1 && (concern >= 1 || urgent >= 1))) {
+    return { mood: "concern", confidence: 0.79 };
+  }
   if (sad >= 1) return { mood: "sad", confidence: 0.78 };
+  if (fear >= 1) return { mood: "concern", confidence: 0.68 };
+  if (angry >= 1) return { mood: "emphasis", confidence: 0.68 };
+  if (surprise >= 1) return { mood: "emphasis", confidence: 0.69 };
   if (concern >= 2 || (concern >= 1 && serious >= 1)) return { mood: "concern", confidence: 0.76 };
   if (positive >= 2 || (positive >= 1 && role === "climax")) return { mood: "positive", confidence: 0.78 };
   if (role === "climax" || role === "key_number" || emphasis >= 1 || numeric >= 3) {
