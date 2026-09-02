@@ -65,6 +65,12 @@ const BREATH_CUES = new Set([
   "яғни",
 ]);
 
+// Conservative clause-level boundaries for long Kazakh phrases. These are
+// stronger semantic connectors than simple coordination (және/әрі), so they
+// are less likely to split a modifier from its head or a number from its unit.
+const SOFT_SYNTAGMA_PATTERN =
+  /(?<![\p{L}\p{N}])(?:бірақ|алайда|дегенмен|өйткені|сондықтан|сол себепті|нәтижесінде|осылайша|яғни|демек|керісінше|соған қарамастан)(?![\p{L}\p{N}])/giu;
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
@@ -586,9 +592,39 @@ function subtleBreak(kind: PunctuationKind, _text: string) {
 }
 
 function naturalTextMarkup(text: string) {
-  // Kazakh is highly agglutinative and phrase prominence is more reliable than
-  // artificial word-level breaks. Preserve the phrase as one continuous stream.
-  return escapeXml(text);
+  // Short and normally punctuated phrases are best left entirely to the neural
+  // voice. Only unusually long, punctuation-free spans receive soft syntagma
+  // breathing, and only at strong semantic connectors.
+  const clean = text.trim();
+  const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
+  if (clean.length < 96 || wordCount < 15) return escapeXml(text);
+
+  SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
+  let output = "";
+  let cursor = 0;
+  let lastBoundary = -1000;
+  let inserted = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = SOFT_SYNTAGMA_PATTERN.exec(text)) && inserted < 2) {
+    const boundary = match.index;
+    const left = text.slice(cursor, boundary).trim();
+    const right = text.slice(boundary).trim();
+
+    // Avoid tiny fragments and avoid placing two artificial breaths close
+    // together. This preserves modifier-head, name-title and number-unit groups.
+    if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
+
+    output += escapeXml(text.slice(cursor, boundary));
+    output += '<break time="16ms"/>';
+    cursor = boundary;
+    lastBoundary = boundary;
+    inserted += 1;
+  }
+
+  if (!inserted) return escapeXml(text);
+  output += escapeXml(text.slice(cursor));
+  return output;
 }
 
 function microDistance(a: MicroProsody, b: MicroProsody) {
