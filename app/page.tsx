@@ -40,7 +40,7 @@ const PRESETS = [
   { id: "calm", label: "沉稳长稿", note: "全文情绪分析 · 平稳柔和", rateFactor: 0.94 },
   { id: "bulletin", label: "简明快讯", note: "全文情绪分析 · 轻快紧凑", rateFactor: 1.035 },
   { id: "expressive", label: "生动播报", note: "全文情绪分析 · 完整表现", rateFactor: 0.99 },
-  { id: "story", label: "故事版", note: "长语流 · 段落级自然过渡", rateFactor: 0.99 },
+  { id: "story", label: "故事版", note: "真人叙事 · 情绪对白 · 短逗号停顿", rateFactor: 0.99 },
 ] as const;
 
 const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
