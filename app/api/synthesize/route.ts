@@ -45,7 +45,7 @@ const PRESETS = {
   calm: { rateFactor: 0.94, pitch: 0, volume: -0.2 },
   bulletin: { rateFactor: 1.035, pitch: 0.2, volume: 0.2 },
   expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
-  story: { rateFactor: 0.985, pitch: 0.05, volume: -0.03 },
+  story: { rateFactor: 0.99, pitch: 0.03, volume: -0.02 },
 } as const;
 
 // Every Edge style uses the same full-article emotion plan, but each style
@@ -680,6 +680,98 @@ function storyDirectionForSentence(
   return { beat: "narrator", ratePercent: 0, pitchDelta: 0, volumeDelta: 0 };
 }
 
+function renderContinuousStoryBody(
+  sentences: EdgeEmotionPlan["sentences"],
+  baseSpeed: number,
+  basePitch: number,
+  baseVolume: number,
+  useMultilingual: boolean,
+) {
+  // Story V4: one stable delivery envelope per paragraph. Sentence-level story
+  // analysis still informs the paragraph, but it no longer creates a new prosody
+  // state every one or two sentences. This removes the audible "waves" caused by
+  // repeated rate/pitch resets while keeping a gentle narrative contour.
+  const paragraphs = new Map<number, typeof sentences>();
+  for (const sentence of sentences) {
+    const bucket = paragraphs.get(sentence.paragraphIndex) ?? [];
+    bucket.push(sentence);
+    paragraphs.set(sentence.paragraphIndex, bucket);
+  }
+
+  let body = "";
+  let previousRate = 0;
+  let previousPitch = 0;
+  let previousVolume = 0;
+  let firstParagraph = true;
+
+  for (const [, paragraphSentences] of paragraphs) {
+    const totalChars = Math.max(
+      1,
+      paragraphSentences.reduce((sum, sentence) => sum + sentence.text.length, 0),
+    );
+
+    const direction = paragraphSentences.reduce(
+      (acc, sentence) => {
+        const weight = sentence.text.length / totalChars;
+        const local = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role);
+
+        // Ordinary narration is the anchor. Strong story beats contribute, but
+        // only as a mild paragraph-level tendency rather than a local jump.
+        const beatWeight =
+          local.beat === "narrator"
+            ? 0.2
+            : local.beat === "dialogue"
+              ? 0.25
+              : local.beat === "ending"
+                ? 0.55
+                : 0.42;
+
+        acc.rate += local.ratePercent * weight * beatWeight;
+        acc.pitch += local.pitchDelta * weight * beatWeight;
+        acc.volume += local.volumeDelta * weight * beatWeight;
+        return acc;
+      },
+      { rate: 0, pitch: 0, volume: 0 },
+    );
+
+    // Keep each paragraph very close to the native voice, and limit the step
+    // between paragraphs so the contour changes gradually rather than in bursts.
+    let rate = clamp(direction.rate, -1.35, 1.15);
+    let pitch = clamp(direction.pitch, -0.28, 0.28);
+    let volume = clamp(direction.volume, -0.22, 0.22);
+
+    if (!firstParagraph) {
+      rate = clamp(rate, previousRate - 0.45, previousRate + 0.45);
+      pitch = clamp(pitch, previousPitch - 0.12, previousPitch + 0.12);
+      volume = clamp(volume, previousVolume - 0.1, previousVolume + 0.1);
+    }
+
+    previousRate = rate;
+    previousPitch = pitch;
+    previousVolume = volume;
+    firstParagraph = false;
+
+    const rawText = paragraphSentences.map((sentence) => sentence.text).join(" ");
+    const content = useMultilingual
+      ? splitEdgeLanguageRuns(rawText)
+          .map(
+            (run) =>
+              `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
+          )
+          .join("")
+      : escapeXml(rawText);
+
+    const hasDirection =
+      Math.abs(rate) >= 0.3 || Math.abs(pitch) >= 0.05 || Math.abs(volume) >= 0.05;
+
+    body += hasDirection
+      ? `<p><prosody rate="${signedPercent(rate)}" pitch="${signedPercent(pitch)}" volume="${signedPercent(volume)}">${content}</prosody></p>`
+      : `<p>${content}</p>`;
+  }
+
+  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body}</prosody>`;
+}
+
 function renderEmotionDirectedBody(
   text: string,
   settings: EdgeVoiceSettings,
@@ -720,6 +812,16 @@ function renderEmotionDirectedBody(
           .join("")
       : renderStructuredNativeText(text);
     return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${fallback}</prosody>`;
+  }
+
+  if (preset === "story") {
+    return renderContinuousStoryBody(
+      sentences,
+      baseSpeed,
+      basePitch,
+      baseVolume,
+      useMultilingual,
+    );
   }
 
   type DeliveryGroup = {
