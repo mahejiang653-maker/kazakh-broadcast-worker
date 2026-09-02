@@ -1,0 +1,61 @@
+name: Daily News Image Pack
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'daily-news-image-pack/news.json'
+      - 'daily-news-image-pack/fetch_images.py'
+      - 'daily-news-image-pack/requirements.txt'
+  schedule:
+    - cron: '20 4 * * *'  # 12:20 Beijing time
+
+jobs:
+  build-image-pack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r daily-news-image-pack/requirements.txt
+
+      - name: Fetch real images and build ZIP
+        env:
+          IMAGES_PER_NEWS: '3'
+          MIN_WIDTH: '1600'
+          MIN_HEIGHT: '900'
+          SEARCH_LIMIT: '30'
+        run: python daily-news-image-pack/fetch_images.py
+
+      - name: Locate ZIP
+        id: zip
+        shell: bash
+        run: |
+          ZIP_PATH=$(ls daily-news-image-pack/daily-news-images-*.zip | head -n 1)
+          echo "zip_path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$(basename "$ZIP_PATH")" >> "$GITHUB_OUTPUT"
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.zip.outputs.zip_name }}
+          path: ${{ steps.zip.outputs.zip_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-pack-manifest
+          path: daily-news-image-pack/output/manifest.json
+          retention-days: 14
