@@ -1,0 +1,62 @@
+name: Kazakh emotion cues V1
+
+on:
+  push:
+    paths:
+      - '.deploy-kazakh-emotion-cues-v1'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extend bilingual emotion cue analysis
+        env:
+          EMOTION_CUES_B64: "Y29uc3QgQU5HRVIgPSBbCiAgItCw0YjRg9C70LDQvSIsICLRi9C30LDQuyIsICLRi9C30LDSk9CwIiwgItKb0LDSu9Cw0YAiLCAi0LTQvtC70LTQsNC9IiwgItCw0LnSk9Cw0LnQu9Cw0L8iLAogICLmhKTmgJIiLCAi6ZyH5oCSIiwgIuaAkuaWpSIsICLmmrTmgJIiLCAi5aSn5Y+R6Zu36ZyGIiwgIuaAkuS4jeWPr+mBjyIsCl07Cgpjb25zdCBGRUFSID0gWwogICLSm9C+0YDRi9KbIiwgItKv0YDQtdC5IiwgItGB0LXRgdC60LXQvSIsICLRiNC+0YgiLCAi0LfTmdGA0LXRgdGWIiwgItKb0L7QsdCw0LvQtiIsCiAgIuWus+aAlSIsICLmgZDmg6ciLCAi5oOK5oGQIiwgIuaBkOaFjCIsICLmg7bmgZAiLCAi5ZCT5Z2PIiwKXTsKCmNvbnN0IFNVUlBSSVNFID0gWwogICLRgtCw0qPSk9Cw0LsiLCAi0YLQsNKj0pvQsNC7IiwgItC60q/RgtC/0LXQs9C10L0iLCAi0L7QudC70LDQvNCw0pPQsNC9IiwgItKT0LDQttCw0L8iLCAi0YHQtdC90LHQtdC00ZYiLAogICLmg4rorrYiLCAi6ZyH5oOKIiwgIuayoeaDs+WIsCIsICLlh7rkuY7mhI/mlpkiLCAi5oSP5oOz5LiN5YiwIiwgIuS7pOS6uuWQg+aDiiIsCl07Cgo="
+        run: |
+          python - <<'PY'
+          import base64
+          import os
+          from pathlib import Path
+
+          path = Path('app/lib/edge-emotion-director.ts')
+          text = path.read_text(encoding='utf-8')
+          original = text
+
+          if 'const ANGER = [' not in text:
+              cue_block = base64.b64decode(os.environ['EMOTION_CUES_B64']).decode('utf-8')
+              anchor = 'const SAD = [\n'
+              if anchor not in text:
+                  raise SystemExit('Emotion cue insertion anchor not found.')
+              text = text.replace(anchor, cue_block + anchor, 1)
+
+          old_counts = '''  const urgent = countHits(value, URGENT);\n  const sad = countHits(value, SAD);'''
+          new_counts = '''  const urgent = countHits(value, URGENT);\n  const angry = countHits(value, ANGER);\n  const fear = countHits(value, FEAR);\n  const surprise = countHits(value, SURPRISE);\n  const sad = countHits(value, SAD);'''
+          if old_counts in text:
+              text = text.replace(old_counts, new_counts, 1)
+
+          old_decision = '''  if (sad >= 1) return { mood: "sad", confidence: 0.78 };\n  if (concern >= 2 || (concern >= 1 && serious >= 1)) return { mood: "concern", confidence: 0.76 };'''
+          new_decision = '''  if (angry >= 2 || (angry >= 1 && (role === "climax" || strongPunctuation >= 1))) {\n    return { mood: "urgent", confidence: 0.79 };\n  }\n  if (fear >= 2 || (fear >= 1 && (concern >= 1 || urgent >= 1))) {\n    return { mood: "concern", confidence: 0.79 };\n  }\n  if (sad >= 1) return { mood: "sad", confidence: 0.78 };\n  if (fear >= 1) return { mood: "concern", confidence: 0.68 };\n  if (angry >= 1) return { mood: "emphasis", confidence: 0.68 };\n  if (surprise >= 1) return { mood: "emphasis", confidence: 0.69 };\n  if (concern >= 2 || (concern >= 1 && serious >= 1)) return { mood: "concern", confidence: 0.76 };'''
+          if old_decision in text:
+              text = text.replace(old_decision, new_decision, 1)
+
+          if text == original:
+              raise SystemExit('No emotion cue changes were made.')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-kazakh-emotion-cues-v1
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-emotion-director.ts .deploy-kazakh-emotion-cues-v1
+          git commit -m "Extend bilingual Edge emotion cues"
+          git push
