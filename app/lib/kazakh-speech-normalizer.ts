@@ -254,6 +254,92 @@ function normalizeKazakhSegment(source: string) {
     },
   );
 
+  // High-confidence measurement forms used frequently in news copy. Expand
+  // them in the hidden spoken text before generic number normalization. This
+  // mirrors the text-normalization step used by high-quality TTS corpora while
+  // leaving the user's visible article untouched.
+  text = text
+    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*км\s*\/\s*сағ(?![\p{L}\p{N}])/giu, "сағатына $1 километр")
+    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*м\s*\/\s*с(?![\p{L}\p{N}])/giu, "секундына $1 метр")
+    .replace(/\b(\d{1,12}(?:[.,]\d{1,3})?)\s*кВт\s*(?:[·⋅*]\s*)?сағ(?![\p{L}\p{N}])/giu, "$1 киловатт сағат");
+
+  text = text.replace(
+    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(км|м|см|мм)([²³])(?![\p{L}\p{N}])/giu,
+    (_match, amount, rawUnit, dimension) => {
+      const units: Record<string, string> = {
+        "км": "километр",
+        "м": "метр",
+        "см": "сантиметр",
+        "мм": "миллиметр",
+      };
+      const unit = units[String(rawUnit).toLowerCase()] ?? String(rawUnit);
+      return `${amount} ${dimension === "²" ? "шаршы" : "текше"} ${unit}`;
+    },
+  );
+
+  text = text.replace(
+    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(кВт|МВт|ГВт|ТВт)(?![\p{L}\p{N}])/giu,
+    (_match, amount, rawUnit) => {
+      const units: Record<string, string> = {
+        "квт": "киловатт",
+        "мвт": "мегаватт",
+        "гвт": "гигаватт",
+        "твт": "тераватт",
+      };
+      return `${amount} ${units[String(rawUnit).toLowerCase()] ?? String(rawUnit)}`;
+    },
+  );
+
+  text = text.replace(
+    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(KB|MB|GB|TB)(?![A-Za-z0-9])/gu,
+    (_match, amount, rawUnit) => {
+      const units: Record<string, string> = {
+        KB: "килобайт",
+        MB: "мегабайт",
+        GB: "гигабайт",
+        TB: "терабайт",
+      };
+      return `${amount} ${units[String(rawUnit).toUpperCase()] ?? String(rawUnit)}`;
+    },
+  );
+
+  text = text.replace(
+    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(kHz|MHz|GHz|THz)(?![A-Za-z0-9])/giu,
+    (_match, amount, rawUnit) => {
+      const units: Record<string, string> = {
+        KHZ: "килогерц",
+        MHZ: "мегагерц",
+        GHZ: "гигагерц",
+        THZ: "терагерц",
+      };
+      return `${amount} ${units[String(rawUnit).toUpperCase()] ?? String(rawUnit)}`;
+    },
+  );
+
+  text = text.replace(
+    /([+-]?)\s*(\d{1,12}(?:[.,]\d{1,3})?)\s*°\s*[CС](?![\p{L}\p{N}])/giu,
+    (_match, sign, amount) => `${sign === "-" ? "минус " : sign === "+" ? "плюс " : ""}${amount} градус Цельсий`,
+  );
+
+  text = text.replace(
+    /\b(\d{1,12}(?:[.,]\d{1,3})?)\s*(мм|см|км|м|мл|л|кг|г|т|га)(?![\p{L}\p{N}])/giu,
+    (_match, amount, rawUnit) => {
+      const units: Record<string, string> = {
+        "мм": "миллиметр",
+        "см": "сантиметр",
+        "км": "километр",
+        "м": "метр",
+        "мл": "миллилитр",
+        "л": "литр",
+        "кг": "килограмм",
+        "г": "грамм",
+        "т": "тонна",
+        "га": "гектар",
+      };
+      return `${amount} ${units[String(rawUnit).toLowerCase()] ?? String(rawUnit)}`;
+    },
+  );
+
   // Common news abbreviations that sound better expanded than letter-by-letter.
   text = text
     .replace(/\bмлрд\.?\b/giu, "миллиард")
