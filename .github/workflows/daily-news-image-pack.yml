@@ -9,6 +9,7 @@ on:
       - 'daily-news-image-pack/news.json'
       - 'daily-news-image-pack/curated_pool.json'
       - 'daily-news-image-pack/full_web_pack_v15.py'
+      - 'daily-news-image-pack/add_reference_screenshots_v16.py'
       - 'daily-news-image-pack/requirements.txt'
   schedule:
     - cron: '20 4 * * *'  # 12:20 Beijing time
@@ -28,7 +29,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r daily-news-image-pack/requirements.txt
+        run: |
+          pip install -r daily-news-image-pack/requirements.txt
+          python -m playwright install --with-deps chromium
 
       - name: Verified recent-capture real-photo search and ZIP
         env:
@@ -39,6 +42,11 @@ jobs:
           COMMONS_LIMIT: '100'
           BING_LIMIT: '100'
         run: python daily-news-image-pack/full_web_pack_v15.py
+
+      - name: Add reference-only webpage screenshots for missing slots
+        env:
+          REFERENCE_SCREENSHOTS_PER_NEWS: '3'
+        run: python daily-news-image-pack/add_reference_screenshots_v16.py
 
       - name: Locate ZIP
         id: zip
@@ -61,4 +69,12 @@ jobs:
         with:
           name: image-pack-manifest
           path: daily-news-image-pack/output/manifest.json
+          retention-days: 14
+
+      - name: Upload reference screenshots separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-screenshots
+          path: daily-news-image-pack/output/reference_screenshots/
+          if-no-files-found: ignore
           retention-days: 14
