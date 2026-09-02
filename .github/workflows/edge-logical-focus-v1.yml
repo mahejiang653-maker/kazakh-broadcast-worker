@@ -18,14 +18,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Apply logical focus patch
-        run: python .github/scripts/edge-logical-focus-v1.py
+      - name: Refine numeric logical focus
+        run: python .github/scripts/refine-edge-focus-v1.py
 
       - name: Commit patch
         run: |
           rm -f .deploy-edge-logical-focus-v1
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/lib/edge-omnivoice-inspired.ts app/api/synthesize/route.ts .deploy-edge-logical-focus-v1
-          git commit -m "Wire logical focus into live Edge delivery"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-edge-logical-focus-v1
+          git commit -m "Refine numeric logical focus anchors"
           git push
