@@ -1,7 +1,7 @@
 {
   "1": {"files": ["File:ISS-63 Persian Gulf at night.jpg", "File:ISS-64 Persian Gulf and Gulf of Oman at night.jpg", "File:ISS047-E-139569 Strait of Hormuz.jpg"], "queries": ["Strait of Hormuz ship", "Gulf of Oman vessel"]},
   "2": {"files": ["File:Destructions in Kyiv after Russian attack, 2026-05-24 (11).jpg", "File:Destructions in Kyiv after Russian attack, 2026-06-15 (01).jpg", "File:Destructions in Kyiv after Russian attack, 2026-07-02 (80).jpg"], "queries": ["Kyiv destruction 2026", "Kyiv damaged buildings 2026"]},
-  "3": {"files": [], "queries": ["Iran radar military facility", "Iranian air base satellite", "Iran military installation"]},
+  "3": {"files": [], "queries": ["Iran radar military facility", "Iranian air base satellite", "Iran military installation", "Iran military radar"]},
   "4": {"files": ["File:ISS-63 Persian Gulf at night.jpg", "File:ISS-64 Persian Gulf and Gulf of Oman at night.jpg"], "queries": ["Strait of Hormuz merchant ship", "Gulf of Oman cargo ship"]},
   "5": {"files": ["File:Oil tanker off of the Yemen coast (oil-tanker-yemen-coast).jpg", "File:Oil Tanker Koala. Saint Petersburg. 2026.jpg"], "queries": ["oil tanker Persian Gulf", "oil tanker Gulf of Oman"]},
   "6": {"files": ["File:Lijmiliya LNG carrier QatarGas.jpg"], "queries": ["QatarGas LNG carrier", "Qatar LNG carrier", "LNG carrier Persian Gulf"]},
