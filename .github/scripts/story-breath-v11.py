@@ -54,7 +54,7 @@ replacement = r'''function acousticPunctuation(
 }
 
 function semanticBreak('''
-omni, count = pattern.subn(replacement, omni, count=1)
+omni, count = pattern.subn(lambda _m: replacement, omni, count=1)
 assert count == 1, f'acousticPunctuation replacement count={count}'
 
 old = '''  // Story V10: do not add hidden micro-pauses between ordinary semantic phrases.
@@ -75,7 +75,7 @@ new = '''  // Story V11: human breathing sits between the two previous extremes.
   if (deliveryMode === "story") {
     if (punctuationRendered) return 0;
     const clean = phrase.text.trim();
-    const words = clean ? clean.split(/\\s+/u).filter(Boolean).length : 0;
+    const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     const enoughSpeech = clean.length >= 28 || words >= 6;
 
     if (kind === "paragraph") {
@@ -110,7 +110,7 @@ new = '''  // Story V11: keep long acoustic continuity but reintroduce sparse, d
   // a prosody reset: the short break remains inside the same rendered group.
   if (deliveryMode === "story") {
     const clean = text.trim();
-    const wordCount = clean ? clean.split(/\\s+/u).filter(Boolean).length : 0;
+    const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     if (clean.length < 112 || wordCount < 18) return renderText(text);
 
     SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
