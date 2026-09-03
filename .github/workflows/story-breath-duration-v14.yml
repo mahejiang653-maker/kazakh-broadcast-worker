@@ -1,0 +1,27 @@
+name: Story breath duration V14
+
+on:
+  push:
+    paths:
+      - '.deploy-story-breath-duration-v14'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply V14 story breath duration patch
+        run: python .github/scripts/story-breath-duration-v14.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .deploy-story-breath-duration-v14
+          git add app/lib/edge-omnivoice-inspired.ts app/page.tsx .deploy-story-breath-duration-v14
+          git commit -m "Lengthen story breathing cadence"
+          git push
