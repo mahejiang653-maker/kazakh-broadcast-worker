@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '.deploy-broadcast-comma-min-v19'
+      - '.github/workflows/broadcast-comma-min-v19.yml'
   workflow_dispatch:
 
 permissions:
@@ -21,7 +22,6 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          rm -f .deploy-broadcast-comma-min-v19
-          git add app/lib/edge-omnivoice-inspired.ts .deploy-broadcast-comma-min-v19
+          git add app/lib/edge-omnivoice-inspired.ts
           git commit -m "Set news comma minimum to 15ms"
           git push
