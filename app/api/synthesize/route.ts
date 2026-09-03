@@ -39,22 +39,23 @@ const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
 };
 
 const PRESETS = {
-  // All five styles are native-first. Each one keeps a continuous speaker identity
-  // while applying a different global pacing bias.
-  news: { rateFactor: 1, pitch: 0, volume: 0 },
-  calm: { rateFactor: 0.94, pitch: 0, volume: -0.2 },
-  bulletin: { rateFactor: 1.035, pitch: 0.2, volume: 0.2 },
-  expressive: { rateFactor: 0.99, pitch: 0.35, volume: 0.15 },
-  story: { rateFactor: 0.99, pitch: 0.03, volume: -0.02 },
+  // The first four are variants of one professional presenter register: calm is
+  // steadier, bulletin is tighter, expressive has a little more range, but none
+  // should drift into theatrical story delivery. Story is intentionally separate.
+  news: { rateFactor: 1.01, pitch: 0, volume: 0 },
+  calm: { rateFactor: 0.97, pitch: -0.05, volume: -0.08 },
+  bulletin: { rateFactor: 1.045, pitch: 0.12, volume: 0.12 },
+  expressive: { rateFactor: 1.01, pitch: 0.18, volume: 0.1 },
+  story: { rateFactor: 1, pitch: 0.03, volume: -0.02 },
 } as const;
 
 // Every Edge style uses the same full-article emotion plan, but each style
 // applies a different amount of local direction so they remain audibly distinct.
 const EMOTION_STRENGTH_BY_PRESET: Record<keyof typeof PRESETS, number> = {
-  news: 0.55,
-  calm: 0.45,
-  bulletin: 0.7,
-  expressive: 1,
+  news: 0.62,
+  calm: 0.52,
+  bulletin: 0.68,
+  expressive: 0.82,
   story: 1,
 };
 
@@ -560,8 +561,31 @@ function emotionTempoZone(mood: string) {
 }
 
 
+const NEWS_ITEM_OPENING_PATTERN =
+  /^(?:\s*)(?:(?:бірінші|екінші|үшінші|төртінші|бесінші|алтыншы|жетінші|сегізінші|тоғызыншы|оныншы|он\s+бірінші|он\s+екінші|он\s+үшінші|он\s+төртінші|он\s+бесінші|келесі|ендігі|тағы\s+бір)\s+жаңалы(?:қ|ғ)[\p{L}-]*|第[一二三四五六七八九十百]+(?:条|项)?新闻|(?:first|second|third|fourth|fifth|next)\s+(?:news|news\s+item))(?![\p{L}\p{N}_])/iu;
+
+function isNewsItemOpening(text: string) {
+  return NEWS_ITEM_OPENING_PATTERN.test(text.trim());
+}
+
+function newsItemPresenterLift(preset: PresetName) {
+  switch (preset) {
+    case "calm":
+      return { rate: -1.05, pitch: 0.1, volume: 0.06 };
+    case "bulletin":
+      return { rate: -0.45, pitch: 0.18, volume: 0.08 };
+    case "expressive":
+      return { rate: -0.7, pitch: 0.24, volume: 0.1 };
+    default:
+      return { rate: -0.8, pitch: 0.14, volume: 0.07 };
+  }
+}
+
+
 type StoryBeat =
   | "narrator"
+  | "blogger"
+  | "description"
   | "dialogue"
   | "suspense"
   | "action"
@@ -613,6 +637,11 @@ const STORY_FEAR_CUES = [
 const STORY_ANGER_CUES = [
   "ашулан", "ызал", "қаһар", "айғай", "долдан", "怒", "愤怒", "生气", "怒吼", "大怒", "发火",
 ];
+const STORY_BLOGGER_CUES = [
+  "сөйтіп", "содан кейін", "міне", "бір күні", "ал енді", "осылайша", "қысқасы",
+  "осы жерде", "сөйтсе", "солай", "енді қараңыз", "не керек",
+  "于是", "接着", "后来", "这时候", "说到这里", "你看", "没想到", "原来", "结果",
+];
 function storyContainsCue(value: string, cues: string[]) {
   const normalized = value.toLowerCase();
   return cues.some((cue) => normalized.includes(cue));
@@ -646,16 +675,19 @@ function storyDirectionForSentence(
     return { beat: "ending", ratePercent: -3.5, pitchDelta: -0.8, volumeDelta: -0.6 };
   }
   if (speechAct === "lament") {
-    return { beat: "sorrow", ratePercent: -5.4, pitchDelta: -1.0, volumeDelta: -1.0 };
+    return { beat: "sorrow", ratePercent: -6.4, pitchDelta: -1.4, volumeDelta: -1.35 };
   }
   if (speechAct === "whisper") {
-    return { beat: "suspense", ratePercent: -4.2, pitchDelta: -0.65, volumeDelta: -0.85 };
+    return { beat: "suspense", ratePercent: -5.8, pitchDelta: -1.1, volumeDelta: -1.4 };
   }
-  if (speechAct === "shout" || speechAct === "command") {
-    return { beat: "action", ratePercent: 4.2, pitchDelta: 0.85, volumeDelta: 0.95 };
+  if (speechAct === "shout") {
+    return { beat: "action", ratePercent: 5.8, pitchDelta: 1.4, volumeDelta: 1.5 };
+  }
+  if (speechAct === "command") {
+    return { beat: "action", ratePercent: 4.8, pitchDelta: 1.05, volumeDelta: 1.2 };
   }
   if (speechAct === "humor") {
-    return { beat: "humor", ratePercent: 2.0, pitchDelta: 0.65, volumeDelta: 0.45 };
+    return { beat: "humor", ratePercent: 3.0, pitchDelta: 1.0, volumeDelta: 0.72 };
   }
   if (
     mood === "sad" ||
@@ -692,15 +724,15 @@ function storyDirectionForSentence(
     // Let punctuation do most of the acting. Neutral dialogue receives no
     // synthetic pitch lift; questions/exclamations only get a small assist.
     if (hasQuestion) {
-      return { beat: "dialogue", ratePercent: -1.0, pitchDelta: 0.8, volumeDelta: 0.1 };
+      return { beat: "dialogue", ratePercent: -1.5, pitchDelta: 1.4, volumeDelta: 0.2 };
     }
     if (hasExclamation) {
-      return { beat: "dialogue", ratePercent: 2.2, pitchDelta: 0.8, volumeDelta: 0.9 };
+      return { beat: "dialogue", ratePercent: 3.4, pitchDelta: 1.4, volumeDelta: 1.3 };
     }
     if (mood === "concern" || mood === "sad") {
-      return { beat: "dialogue", ratePercent: -2.2, pitchDelta: -0.6, volumeDelta: -0.6 };
+      return { beat: "dialogue", ratePercent: -3.2, pitchDelta: -1.0, volumeDelta: -1.0 };
     }
-    return { beat: "dialogue", ratePercent: 0, pitchDelta: 0, volumeDelta: 0 };
+    return { beat: "dialogue", ratePercent: 0.6, pitchDelta: 0.22, volumeDelta: 0.12 };
   }
 
   if (mood === "positive") {
@@ -713,8 +745,16 @@ function storyDirectionForSentence(
     return { beat: "wonder", ratePercent: -1.2, pitchDelta: 0.5, volumeDelta: 0.4 };
   }
 
-  // Ordinary narration stays completely native inside one long outer prosody.
-  return { beat: "narrator", ratePercent: 0, pitchDelta: 0, volumeDelta: 0 };
+  // Blog-style storytelling: narration stays recognisably the same speaker,
+  // but it carries conversational forward motion instead of a flat audiobook
+  // read. Scene-setting is a touch slower; connective/story-turn phrases lean in.
+  if (storyContainsCue(text, STORY_BLOGGER_CUES) || role === "transition") {
+    return { beat: "blogger", ratePercent: 2.8, pitchDelta: 0.65, volumeDelta: 0.35 };
+  }
+  if (role === "background" && text.length >= 82) {
+    return { beat: "description", ratePercent: -1.8, pitchDelta: -0.35, volumeDelta: -0.15 };
+  }
+  return { beat: "narrator", ratePercent: 1.6, pitchDelta: 0.35, volumeDelta: 0.16 };
 }
 
 function renderStoryTextSegment(value: string, useMultilingual: boolean) {
@@ -726,51 +766,6 @@ function renderStoryTextSegment(value: string, useMultilingual: boolean) {
         `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
     )
     .join("");
-}
-
-/**
- * Story punctuation policy: commas are a short breath, never a sentence stop.
- * Sentence-final punctuation is left untouched so the neural voice can still
- * create a complete cadence. Decimal commas/colons stay inside numbers.
- */
-function renderStoryPunctuationAwareContent(value: string, useMultilingual: boolean) {
-  let output = "";
-  let buffer = "";
-
-  const flush = () => {
-    if (!buffer) return;
-    output += renderStoryTextSegment(buffer, useMultilingual);
-    buffer = "";
-  };
-
-  for (let index = 0; index < value.length; index += 1) {
-    const char = value[index];
-    const previous = value[index - 1] ?? "";
-    const next = value[index + 1] ?? "";
-    const numericBoundary = /\d/u.test(previous) && /\d/u.test(next);
-
-    if ((char === "," || char === "，") && !numericBoundary) {
-      flush();
-      // A real comma breath: deliberately much shorter than a full stop.
-      output += '<break time="65ms"/>';
-      continue;
-    }
-    if ((char === ";" || char === "；") && !numericBoundary) {
-      flush();
-      output += '<break time="125ms"/>';
-      continue;
-    }
-    if ((char === ":" || char === "：") && !numericBoundary) {
-      flush();
-      output += '<break time="95ms"/>';
-      continue;
-    }
-
-    buffer += char;
-  }
-
-  flush();
-  return output;
 }
 
 function renderContinuousStoryBody(
@@ -803,11 +798,17 @@ function renderContinuousStoryBody(
     for (const sentence of paragraphSentences) {
       const direction = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct);
       const previous = groups[groups.length - 1];
-      const maxItems = direction.beat === "narrator" ? 8 : direction.beat === "dialogue" ? 2 : 3;
+      const maxItems =
+        ["narrator", "blogger", "description"].includes(direction.beat)
+          ? 8
+          : direction.beat === "dialogue"
+            ? 3
+            : 2;
       const previousChars = previous
         ? previous.items.reduce((sum, item) => sum + item.text.length, 0)
         : 0;
-      const maxChars = direction.beat === "narrator" ? 760 : 360;
+      const maxChars =
+        ["narrator", "blogger", "description"].includes(direction.beat) ? 760 : 390;
       const previousTurn = previous?.items[0]?.speakerTurn ?? 0;
       const sameRoleTurn =
         (previousTurn === 0 && sentence.speakerTurn === 0) ||
@@ -846,10 +847,20 @@ function renderContinuousStoryBody(
       // Emotion is visible but bounded. All story text now passes through the
       // same semantic punctuation + Kazakh dependency layer as broadcast text.
       const strength =
-        group.beat === "narrator" ? 0 : group.beat === "dialogue" ? 0.62 : group.beat === "ending" ? 0.72 : 0.7;
-      const rate = clamp(direction.rate * strength, -3.8, 3.4);
-      const pitch = clamp(direction.pitch * strength, -0.75, 0.75);
-      const volume = clamp(direction.volume * strength, -0.7, 0.7);
+        group.beat === "narrator"
+          ? 0.55
+          : group.beat === "blogger"
+            ? 0.78
+            : group.beat === "description"
+              ? 0.62
+              : group.beat === "dialogue"
+                ? 0.8
+                : group.beat === "ending"
+                  ? 0.82
+                  : 0.88;
+      const rate = clamp(direction.rate * strength, -5.5, 5.3);
+      const pitch = clamp(direction.pitch * strength, -1.35, 1.35);
+      const volume = clamp(direction.volume * strength, -1.25, 1.25);
       const renderLanguageAwareText = useMultilingual
         ? (value: string) => renderStoryTextSegment(value, true)
         : undefined;
@@ -859,6 +870,7 @@ function renderContinuousStoryBody(
           speed: clamp(1 + rate / 100, 0.94, 1.06),
           pitch,
           volume,
+          deliveryMode: "story",
         },
         documentPlan,
         renderLanguageAwareText,
@@ -930,6 +942,7 @@ function renderEmotionDirectedBody(
   type DeliveryGroup = {
     paragraphIndex: number;
     zone: string;
+    newsItemOpening: boolean;
     sentences: typeof sentences;
   };
 
@@ -939,7 +952,12 @@ function renderEmotionDirectedBody(
       preset === "story"
         ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct)
         : null;
-    const baseZone = storyDirection ? `story:${storyDirection.beat}` : emotionTempoZone(sentence.mood);
+    const newsItemOpening = preset !== "story" && isNewsItemOpening(sentence.text);
+    const baseZone = newsItemOpening
+      ? `news-item:${preset}`
+      : storyDirection
+        ? `story:${storyDirection.beat}`
+        : emotionTempoZone(sentence.mood);
     const zone = sentence.speakerTurn > 0 ? `${baseZone}:turn:${sentence.speakerTurn}` : baseZone;
     const previous = groups[groups.length - 1];
     const previousChars = previous
@@ -977,7 +995,12 @@ function renderEmotionDirectedBody(
       previousChars + sentence.text.length <= storyCharLimit;
 
     if (canJoin) previous.sentences.push(sentence);
-    else groups.push({ paragraphIndex: sentence.paragraphIndex, zone, sentences: [sentence] });
+    else groups.push({
+      paragraphIndex: sentence.paragraphIndex,
+      zone,
+      newsItemOpening,
+      sentences: [sentence],
+    });
   }
 
   let body = "";
@@ -1015,6 +1038,13 @@ function renderEmotionDirectedBody(
     weighted.pitch *= emotionStrength;
     weighted.volume *= emotionStrength;
 
+    if (group.newsItemOpening) {
+      const presenter = newsItemPresenterLift(preset);
+      weighted.rate += presenter.rate;
+      weighted.pitch += presenter.pitch;
+      weighted.volume += presenter.volume;
+    }
+
     const rawText = group.sentences.map((sentence) => sentence.text).join(" ");
     const content = useMultilingual
       ? splitEdgeLanguageRuns(rawText)
@@ -1046,6 +1076,7 @@ function renderEmotionDirectedBody(
           speed: clamp(1 + weighted.rate / 100, 0.94, 1.06),
           pitch: weighted.pitch,
           volume: weighted.volume,
+          deliveryMode: "broadcast",
         },
         documentPlan,
         renderLanguageAwareText,

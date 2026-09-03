@@ -6,6 +6,7 @@ export type EdgeOmniSettings = {
   speed: number;
   pitch: number;
   volume: number;
+  deliveryMode?: "neutral" | "broadcast" | "story";
 };
 
 type PunctuationKind =
@@ -90,6 +91,21 @@ const SENTENCE_TERMINAL_KINDS = new Set<PunctuationKind>([
   "exclamation",
   "mixed",
 ]);
+
+
+// Broadcast item markers are discourse cues, not ordinary punctuation. When a
+// presenter says "бірінші жаңалық" / "келесі жаңалық", the item label should
+// receive a small reset and a short hand-off into the story that follows.
+const NEWS_ITEM_CUE_PATTERN =
+  /^(\s*)((?:(?:бірінші|екінші|үшінші|төртінші|бесінші|алтыншы|жетінші|сегізінші|тоғызыншы|оныншы|он\s+бірінші|он\s+екінші|он\s+үшінші|он\s+төртінші|он\s+бесінші|келесі|ендігі|тағы\s+бір)\s+жаңалы(?:қ|ғ)[\p{L}-]*|第[一二三四五六七八九十百]+(?:条|项)?新闻|(?:first|second|third|fourth|fifth|next)\s+(?:news|news\s+item)))(?![\p{L}\p{N}_])/iu;
+
+function newsItemCueMatch(text: string) {
+  return text.match(NEWS_ITEM_CUE_PATTERN);
+}
+
+function startsWithNewsItemCue(text: string) {
+  return Boolean(newsItemCueMatch(text));
+}
 
 function scanQuoteState(value: string, initialActive = false) {
   let active = initialActive;
@@ -899,7 +915,11 @@ function baseBoundaryStrength(kind: PunctuationKind) {
   }
 }
 
-function semanticBoundaryStrength(current: Phrase, next?: Phrase) {
+function semanticBoundaryStrength(
+  current: Phrase,
+  next?: Phrase,
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
   const kind = current.punctuationKind;
   let strength = baseBoundaryStrength(kind);
 
@@ -977,6 +997,17 @@ function semanticBoundaryStrength(current: Phrase, next?: Phrase) {
     else if (dependency.score >= 0.55) strength -= dependency.score * 0.2;
   }
 
+  // A numbered/next news item is a real presenter transition. Do not turn it
+  // into a large sentence break; simply stop semantic smoothing from erasing
+  // the small hand-off pause after the item label.
+  if (
+    deliveryMode === "broadcast" &&
+    startsWithNewsItemCue(current.text) &&
+    !["question", "exclamation", "mixed"].includes(kind)
+  ) {
+    strength = Math.max(strength, kind === "period" ? 0.6 : 0.48);
+  }
+
   // Question marks retain question intonation regardless of this score. The
   // score controls boundary/pause strength only, not the interrogative contour.
   if (kind === "question") strength = Math.max(strength, sameDirectQuote ? 0.42 : 0.5);
@@ -985,10 +1016,13 @@ function semanticBoundaryStrength(current: Phrase, next?: Phrase) {
   return clamp(strength, 0.04, 0.96);
 }
 
-function annotateSemanticBoundaries(phrases: Phrase[]) {
+function annotateSemanticBoundaries(
+  phrases: Phrase[],
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
   return phrases.map((phrase, index) => ({
     ...phrase,
-    boundaryStrength: semanticBoundaryStrength(phrase, phrases[index + 1]),
+    boundaryStrength: semanticBoundaryStrength(phrase, phrases[index + 1], deliveryMode),
   }));
 }
 
@@ -1044,7 +1078,28 @@ function semanticBreak(phrase: Phrase, punctuationRendered: boolean) {
   return 0;
 }
 
-function naturalTextMarkup(text: string, renderText: EdgeMarkupRenderer = escapeXml) {
+function naturalTextMarkup(
+  text: string,
+  renderText: EdgeMarkupRenderer = escapeXml,
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
+  // A presenter may write "Бірінші жаңалық бүгін..." without punctuation after
+  // the item label. Give that semantic marker a very short hand-off breath. If
+  // punctuation already follows the cue, the boundary model handles it instead.
+  if (deliveryMode === "broadcast") {
+    const cue = newsItemCueMatch(text);
+    if (cue) {
+      const leading = cue[1] ?? "";
+      const label = cue[2] ?? "";
+      const rest = text.slice(cue[0].length);
+      const labelMarkup = `<prosody rate="-1.6%" pitch="+0.4%" volume="+0.4%">${renderText(label)}</prosody>`;
+      if (rest.trim().length >= 4) {
+        return `${renderText(leading)}${labelMarkup}<break time="72ms"/>${renderText(rest)}`;
+      }
+      return `${renderText(leading)}${labelMarkup}${renderText(rest)}`;
+    }
+  }
+
   // Short and normally punctuated phrases are best left entirely to the neural
   // voice. Only unusually long, punctuation-free spans receive soft syntagma
   // breathing, and only at strong semantic connectors.
@@ -1104,7 +1159,7 @@ function renderGroup(
   let body = "";
 
   for (const item of group) {
-    body += naturalTextMarkup(item.text, renderText);
+    body += naturalTextMarkup(item.text, renderText, settings.deliveryMode);
     const renderedPunctuation = acousticPunctuation(item);
     if (renderedPunctuation) body += escapeXml(renderedPunctuation);
     const pause = semanticBreak(item, Boolean(renderedPunctuation));
@@ -1128,6 +1183,7 @@ export function renderEdgeOmniInspiredMarkup(
     applyDirectQuoteContinuity(
       applyLogicalFocusContrast(bidirectionalSmooth(annotateQuoteContinuity(buildPhrases(text, plan)))),
     ),
+    settings.deliveryMode,
   );
   if (!phrases.length) return renderText(text);
 
