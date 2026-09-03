@@ -1201,6 +1201,13 @@ function semanticBreak(
         : Math.round(clamp(125 + strength * 150, 200, 260));
     }
 
+    if (kind === "comma") {
+      // V24: every written story comma keeps at least 45 ms after semantic/
+      // dependency analysis. Stronger clause boundaries can expand toward 60 ms.
+      const commaBreath = 45 + strength * 15;
+      return Math.round(clamp(commaBreath, 45, 60));
+    }
+
     if (kind === "period") {
       // Hard syntactic dependencies can push the boundary to 0.18 or below;
       // never breathe there even when the source writer inserted a period.
@@ -1219,9 +1226,6 @@ function semanticBreak(
     if (!enoughSpeech) return 0;
     if (kind === "newline" && strength >= 0.3) {
       return Math.round(12 + strength * 28);
-    }
-    if (kind === "comma" && strength >= 0.26 && (clean.length >= 42 || words >= 8)) {
-      return Math.round(8 + strength * 24);
     }
     if (["semicolon", "colon", "dash"].includes(kind) && strength >= 0.28) {
       return Math.round(11 + strength * 28);
@@ -1325,11 +1329,36 @@ function semanticBreak(
   return 0;
 }
 
+function storyWordSpacingMarkup(
+  text: string,
+  renderText: EdgeMarkupRenderer,
+) {
+  const parts = text.split(/(\s+)/u);
+  let output = "";
+  let emittedWord = false;
+
+  for (const part of parts) {
+    if (!part) continue;
+    if (/^\s+$/u.test(part)) {
+      output += renderText(part);
+      continue;
+    }
+    if (emittedWord) output += '<break time="25ms"/>';
+    output += renderText(part);
+    emittedWord = true;
+  }
+
+  return output;
+}
+
 function naturalTextMarkup(
   text: string,
   renderText: EdgeMarkupRenderer = escapeXml,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
 ) {
+  const renderNaturalText = (value: string) =>
+    deliveryMode === "story" ? storyWordSpacingMarkup(value, renderText) : renderNaturalText(value);
+
   // A presenter may write "Бірінші жаңалық бүгін..." without punctuation after
   // the item label. Give that semantic marker a very short hand-off breath. If
   // punctuation already follows the cue, the boundary model handles it instead.
@@ -1339,11 +1368,11 @@ function naturalTextMarkup(
       const leading = cue[1] ?? "";
       const label = cue[2] ?? "";
       const rest = text.slice(cue[0].length);
-      const labelMarkup = `<prosody rate="-1.6%" pitch="+0.4%" volume="+0.4%">${renderText(label)}</prosody>`;
+      const labelMarkup = `<prosody rate="-1.6%" pitch="+0.4%" volume="+0.4%">${renderNaturalText(label)}</prosody>`;
       if (rest.trim().length >= 4) {
-        return `${renderText(leading)}${labelMarkup}<break time="72ms"/>${renderText(rest)}`;
+        return `${renderNaturalText(leading)}${labelMarkup}<break time="72ms"/>${renderNaturalText(rest)}`;
       }
-      return `${renderText(leading)}${labelMarkup}${renderText(rest)}`;
+      return `${renderNaturalText(leading)}${labelMarkup}${renderNaturalText(rest)}`;
     }
   }
 
@@ -1353,7 +1382,7 @@ function naturalTextMarkup(
   if (deliveryMode === "story") {
     const clean = text.trim();
     const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
-    if (clean.length < 112 || wordCount < 18) return renderText(text);
+    if (clean.length < 112 || wordCount < 18) return renderNaturalText(text);
 
     SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
     let output = "";
@@ -1371,15 +1400,15 @@ function naturalTextMarkup(
       const dependency = kazakhDependencyGuard(left, right);
       if (dependency.score >= 0.55) continue;
 
-      output += renderText(text.slice(cursor, boundary));
+      output += renderNaturalText(text.slice(cursor, boundary));
       output += `<break time="${Math.round(clamp(45 + Math.max(0, clean.length - 112) * 0.08, 45, 60))}ms"/>`;
       cursor = boundary;
       lastBoundary = boundary;
       inserted += 1;
     }
 
-    if (!inserted) return renderText(text);
-    output += renderText(text.slice(cursor));
+    if (!inserted) return renderNaturalText(text);
+    output += renderNaturalText(text.slice(cursor));
     return output;
   }
 
@@ -1388,7 +1417,7 @@ function naturalTextMarkup(
   // breathing, and only at strong semantic connectors.
   const clean = text.trim();
   const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
-  if (clean.length < 96 || wordCount < 15) return renderText(text);
+  if (clean.length < 96 || wordCount < 15) return renderNaturalText(text);
 
   SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
   let output = "";
@@ -1406,15 +1435,15 @@ function naturalTextMarkup(
     // together. This preserves modifier-head, name-title and number-unit groups.
     if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
 
-    output += renderText(text.slice(cursor, boundary));
+    output += renderNaturalText(text.slice(cursor, boundary));
     output += '<break time="16ms"/>';
     cursor = boundary;
     lastBoundary = boundary;
     inserted += 1;
   }
 
-  if (!inserted) return renderText(text);
-  output += renderText(text.slice(cursor));
+  if (!inserted) return renderNaturalText(text);
+  output += renderNaturalText(text.slice(cursor));
   return output;
 }
 
