@@ -796,153 +796,167 @@ function renderContinuousStoryBody(
   useMultilingual: boolean,
   documentPlan?: EdgeDocumentPlan,
 ) {
-  // Story V5: one continuous narrator, with sparse local acting only when the
-  // story actually changes emotional state. This preserves identity and flow
-  // while restoring emotion that V4 flattened too aggressively.
-  const paragraphs = new Map<number, typeof sentences>();
+  // V10 continuity rule: analyze emotion finely, but synthesize in long acoustic
+  // movements. Narration may cross source paragraph boundaries when the speaker
+  // identity is unchanged; dialogue is grouped by speaker turn. This avoids the
+  // audible "new take" effect caused by many small prosody/render blocks.
+  type StoryContinuityGroup = {
+    mode: "narration" | "dialogue";
+    speakerTurn: number;
+    items: typeof sentences;
+  };
+
+  const isStrongStoryAct = (
+    act: EdgeEmotionPlan["sentences"][number]["speechAct"],
+  ) => ["whisper", "shout", "command", "lament"].includes(act);
+
+  const groups: StoryContinuityGroup[] = [];
   for (const sentence of sentences) {
-    const bucket = paragraphs.get(sentence.paragraphIndex) ?? [];
-    bucket.push(sentence);
-    paragraphs.set(sentence.paragraphIndex, bucket);
+    const mode: StoryContinuityGroup["mode"] =
+      sentence.speakerTurn > 0 || !["narration", "reported"].includes(sentence.speechAct)
+        ? "dialogue"
+        : "narration";
+    const speakerTurn = mode === "dialogue" ? sentence.speakerTurn : 0;
+    const previous = groups[groups.length - 1];
+    const previousItem = previous?.items[previous.items.length - 1];
+    const previousChars = previous
+      ? previous.items.reduce((sum, item) => sum + item.text.length, 0)
+      : 0;
+    const sameSpeaker = Boolean(
+      previous &&
+      previous.mode === mode &&
+      (mode === "narration" ||
+        (previous.speakerTurn > 0 && speakerTurn > 0
+          ? previous.speakerTurn === speakerTurn
+          : previousItem?.paragraphIndex === sentence.paragraphIndex)),
+    );
+    const strongActChanged = Boolean(
+      previousItem &&
+      (isStrongStoryAct(previousItem.speechAct) || isStrongStoryAct(sentence.speechAct)) &&
+      previousItem.speechAct !== sentence.speechAct,
+    );
+    const crossedEnding = previousItem?.role === "ending" || sentence.role === "ending";
+    const maxItems = mode === "narration" ? 14 : 5;
+    const maxChars = mode === "narration" ? 1450 : 760;
+    const canJoin =
+      sameSpeaker &&
+      !strongActChanged &&
+      !crossedEnding &&
+      previous.items.length < maxItems &&
+      previousChars + sentence.text.length <= maxChars;
+
+    if (canJoin) previous.items.push(sentence);
+    else groups.push({ mode, speakerTurn, items: [sentence] });
   }
 
   let body = "";
 
-  for (const [, paragraphSentences] of paragraphs) {
-    type StoryGroup = {
-      beat: StoryBeat;
-      items: typeof paragraphSentences;
-    };
+  for (const group of groups) {
+    const totalChars = Math.max(
+      1,
+      group.items.reduce((sum, sentence) => sum + sentence.text.length, 0),
+    );
+    const direction = group.items.reduce(
+      (acc, sentence) => {
+        const local = storyDirectionForSentence(
+          sentence.text,
+          sentence.mood,
+          sentence.role,
+          sentence.speechAct,
+        );
+        const weight = sentence.text.length / totalChars;
+        acc.rate += local.ratePercent * weight;
+        acc.pitch += local.pitchDelta * weight;
+        acc.volume += local.volumeDelta * weight;
+        return acc;
+      },
+      { rate: 0, pitch: 0, volume: 0 },
+    );
 
-    const groups: StoryGroup[] = [];
-    for (const sentence of paragraphSentences) {
-      const direction = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct);
-      const previous = groups[groups.length - 1];
-      const maxItems =
-        ["narrator", "blogger", "description"].includes(direction.beat)
-          ? 8
-          : direction.beat === "dialogue"
-            ? 3
-            : 2;
-      const previousChars = previous
-        ? previous.items.reduce((sum, item) => sum + item.text.length, 0)
-        : 0;
-      const maxChars =
-        ["narrator", "blogger", "description"].includes(direction.beat) ? 760 : 390;
-      const previousTurn = previous?.items[0]?.speakerTurn ?? 0;
-      const sameRoleTurn =
-        (previousTurn === 0 && sentence.speakerTurn === 0) ||
-        previousTurn === sentence.speakerTurn;
-      const canJoin =
-        previous &&
-        previous.beat === direction.beat &&
-        sameRoleTurn &&
-        previous.items.length < maxItems &&
-        previousChars + sentence.text.length <= maxChars;
+    const rawText = group.items.map((sentence) => sentence.text).join(" ");
+    const trajectory = analyzeStoryEmotionTrajectory(rawText);
+    const spans = trajectory.spans.length
+      ? trajectory.spans
+      : [{
+          text: rawText,
+          emotion: "neutral" as const,
+          intensity: 0,
+          evidenceCount: 0,
+          rateFactor: 1,
+          pitchDelta: 0,
+          volumeDelta: 0,
+        }];
 
-      if (canJoin) previous.items.push(sentence);
-      else groups.push({ beat: direction.beat, items: [sentence] });
+    // Collapse word-level evidence into one continuous acoustic vector. The
+    // analyzer remains word-aware, but Edge receives one long rendering call.
+    // This is intentionally "fine analysis, coarse synthesis" for human flow.
+    let trajectoryWeight = 0;
+    let trajectoryRate = 0;
+    let trajectoryPitch = 0;
+    let trajectoryVolume = 0;
+    for (const span of spans) {
+      const evidenceWeight = span.evidenceCount > 0
+        ? 0.72 + Math.min(0.28, span.intensity * 0.28)
+        : 0.22;
+      const weight = Math.max(1, span.text.length) * evidenceWeight;
+      trajectoryWeight += weight;
+      trajectoryRate += (span.rateFactor - 1) * weight;
+      trajectoryPitch += span.pitchDelta * weight;
+      trajectoryVolume += span.volumeDelta * weight;
     }
+    trajectoryWeight = Math.max(1, trajectoryWeight);
+    trajectoryRate /= trajectoryWeight;
+    trajectoryPitch /= trajectoryWeight;
+    trajectoryVolume /= trajectoryWeight;
 
-    let paragraphBody = "";
-    for (const group of groups) {
-      const totalChars = Math.max(
-        1,
-        group.items.reduce((sum, sentence) => sum + sentence.text.length, 0),
-      );
-      const direction = group.items.reduce(
-        (acc, sentence) => {
-          const local = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct);
-          const weight = sentence.text.length / totalChars;
-          acc.rate += local.ratePercent * weight;
-          acc.pitch += local.pitchDelta * weight;
-          acc.volume += local.volumeDelta * weight;
-          return acc;
-        },
-        { rate: 0, pitch: 0, volume: 0 },
-      );
+    const baseStrength = group.mode === "dialogue" ? 0.78 : 0.58;
+    const directionRate = clamp(direction.rate * baseStrength, -4.8, 4.8);
+    const directionPitch = clamp(direction.pitch * baseStrength, -1.2, 1.2);
+    const directionVolume = clamp(direction.volume * baseStrength, -1.05, 1.05);
+    const trajectoryStrength = clamp(
+      (group.mode === "dialogue" ? 0.56 : 0.42) + trajectory.volatility * 0.12,
+      group.mode === "dialogue" ? 0.56 : 0.42,
+      group.mode === "dialogue" ? 0.72 : 0.56,
+    );
 
-      const rawText = group.items.map((sentence) => sentence.text).join(" ");
+    const localSpeed = clamp(
+      (1 + directionRate / 100) * (1 + trajectoryRate * trajectoryStrength),
+      group.mode === "dialogue" ? 0.94 : 0.955,
+      group.mode === "dialogue" ? 1.07 : 1.055,
+    );
+    const localPitch = clamp(
+      directionPitch + trajectoryPitch * trajectoryStrength,
+      group.mode === "dialogue" ? -1.55 : -1.1,
+      group.mode === "dialogue" ? 1.55 : 1.1,
+    );
+    const localVolume = clamp(
+      directionVolume + trajectoryVolume * trajectoryStrength,
+      group.mode === "dialogue" ? -1.35 : -0.9,
+      group.mode === "dialogue" ? 1.35 : 0.9,
+    );
+    const renderLanguageAwareText = useMultilingual
+      ? (value: string) => renderStoryTextSegment(value, true)
+      : undefined;
 
-      // Emotion is visible but bounded. All story text now passes through the
-      // same semantic punctuation + Kazakh dependency layer as broadcast text.
-      const strength =
-        group.beat === "narrator"
-          ? 0.55
-          : group.beat === "blogger"
-            ? 0.78
-            : group.beat === "description"
-              ? 0.62
-              : group.beat === "dialogue"
-                ? 0.8
-                : group.beat === "ending"
-                  ? 0.82
-                  : 0.88;
-      const rate = clamp(direction.rate * strength, -5.5, 5.3);
-      const pitch = clamp(direction.pitch * strength, -1.35, 1.35);
-      const volume = clamp(direction.volume * strength, -1.25, 1.25);
-      const renderLanguageAwareText = useMultilingual
-        ? (value: string) => renderStoryTextSegment(value, true)
-        : undefined;
-      // V9 word-aware story delivery: analyze every token, then collapse the
-      // evidence into at most four smooth emotional spans. We never create a
-      // prosody span per word; that would destroy long-form speaker continuity.
-      const trajectory = analyzeStoryEmotionTrajectory(rawText);
-      const emotionalSpans = trajectory.spans.length
-        ? trajectory.spans
-        : [{
-            text: rawText,
-            emotion: "neutral" as const,
-            intensity: 0,
-            evidenceCount: 0,
-            rateFactor: 1,
-            pitchDelta: 0,
-            volumeDelta: 0,
-          }];
-      const trajectoryStrength = clamp(
-        0.54 + trajectory.volatility * 0.2 + (group.beat === "dialogue" ? 0.12 : 0),
-        0.54,
-        0.84,
-      );
-      const content = emotionalSpans
-        .map((span) => {
-          const evidenceScale = span.evidenceCount > 0 ? trajectoryStrength : 0.28;
-          const localSpeed = clamp(
-            (1 + rate / 100) * (1 + (span.rateFactor - 1) * evidenceScale),
-            0.92,
-            1.085,
-          );
-          const localPitch = clamp(
-            pitch + span.pitchDelta * evidenceScale,
-            -1.85,
-            1.85,
-          );
-          const localVolume = clamp(
-            volume + span.volumeDelta * evidenceScale,
-            -1.65,
-            1.65,
-          );
-          return renderEdgeOmniInspiredMarkup(
-            span.text,
-            {
-              speed: localSpeed,
-              pitch: localPitch,
-              volume: localVolume,
-              deliveryMode: "story",
-            },
-            documentPlan,
-            renderLanguageAwareText,
-          );
-        })
-        .join("");
+    const content = renderEdgeOmniInspiredMarkup(
+      rawText,
+      {
+        speed: localSpeed,
+        pitch: localPitch,
+        volume: localVolume,
+        deliveryMode: "story",
+      },
+      documentPlan,
+      renderLanguageAwareText,
+    );
 
-      paragraphBody += `${content} `;
-    }
-
-    body += `<p>${paragraphBody.trim()}</p>`;
+    // Do not wrap source paragraphs in <p>. Their terminal punctuation already
+    // supplies cadence; an extra paragraph boundary was a major source of the
+    // audible stop/start feeling in long stories.
+    body += `${content} `;
   }
 
-  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body}</prosody>`;
+  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body.trim()}</prosody>`;
 }
 
 function renderEmotionDirectedBody(

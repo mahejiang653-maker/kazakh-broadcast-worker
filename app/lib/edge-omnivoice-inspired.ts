@@ -1055,9 +1055,23 @@ function acousticPunctuation(phrase: Phrase) {
   return phrase.punctuation;
 }
 
-function semanticBreak(phrase: Phrase, punctuationRendered: boolean) {
+function semanticBreak(
+  phrase: Phrase,
+  punctuationRendered: boolean,
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
+
+  // Story V10: do not add hidden micro-pauses between ordinary semantic phrases.
+  // If punctuation is audible, the neural voice handles its timing. If weak
+  // punctuation was suppressed, keep the acoustic stream continuous. Only a
+  // very strong true paragraph boundary may receive a tiny breath.
+  if (deliveryMode === "story") {
+    if (punctuationRendered) return 0;
+    if (kind === "paragraph") return strength >= 0.82 ? 24 : 0;
+    return 0;
+  }
 
   // If native punctuation is rendered, let the neural voice realize its own
   // micro-timing. Explicit breaks are mainly for semantic/layout boundaries or
@@ -1099,6 +1113,11 @@ function naturalTextMarkup(
       return `${renderText(leading)}${labelMarkup}${renderText(rest)}`;
     }
   }
+
+  // Story V10: long-form story flow is more natural when Edge keeps one acoustic
+  // stream. Do not add 16ms syntagma breaks inside punctuation-free story text;
+  // word-level emotion analysis still affects the broad delivery vector.
+  if (deliveryMode === "story") return renderText(text);
 
   // Short and normally punctuated phrases are best left entirely to the neural
   // voice. Only unusually long, punctuation-free spans receive soft syntagma
@@ -1162,7 +1181,7 @@ function renderGroup(
     body += naturalTextMarkup(item.text, renderText, settings.deliveryMode);
     const renderedPunctuation = acousticPunctuation(item);
     if (renderedPunctuation) body += escapeXml(renderedPunctuation);
-    const pause = semanticBreak(item, Boolean(renderedPunctuation));
+    const pause = semanticBreak(item, Boolean(renderedPunctuation), settings.deliveryMode);
     if (pause) body += `<break time="${pause}ms"/>`;
   }
 
@@ -1208,16 +1227,23 @@ export function renderEdgeOmniInspiredMarkup(
       previous.reportingLead && phrase.directQuote && phrase.quoteStart,
     );
     const roleChanged = previous.segment?.role !== phrase.segment?.role;
+    const storyMode = settings.deliveryMode === "story";
     const strongRoleBoundary =
-      !sameDirectQuote &&
-      !reportingBridge &&
-      roleChanged &&
-      (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
+      storyMode
+        ? !sameDirectQuote &&
+          !reportingBridge &&
+          roleChanged &&
+          phrase.segment?.role === "ending"
+        : !sameDirectQuote &&
+          !reportingBridge &&
+          roleChanged &&
+          (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
     const previousFocus = logicalFocusScore(previous);
     const incomingFocus = logicalFocusScore(phrase);
     // Keep strong focus sparse but audible. A reporting-colon bridge is not a
     // speaker reset, so do not isolate the opening quote merely for newness.
     const strongFocusBoundary =
+      !storyMode &&
       !reportingBridge &&
       ((incomingFocus >= 0.72 && previousFocus < 0.55) ||
         (previousFocus >= 0.72 && incomingFocus < 0.55));
@@ -1227,20 +1253,24 @@ export function renderEdgeOmniInspiredMarkup(
       previous.boundaryStrength ?? baseBoundaryStrength(previous.punctuationKind);
     const hardBoundary =
       ["paragraph", "newline"].includes(previous.punctuationKind) &&
-      previousBoundaryStrength >= 0.58 &&
+      previousBoundaryStrength >= (storyMode ? 0.82 : 0.58) &&
       !sameDirectQuote;
     const tooDifferent =
-      microDistance(currentAverage, phrase.micro) > (sameDirectQuote || reportingBridge ? 2.8 : 2.35);
+      microDistance(currentAverage, phrase.micro) >
+      (storyMode ? 3.6 : sameDirectQuote || reportingBridge ? 2.8 : 2.35);
     const sentenceBoundary =
       ["period", "question", "exclamation", "mixed"].includes(previous.punctuationKind) &&
       previousBoundaryStrength >= 0.57;
     const tempoBoundary =
+      !storyMode &&
       sentenceBoundary &&
       !sameDirectQuote &&
       !reportingBridge &&
       Math.abs(currentAverage.rateFactor - phrase.micro.rateFactor) >= 0.006;
     const tooLong =
-      current.length >= (sameDirectQuote ? 10 : 8) && previousBoundaryStrength >= 0.36;
+      current.length >=
+        (storyMode ? (sameDirectQuote ? 18 : 15) : (sameDirectQuote ? 10 : 8)) &&
+      previousBoundaryStrength >= (storyMode ? 0.62 : 0.36);
 
     if (
       hardBoundary ||
