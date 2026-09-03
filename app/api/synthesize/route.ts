@@ -873,7 +873,18 @@ function renderContinuousStoryBody(
       { rate: 0, pitch: 0, volume: 0 },
     );
 
-    const rawText = group.items.map((sentence) => sentence.text).join(" ");
+    // V12: preserve true source paragraph transitions inside the same acoustic
+    // movement. V10 flattened these to spaces, so downstream semantic/emotion
+    // analysis could no longer know that one narrative paragraph had finished.
+    // Double newlines remain inside one prosody stream: they create a breath,
+    // not a new voice take.
+    const rawText = group.items
+      .map((sentence, index) => {
+        if (index === 0) return sentence.text;
+        const previous = group.items[index - 1];
+        return `${previous.paragraphIndex !== sentence.paragraphIndex ? "\n\n" : " "}${sentence.text}`;
+      })
+      .join("");
     const trajectory = analyzeStoryEmotionTrajectory(rawText);
     const spans = trajectory.spans.length
       ? trajectory.spans

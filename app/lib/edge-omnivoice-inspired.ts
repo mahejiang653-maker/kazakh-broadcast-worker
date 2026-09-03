@@ -1017,6 +1017,22 @@ function semanticBoundaryStrength(
     strength = Math.max(strength, kind === "period" ? 0.68 : 0.56);
   }
 
+  // Story V12: a real source paragraph is a discourse event, not just layout.
+  // Preserve a stronger boundary when the document moves into a new role,
+  // transition, climax, ending or explicitly contrastive/resultative paragraph.
+  // Same-segment paragraphs still receive a smaller but audible breath.
+  if (deliveryMode === "story" && kind === "paragraph") {
+    const majorParagraphShift =
+      roleChanged ||
+      startsWithCue(next.text, STRONG_BOUNDARY_STARTERS) ||
+      ["climax", "ending"].includes(current.segment?.role ?? "") ||
+      ["lead", "transition", "climax", "ending"].includes(next.segment?.role ?? "");
+    strength = Math.max(
+      strength,
+      majorParagraphShift ? 0.84 : sameSegment ? 0.7 : 0.77,
+    );
+  }
+
   // Question marks retain question intonation regardless of this score. The
   // score controls boundary/pause strength only, not the interrogative contour.
   if (kind === "question") strength = Math.max(strength, sameDirectQuote ? 0.42 : 0.5);
@@ -1127,7 +1143,14 @@ function semanticBreak(
     const enoughSpeech = clean.length >= 28 || words >= 6;
 
     if (kind === "paragraph") {
-      return strength >= 0.68 ? Math.round(42 + strength * 34) : 0;
+      if (strength < 0.64) return 0;
+      // Keep the same speaker/prosody state while allowing the listener to feel
+      // that one completed narrative unit has ended before the next begins.
+      // Ordinary paragraph: roughly 120-145 ms. Major semantic/emotional shift:
+      // roughly 165-205 ms.
+      return strength >= 0.84
+        ? Math.round(108 + strength * 92)
+        : Math.round(82 + strength * 72);
     }
     if (!enoughSpeech) return 0;
     if (kind === "newline" && strength >= 0.3) {
