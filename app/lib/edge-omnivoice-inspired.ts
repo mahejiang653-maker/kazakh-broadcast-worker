@@ -1236,8 +1236,8 @@ function semanticBreak(
   if (deliveryMode === "broadcast") {
     const profile = {
       news: {
-        commaMin: 35,
-        commaMax: 46,
+        commaMin: 45,
+        commaMax: 75,
         sentenceMin: 34,
         sentenceMax: 58,
         paragraphMin: 105,
@@ -1245,8 +1245,8 @@ function semanticBreak(
         item: 82,
       },
       calm: {
-        commaMin: 35,
-        commaMax: 54,
+        commaMin: 45,
+        commaMax: 75,
         sentenceMin: 42,
         sentenceMax: 68,
         paragraphMin: 120,
@@ -1254,8 +1254,8 @@ function semanticBreak(
         item: 92,
       },
       bulletin: {
-        commaMin: 35,
-        commaMax: 38,
+        commaMin: 45,
+        commaMax: 75,
         sentenceMin: 26,
         sentenceMax: 46,
         paragraphMin: 90,
@@ -1263,8 +1263,8 @@ function semanticBreak(
         item: 72,
       },
       expressive: {
-        commaMin: 35,
-        commaMax: 50,
+        commaMin: 45,
+        commaMax: 75,
         sentenceMin: 38,
         sentenceMax: 64,
         paragraphMin: 110,
@@ -1288,10 +1288,10 @@ function semanticBreak(
     // strength still means the Kazakh dependency guard has found a syntactically
     // bound phrase, so no artificial breath is inserted there.
     if (kind === "comma") {
-      // V22: 35 ms is the absolute floor after semantic/dependency analysis.
-      // Strong syntactic binding may still suppress the normal presenter comma
-      // profile, but every written comma keeps at least a 35 ms presenter gap.
-      if (strength <= 0.12) return 35;
+      // V23: 45 ms is the absolute floor after semantic/dependency analysis.
+      // Every written broadcast comma keeps at least a 45 ms presenter gap,
+      // while normal presenter commas dynamically expand up to 75 ms.
+      if (strength <= 0.12) return 45;
       const normalizedStrength = clamp((strength - 0.12) / 0.38, 0, 1);
       const commaBreath = profile.commaMin +
         (profile.commaMax - profile.commaMin) * normalizedStrength;
