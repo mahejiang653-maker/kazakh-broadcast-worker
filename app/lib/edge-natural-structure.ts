@@ -63,7 +63,7 @@ function isAbbreviationPeriod(text: string, index: number) {
 }
 
 const REPORTING_CONTINUATION_PATTERN =
-  /^(?:[,，]?\s*[—–-]\s*)?(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|表示|称|说|指出|宣布|写道|强调|透露|回应|said|says|stated|reported|announced|wrote|noted|added)\b/iu;
+  /^(?:[,，]?\s*[—–-]\s*)?(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|表示|称|说|指出|宣布|写道|强调|透露|回应|said|says|stated|reported|announced|wrote|noted|added)(?![\p{L}\p{N}_])/iu;
 
 function isReportingContinuation(text: string, index: number) {
   const rest = text
