@@ -1,0 +1,31 @@
+name: Broadcast story V7
+
+on:
+  push:
+    paths:
+      - '.deploy-broadcast-story-v7'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Apply broadcast and story V7
+        run: python .github/scripts/broadcast-story-v7.py
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-broadcast-story-v7
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx app/api/synthesize/route.ts app/lib/edge-omnivoice-inspired.ts .deploy-broadcast-story-v7
+          git commit -m "Refine broadcast presenter and storytelling delivery"
+          git push
