@@ -724,12 +724,28 @@ function blendMicros(items: Array<{ micro: MicroProsody; weight: number }>) {
  * bidirectional acoustic-token refinement: each phrase is influenced by both
  * the phrase before it and the phrase after it, rather than only by history.
  */
-function bidirectionalSmooth(phrases: Phrase[]) {
+function bidirectionalSmooth(
+  phrases: Phrase[],
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
   return phrases.map((phrase, index) => {
     const previous = phrases[index - 1];
     const next = phrases[index + 1];
-    const hardBefore = previous && ["paragraph", "newline"].includes(previous.punctuationKind);
-    const hardAfter = ["paragraph", "newline"].includes(phrase.punctuationKind);
+    const storySentenceTerminals = new Set<PunctuationKind>([
+      "period",
+      "question",
+      "exclamation",
+      "mixed",
+      "ellipsis",
+    ]);
+    const hardBefore = Boolean(
+      previous &&
+      (["paragraph", "newline"].includes(previous.punctuationKind) ||
+        (deliveryMode === "story" && storySentenceTerminals.has(previous.punctuationKind))),
+    );
+    const hardAfter =
+      ["paragraph", "newline"].includes(phrase.punctuationKind) ||
+      (deliveryMode === "story" && storySentenceTerminals.has(phrase.punctuationKind));
     const items: Array<{ micro: MicroProsody; weight: number }> = [
       { micro: phrase.micro, weight: hardBefore || hardAfter ? 0.8 : 0.52 },
     ];
@@ -1101,10 +1117,10 @@ function acousticPunctuation(
       return strength >= 0.36 && (clean.length >= 34 || words >= 7) ? phrase.punctuation : "";
     }
     if (kind === "period") {
-      // V13: do not delegate ordinary declarative sentence timing to the voice.
-      // Keep quote/bracket suffixes, but realize the actual sentence breath in
-      // semanticBreak so a completed thought gets air without a prosody restart.
-      return closingPunctuationSuffix(phrase.punctuation);
+      // V16: restore the real period so the neural voice receives an explicit
+      // sentence-final intonation cue. The controlled post-sentence breath remains
+      // in semanticBreak, so the sentence can settle before the next one starts.
+      return phrase.punctuation;
     }
     if (kind === "semicolon") return strength >= 0.4 ? phrase.punctuation : "";
     if (kind === "colon") {
@@ -1146,8 +1162,16 @@ function semanticBreak(
     const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     const enoughSpeech = clean.length >= 28 || words >= 6;
 
-    // Questions/exclamations/ellipsis keep their native sentence-mode contour.
-    if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) return 0;
+    // V16: sentence-mode punctuation keeps its native contour, but it also gets
+    // a short post-sentence breath. Previously these returned zero here, which
+    // allowed a question/exclamation to rush straight into the next sentence.
+    if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
+      const expressiveBreath =
+        kind === "ellipsis"
+          ? 92 + strength * 38
+          : 78 + strength * 48;
+      return Math.round(clamp(expressiveBreath, 80, 130));
+    }
 
     if (kind === "paragraph") {
       if (strength < 0.64) return 0;
@@ -1354,7 +1378,12 @@ export function renderEdgeOmniInspiredMarkup(
   const phrases = annotateSemanticBoundaries(
     annotateBroadcastCadence(
       applyDirectQuoteContinuity(
-        applyLogicalFocusContrast(bidirectionalSmooth(annotateQuoteContinuity(buildPhrases(text, plan)))),
+        applyLogicalFocusContrast(
+          bidirectionalSmooth(
+            annotateQuoteContinuity(buildPhrases(text, plan)),
+            settings.deliveryMode,
+          ),
+        ),
       ),
       settings.deliveryMode,
     ),
