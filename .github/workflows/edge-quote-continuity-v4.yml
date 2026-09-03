@@ -21,6 +21,19 @@ jobs:
       - name: Patch natural direct-speech structure
         run: python .github/scripts/fix-quote-v4-natural-anchor.py
 
+      - name: Allow natural prepatch handoff
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.github/scripts/edge-quote-continuity-v4.py')
+          text = path.read_text(encoding='utf-8')
+          old = """if natural == natural_original:\n    raise SystemExit('No edge-natural-structure changes made')\nif omni == omni_original:\n"""
+          if old not in text:
+              raise SystemExit('Quote V4 guard anchor not found')
+          text = text.replace(old, "if omni == omni_original:\n", 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Apply quote continuity V4
         run: python .github/scripts/edge-quote-continuity-v4.py
 
