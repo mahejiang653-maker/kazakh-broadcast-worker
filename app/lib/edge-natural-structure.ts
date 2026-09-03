@@ -62,6 +62,17 @@ function isAbbreviationPeriod(text: string, index: number) {
   return false;
 }
 
+const REPORTING_CONTINUATION_PATTERN =
+  /^(?:[,，]?\s*[—–-]\s*)?(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|表示|称|说|指出|宣布|写道|强调|透露|回应|said|says|stated|reported|announced|wrote|noted|added)\b/iu;
+
+function isReportingContinuation(text: string, index: number) {
+  const rest = text
+    .slice(index + 1, index + 180)
+    .replace(/^[»”"'’」』）\])}]+\s*/u, "")
+    .trimStart();
+  return REPORTING_CONTINUATION_PATTERN.test(rest);
+}
+
 function splitSentences(paragraph: string, paragraphIndex: number) {
   const sentences: EdgeStructuredSentence[] = [];
   let buffer = "";
@@ -94,6 +105,9 @@ function splitSentences(paragraph: string, paragraphIndex: number) {
       index += 1;
       buffer += paragraph[index];
     }
+    // In Kazakh direct speech, terminal punctuation can be followed by a dash
+    // and the author's reporting clause. Keep both sides in one acoustic unit.
+    if (isReportingContinuation(paragraph, index)) continue;
     flush();
   }
 

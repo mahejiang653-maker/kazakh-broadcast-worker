@@ -38,6 +38,11 @@ type Phrase = {
   punctuationKind: PunctuationKind;
   segment: EdgePlannedSegment | null;
   micro: MicroProsody;
+  quoted?: boolean;
+  quoteStart?: boolean;
+  quoteEnd?: boolean;
+  directQuote?: boolean;
+  reportingLead?: boolean;
 };
 
 type EdgeMarkupRenderer = (text: string) => string;
@@ -72,6 +77,59 @@ const BREATH_CUES = new Set([
 // are less likely to split a modifier from its head or a number from its unit.
 const SOFT_SYNTAGMA_PATTERN =
   /(?<![\p{L}\p{N}])(?:бірақ|алайда|дегенмен|өйткені|сондықтан|сол себепті|нәтижесінде|осылайша|яғни|демек|керісінше|соған қарамастан)(?![\p{L}\p{N}])/giu;
+
+const REPORTING_VERB_PATTERN =
+  /(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|表示|称|说|指出|宣布|写道|强调|透露|回应|said|says|stated|reported|announced|wrote|noted|added)/iu;
+const OPEN_QUOTE_CHARS = new Set(["«", "“", "„", "「", "『"]);
+const CLOSE_QUOTE_CHARS = new Set(["»", "”", "」", "』"]);
+const SENTENCE_TERMINAL_KINDS = new Set<PunctuationKind>([
+  "period",
+  "question",
+  "exclamation",
+  "mixed",
+]);
+
+function scanQuoteState(value: string, initialActive = false) {
+  let active = initialActive;
+  let opened = false;
+  let closed = false;
+  let touched = initialActive;
+
+  for (const char of value) {
+    if (OPEN_QUOTE_CHARS.has(char)) {
+      if (!active) opened = true;
+      active = true;
+      touched = true;
+      continue;
+    }
+    if (CLOSE_QUOTE_CHARS.has(char)) {
+      if (active) closed = true;
+      active = false;
+      touched = true;
+      continue;
+    }
+    if (char === '"') {
+      touched = true;
+      if (active) {
+        active = false;
+        closed = true;
+      } else {
+        active = true;
+        opened = true;
+      }
+    }
+  }
+
+  return { active, opened, closed, touched };
+}
+
+function isReportingText(text: string) {
+  return REPORTING_VERB_PATTERN.test(normalize(text));
+}
+
+function hasOpenQuoteAtEnd(text: string) {
+  return scanQuoteState(text, false).active;
+}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -252,8 +310,10 @@ export function splitEdgeTextByDuration(
     const wouldOvershoot = candidateSeconds > targetSeconds * 1.22;
     const incomingParagraphChars =
       paragraphCharBudgets.get(fragment.paragraphIndex) ?? fragment.text.length;
+    const currentInsideQuote = current ? hasOpenQuoteAtEnd(current) : false;
     const safeParagraphCut =
       paragraphBreak &&
+      !currentInsideQuote &&
       current.length >= Math.min(1800, maxChars * 0.28) &&
       current.length + 2 + incomingParagraphChars > maxChars;
 
@@ -262,7 +322,9 @@ export function splitEdgeTextByDuration(
     // instead of carrying part of the next paragraph into a separate MP3 seam.
     if (
       current &&
-      (safeParagraphCut || wouldOverflowChars || (goodCurrentSize && wouldOvershoot))
+      (safeParagraphCut ||
+        wouldOverflowChars ||
+        (goodCurrentSize && wouldOvershoot && !currentInsideQuote))
     ) {
       flush();
     }
@@ -334,6 +396,9 @@ function tokenize(source: string) {
           end += 1;
         }
       }
+      // Closing quotes belong to the punctuation boundary acoustically. If they
+      // become their own text token, Edge can create a tiny silent prosody span.
+      while (/[»”"'’」』）\])}]/u.test(text[end] ?? "")) end += 1;
       tokens.push({ kind: "punct", value: text.slice(index, end) });
       index = end - 1;
       continue;
@@ -347,19 +412,20 @@ function tokenize(source: string) {
 
 function punctuationKind(value: string): PunctuationKind {
   if (!value) return "none";
-  if (/^\n{2,}$/u.test(value)) return "paragraph";
-  if (/^\n$/u.test(value)) return "newline";
-  if (/^[，,]+$/u.test(value)) return "comma";
-  if (/^[；;]+$/u.test(value)) return "semicolon";
-  if (/^[：:]+$/u.test(value)) return "colon";
-  if (/^[—–]+$/u.test(value)) return "dash";
-  if (/^(?:…+|\.{2,})$/u.test(value)) return "ellipsis";
-  const question = /[?？]/u.test(value);
-  const exclamation = /[!！]/u.test(value);
+  const structural = value.replace(/[»”"'’」』）\])}]+$/gu, "");
+  if (/^\n{2,}$/u.test(structural)) return "paragraph";
+  if (/^\n$/u.test(structural)) return "newline";
+  if (/^[，,]+$/u.test(structural)) return "comma";
+  if (/^[；;]+$/u.test(structural)) return "semicolon";
+  if (/^[：:]+$/u.test(structural)) return "colon";
+  if (/^[—–]+$/u.test(structural)) return "dash";
+  if (/^(?:…+|\.{2,})$/u.test(structural)) return "ellipsis";
+  const question = /[?？]/u.test(structural);
+  const exclamation = /[!！]/u.test(structural);
   if (question && exclamation) return "mixed";
   if (question) return "question";
   if (exclamation) return "exclamation";
-  if (/^(?:。|\.)+$/u.test(value)) return "period";
+  if (/^(?:。|\.)+$/u.test(structural)) return "period";
   return "none";
 }
 
@@ -539,6 +605,97 @@ function buildPhrases(text: string, plan?: EdgeDocumentPlan) {
     if (punctuation) index += 1;
   }
   return phrases;
+}
+
+function annotateQuoteContinuity(phrases: Phrase[]) {
+  const annotated = phrases.map((phrase) => ({ ...phrase }));
+  let active = false;
+  let spanStart = -1;
+
+  for (let index = 0; index < annotated.length; index += 1) {
+    const phrase = annotated[index];
+    phrase.reportingLead = phrase.punctuationKind === "colon" && isReportingText(phrase.text);
+
+    const before = active;
+    const state = scanQuoteState(`${phrase.text}${phrase.punctuation}`, active);
+    active = state.active;
+    phrase.quoted = before || state.opened || state.touched;
+    phrase.quoteStart = state.opened;
+    phrase.quoteEnd = state.closed;
+
+    if (state.opened && spanStart < 0) spanStart = index;
+    if (spanStart >= 0 && (state.closed || index === annotated.length - 1)) {
+      const end = index;
+      const previous = annotated[spanStart - 1];
+      const following = annotated[end + 1];
+      const wordCount = annotated
+        .slice(spanStart, end + 1)
+        .reduce((sum, item) => sum + normalize(item.text).split(" ").filter(Boolean).length, 0);
+      const likelyDirectSpeech =
+        Boolean(previous?.reportingLead) ||
+        Boolean(following && isReportingText(following.text)) ||
+        end > spanStart ||
+        wordCount >= 5;
+
+      if (likelyDirectSpeech) {
+        for (let cursor = spanStart; cursor <= end; cursor += 1) {
+          annotated[cursor].directQuote = true;
+        }
+      }
+      spanStart = -1;
+    }
+  }
+
+  // Kazakh also allows author words + colon + dash without quotation marks.
+  // Treat the following paragraph as one quoted/reported voice turn, but keep
+  // the same speaker identity and only adjust continuity, never change voice.
+  for (let index = 1; index < annotated.length; index += 1) {
+    if (!annotated[index - 1].reportingLead || annotated[index].directQuote) continue;
+    let end = index;
+    for (let cursor = index; cursor < annotated.length; cursor += 1) {
+      if (cursor > index && isReportingText(annotated[cursor].text)) break;
+      annotated[cursor].directQuote = true;
+      if (cursor === index) annotated[cursor].quoteStart = true;
+      end = cursor;
+      if (["paragraph", "newline"].includes(annotated[cursor].punctuationKind)) break;
+      if (cursor - index >= 7) break;
+    }
+    annotated[end].quoteEnd = true;
+    index = end;
+  }
+
+  return annotated;
+}
+
+function applyDirectQuoteContinuity(phrases: Phrase[]) {
+  return phrases.map((phrase) => {
+    if (!phrase.directQuote) return phrase;
+    let rateFactor = phrase.micro.rateFactor;
+    let pitchDelta = phrase.micro.pitchDelta;
+    let volumeDelta = phrase.micro.volumeDelta;
+
+    if (phrase.quoteStart) {
+      rateFactor *= 0.999;
+      volumeDelta += 0.004;
+    }
+
+    // Internal quote sentences should sound like a continued turn rather than
+    // a fresh broadcast sentence. Keep punctuation audible, but reduce finality.
+    if (SENTENCE_TERMINAL_KINDS.has(phrase.punctuationKind) && !phrase.quoteEnd) {
+      rateFactor = 1 + (rateFactor - 1) * 0.94;
+      pitchDelta *= 0.72;
+      volumeDelta *= 0.97;
+    }
+
+    return {
+      ...phrase,
+      micro: {
+        rateFactor: clamp(rateFactor, 0.95, 1.03),
+        pitchDelta: clamp(pitchDelta, -0.18, 0.18),
+        volumeDelta: clamp(volumeDelta, -0.12, 0.2),
+      },
+    };
+  });
 }
 
 function blendMicros(items: Array<{ micro: MicroProsody; weight: number }>) {
@@ -812,7 +969,9 @@ export function renderEdgeOmniInspiredMarkup(
   plan?: EdgeDocumentPlan,
   renderText: EdgeMarkupRenderer = escapeXml,
 ) {
-  const phrases = applyLogicalFocusContrast(bidirectionalSmooth(buildPhrases(text, plan)));
+  const phrases = applyDirectQuoteContinuity(
+    applyLogicalFocusContrast(bidirectionalSmooth(annotateQuoteContinuity(buildPhrases(text, plan)))),
+  );
   if (!phrases.length) return renderText(text);
 
   const groups: Phrase[][] = [];
@@ -831,24 +990,36 @@ export function renderEdgeOmniInspiredMarkup(
 
     const previous = current[current.length - 1];
     const currentAverage = blendMicros(current.map((item) => ({ micro: item.micro, weight: 1 })));
+    const sameDirectQuote = Boolean(previous.directQuote && phrase.directQuote);
+    const reportingBridge = Boolean(
+      previous.reportingLead && phrase.directQuote && phrase.quoteStart,
+    );
     const roleChanged = previous.segment?.role !== phrase.segment?.role;
-    const strongRoleBoundary = roleChanged &&
+    const strongRoleBoundary =
+      !sameDirectQuote &&
+      !reportingBridge &&
+      roleChanged &&
       (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
     const previousFocus = logicalFocusScore(previous);
     const incomingFocus = logicalFocusScore(phrase);
-    // Keep strong focus sparse but audible: isolate only high-confidence focus
-    // targets instead of averaging them into a long neutral prosody span.
+    // Keep strong focus sparse but audible. A reporting-colon bridge is not a
+    // speaker reset, so do not isolate the opening quote merely for newness.
     const strongFocusBoundary =
-      (incomingFocus >= 0.72 && previousFocus < 0.55) ||
-      (previousFocus >= 0.72 && incomingFocus < 0.55);
+      !reportingBridge &&
+      ((incomingFocus >= 0.72 && previousFocus < 0.55) ||
+        (previousFocus >= 0.72 && incomingFocus < 0.55));
     const hardBoundary = ["paragraph", "newline"].includes(previous.punctuationKind);
-    const tooDifferent = microDistance(currentAverage, phrase.micro) > 2.35;
+    const tooDifferent =
+      microDistance(currentAverage, phrase.micro) > (sameDirectQuote || reportingBridge ? 2.8 : 2.35);
     const sentenceBoundary = ["period", "question", "exclamation", "mixed"].includes(
       previous.punctuationKind,
     );
     const tempoBoundary =
-      sentenceBoundary && Math.abs(currentAverage.rateFactor - phrase.micro.rateFactor) >= 0.006;
-    const tooLong = current.length >= 6;
+      sentenceBoundary &&
+      !sameDirectQuote &&
+      !reportingBridge &&
+      Math.abs(currentAverage.rateFactor - phrase.micro.rateFactor) >= 0.006;
+    const tooLong = current.length >= (sameDirectQuote ? 9 : 6);
 
     if (
       hardBoundary ||
