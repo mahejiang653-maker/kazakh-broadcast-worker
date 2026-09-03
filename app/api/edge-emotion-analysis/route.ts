@@ -48,6 +48,8 @@ export async function POST(request: Request) {
       status: "completed",
       sentenceCount: emotionPlan.sentences.length,
       moodCounts,
+      tokenCount: emotionPlan.tokenCount,
+      emotionEvidenceCount: emotionPlan.emotionEvidenceCount,
       version: emotionPlan.version,
     });
   } catch (error) {

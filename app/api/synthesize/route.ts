@@ -8,6 +8,7 @@ import {
   type EdgeEmotionPlan,
 } from "../../lib/edge-emotion-director";
 import { structureEdgeText } from "../../lib/edge-natural-structure";
+import { analyzeStoryEmotionTrajectory } from "../../lib/edge-story-emotion-trajectory";
 import {
   renderEdgeOmniInspiredMarkup,
   splitEdgeTextByDuration,
@@ -883,17 +884,57 @@ function renderContinuousStoryBody(
       const renderLanguageAwareText = useMultilingual
         ? (value: string) => renderStoryTextSegment(value, true)
         : undefined;
-      const content = renderEdgeOmniInspiredMarkup(
-        rawText,
-        {
-          speed: clamp(1 + rate / 100, 0.94, 1.06),
-          pitch,
-          volume,
-          deliveryMode: "story",
-        },
-        documentPlan,
-        renderLanguageAwareText,
+      // V9 word-aware story delivery: analyze every token, then collapse the
+      // evidence into at most four smooth emotional spans. We never create a
+      // prosody span per word; that would destroy long-form speaker continuity.
+      const trajectory = analyzeStoryEmotionTrajectory(rawText);
+      const emotionalSpans = trajectory.spans.length
+        ? trajectory.spans
+        : [{
+            text: rawText,
+            emotion: "neutral" as const,
+            intensity: 0,
+            evidenceCount: 0,
+            rateFactor: 1,
+            pitchDelta: 0,
+            volumeDelta: 0,
+          }];
+      const trajectoryStrength = clamp(
+        0.54 + trajectory.volatility * 0.2 + (group.beat === "dialogue" ? 0.12 : 0),
+        0.54,
+        0.84,
       );
+      const content = emotionalSpans
+        .map((span) => {
+          const evidenceScale = span.evidenceCount > 0 ? trajectoryStrength : 0.28;
+          const localSpeed = clamp(
+            (1 + rate / 100) * (1 + (span.rateFactor - 1) * evidenceScale),
+            0.92,
+            1.085,
+          );
+          const localPitch = clamp(
+            pitch + span.pitchDelta * evidenceScale,
+            -1.85,
+            1.85,
+          );
+          const localVolume = clamp(
+            volume + span.volumeDelta * evidenceScale,
+            -1.65,
+            1.65,
+          );
+          return renderEdgeOmniInspiredMarkup(
+            span.text,
+            {
+              speed: localSpeed,
+              pitch: localPitch,
+              volume: localVolume,
+              deliveryMode: "story",
+            },
+            documentPlan,
+            renderLanguageAwareText,
+          );
+        })
+        .join("");
 
       paragraphBody += `${content} `;
     }

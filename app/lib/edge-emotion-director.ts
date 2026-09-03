@@ -1,5 +1,6 @@
 import type { EdgeDocumentPlan, EdgeDocumentRole } from "./edge-director";
 import { structureEdgeText } from "./edge-natural-structure";
+import { analyzeStoryEmotionTrajectory, type StoryEmotionKind } from "./edge-story-emotion-trajectory";
 
 export type EdgeDeliveryMood =
   | "neutral"
@@ -45,8 +46,10 @@ export type EdgeEmotionSentence = EdgeEmotionInstruction & {
 };
 
 export type EdgeEmotionPlan = {
-  version: 3;
+  version: 4;
   sourceLength: number;
+  tokenCount: number;
+  emotionEvidenceCount: number;
   sentences: EdgeEmotionSentence[];
 };
 
@@ -384,6 +387,30 @@ function chooseMood(
   return { mood: "neutral", confidence: 0.52 };
 }
 
+function moodFromStoryEmotion(emotion: StoryEmotionKind): EdgeDeliveryMood | null {
+  switch (emotion) {
+    case "joy":
+    case "relief":
+    case "humor":
+      return "positive";
+    case "sadness":
+    case "shame":
+      return "sad";
+    case "fear":
+    case "suspense":
+      return "concern";
+    case "anger":
+      return "urgent";
+    case "surprise":
+    case "determination":
+      return "emphasis";
+    case "tender":
+      return "positive";
+    default:
+      return null;
+  }
+}
+
 function lengthAdjustment(text: string) {
   const normalized = normalize(text);
   const words = normalized ? normalized.split(" ").length : 0;
@@ -584,7 +611,7 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
       dialogueConfidence: 0,
       inheritedMood: null,
     };
-    const { mood, confidence } = chooseMood(
+    let { mood, confidence } = chooseMood(
       unit.text,
       role,
       index,
@@ -592,6 +619,24 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
       speech.speechAct,
       speech.inheritedMood,
     );
+
+    // V9: every word is tokenized and participates in the story emotion scan.
+    // Emotion-bearing roots, morphology, intensifiers, softeners, negation and
+    // punctuation can enrich a weak sentence-level classification. This remains
+    // subordinate to strong dialogue/document-role decisions.
+    const wordTrajectory = analyzeStoryEmotionTrajectory(unit.text);
+    const wordMood = moodFromStoryEmotion(wordTrajectory.dominantEmotion);
+    if (wordMood && wordTrajectory.evidenceCount > 0 && !isProtectedRole(role)) {
+      const wordConfidence = clamp(
+        0.57 + Math.min(0.2, wordTrajectory.evidenceCount * 0.045) + wordTrajectory.volatility * 0.08,
+        0.57,
+        0.82,
+      );
+      if (mood === "neutral" || confidence < wordConfidence) {
+        mood = wordMood;
+        confidence = wordConfidence;
+      }
+    }
 
     const draft = {
       index,
@@ -612,9 +657,12 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
     return instructionForMood(draft, mood, confidence);
   });
 
+  const sourceTrajectory = analyzeStoryEmotionTrajectory(source);
   return {
-    version: 3,
+    version: 4,
     sourceLength: source.length,
+    tokenCount: sourceTrajectory.tokenCount,
+    emotionEvidenceCount: sourceTrajectory.evidenceCount,
     sentences: smoothInstructions(contextualizeMoods(applyParagraphMoodContext(raw))),
   };
 }
