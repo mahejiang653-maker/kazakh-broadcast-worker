@@ -1167,13 +1167,11 @@ function semanticBreak(
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
 
-  // Story V15: three breathing levels inside one continuous acoustic state:
-  // clause breath 45-60 ms < completed-sentence breath 80-130 ms <
-  // paragraph/discourse breath 200-350 ms.
-  // Declarative periods use a controlled in-stream breath instead of native
-  // punctuation timing, which makes the pause audible without re-starting pitch
-  // and delivery on every sentence. Dependency guards already lower strength in
-  // modifier-head, subject-predicate, number-unit and name-title no-pause zones.
+  // Story V28: natural word timing + layered breathing inside one continuous
+  // acoustic state. There is no fixed word-to-word gap. Clause commas remain
+  // 45-60 ms, completed sentences settle around 100-165 ms, and real paragraph
+  // transitions sit around 240-400 ms depending on semantic/emotional strength.
+  // Dependency guards still protect syntactically bound phrases.
   if (deliveryMode === "story") {
     const clean = phrase.text.trim();
     const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
@@ -1183,22 +1181,28 @@ function semanticBreak(
     // a short post-sentence breath. Previously these returned zero here, which
     // allowed a question/exclamation to rush straight into the next sentence.
     if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
+      // V28: expressive endings need enough release time for the contour to land
+      // before the next sentence starts. Ellipsis is deliberately roomier.
+      const roleBonus =
+        phrase.segment?.role === "ending" ? 18 :
+        phrase.segment?.role === "climax" ? 12 :
+        phrase.segment?.role === "transition" ? 6 : 0;
       const expressiveBreath =
         kind === "ellipsis"
-          ? 92 + strength * 38
-          : 78 + strength * 48;
-      return Math.round(clamp(expressiveBreath, 80, 130));
+          ? 112 + strength * 48 + roleBonus
+          : 96 + strength * 54 + roleBonus;
+      return Math.round(clamp(expressiveBreath, kind === "ellipsis" ? 115 : 100, kind === "ellipsis" ? 175 : 160));
     }
 
     if (kind === "paragraph") {
       if (strength < 0.64) return 0;
-      // V15 paragraph cadence: a real paragraph ending must feel settled before
-      // the next one begins. Ordinary paragraph transitions sit around 200-260 ms;
-      // major semantic/emotional shifts expand toward 280-350 ms. The acoustic
-      // state remains continuous, so this is a pause, not a new take.
+      // V28 paragraph cadence: keep a clearly larger discourse breath than a
+      // sentence ending, while remaining inside the same acoustic stream. Normal
+      // paragraph transitions settle around 240-320 ms; major role/emotion shifts
+      // expand toward 320-400 ms so the next paragraph never crowds the previous one.
       return strength >= 0.84
-        ? Math.round(clamp(145 + strength * 210, 280, 350))
-        : Math.round(clamp(125 + strength * 150, 200, 260));
+        ? Math.round(clamp(150 + strength * 280, 320, 400))
+        : Math.round(clamp(135 + strength * 210, 240, 320));
     }
 
     if (kind === "comma") {
@@ -1212,12 +1216,18 @@ function semanticBreak(
       // Hard syntactic dependencies can push the boundary to 0.18 or below;
       // never breathe there even when the source writer inserted a period.
       if (strength <= 0.18) return 0;
-      // V15 completed-sentence breath: keep declarative sentence endings within
-      // 80-130 ms so one sentence has time to land before the next begins. Semantic
-      // boundary strength and sentence length still choose the exact duration.
-      const lengthBonus = Math.min(16, Math.max(0, (words - 6) * 1.25));
-      const sentenceBreath = 78 + strength * 52 + lengthBonus;
-      return Math.round(clamp(sentenceBreath, 80, 130));
+      // V28 completed-sentence breath: combine semantic strength, sentence length
+      // and document role. The real period still carries the neural sentence-final
+      // contour; this supplemental breath lets that contour finish before the next
+      // sentence enters, without forcing a new TTS request or prosody reset.
+      const lengthBonus = Math.min(20, Math.max(0, (words - 6) * 1.45));
+      const roleBonus =
+        phrase.segment?.role === "ending" ? 18 :
+        phrase.segment?.role === "climax" ? 12 :
+        phrase.segment?.role === "transition" ? 6 : 0;
+      const quoteAdjustment = phrase.directQuote && !phrase.quoteEnd ? -6 : 0;
+      const sentenceBreath = 94 + strength * 62 + lengthBonus + roleBonus + quoteAdjustment;
+      return Math.round(clamp(sentenceBreath, 100, 165));
     }
 
     // If punctuation itself is audible, let the neural voice handle that local
@@ -1225,10 +1235,10 @@ function semanticBreak(
     if (punctuationRendered) return 0;
     if (!enoughSpeech) return 0;
     if (kind === "newline" && strength >= 0.3) {
-      return Math.round(12 + strength * 28);
+      return Math.round(clamp(38 + strength * 48, 50, 82));
     }
     if (["semicolon", "colon", "dash"].includes(kind) && strength >= 0.28) {
-      return Math.round(11 + strength * 28);
+      return Math.round(clamp(28 + strength * 50, 40, 72));
     }
     return 0;
   }
@@ -1329,35 +1339,15 @@ function semanticBreak(
   return 0;
 }
 
-function storyWordSpacingMarkup(
-  text: string,
-  renderText: EdgeMarkupRenderer,
-) {
-  const parts = text.split(/(\s+)/u);
-  let output = "";
-  let emittedWord = false;
-
-  for (const part of parts) {
-    if (!part) continue;
-    if (/^\s+$/u.test(part)) {
-      output += renderText(part);
-      continue;
-    }
-    if (emittedWord) output += '<break time="25ms"/>';
-    output += renderText(part);
-    emittedWord = true;
-  }
-
-  return output;
-}
-
 function naturalTextMarkup(
   text: string,
   renderText: EdgeMarkupRenderer = escapeXml,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
 ) {
-  const renderNaturalText = (value: string) =>
-    deliveryMode === "story" ? storyWordSpacingMarkup(value, renderText) : renderText(value);
+  // V28: do not insert a fixed gap between every word in story mode. Word timing
+  // stays fully native to the neural voice; breathing is controlled only at real
+  // semantic, sentence and paragraph boundaries.
+  const renderNaturalText = (value: string) => renderText(value);
 
   // A presenter may write "Бірінші жаңалық бүгін..." without punctuation after
   // the item label. Give that semantic marker a very short hand-off breath. If
