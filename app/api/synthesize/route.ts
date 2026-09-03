@@ -1074,6 +1074,9 @@ function renderEmotionDirectedBody(
           pitch: weighted.pitch,
           volume: weighted.volume,
           deliveryMode: "broadcast",
+          // V17: the shared fluent closure engine knows which presenter cadence
+          // to preserve, without changing the preset's existing base speed.
+          broadcastPreset: preset,
         },
         documentPlan,
         renderLanguageAwareText,

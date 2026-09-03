@@ -7,6 +7,9 @@ export type EdgeOmniSettings = {
   pitch: number;
   volume: number;
   deliveryMode?: "neutral" | "broadcast" | "story";
+  // V17: keep the same fluent sentence-closure mechanism across all four news
+  // presets while preserving each presenter's own pause density.
+  broadcastPreset?: "news" | "calm" | "bulletin" | "expressive";
 };
 
 type PunctuationKind =
@@ -731,21 +734,25 @@ function bidirectionalSmooth(
   return phrases.map((phrase, index) => {
     const previous = phrases[index - 1];
     const next = phrases[index + 1];
-    const storySentenceTerminals = new Set<PunctuationKind>([
+    const sentenceTerminals = new Set<PunctuationKind>([
       "period",
       "question",
       "exclamation",
       "mixed",
       "ellipsis",
     ]);
+    // V17: broadcast adopts V16's sentence-isolation principle too. We still keep
+    // long prosody groups, but pitch/rate smoothing must not leak through a true
+    // sentence ending and make the previous sentence lean into the next one.
+    const isolateSentenceClosure = deliveryMode === "story" || deliveryMode === "broadcast";
     const hardBefore = Boolean(
       previous &&
       (["paragraph", "newline"].includes(previous.punctuationKind) ||
-        (deliveryMode === "story" && storySentenceTerminals.has(previous.punctuationKind))),
+        (isolateSentenceClosure && sentenceTerminals.has(previous.punctuationKind))),
     );
     const hardAfter =
       ["paragraph", "newline"].includes(phrase.punctuationKind) ||
-      (deliveryMode === "story" && storySentenceTerminals.has(phrase.punctuationKind));
+      (isolateSentenceClosure && sentenceTerminals.has(phrase.punctuationKind));
     const items: Array<{ micro: MicroProsody; weight: number }> = [
       { micro: phrase.micro, weight: hardBefore || hardAfter ? 0.8 : 0.52 },
     ];
@@ -1129,6 +1136,15 @@ function acousticPunctuation(
     if (kind === "dash") return strength >= 0.42 ? phrase.punctuation : "";
   }
 
+  // V17: news presenters also need a real sentence-final contour. Keep genuine
+  // periods audible unless the Kazakh dependency guard has identified a likely
+  // formatting mistake inside a syntactically bound phrase.
+  if (deliveryMode === "broadcast" && kind === "period") {
+    return strength <= 0.18
+      ? closingPunctuationSuffix(phrase.punctuation)
+      : phrase.punctuation;
+  }
+
   if (kind === "comma") return strength >= 0.43 ? phrase.punctuation : "";
   if (kind === "period") {
     return strength >= 0.57 ? phrase.punctuation : closingPunctuationSuffix(phrase.punctuation);
@@ -1146,6 +1162,7 @@ function semanticBreak(
   phrase: Phrase,
   punctuationRendered: boolean,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+  broadcastPreset: EdgeOmniSettings["broadcastPreset"] = "news",
 ) {
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
@@ -1212,11 +1229,33 @@ function semanticBreak(
     return 0;
   }
 
-  // Broadcast V11 keeps the presenter pause characteristic without turning every
-  // sentence into a restart. Only the end of a detected news item receives a
-  // small deliberate hand-off; native punctuation still supplies the main timing.
-  if (deliveryMode === "broadcast" && phrase.newsItemClose) {
-    return punctuationRendered ? 48 : 62;
+  // V17 broadcast flow: borrow V16's "finish the sentence before continuing"
+  // principle, but keep newsroom pauses much tighter than story mode. Each preset
+  // keeps its own presenter character: calm is roomier, bulletin is the tightest,
+  // expressive has a little more air around turns, and standard news sits between.
+  if (deliveryMode === "broadcast") {
+    const profile = {
+      news: { sentenceMin: 34, sentenceMax: 58, paragraphMin: 105, paragraphMax: 150, item: 82 },
+      calm: { sentenceMin: 42, sentenceMax: 68, paragraphMin: 120, paragraphMax: 165, item: 92 },
+      bulletin: { sentenceMin: 26, sentenceMax: 46, paragraphMin: 90, paragraphMax: 130, item: 72 },
+      expressive: { sentenceMin: 38, sentenceMax: 64, paragraphMin: 110, paragraphMax: 160, item: 88 },
+    }[broadcastPreset ?? "news"];
+
+    if (phrase.newsItemClose) return profile.item;
+
+    if (kind === "paragraph") {
+      if (strength <= 0.18) return 0;
+      const paragraphBreath = profile.paragraphMin +
+        (profile.paragraphMax - profile.paragraphMin) * clamp(strength, 0, 1);
+      return Math.round(clamp(paragraphBreath, profile.paragraphMin, profile.paragraphMax));
+    }
+
+    if (["period", "question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
+      if (kind === "period" && strength <= 0.18) return 0;
+      const sentenceBreath = profile.sentenceMin +
+        (profile.sentenceMax - profile.sentenceMin) * clamp(strength, 0, 1);
+      return Math.round(clamp(sentenceBreath, profile.sentenceMin, profile.sentenceMax));
+    }
   }
 
   // If native punctuation is rendered, let the neural voice realize its own
@@ -1358,7 +1397,12 @@ function renderGroup(
     body += naturalTextMarkup(item.text, renderText, settings.deliveryMode);
     const renderedPunctuation = acousticPunctuation(item, settings.deliveryMode);
     if (renderedPunctuation) body += escapeXml(renderedPunctuation);
-    const pause = semanticBreak(item, Boolean(renderedPunctuation), settings.deliveryMode);
+    const pause = semanticBreak(
+      item,
+      Boolean(renderedPunctuation),
+      settings.deliveryMode,
+      settings.broadcastPreset,
+    );
     if (pause) body += `<break time="${pause}ms"/>`;
   }
 
