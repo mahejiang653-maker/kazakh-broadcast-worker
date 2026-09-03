@@ -1357,7 +1357,7 @@ function naturalTextMarkup(
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
 ) {
   const renderNaturalText = (value: string) =>
-    deliveryMode === "story" ? storyWordSpacingMarkup(value, renderText) : renderNaturalText(value);
+    deliveryMode === "story" ? storyWordSpacingMarkup(value, renderText) : renderText(value);
 
   // A presenter may write "Бірінші жаңалық бүгін..." without punctuation after
   // the item label. Give that semantic marker a very short hand-off breath. If
