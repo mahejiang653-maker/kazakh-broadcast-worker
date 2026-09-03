@@ -18,30 +18,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Patch natural direct-speech structure
-        run: python .github/scripts/fix-quote-v4-natural-anchor.py
+      - name: Refine quote continuity V4
+        run: python .github/scripts/refine-quote-continuity-v4.py
 
-      - name: Allow natural prepatch handoff
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('.github/scripts/edge-quote-continuity-v4.py')
-          text = path.read_text(encoding='utf-8')
-          old = """if natural == natural_original:\n    raise SystemExit('No edge-natural-structure changes made')\nif omni == omni_original:\n"""
-          if old not in text:
-              raise SystemExit('Quote V4 guard anchor not found')
-          text = text.replace(old, "if omni == omni_original:\n", 1)
-          path.write_text(text, encoding='utf-8')
-          PY
-
-      - name: Apply quote continuity V4
-        run: python .github/scripts/edge-quote-continuity-v4.py
-
-      - name: Commit patch
+      - name: Commit refinement
         run: |
           rm -f .deploy-edge-quote-continuity-v4
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add app/lib/edge-natural-structure.ts app/lib/edge-omnivoice-inspired.ts .deploy-edge-quote-continuity-v4
-          git commit -m "Preserve direct-quote prosody continuity"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-edge-quote-continuity-v4
+          git commit -m "Refine direct-quote boundaries"
           git push
