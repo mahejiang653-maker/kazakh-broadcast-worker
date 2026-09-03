@@ -47,7 +47,10 @@ const PRESETS = {
   calm: { rateFactor: 0.97, pitch: -0.05, volume: -0.08 },
   bulletin: { rateFactor: 1.045, pitch: 0.12, volume: 0.12 },
   expressive: { rateFactor: 1.01, pitch: 0.18, volume: 0.1 },
-  story: { rateFactor: 1, pitch: 0.03, volume: -0.02 },
+  // V15: story speech itself runs at 0.95x. This is one continuous base-rate
+  // adjustment, not a per-sentence prosody wrapper, so sentences do not pile into
+  // each other and the voice does not restart at every boundary.
+  story: { rateFactor: 0.95, pitch: 0.03, volume: -0.02 },
 } as const;
 
 // Every Edge style uses the same full-article emotion plan, but each style
