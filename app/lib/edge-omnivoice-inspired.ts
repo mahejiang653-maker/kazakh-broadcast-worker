@@ -1059,17 +1059,40 @@ function closingPunctuationSuffix(value: string) {
   return value.match(/[»”"'’」』）\])}]+$/u)?.[0] ?? "";
 }
 
-function acousticPunctuation(phrase: Phrase) {
+function acousticPunctuation(
+  phrase: Phrase,
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
 
-  // Sentence-mode marks are never suppressed: a question must sound like a
-  // question even when it is semantically connected to what follows.
+  // Sentence-mode marks always stay audible. They carry real intonation, not
+  // merely layout timing.
   if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
     return phrase.punctuation;
   }
 
   if (["paragraph", "newline", "none"].includes(kind)) return "";
+
+  // Story V11: punctuation is selective. Strong semantic punctuation is left to
+  // the neural voice, while weak punctuation is suppressed and replaced later
+  // by a much shorter in-stream breath. This avoids both sentence-by-sentence
+  // restarting and the unnatural "whole paragraph in one breath" result.
+  if (deliveryMode === "story") {
+    const clean = phrase.text.trim();
+    const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
+    if (kind === "comma") {
+      return strength >= 0.36 && (clean.length >= 34 || words >= 7) ? phrase.punctuation : "";
+    }
+    if (kind === "period") {
+      return strength >= 0.5 ? phrase.punctuation : closingPunctuationSuffix(phrase.punctuation);
+    }
+    if (kind === "semicolon") return strength >= 0.4 ? phrase.punctuation : "";
+    if (kind === "colon") {
+      return phrase.reportingLead || strength >= 0.37 ? phrase.punctuation : "";
+    }
+    if (kind === "dash") return strength >= 0.42 ? phrase.punctuation : "";
+  }
 
   if (kind === "comma") return strength >= 0.43 ? phrase.punctuation : "";
   if (kind === "period") {
@@ -1092,13 +1115,33 @@ function semanticBreak(
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
 
-  // Story V10: do not add hidden micro-pauses between ordinary semantic phrases.
-  // If punctuation is audible, the neural voice handles its timing. If weak
-  // punctuation was suppressed, keep the acoustic stream continuous. Only a
-  // very strong true paragraph boundary may receive a tiny breath.
+  // Story V11: human breathing sits between the two previous extremes. Keep one
+  // acoustic/prosody stream, but allow tiny breaths after completed semantic
+  // units. These are intentionally much shorter than sentence pauses. Boundary
+  // strength already includes Kazakh dependency protection, so modifier-head,
+  // subject-predicate, number-unit and name-title zones remain unbroken.
   if (deliveryMode === "story") {
     if (punctuationRendered) return 0;
-    if (kind === "paragraph") return strength >= 0.82 ? 24 : 0;
+    const clean = phrase.text.trim();
+    const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
+    const enoughSpeech = clean.length >= 28 || words >= 6;
+
+    if (kind === "paragraph") {
+      return strength >= 0.68 ? Math.round(42 + strength * 34) : 0;
+    }
+    if (!enoughSpeech) return 0;
+    if (kind === "newline" && strength >= 0.3) {
+      return Math.round(12 + strength * 28);
+    }
+    if (kind === "period" && strength >= 0.3) {
+      return Math.round(15 + strength * 34);
+    }
+    if (kind === "comma" && strength >= 0.26 && (clean.length >= 42 || words >= 8)) {
+      return Math.round(8 + strength * 24);
+    }
+    if (["semicolon", "colon", "dash"].includes(kind) && strength >= 0.28) {
+      return Math.round(11 + strength * 28);
+    }
     return 0;
   }
 
@@ -1150,10 +1193,41 @@ function naturalTextMarkup(
     }
   }
 
-  // Story V10: long-form story flow is more natural when Edge keeps one acoustic
-  // stream. Do not add 16ms syntagma breaks inside punctuation-free story text;
-  // word-level emotion analysis still affects the broad delivery vector.
-  if (deliveryMode === "story") return renderText(text);
+  // Story V11: keep long acoustic continuity but reintroduce sparse, dependency-
+  // safe breathing inside genuinely long punctuation-free clauses. This is not
+  // a prosody reset: the short break remains inside the same rendered group.
+  if (deliveryMode === "story") {
+    const clean = text.trim();
+    const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
+    if (clean.length < 112 || wordCount < 18) return renderText(text);
+
+    SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
+    let output = "";
+    let cursor = 0;
+    let lastBoundary = -1000;
+    let inserted = 0;
+    const maxBreaths = clean.length >= 270 || wordCount >= 40 ? 2 : 1;
+    let match: RegExpExecArray | null;
+
+    while ((match = SOFT_SYNTAGMA_PATTERN.exec(text)) && inserted < maxBreaths) {
+      const boundary = match.index;
+      const left = text.slice(cursor, boundary).trim();
+      const right = text.slice(boundary).trim();
+      if (left.length < 54 || right.length < 34 || boundary - lastBoundary < 72) continue;
+      const dependency = kazakhDependencyGuard(left, right);
+      if (dependency.score >= 0.55) continue;
+
+      output += renderText(text.slice(cursor, boundary));
+      output += `<break time="${clean.length >= 220 ? 30 : 24}ms"/>`;
+      cursor = boundary;
+      lastBoundary = boundary;
+      inserted += 1;
+    }
+
+    if (!inserted) return renderText(text);
+    output += renderText(text.slice(cursor));
+    return output;
+  }
 
   // Short and normally punctuated phrases are best left entirely to the neural
   // voice. Only unusually long, punctuation-free spans receive soft syntagma
@@ -1215,7 +1289,7 @@ function renderGroup(
 
   for (const item of group) {
     body += naturalTextMarkup(item.text, renderText, settings.deliveryMode);
-    const renderedPunctuation = acousticPunctuation(item);
+    const renderedPunctuation = acousticPunctuation(item, settings.deliveryMode);
     if (renderedPunctuation) body += escapeXml(renderedPunctuation);
     const pause = semanticBreak(item, Boolean(renderedPunctuation), settings.deliveryMode);
     if (pause) body += `<break time="${pause}ms"/>`;
