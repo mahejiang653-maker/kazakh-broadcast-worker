@@ -1,0 +1,31 @@
+name: Edge quote continuity V4
+
+on:
+  push:
+    paths:
+      - '.deploy-edge-quote-continuity-v4'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Apply quote continuity V4
+        run: python .github/scripts/edge-quote-continuity-v4.py
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-edge-quote-continuity-v4
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-natural-structure.ts app/lib/edge-omnivoice-inspired.ts .deploy-edge-quote-continuity-v4
+          git commit -m "Preserve direct-quote prosody continuity"
+          git push
