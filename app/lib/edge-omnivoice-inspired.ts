@@ -1364,7 +1364,11 @@ function naturalTextMarkup(
       const rest = text.slice(cue[0].length);
       const labelMarkup = `<prosody rate="-1.6%" pitch="+0.4%" volume="+0.4%">${renderNaturalText(label)}</prosody>`;
       if (rest.trim().length >= 4) {
-        return `${renderNaturalText(leading)}${labelMarkup}<break time="72ms"/>${renderNaturalText(rest)}`;
+        // V29b: item-label hand-off is semantic too. Let the following phrase
+        // length choose a light presenter transition instead of forcing 72 ms.
+        const restLoad = clamp(rest.trim().length / 180, 0, 1);
+        const cueBreath = Math.round(clamp(62 + restLoad * 18, 62, 80));
+        return `${renderNaturalText(leading)}${labelMarkup}<break time="${cueBreath}ms"/>${renderNaturalText(rest)}`;
       }
       return `${renderNaturalText(leading)}${labelMarkup}${renderNaturalText(rest)}`;
     }
