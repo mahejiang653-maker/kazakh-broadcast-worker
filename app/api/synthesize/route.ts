@@ -581,6 +581,25 @@ function newsItemPresenterLift(preset: PresetName) {
   }
 }
 
+function newsItemPresenterClose(preset: PresetName, sentenceModeProtected: boolean) {
+  // A professional item ending is mostly phrase-final settling, not silence.
+  // Questions/exclamations keep their native sentence contour and receive only
+  // a tiny timing release before the next item.
+  if (sentenceModeProtected) {
+    return { rate: -0.22, pitch: 0, volume: -0.01 };
+  }
+  switch (preset) {
+    case "calm":
+      return { rate: -0.78, pitch: -0.16, volume: -0.035 };
+    case "bulletin":
+      return { rate: -0.38, pitch: -0.09, volume: -0.018 };
+    case "expressive":
+      return { rate: -0.5, pitch: -0.12, volume: -0.022 };
+    default:
+      return { rate: -0.58, pitch: -0.12, volume: -0.025 };
+  }
+}
+
 
 type StoryBeat =
   | "narrator"
@@ -1006,7 +1025,13 @@ function renderEmotionDirectedBody(
   let body = "";
   let openParagraph: number | null = null;
 
-  for (const group of groups) {
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    const group = groups[groupIndex];
+    const nextGroup = groups[groupIndex + 1];
+    const newsItemClosing = Boolean(nextGroup?.newsItemOpening);
+    const sameParagraphHandoff = Boolean(
+      newsItemClosing && nextGroup?.paragraphIndex === group.paragraphIndex,
+    );
     if (openParagraph !== group.paragraphIndex) {
       if (openParagraph !== null) body += "</p>";
       body += "<p>";
@@ -1043,6 +1068,15 @@ function renderEmotionDirectedBody(
       weighted.rate += presenter.rate;
       weighted.pitch += presenter.pitch;
       weighted.volume += presenter.volume;
+    }
+
+    if (newsItemClosing) {
+      const terminalText = group.sentences[group.sentences.length - 1]?.text.trim() ?? "";
+      const sentenceModeProtected = /[?？!！](?:[»”"'’」』）\])}]*)?$/u.test(terminalText);
+      const close = newsItemPresenterClose(preset, sentenceModeProtected);
+      weighted.rate += close.rate;
+      weighted.pitch += close.pitch;
+      weighted.volume += close.volume;
     }
 
     const rawText = group.sentences.map((sentence) => sentence.text).join(" ");
@@ -1086,6 +1120,12 @@ function renderEmotionDirectedBody(
     } else {
       body += `${content} `;
     }
+
+    // When two item labels occur inside one source paragraph there is no layout
+    // boundary for the neural voice to use. Add one short presenter hand-off.
+    // Separate paragraphs already carry their own semantic paragraph boundary,
+    // so we deliberately avoid stacking another fixed pause there.
+    if (sameParagraphHandoff) body += '<break time="78ms"/>';
   }
 
   if (openParagraph !== null) body += "</p>";
