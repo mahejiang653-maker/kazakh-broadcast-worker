@@ -34,6 +34,27 @@ export async function POST(request: Request) {
     }
 
     const documentPlan = analyzeEdgeDocument(preparedText);
+
+    // V25: this endpoint is only a UI preflight/status check. For long-form text,
+    // do not spend Worker CPU running the same detailed word-level emotion pass that
+    // synthesis will run again. The document planner already proves the text can be
+    // structured and gives us a reliable unit count.
+    if (preparedText.length >= 6000) {
+      if (!documentPlan.segments.length) {
+        return Response.json({ status: "failed", error: "未识别到可分析的句子。" }, { status: 422 });
+      }
+      const tokenCount = preparedText.match(/[\p{L}\p{M}]+(?:[’'-][\p{L}\p{M}]+)*/gu)?.length ?? 0;
+      return Response.json({
+        status: "completed",
+        sentenceCount: documentPlan.segments.length,
+        moodCounts: {},
+        tokenCount,
+        emotionEvidenceCount: 0,
+        version: 4,
+        analysisMode: "long-form-preflight",
+      });
+    }
+
     const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
     if (!emotionPlan.sentences.length) {
       return Response.json({ status: "failed", error: "未识别到可分析的句子。" }, { status: 422 });

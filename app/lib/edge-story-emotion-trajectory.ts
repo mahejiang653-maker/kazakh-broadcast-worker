@@ -234,14 +234,24 @@ function emotionForRange(
 
 function candidateBoundaries(text: string, tokens: Token[]) {
   const boundaries = new Set<number>([0, text.length]);
+  let lastPunctuationBoundary = 0;
+
+  // V25: scan punctuation in one linear pass. The old implementation rebuilt
+  // and sorted the entire boundary set at every comma, which became expensive
+  // on 9k-15k character long-form scripts with many commas.
   for (let index = 0; index < text.length; index += 1) {
     const char = text[index];
-    if (/[。.!?！？；;：:—–…]/u.test(char)) boundaries.add(index + 1);
-    else if (/[，,]/u.test(char)) {
-      const previous = [...boundaries].sort((a, b) => a - b).at(-1) ?? 0;
-      if (index - previous >= 28) boundaries.add(index + 1);
+    if (/[。.!?！？；;：:—–…]/u.test(char)) {
+      const boundary = index + 1;
+      boundaries.add(boundary);
+      lastPunctuationBoundary = boundary;
+    } else if (/[，,]/u.test(char) && index - lastPunctuationBoundary >= 28) {
+      const boundary = index + 1;
+      boundaries.add(boundary);
+      lastPunctuationBoundary = boundary;
     }
   }
+
   for (const token of tokens) {
     if (TURN_WORDS.has(token.normalized) && token.start >= 18 && text.length - token.start >= 20) {
       boundaries.add(token.start);

@@ -304,8 +304,28 @@ function inferSpeechStructure(units: Array<{ text: string; paragraphIndex: numbe
   return output;
 }
 
-function roleForSentence(normalized: string, documentPlan?: EdgeDocumentPlan) {
+function roleForSentence(
+  normalized: string,
+  documentPlan?: EdgeDocumentPlan,
+  preferredIndex?: number,
+) {
   if (!documentPlan?.segments.length || !normalized) return null;
+
+  // V25: the document planner and emotion planner normally walk the same sentence
+  // order. Resolve that direct match first and only fall back to the full fuzzy
+  // scan when source formatting caused the two segmenters to disagree.
+  if (typeof preferredIndex === "number") {
+    const preferred = documentPlan.segments[preferredIndex];
+    if (
+      preferred &&
+      (preferred.normalized === normalized ||
+        preferred.normalized.includes(normalized) ||
+        normalized.includes(preferred.normalized))
+    ) {
+      return preferred.role;
+    }
+  }
+
   let bestRole: EdgeDocumentRole | null = null;
   let bestScore = 0;
   const words = new Set(normalized.split(" ").filter((word) => word.length >= 3));
@@ -602,9 +622,11 @@ function smoothInstructions(sentences: EdgeEmotionSentence[]) {
 export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocumentPlan): EdgeEmotionPlan {
   const units = sentenceUnits(source);
   const speechStructure = inferSpeechStructure(units);
+  let totalTokenCount = 0;
+  let totalEmotionEvidenceCount = 0;
   const raw = units.map((unit, index) => {
     const normalized = normalize(unit.text);
-    const role = roleForSentence(normalized, documentPlan);
+    const role = roleForSentence(normalized, documentPlan, index);
     const speech = speechStructure[index] ?? {
       speechAct: "narration" as EdgeSpeechAct,
       speakerTurn: 0,
@@ -625,6 +647,8 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
     // punctuation can enrich a weak sentence-level classification. This remains
     // subordinate to strong dialogue/document-role decisions.
     const wordTrajectory = analyzeStoryEmotionTrajectory(unit.text);
+    totalTokenCount += wordTrajectory.tokenCount;
+    totalEmotionEvidenceCount += wordTrajectory.evidenceCount;
     const wordMood = moodFromStoryEmotion(wordTrajectory.dominantEmotion);
     if (wordMood && wordTrajectory.evidenceCount > 0 && !isProtectedRole(role)) {
       const wordConfidence = clamp(
@@ -657,12 +681,15 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
     return instructionForMood(draft, mood, confidence);
   });
 
-  const sourceTrajectory = analyzeStoryEmotionTrajectory(source);
+  // V25: every sentence has already been token/emotion-scanned above. Re-scanning
+  // the entire 9k-15k source here duplicated the most expensive story analysis.
+  // Aggregating the sentence trajectories preserves the same useful counters while
+  // keeping long-form CPU cost close to linear.
   return {
     version: 4,
     sourceLength: source.length,
-    tokenCount: sourceTrajectory.tokenCount,
-    emotionEvidenceCount: sourceTrajectory.evidenceCount,
+    tokenCount: totalTokenCount,
+    emotionEvidenceCount: totalEmotionEvidenceCount,
     sentences: smoothInstructions(contextualizeMoods(applyParagraphMoodContext(raw))),
   };
 }
