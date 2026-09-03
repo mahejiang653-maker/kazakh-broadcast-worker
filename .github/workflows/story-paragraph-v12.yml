@@ -1,0 +1,27 @@
+name: Story paragraph V12
+
+on:
+  push:
+    paths:
+      - '.deploy-story-paragraph-v12'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply story paragraph V12
+        run: python .github/scripts/story-paragraph-v12.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .deploy-story-paragraph-v12
+          git add app/api/synthesize/route.ts app/lib/edge-omnivoice-inspired.ts app/page.tsx .deploy-story-paragraph-v12
+          git commit -m "Restore paragraph-aware story cadence"
+          git push
