@@ -41,6 +41,10 @@ type Phrase = {
   text: string;
   punctuation: string;
   punctuationKind: PunctuationKind;
+  // V30: preserve a line/paragraph break that follows terminal punctuation.
+  // The terminal mark still controls intonation; this structural boundary controls
+  // the larger breath before the next line/paragraph begins.
+  layoutBoundary?: "newline" | "paragraph";
   segment: EdgePlannedSegment | null;
   micro: MicroProsody;
   quoted?: boolean;
@@ -610,12 +614,48 @@ function buildPhrases(text: string, plan?: EdgeDocumentPlan) {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token.kind !== "text" || !token.value.trim()) continue;
-    const punctuation = tokens[index + 1]?.kind === "punct" ? tokens[index + 1].value : "";
+
+    const punctuationToken = tokens[index + 1];
+    const punctuation = punctuationToken?.kind === "punct" ? punctuationToken.value : "";
     const kind = punctuationKind(punctuation);
+    let consumed = punctuation ? 1 : 0;
+    let layoutBoundary: Phrase["layoutBoundary"];
+
+    // V30: punctuation and the following newline are separate tokenizer tokens.
+    // Previously buildPhrases consumed only the punctuation token, so a source like
+    // "sentence.\nnext paragraph" silently lost the line/paragraph boundary. Preserve it as
+    // a structural attribute while leaving the real period/question/exclamation
+    // available to Edge for sentence-final intonation.
+    if (punctuation && !["newline", "paragraph"].includes(kind)) {
+      let cursor = index + 2;
+      while (tokens[cursor]?.kind === "text" && !tokens[cursor].value.trim()) cursor += 1;
+      const layoutToken = tokens[cursor];
+      if (layoutToken?.kind === "punct") {
+        const detectedLayout = punctuationKind(layoutToken.value);
+        if (["newline", "paragraph"].includes(detectedLayout)) {
+          const completedSentence = ["period", "question", "exclamation", "mixed", "ellipsis"].includes(kind);
+          // A completed sentence followed by even one explicit line break starts a
+          // new spoken paragraph. Non-terminal punctuation keeps the lighter source
+          // layout distinction.
+          layoutBoundary = completedSentence
+            ? "paragraph"
+            : detectedLayout as "newline" | "paragraph";
+          consumed = cursor - index;
+        }
+      }
+    }
+
     const segment = segmentForFragment(token.value, plan);
     const micro = combine(localMicro(token.value, kind), documentMicro(segment, plan));
-    phrases.push({ text: token.value, punctuation, punctuationKind: kind, segment, micro });
-    if (punctuation) index += 1;
+    phrases.push({
+      text: token.value,
+      punctuation,
+      punctuationKind: kind,
+      layoutBoundary,
+      segment,
+      micro,
+    });
+    if (consumed) index += consumed;
   }
   return phrases;
 }
@@ -670,7 +710,9 @@ function annotateQuoteContinuity(phrases: Phrase[]) {
       annotated[cursor].directQuote = true;
       if (cursor === index) annotated[cursor].quoteStart = true;
       end = cursor;
-      if (["paragraph", "newline"].includes(annotated[cursor].punctuationKind)) break;
+      if (["paragraph", "newline"].includes(
+        annotated[cursor].layoutBoundary ?? annotated[cursor].punctuationKind,
+      )) break;
       if (cursor - index >= 7) break;
     }
     annotated[end].quoteEnd = true;
@@ -944,8 +986,14 @@ function semanticBoundaryStrength(
   next?: Phrase,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
 ) {
-  const kind = current.punctuationKind;
-  let strength = baseBoundaryStrength(kind);
+  // V30: when terminal punctuation is followed by a source line break, use the
+  // structural boundary for pause strength while preserving punctuationKind for
+  // native Edge intonation in acousticPunctuation.
+  const kind = current.layoutBoundary ?? current.punctuationKind;
+  let strength = Math.max(
+    baseBoundaryStrength(current.punctuationKind),
+    current.layoutBoundary ? baseBoundaryStrength(current.layoutBoundary) : 0,
+  );
 
   // The end of the whole synthesis span is a real discourse boundary even when
   // the writer used weak punctuation.
@@ -1044,7 +1092,7 @@ function semanticBoundaryStrength(
   // Preserve a stronger boundary when the document moves into a new role,
   // transition, climax, ending or explicitly contrastive/resultative paragraph.
   // Same-segment paragraphs still receive a smaller but audible breath.
-  if (deliveryMode === "story" && kind === "paragraph") {
+  if ((deliveryMode === "story" || deliveryMode === "broadcast") && kind === "paragraph") {
     const majorParagraphShift =
       roleChanged ||
       startsWithCue(next.text, STRONG_BOUNDARY_STARTERS) ||
@@ -1164,8 +1212,13 @@ function semanticBreak(
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
   broadcastPreset: EdgeOmniSettings["broadcastPreset"] = "news",
 ) {
-  const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
-  const kind = phrase.punctuationKind;
+  const strength = phrase.boundaryStrength ?? Math.max(
+    baseBoundaryStrength(phrase.punctuationKind),
+    phrase.layoutBoundary ? baseBoundaryStrength(phrase.layoutBoundary) : 0,
+  );
+  // V30: a terminal mark followed by a line break keeps its punctuation for
+  // intonation, but the larger structural boundary decides the breathing tier.
+  const kind = phrase.layoutBoundary ?? phrase.punctuationKind;
 
   // Story V28: natural word timing + layered breathing inside one continuous
   // acoustic state. There is no fixed word-to-word gap. Clause commas remain
@@ -1578,8 +1631,9 @@ export function renderEdgeOmniInspiredMarkup(
     // pause in renderGroup, but it should not create a new prosody state.
     const previousBoundaryStrength =
       previous.boundaryStrength ?? baseBoundaryStrength(previous.punctuationKind);
+    const previousStructuralBoundary = previous.layoutBoundary ?? previous.punctuationKind;
     const hardBoundary =
-      ["paragraph", "newline"].includes(previous.punctuationKind) &&
+      ["paragraph", "newline"].includes(previousStructuralBoundary) &&
       previousBoundaryStrength >= (storyMode ? 0.82 : broadcastMode ? 0.72 : 0.58) &&
       !sameDirectQuote;
     const tooDifferent =
