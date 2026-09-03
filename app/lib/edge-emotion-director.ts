@@ -12,6 +12,18 @@ export type EdgeDeliveryMood =
   | "transition"
   | "ending";
 
+export type EdgeSpeechAct =
+  | "narration"
+  | "dialogue"
+  | "reported"
+  | "question"
+  | "command"
+  | "reply"
+  | "whisper"
+  | "shout"
+  | "lament"
+  | "humor";
+
 export type EdgeEmotionInstruction = {
   mood: EdgeDeliveryMood;
   rateFactor: number;
@@ -26,10 +38,14 @@ export type EdgeEmotionSentence = EdgeEmotionInstruction & {
   text: string;
   normalized: string;
   role: EdgeDocumentRole | null;
+  speechAct: EdgeSpeechAct;
+  speakerTurn: number;
+  dialogueConfidence: number;
+  paragraphMood: EdgeDeliveryMood | null;
 };
 
 export type EdgeEmotionPlan = {
-  version: 2;
+  version: 3;
   sourceLength: number;
   sentences: EdgeEmotionSentence[];
 };
@@ -99,6 +115,21 @@ const EMPHASIS = [
   "最高", "最低", "关键", "核心", "重点", "必须指出",
 ];
 
+const REPORTING_SPEECH = [
+  "деді", "дейді", "айтты", "айтады", "сұрады", "жауап берді", "жауап қайтарды",
+  "бұйырды", "өтінді", "мәлімдеді", "хабарлады", "жазды", "түсіндірді", "ескертті",
+  "деп айтты", "деп сұрады", "деп жауап берді",
+  "说", "说道", "表示", "问道", "询问", "回答", "回应", "命令", "要求", "写道",
+  "said", "asked", "replied", "answered", "ordered", "told", "wrote",
+];
+const ASK_SPEECH = ["сұрады", "сауал қойды", "问", "问道", "询问", "asked", "questioned"];
+const REPLY_SPEECH = ["жауап берді", "жауап қайтарды", "回应", "回答", "replied", "answered"];
+const COMMAND_SPEECH = ["бұйырды", "әмір етті", "талап етті", "命令", "要求", "ordered", "demanded"];
+const WHISPER_SPEECH = ["сыбырлады", "сыбырлап", "ақырын айтты", "жай дауыспен", "低声", "轻声", "悄声", "whispered", "softly said"];
+const SHOUT_SPEECH = ["айқайлады", "айғайлады", "дауыстап айтты", "ақырып", "喊道", "大喊", "怒吼", "shouted", "yelled"];
+const LAMENT_SPEECH = ["жылап айтты", "еңіреп", "өкінішпен айтты", "哭着说", "哽咽", "悲伤地说", "sobbed", "cried"];
+const HUMOR_SPEECH = ["күліп айтты", "жымиды", "әзілдеп", "笑着说", "开玩笑", "laughed", "joked"];
+
 // Modern long-form TTS systems sound more human when semantic context owns most
 // of the delivery and local controls stay subtle. Edge does not expose a true
 // long-form acoustic context API, so rate is our main signal while pitch/volume
@@ -143,6 +174,131 @@ function sentenceUnits(source: string) {
   );
 }
 
+
+type SpeechInference = {
+  speechAct: EdgeSpeechAct;
+  speakerTurn: number;
+  dialogueConfidence: number;
+  inheritedMood: EdgeDeliveryMood | null;
+};
+
+function containsCue(value: string, cues: string[]) {
+  const normalized = normalize(value);
+  return cues.some((cue) => normalized.includes(normalize(cue)));
+}
+
+function hasExplicitDialogueMark(text: string) {
+  const trimmed = text.trim();
+  return (
+    /^[—–-]\s*\S/u.test(trimmed) ||
+    /[«“„「『][^»”」』]{1,700}[»”」』]/u.test(trimmed) ||
+    /"[^"\n]{1,700}"/u.test(trimmed) ||
+    /^[\p{Lu}][\p{L}'’.-]{1,30}(?:\s+[\p{Lu}][\p{L}'’.-]{1,30}){0,2}\s*[:：]\s*\S/u.test(trimmed)
+  );
+}
+
+function hasReportingSpeech(text: string) {
+  return containsCue(text, REPORTING_SPEECH);
+}
+
+function attributionMood(text: string): EdgeDeliveryMood | null {
+  if (containsCue(text, LAMENT_SPEECH) || countHits(normalize(text), SAD) >= 1) return "sad";
+  if (containsCue(text, SHOUT_SPEECH) || countHits(normalize(text), ANGER) >= 1) return "urgent";
+  if (countHits(normalize(text), FEAR) >= 1) return "concern";
+  if (containsCue(text, HUMOR_SPEECH)) return "positive";
+  if (containsCue(text, WHISPER_SPEECH)) return "concern";
+  return null;
+}
+
+function speechActFromAttribution(text: string): EdgeSpeechAct {
+  if (containsCue(text, SHOUT_SPEECH)) return "shout";
+  if (containsCue(text, WHISPER_SPEECH)) return "whisper";
+  if (containsCue(text, LAMENT_SPEECH)) return "lament";
+  if (containsCue(text, HUMOR_SPEECH)) return "humor";
+  if (containsCue(text, COMMAND_SPEECH)) return "command";
+  if (containsCue(text, ASK_SPEECH)) return "question";
+  if (containsCue(text, REPLY_SPEECH)) return "reply";
+  return "dialogue";
+}
+
+function looksLikeImplicitSpeech(text: string) {
+  const value = normalize(text);
+  if (!value) return false;
+  if (/[?？!！]/u.test(text)) return true;
+  if (/^(?:мен|біз|сен|сіз|сендер|сіздер|маған|мағанша|менің|біздің|你|你们|我|我们)(?:\s|$)/iu.test(value)) return true;
+  if (/(?:ңыз|ңіз|ыңдар|іңдер|шы|ші)(?:\s|[.!?！？。]|$)/iu.test(text)) return true;
+  return text.length <= 220;
+}
+
+function inferSpeechStructure(units: Array<{ text: string; paragraphIndex: number }>): SpeechInference[] {
+  const output: SpeechInference[] = [];
+  let turnCounter = 0;
+  let pending: { turn: number; act: EdgeSpeechAct; mood: EdgeDeliveryMood | null; paragraphIndex: number; remaining: number } | null = null;
+  let activeDialogueTurn = 0;
+
+  for (let index = 0; index < units.length; index += 1) {
+    const unit = units[index];
+    const text = unit.text;
+    const explicit = hasExplicitDialogueMark(text);
+    const reporting = hasReportingSpeech(text);
+    const reportingBeforeContent = /(?:деді|дейді|айтты|айтады|сұрады|жауап берді|бұйырды|өтінді|表示|说道|问道|回答|回应|said|asked|replied|ordered)\s*[,，:：—–-]\s*\S/iu.test(text);
+    const reportingAfterContent = /[,，]\s*[—–-]?\s*(?:деді|дейді|айтты|сұрады|жауап берді|said|asked|replied)(?![\p{L}\p{N}_])/iu.test(text);
+    let speechAct: EdgeSpeechAct = "narration";
+    let speakerTurn = 0;
+    let dialogueConfidence = 0;
+    let inheritedMood: EdgeDeliveryMood | null = null;
+
+    if (pending && !reporting && looksLikeImplicitSpeech(text) && Math.abs(unit.paragraphIndex - pending.paragraphIndex) <= 1) {
+      speechAct = pending.act;
+      speakerTurn = pending.turn;
+      dialogueConfidence = 0.78;
+      inheritedMood = pending.mood;
+      activeDialogueTurn = pending.turn;
+      pending.remaining -= 1;
+      if (pending.remaining <= 0 || /(?:деді|айтты|сұрады|жауап берді|мәлімдеді|хабарлады)/iu.test(text)) pending = null;
+    }
+
+    if (explicit || reportingBeforeContent || reportingAfterContent) {
+      if (!activeDialogueTurn || /^[—–-]/u.test(text.trim()) || /^[\p{Lu}].{0,70}[:：]/u.test(text.trim())) {
+        turnCounter += 1;
+        activeDialogueTurn = turnCounter;
+      }
+      speechAct = speechActFromAttribution(text);
+      if (speechAct === "dialogue" && /[?？]/u.test(text)) speechAct = "question";
+      speakerTurn = activeDialogueTurn;
+      dialogueConfidence = explicit ? 0.96 : 0.84;
+      inheritedMood = attributionMood(text);
+    } else if (reporting) {
+      speechAct = "reported";
+      dialogueConfidence = 0.58;
+      const nextAct = speechActFromAttribution(text);
+      const shouldLead = /[:：]\s*$/u.test(text.trim()) || /(?:деді|айтты|сұрады|жауап берді|бұйырды|өтінді|said|asked|replied|ordered)[.!。]?\s*$/iu.test(text.trim());
+      if (shouldLead) {
+        turnCounter += 1;
+        pending = {
+          turn: turnCounter,
+          act: nextAct,
+          mood: attributionMood(text),
+          paragraphIndex: unit.paragraphIndex,
+          remaining: 3,
+        };
+        activeDialogueTurn = turnCounter;
+      } else {
+        activeDialogueTurn = 0;
+      }
+    } else if (speakerTurn === 0) {
+      activeDialogueTurn = 0;
+    }
+
+    if (speakerTurn > 0 && speechAct === "dialogue" && /[?？]/u.test(text)) speechAct = "question";
+    if (speakerTurn > 0 && speechAct === "dialogue" && /[!！]/u.test(text) && countHits(normalize(text), ANGER) >= 1) speechAct = "shout";
+
+    output.push({ speechAct, speakerTurn, dialogueConfidence, inheritedMood });
+  }
+
+  return output;
+}
+
 function roleForSentence(normalized: string, documentPlan?: EdgeDocumentPlan) {
   if (!documentPlan?.segments.length || !normalized) return null;
   let bestRole: EdgeDocumentRole | null = null;
@@ -173,6 +329,8 @@ function chooseMood(
   role: EdgeDocumentRole | null,
   index: number,
   total: number,
+  speechAct: EdgeSpeechAct = "narration",
+  inheritedMood: EdgeDeliveryMood | null = null,
 ): { mood: EdgeDeliveryMood; confidence: number } {
   const value = normalize(text);
   const urgent = countHits(value, URGENT);
@@ -190,6 +348,12 @@ function chooseMood(
   const strongPunctuation = (text.match(/[!！?？]/gu) ?? []).length;
 
   if (index === total - 1 || role === "ending") return { mood: "ending", confidence: 0.82 };
+  if (inheritedMood === "sad" || speechAct === "lament") return { mood: "sad", confidence: 0.86 };
+  if (inheritedMood === "urgent" || speechAct === "shout") return { mood: "urgent", confidence: 0.84 };
+  if (speechAct === "command") return { mood: urgent >= 1 || angry >= 1 ? "urgent" : "emphasis", confidence: 0.8 };
+  if (speechAct === "whisper") return { mood: fear >= 1 ? "concern" : inheritedMood ?? "concern", confidence: 0.74 };
+  if (speechAct === "humor" || inheritedMood === "positive") return { mood: "positive", confidence: 0.8 };
+  if (speechAct === "question" && urgent === 0 && sad === 0 && concern === 0) return { mood: "serious", confidence: 0.65 };
   if (sad >= 1 && (urgent >= 1 || concern >= 1 || sad >= 2)) return { mood: "sad", confidence: 0.9 };
   if (urgent >= 2 || (urgent >= 1 && role === "climax") || (urgent >= 1 && strongPunctuation >= 1)) {
     return { mood: "urgent", confidence: 0.88 };
@@ -226,16 +390,94 @@ function lengthAdjustment(text: string) {
   return 1;
 }
 
+function speechActMicro(speechAct: EdgeSpeechAct) {
+  const values: Record<EdgeSpeechAct, { rateFactor: number; pitchDelta: number; volumeDelta: number }> = {
+    narration: { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 },
+    dialogue: { rateFactor: 1, pitchDelta: 0.005, volumeDelta: 0.004 },
+    reported: { rateFactor: 0.996, pitchDelta: -0.008, volumeDelta: 0 },
+    question: { rateFactor: 0.996, pitchDelta: 0.035, volumeDelta: 0.005 },
+    command: { rateFactor: 1.012, pitchDelta: 0.03, volumeDelta: 0.028 },
+    reply: { rateFactor: 0.998, pitchDelta: 0.004, volumeDelta: 0.006 },
+    whisper: { rateFactor: 0.982, pitchDelta: -0.025, volumeDelta: -0.04 },
+    shout: { rateFactor: 1.014, pitchDelta: 0.045, volumeDelta: 0.04 },
+    lament: { rateFactor: 0.975, pitchDelta: -0.04, volumeDelta: -0.03 },
+    humor: { rateFactor: 1.006, pitchDelta: 0.025, volumeDelta: 0.018 },
+  };
+  return values[speechAct];
+}
+
 function instructionForMood(sentence: EdgeEmotionSentence, mood: EdgeDeliveryMood, confidence: number) {
   const base = MOOD_BASE[mood];
+  const speech = speechActMicro(sentence.speechAct);
+  const paragraph = sentence.paragraphMood ? MOOD_BASE[sentence.paragraphMood] : MOOD_BASE.neutral;
+  const paragraphWeight =
+    sentence.speakerTurn > 0
+      ? 0.08
+      : confidence < 0.66
+        ? 0.32
+        : confidence < 0.76
+          ? 0.18
+          : 0.08;
+
   return {
     ...sentence,
     mood,
     confidence,
-    rateFactor: clamp(base.rateFactor * lengthAdjustment(sentence.text), 0.97, 1.02),
-    pitchDelta: base.pitchDelta,
-    volumeDelta: base.volumeDelta,
+    rateFactor: clamp(
+      base.rateFactor *
+        speech.rateFactor *
+        (1 + (paragraph.rateFactor - 1) * paragraphWeight) *
+        lengthAdjustment(sentence.text),
+      0.96,
+      1.03,
+    ),
+    pitchDelta: clamp(
+      base.pitchDelta + speech.pitchDelta + paragraph.pitchDelta * paragraphWeight,
+      -0.11,
+      0.11,
+    ),
+    volumeDelta: clamp(
+      base.volumeDelta + speech.volumeDelta + paragraph.volumeDelta * paragraphWeight,
+      -0.09,
+      0.12,
+    ),
   } satisfies EdgeEmotionSentence;
+}
+
+function applyParagraphMoodContext(sentences: EdgeEmotionSentence[]) {
+  const byParagraph = new Map<number, EdgeEmotionSentence[]>();
+  for (const sentence of sentences) {
+    const bucket = byParagraph.get(sentence.paragraphIndex) ?? [];
+    bucket.push(sentence);
+    byParagraph.set(sentence.paragraphIndex, bucket);
+  }
+
+  const moodByParagraph = new Map<number, EdgeDeliveryMood | null>();
+  for (const [paragraphIndex, items] of byParagraph) {
+    const scores = new Map<EdgeDeliveryMood, number>();
+    let total = 0;
+    for (const item of items) {
+      if (["neutral", "transition", "ending"].includes(item.mood)) continue;
+      const weight = Math.max(0.2, Math.min(1.4, item.text.length / 90)) * item.confidence;
+      scores.set(item.mood, (scores.get(item.mood) ?? 0) + weight);
+      total += weight;
+    }
+    let best: EdgeDeliveryMood | null = null;
+    let bestScore = 0;
+    for (const [mood, score] of scores) {
+      if (score > bestScore) {
+        best = mood;
+        bestScore = score;
+      }
+    }
+    moodByParagraph.set(paragraphIndex, total > 0 && bestScore / total >= 0.42 ? best : null);
+  }
+
+  return sentences.map((sentence) => {
+    const paragraphMood = moodByParagraph.get(sentence.paragraphIndex) ?? null;
+    const contextual = { ...sentence, paragraphMood };
+    return instructionForMood(contextual, sentence.mood, sentence.confidence);
+  });
 }
 
 function isProtectedRole(role: EdgeDocumentRole | null) {
@@ -304,11 +546,19 @@ function smoothInstructions(sentences: EdgeEmotionSentence[]) {
       continue;
     }
 
+    const roleTurnChanged =
+      previous.speakerTurn > 0 &&
+      sentence.speakerTurn > 0 &&
+      previous.speakerTurn !== sentence.speakerTurn;
+    const rateStep = roleTurnChanged ? 0.014 : 0.009;
+    const pitchStep = roleTurnChanged ? 0.075 : 0.05;
+    const volumeStep = roleTurnChanged ? 0.06 : 0.04;
+
     output.push({
       ...sentence,
-      rateFactor: clamp(sentence.rateFactor, previous.rateFactor - 0.009, previous.rateFactor + 0.009),
-      pitchDelta: clamp(sentence.pitchDelta, previous.pitchDelta - 0.05, previous.pitchDelta + 0.05),
-      volumeDelta: clamp(sentence.volumeDelta, previous.volumeDelta - 0.04, previous.volumeDelta + 0.04),
+      rateFactor: clamp(sentence.rateFactor, previous.rateFactor - rateStep, previous.rateFactor + rateStep),
+      pitchDelta: clamp(sentence.pitchDelta, previous.pitchDelta - pitchStep, previous.pitchDelta + pitchStep),
+      volumeDelta: clamp(sentence.volumeDelta, previous.volumeDelta - volumeStep, previous.volumeDelta + volumeStep),
     });
   }
 
@@ -317,13 +567,26 @@ function smoothInstructions(sentences: EdgeEmotionSentence[]) {
 
 export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocumentPlan): EdgeEmotionPlan {
   const units = sentenceUnits(source);
+  const speechStructure = inferSpeechStructure(units);
   const raw = units.map((unit, index) => {
     const normalized = normalize(unit.text);
     const role = roleForSentence(normalized, documentPlan);
-    const { mood, confidence } = chooseMood(unit.text, role, index, units.length);
-    const base = MOOD_BASE[mood];
+    const speech = speechStructure[index] ?? {
+      speechAct: "narration" as EdgeSpeechAct,
+      speakerTurn: 0,
+      dialogueConfidence: 0,
+      inheritedMood: null,
+    };
+    const { mood, confidence } = chooseMood(
+      unit.text,
+      role,
+      index,
+      units.length,
+      speech.speechAct,
+      speech.inheritedMood,
+    );
 
-    return {
+    const draft = {
       index,
       paragraphIndex: unit.paragraphIndex,
       text: unit.text,
@@ -331,16 +594,21 @@ export function analyzeEdgeEmotionPlan(source: string, documentPlan?: EdgeDocume
       role,
       mood,
       confidence,
-      rateFactor: clamp(base.rateFactor * lengthAdjustment(unit.text), 0.97, 1.02),
-      pitchDelta: base.pitchDelta,
-      volumeDelta: base.volumeDelta,
+      speechAct: speech.speechAct,
+      speakerTurn: speech.speakerTurn,
+      dialogueConfidence: speech.dialogueConfidence,
+      paragraphMood: null,
+      rateFactor: 1,
+      pitchDelta: 0,
+      volumeDelta: 0,
     } satisfies EdgeEmotionSentence;
+    return instructionForMood(draft, mood, confidence);
   });
 
   return {
-    version: 2,
+    version: 3,
     sourceLength: source.length,
-    sentences: smoothInstructions(contextualizeMoods(raw)),
+    sentences: smoothInstructions(contextualizeMoods(applyParagraphMoodContext(raw))),
   };
 }
 
@@ -377,6 +645,10 @@ export function resolveEdgeEmotionSentences(fragment: string, plan: EdgeEmotionP
         role: null,
         mood: "neutral",
         confidence: 0.45,
+        speechAct: "narration",
+        speakerTurn: 0,
+        dialogueConfidence: 0,
+        paragraphMood: null,
         ...fallback,
       };
     } else {

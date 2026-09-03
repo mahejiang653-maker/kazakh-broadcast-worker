@@ -1,5 +1,6 @@
 import type { EdgeDocumentPlan, EdgeDocumentRole, EdgePlannedSegment } from "./edge-director";
 import { structureEdgeText } from "./edge-natural-structure";
+import { kazakhDependencyGuard } from "./edge-kazakh-dependency";
 
 export type EdgeOmniSettings = {
   speed: number;
@@ -965,6 +966,17 @@ function semanticBoundaryStrength(current: Phrase, next?: Phrase) {
     strength -= 0.065;
   }
 
+  // Dependency protection outranks ordinary punctuation. A writer may insert a
+  // comma, line break or weak period inside a phrase that must stay syntactically
+  // bound (number+unit, genitive+head, modifier+head, name+title, etc.).
+  const dependency = kazakhDependencyGuard(current.text, next.text);
+  if (!["question", "exclamation", "mixed"].includes(kind)) {
+    if (dependency.score >= 0.9) strength = Math.min(strength, 0.08);
+    else if (dependency.score >= 0.84) strength = Math.min(strength, 0.12);
+    else if (dependency.score >= 0.76) strength = Math.min(strength, 0.18);
+    else if (dependency.score >= 0.55) strength -= dependency.score * 0.2;
+  }
+
   // Question marks retain question intonation regardless of this score. The
   // score controls boundary/pause strength only, not the interrogative contour.
   if (kind === "question") strength = Math.max(strength, sameDirectQuote ? 0.42 : 0.5);
@@ -1016,6 +1028,9 @@ function semanticBreak(phrase: Phrase, punctuationRendered: boolean) {
   // If native punctuation is rendered, let the neural voice realize its own
   // micro-timing. Explicit breaks are mainly for semantic/layout boundaries or
   // for punctuation that was intentionally acoustically suppressed.
+  // Hard dependency zones can suppress even layout boundaries from bad source
+  // formatting; sentence-mode punctuation is protected elsewhere.
+  if (strength <= 0.16 && !["question", "exclamation", "mixed", "ellipsis"].includes(kind)) return 0;
   if (kind === "paragraph") return Math.round(62 + strength * 78);
   if (kind === "newline") return strength < 0.26 ? 0 : Math.round(8 + strength * 42);
   if (kind === "ellipsis") return punctuationRendered ? 0 : Math.round(18 + strength * 32);

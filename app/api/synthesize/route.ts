@@ -631,17 +631,31 @@ function storyDirectionForSentence(
   text: string,
   mood: string,
   role: string | null,
+  speechAct: EdgeEmotionPlan["sentences"][number]["speechAct"] = "narration",
 ): StoryDirection {
-  const dialogue = isStoryDialogue(text);
+  const dialogue =
+    isStoryDialogue(text) ||
+    !["narration", "reported"].includes(speechAct);
   const hasQuestion = /[?？]/u.test(text);
   const hasExclamation = /[!！]/u.test(text);
   const hasEllipsis = /…|\.\.\./u.test(text);
 
-  // Story V3: narration is the anchor. We deliberately do NOT continuously
-  // modulate ordinary narration. Local prosody is reserved for real story beats,
-  // which avoids the "one sentence = one synthetic state" effect.
+  // Story V6: dialogue can be inferred without quotation marks from reporting
+  // verbs and speech acts. Manner-of-speaking cues can override generic mood.
   if (role === "ending" || mood === "ending") {
     return { beat: "ending", ratePercent: -3.5, pitchDelta: -0.8, volumeDelta: -0.6 };
+  }
+  if (speechAct === "lament") {
+    return { beat: "sorrow", ratePercent: -5.4, pitchDelta: -1.0, volumeDelta: -1.0 };
+  }
+  if (speechAct === "whisper") {
+    return { beat: "suspense", ratePercent: -4.2, pitchDelta: -0.65, volumeDelta: -0.85 };
+  }
+  if (speechAct === "shout" || speechAct === "command") {
+    return { beat: "action", ratePercent: 4.2, pitchDelta: 0.85, volumeDelta: 0.95 };
+  }
+  if (speechAct === "humor") {
+    return { beat: "humor", ratePercent: 2.0, pitchDelta: 0.65, volumeDelta: 0.45 };
   }
   if (
     mood === "sad" ||
@@ -786,7 +800,7 @@ function renderContinuousStoryBody(
 
     const groups: StoryGroup[] = [];
     for (const sentence of paragraphSentences) {
-      const direction = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role);
+      const direction = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct);
       const previous = groups[groups.length - 1];
       const maxItems = direction.beat === "narrator" ? 8 : direction.beat === "dialogue" ? 2 : 3;
       const previousChars = previous
@@ -811,7 +825,7 @@ function renderContinuousStoryBody(
       );
       const direction = group.items.reduce(
         (acc, sentence) => {
-          const local = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role);
+          const local = storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct);
           const weight = sentence.text.length / totalChars;
           acc.rate += local.ratePercent * weight;
           acc.pitch += local.pitchDelta * weight;
@@ -908,9 +922,10 @@ function renderEmotionDirectedBody(
   for (const sentence of sentences) {
     const storyDirection =
       preset === "story"
-        ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role)
+        ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct)
         : null;
-    const zone = storyDirection ? `story:${storyDirection.beat}` : emotionTempoZone(sentence.mood);
+    const baseZone = storyDirection ? `story:${storyDirection.beat}` : emotionTempoZone(sentence.mood);
+    const zone = sentence.speakerTurn > 0 ? `${baseZone}:turn:${sentence.speakerTurn}` : baseZone;
     const previous = groups[groups.length - 1];
     const previousChars = previous
       ? previous.sentences.reduce((sum, item) => sum + item.text.length, 0)
@@ -966,7 +981,7 @@ function renderEmotionDirectedBody(
         const weight = sentence.text.length / totalChars;
         const storyDirection =
           preset === "story"
-            ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role)
+            ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct)
             : null;
         if (preset === "story") {
           acc.rate += (storyDirection?.ratePercent ?? 0) * weight;
