@@ -1,0 +1,31 @@
+name: Semantic pause V5
+
+on:
+  push:
+    paths:
+      - '.deploy-semantic-pause-v5'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Apply semantic pause V5
+        run: python .github/scripts/semantic-pause-v5.py
+
+      - name: Commit patch
+        run: |
+          rm -f .deploy-semantic-pause-v5
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-semantic-pause-v5
+          git commit -m "Use document semantics for punctuation pauses"
+          git push
