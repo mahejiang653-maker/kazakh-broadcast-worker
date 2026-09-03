@@ -1101,7 +1101,10 @@ function acousticPunctuation(
       return strength >= 0.36 && (clean.length >= 34 || words >= 7) ? phrase.punctuation : "";
     }
     if (kind === "period") {
-      return strength >= 0.5 ? phrase.punctuation : closingPunctuationSuffix(phrase.punctuation);
+      // V13: do not delegate ordinary declarative sentence timing to the voice.
+      // Keep quote/bracket suffixes, but realize the actual sentence breath in
+      // semanticBreak so a completed thought gets air without a prosody restart.
+      return closingPunctuationSuffix(phrase.punctuation);
     }
     if (kind === "semicolon") return strength >= 0.4 ? phrase.punctuation : "";
     if (kind === "colon") {
@@ -1131,33 +1134,52 @@ function semanticBreak(
   const strength = phrase.boundaryStrength ?? baseBoundaryStrength(phrase.punctuationKind);
   const kind = phrase.punctuationKind;
 
-  // Story V11: human breathing sits between the two previous extremes. Keep one
-  // acoustic/prosody stream, but allow tiny breaths after completed semantic
-  // units. These are intentionally much shorter than sentence pauses. Boundary
-  // strength already includes Kazakh dependency protection, so modifier-head,
-  // subject-predicate, number-unit and name-title zones remain unbroken.
+  // Story V13: three breathing levels inside one continuous acoustic state:
+  // clause breath < completed-sentence breath < paragraph/discourse breath.
+  // Declarative periods use a controlled in-stream breath instead of native
+  // punctuation timing, which makes the pause audible without re-starting pitch
+  // and delivery on every sentence. Dependency guards already lower strength in
+  // modifier-head, subject-predicate, number-unit and name-title no-pause zones.
   if (deliveryMode === "story") {
-    if (punctuationRendered) return 0;
     const clean = phrase.text.trim();
     const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     const enoughSpeech = clean.length >= 28 || words >= 6;
 
+    // Questions/exclamations/ellipsis keep their native sentence-mode contour.
+    if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) return 0;
+
     if (kind === "paragraph") {
       if (strength < 0.64) return 0;
-      // Keep the same speaker/prosody state while allowing the listener to feel
-      // that one completed narrative unit has ended before the next begins.
       // Ordinary paragraph: roughly 120-145 ms. Major semantic/emotional shift:
-      // roughly 165-205 ms.
+      // roughly 165-205 ms. Same voice/prosody state is preserved throughout.
       return strength >= 0.84
         ? Math.round(108 + strength * 92)
         : Math.round(82 + strength * 72);
     }
+
+    if (kind === "period") {
+      // Hard syntactic dependencies can push the boundary to 0.18 or below;
+      // never breathe there even when the source writer inserted a period.
+      if (strength <= 0.18) return 0;
+      const lengthBonus = Math.min(18, Math.max(0, (words - 7) * 1.6));
+      if (clean.length < 20 && words < 4) {
+        return Math.round(28 + strength * 40);
+      }
+      // Very tightly connected sentences get a small catch of breath; ordinary
+      // completed thoughts land around 60-90 ms, enough to sound human without
+      // producing the old sentence-by-sentence take-reset effect.
+      if (strength < 0.28) {
+        return Math.round(28 + strength * 55 + lengthBonus * 0.45);
+      }
+      return Math.round(46 + strength * 62 + lengthBonus);
+    }
+
+    // If punctuation itself is audible, let the neural voice handle that local
+    // timing rather than stacking an explicit pause on top of it.
+    if (punctuationRendered) return 0;
     if (!enoughSpeech) return 0;
     if (kind === "newline" && strength >= 0.3) {
       return Math.round(12 + strength * 28);
-    }
-    if (kind === "period" && strength >= 0.3) {
-      return Math.round(15 + strength * 34);
     }
     if (kind === "comma" && strength >= 0.26 && (clean.length >= 42 || words >= 8)) {
       return Math.round(8 + strength * 24);
