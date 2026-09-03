@@ -1236,7 +1236,7 @@ function semanticBreak(
   if (deliveryMode === "broadcast") {
     const profile = {
       news: {
-        commaMin: 30,
+        commaMin: 15,
         commaMax: 46,
         sentenceMin: 34,
         sentenceMax: 58,
@@ -1245,7 +1245,7 @@ function semanticBreak(
         item: 82,
       },
       calm: {
-        commaMin: 36,
+        commaMin: 15,
         commaMax: 54,
         sentenceMin: 42,
         sentenceMax: 68,
@@ -1254,7 +1254,7 @@ function semanticBreak(
         item: 92,
       },
       bulletin: {
-        commaMin: 24,
+        commaMin: 15,
         commaMax: 38,
         sentenceMin: 26,
         sentenceMax: 46,
@@ -1263,7 +1263,7 @@ function semanticBreak(
         item: 72,
       },
       expressive: {
-        commaMin: 32,
+        commaMin: 15,
         commaMax: 50,
         sentenceMin: 38,
         sentenceMax: 64,
