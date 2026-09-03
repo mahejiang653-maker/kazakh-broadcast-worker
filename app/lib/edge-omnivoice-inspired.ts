@@ -1245,7 +1245,7 @@ function semanticBreak(
         item: 82,
       },
       calm: {
-        commaMin: 36,
+        commaMin: 35,
         commaMax: 54,
         sentenceMin: 42,
         sentenceMax: 68,
