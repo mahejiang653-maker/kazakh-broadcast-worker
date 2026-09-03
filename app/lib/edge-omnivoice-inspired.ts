@@ -1236,7 +1236,7 @@ function semanticBreak(
   if (deliveryMode === "broadcast") {
     const profile = {
       news: {
-        commaMin: 15,
+        commaMin: 30,
         commaMax: 46,
         sentenceMin: 34,
         sentenceMax: 58,
@@ -1245,7 +1245,7 @@ function semanticBreak(
         item: 82,
       },
       calm: {
-        commaMin: 15,
+        commaMin: 36,
         commaMax: 54,
         sentenceMin: 42,
         sentenceMax: 68,
@@ -1254,7 +1254,7 @@ function semanticBreak(
         item: 92,
       },
       bulletin: {
-        commaMin: 15,
+        commaMin: 24,
         commaMax: 38,
         sentenceMin: 26,
         sentenceMax: 46,
@@ -1263,7 +1263,7 @@ function semanticBreak(
         item: 72,
       },
       expressive: {
-        commaMin: 15,
+        commaMin: 32,
         commaMax: 50,
         sentenceMin: 38,
         sentenceMax: 64,
@@ -1288,7 +1288,10 @@ function semanticBreak(
     // strength still means the Kazakh dependency guard has found a syntactically
     // bound phrase, so no artificial breath is inserted there.
     if (kind === "comma") {
-      if (strength <= 0.12) return 0;
+      // V20: 15 ms is the absolute floor after semantic/dependency analysis.
+      // Strong syntactic binding may still suppress the normal presenter comma
+      // profile, but it never collapses a written comma to a zero-gap handoff.
+      if (strength <= 0.12) return 15;
       const normalizedStrength = clamp((strength - 0.12) / 0.38, 0, 1);
       const commaBreath = profile.commaMin +
         (profile.commaMax - profile.commaMin) * normalizedStrength;
