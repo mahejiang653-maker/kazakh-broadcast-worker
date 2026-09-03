@@ -1,0 +1,27 @@
+name: Broadcast comma breath V18
+
+on:
+  push:
+    paths:
+      - '.deploy-broadcast-comma-breath-v18'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply V18 broadcast comma breath patch
+        run: python .github/scripts/broadcast-comma-breath-v18.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .deploy-broadcast-comma-breath-v18
+          git add app/lib/edge-omnivoice-inspired.ts .deploy-broadcast-comma-breath-v18
+          git commit -m "Lengthen presenter comma breathing"
+          git push
