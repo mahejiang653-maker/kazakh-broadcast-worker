@@ -1,0 +1,26 @@
+name: Natural cadence V32
+
+on:
+  push:
+    paths:
+      - '.github/workflows/natural-cadence-v32.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply V32 natural cadence patch
+        run: python .github/scripts/natural-cadence-v32.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts
+          git commit -m "Refine ordinal pauses and punctuation-free breathing"
+          git push
