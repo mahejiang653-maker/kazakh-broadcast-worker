@@ -36,10 +36,10 @@ const EDGE_VOICES = [
 ] as const;
 
 const PRESETS = [
-  { id: "news", label: "标准新闻", note: "主持人语调 · 条目开场与收尾", rateFactor: 1.01 },
-  { id: "calm", label: "沉稳长稿", note: "沉稳主持 · 条目自然收束", rateFactor: 0.97 },
-  { id: "bulletin", label: "简明快讯", note: "快讯主持 · 紧凑条目节奏", rateFactor: 1.045 },
-  { id: "expressive", label: "生动播报", note: "主持人表现 · 转场有起伏", rateFactor: 1.01 },
+  { id: "news", label: "标准新闻", note: "连续主持 · 条目开场与收尾", rateFactor: 1.01 },
+  { id: "calm", label: "沉稳长稿", note: "长稿连续 · 沉稳主持", rateFactor: 0.97 },
+  { id: "bulletin", label: "简明快讯", note: "连续快讯 · 紧凑转场", rateFactor: 1.045 },
+  { id: "expressive", label: "生动播报", note: "连续主持 · 动态表现", rateFactor: 1.01 },
   { id: "story", label: "故事版", note: "逐词情绪分析 · 长句连续 · 真人旁白", rateFactor: 1 },
 ] as const;
 

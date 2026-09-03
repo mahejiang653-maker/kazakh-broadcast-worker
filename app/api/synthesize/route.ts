@@ -1013,179 +1013,67 @@ function renderEmotionDirectedBody(
     );
   }
 
-  type DeliveryGroup = {
-    paragraphIndex: number;
-    zone: string;
-    newsItemOpening: boolean;
-    sentences: typeof sentences;
-  };
+  // V11 broadcast continuity: preserve fine document/emotion analysis, but feed
+  // Edge one long presenter movement per synthesis chunk. Item openings/closings,
+  // questions, exclamations and true semantic paragraph boundaries are handled
+  // locally inside the Omni renderer instead of creating a fresh acoustic block
+  // for every paragraph or emotion tempo zone.
+  const totalChars = Math.max(
+    1,
+    sentences.reduce((sum, sentence) => sum + sentence.text.length, 0),
+  );
+  const weighted = sentences.reduce(
+    (acc, sentence) => {
+      const weight = sentence.text.length / totalChars;
+      acc.rate += (sentence.rateFactor - 1) * 100 * weight;
+      acc.pitch += sentence.pitchDelta * weight;
+      acc.volume += sentence.volumeDelta * weight;
+      return acc;
+    },
+    { rate: 0, pitch: 0, volume: 0 },
+  );
 
-  const groups: DeliveryGroup[] = [];
-  for (const sentence of sentences) {
-    const storyDirection =
-      preset === "story"
-        ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct)
-        : null;
-    const newsItemOpening = preset !== "story" && isNewsItemOpening(sentence.text);
-    const baseZone = newsItemOpening
-      ? `news-item:${preset}`
-      : storyDirection
-        ? `story:${storyDirection.beat}`
-        : emotionTempoZone(sentence.mood);
-    const zone = sentence.speakerTurn > 0 ? `${baseZone}:turn:${sentence.speakerTurn}` : baseZone;
-    const previous = groups[groups.length - 1];
-    const previousChars = previous
-      ? previous.sentences.reduce((sum, item) => sum + item.text.length, 0)
-      : 0;
-    const storyGroupLimit =
-      preset === "story"
-        ? storyDirection?.beat === "narrator"
-          ? 6
-          : storyDirection?.beat === "dialogue"
-            ? 1
-            : 2
-        : preset === "calm"
-          ? 6
-          : preset === "news"
-            ? 5
-            : 4;
-    const storyCharLimit =
-      preset === "story"
-        ? storyDirection?.beat === "narrator"
-          ? 520
-          : 260
-        : preset === "calm"
-          ? 650
-          : preset === "news"
-            ? 540
-            : preset === "bulletin"
-              ? 430
-              : 420;
-    const canJoin =
-      previous &&
-      previous.paragraphIndex === sentence.paragraphIndex &&
-      previous.zone === zone &&
-      previous.sentences.length < storyGroupLimit &&
-      previousChars + sentence.text.length <= storyCharLimit;
+  // News delivery should react to the document without sounding like every
+  // sentence received a new voice setting. Keep mood shading restrained and
+  // let the semantic/news-cadence layer carry most local prominence.
+  const continuityEmotionStrength = emotionStrength *
+    (preset === "expressive" ? 0.64 : preset === "bulletin" ? 0.58 : 0.52);
+  weighted.rate = clamp(weighted.rate * continuityEmotionStrength, -2.1, 2.1);
+  weighted.pitch = clamp(weighted.pitch * continuityEmotionStrength, -0.42, 0.42);
+  weighted.volume = clamp(weighted.volume * continuityEmotionStrength, -0.38, 0.38);
 
-    if (canJoin) previous.sentences.push(sentence);
-    else groups.push({
-      paragraphIndex: sentence.paragraphIndex,
-      zone,
-      newsItemOpening,
-      sentences: [sentence],
-    });
-  }
-
-  let body = "";
-  let openParagraph: number | null = null;
-
-  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-    const group = groups[groupIndex];
-    const nextGroup = groups[groupIndex + 1];
-    const newsItemClosing = Boolean(nextGroup?.newsItemOpening);
-    const sameParagraphHandoff = Boolean(
-      newsItemClosing && nextGroup?.paragraphIndex === group.paragraphIndex,
-    );
-    if (openParagraph !== group.paragraphIndex) {
-      if (openParagraph !== null) body += "</p>";
-      body += "<p>";
-      openParagraph = group.paragraphIndex;
-    }
-
-    const totalChars = Math.max(1, group.sentences.reduce((sum, item) => sum + item.text.length, 0));
-    const weighted = group.sentences.reduce(
-      (acc, sentence) => {
-        const weight = sentence.text.length / totalChars;
-        const storyDirection =
-          preset === "story"
-            ? storyDirectionForSentence(sentence.text, sentence.mood, sentence.role, sentence.speechAct)
-            : null;
-        if (preset === "story") {
-          acc.rate += (storyDirection?.ratePercent ?? 0) * weight;
-          acc.pitch += (storyDirection?.pitchDelta ?? 0) * weight;
-          acc.volume += (storyDirection?.volumeDelta ?? 0) * weight;
-        } else {
-          acc.rate += (sentence.rateFactor - 1) * 100 * weight;
-          acc.pitch += sentence.pitchDelta * weight;
-          acc.volume += sentence.volumeDelta * weight;
-        }
-        return acc;
-      },
-      { rate: 0, pitch: 0, volume: 0 },
-    );
-    weighted.rate *= emotionStrength;
-    weighted.pitch *= emotionStrength;
-    weighted.volume *= emotionStrength;
-
-    if (group.newsItemOpening) {
-      const presenter = newsItemPresenterLift(preset);
-      weighted.rate += presenter.rate;
-      weighted.pitch += presenter.pitch;
-      weighted.volume += presenter.volume;
-    }
-
-    if (newsItemClosing) {
-      const terminalText = group.sentences[group.sentences.length - 1]?.text.trim() ?? "";
-      const sentenceModeProtected = /[?？!！](?:[»”"'’」』）\])}]*)?$/u.test(terminalText);
-      const close = newsItemPresenterClose(preset, sentenceModeProtected);
-      weighted.rate += close.rate;
-      weighted.pitch += close.pitch;
-      weighted.volume += close.volume;
-    }
-
-    const rawText = group.sentences.map((sentence) => sentence.text).join(" ");
-    const content = useMultilingual
-      ? splitEdgeLanguageRuns(rawText)
+  const renderLanguageAwareText = useMultilingual
+    ? (value: string) =>
+        splitEdgeLanguageRuns(value)
           .map(
             (run) =>
               `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
           )
           .join("")
-      : escapeXml(rawText);
+    : undefined;
 
-    const hasLocalDirection =
-      Math.abs(weighted.rate) >= 0.35 ||
-      Math.abs(weighted.pitch) >= 0.02 ||
-      Math.abs(weighted.volume) >= 0.02;
-
-    if (documentPlan) {
-      const renderLanguageAwareText = useMultilingual
-        ? (value: string) =>
-            splitEdgeLanguageRuns(value)
-              .map(
-                (run) =>
-                  `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
-              )
-              .join("")
-        : undefined;
-      body += `${renderEdgeOmniInspiredMarkup(
-        rawText,
+  const content = documentPlan
+    ? renderEdgeOmniInspiredMarkup(
+        text,
         {
-          speed: clamp(1 + weighted.rate / 100, 0.94, 1.06),
+          speed: clamp(1 + weighted.rate / 100, 0.965, 1.035),
           pitch: weighted.pitch,
           volume: weighted.volume,
           deliveryMode: "broadcast",
         },
         documentPlan,
         renderLanguageAwareText,
-      )} `;
-    } else if (hasLocalDirection) {
-      body += `<prosody rate="${signedPercent(weighted.rate)}" pitch="${signedPercent(weighted.pitch)}" volume="${signedPercent(weighted.volume)}">${content}</prosody> `;
-    } else {
-      body += `${content} `;
-    }
+      )
+    : useMultilingual
+      ? splitEdgeLanguageRuns(text)
+          .map(
+            (run) =>
+              `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
+          )
+          .join("")
+      : escapeXml(text);
 
-    // When two item labels occur inside one source paragraph there is no layout
-    // boundary for the neural voice to use. Add one short presenter hand-off.
-    // Separate paragraphs already carry their own semantic paragraph boundary,
-    // so we deliberately avoid stacking another fixed pause there.
-    if (sameParagraphHandoff) body += '<break time="78ms"/>';
-  }
-
-  if (openParagraph !== null) body += "</p>";
-
-  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${body}</prosody>`;
+  return `<prosody rate="${speedToRate(baseSpeed)}" pitch="${signedPercent(basePitch)}" volume="${signedPercent(baseVolume)}">${content}</prosody>`;
 }
 
 function buildEdgeSsml(

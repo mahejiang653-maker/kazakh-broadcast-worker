@@ -45,6 +45,7 @@ type Phrase = {
   quoteEnd?: boolean;
   directQuote?: boolean;
   reportingLead?: boolean;
+  newsItemClose?: boolean;
   boundaryStrength?: number;
 };
 
@@ -1008,12 +1009,40 @@ function semanticBoundaryStrength(
     strength = Math.max(strength, kind === "period" ? 0.6 : 0.48);
   }
 
+  if (
+    deliveryMode === "broadcast" &&
+    startsWithNewsItemCue(next.text) &&
+    !["question", "exclamation", "mixed"].includes(kind)
+  ) {
+    strength = Math.max(strength, kind === "period" ? 0.68 : 0.56);
+  }
+
   // Question marks retain question intonation regardless of this score. The
   // score controls boundary/pause strength only, not the interrogative contour.
   if (kind === "question") strength = Math.max(strength, sameDirectQuote ? 0.42 : 0.5);
   if (kind === "mixed") strength = Math.max(strength, 0.6);
 
   return clamp(strength, 0.04, 0.96);
+}
+
+function annotateBroadcastCadence(
+  phrases: Phrase[],
+  deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+) {
+  if (deliveryMode !== "broadcast") return phrases;
+  return phrases.map((phrase, index) => {
+    const next = phrases[index + 1];
+    if (!next || !startsWithNewsItemCue(next.text)) return phrase;
+    return {
+      ...phrase,
+      newsItemClose: true,
+      micro: {
+        rateFactor: clamp(phrase.micro.rateFactor * 0.994, 0.95, 1.03),
+        pitchDelta: clamp(phrase.micro.pitchDelta - 0.025, -0.18, 0.18),
+        volumeDelta: clamp(phrase.micro.volumeDelta - 0.008, -0.12, 0.2),
+      },
+    };
+  });
 }
 
 function annotateSemanticBoundaries(
@@ -1071,6 +1100,13 @@ function semanticBreak(
     if (punctuationRendered) return 0;
     if (kind === "paragraph") return strength >= 0.82 ? 24 : 0;
     return 0;
+  }
+
+  // Broadcast V11 keeps the presenter pause characteristic without turning every
+  // sentence into a restart. Only the end of a detected news item receives a
+  // small deliberate hand-off; native punctuation still supplies the main timing.
+  if (deliveryMode === "broadcast" && phrase.newsItemClose) {
+    return punctuationRendered ? 48 : 62;
   }
 
   // If native punctuation is rendered, let the neural voice realize its own
@@ -1199,8 +1235,11 @@ export function renderEdgeOmniInspiredMarkup(
   renderText: EdgeMarkupRenderer = escapeXml,
 ) {
   const phrases = annotateSemanticBoundaries(
-    applyDirectQuoteContinuity(
-      applyLogicalFocusContrast(bidirectionalSmooth(annotateQuoteContinuity(buildPhrases(text, plan)))),
+    annotateBroadcastCadence(
+      applyDirectQuoteContinuity(
+        applyLogicalFocusContrast(bidirectionalSmooth(annotateQuoteContinuity(buildPhrases(text, plan)))),
+      ),
+      settings.deliveryMode,
     ),
     settings.deliveryMode,
   );
@@ -1228,16 +1267,23 @@ export function renderEdgeOmniInspiredMarkup(
     );
     const roleChanged = previous.segment?.role !== phrase.segment?.role;
     const storyMode = settings.deliveryMode === "story";
+    const broadcastMode = settings.deliveryMode === "broadcast";
     const strongRoleBoundary =
       storyMode
         ? !sameDirectQuote &&
           !reportingBridge &&
           roleChanged &&
           phrase.segment?.role === "ending"
-        : !sameDirectQuote &&
-          !reportingBridge &&
-          roleChanged &&
-          (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
+        : broadcastMode
+          ? !sameDirectQuote &&
+            !reportingBridge &&
+            roleChanged &&
+            (["title", "climax", "ending"].includes(previous.segment?.role ?? "") ||
+              ["title", "climax", "ending"].includes(phrase.segment?.role ?? ""))
+          : !sameDirectQuote &&
+            !reportingBridge &&
+            roleChanged &&
+            (isEmphasisRole(previous.segment?.role) || isEmphasisRole(phrase.segment?.role));
     const previousFocus = logicalFocusScore(previous);
     const incomingFocus = logicalFocusScore(phrase);
     // Keep strong focus sparse but audible. A reporting-colon bridge is not a
@@ -1245,19 +1291,22 @@ export function renderEdgeOmniInspiredMarkup(
     const strongFocusBoundary =
       !storyMode &&
       !reportingBridge &&
-      ((incomingFocus >= 0.72 && previousFocus < 0.55) ||
-        (previousFocus >= 0.72 && incomingFocus < 0.55));
+      (broadcastMode
+        ? ((incomingFocus >= 0.84 && previousFocus < 0.62) ||
+          (previousFocus >= 0.84 && incomingFocus < 0.62))
+        : ((incomingFocus >= 0.72 && previousFocus < 0.55) ||
+          (previousFocus >= 0.72 && incomingFocus < 0.55)));
     // A paragraph inside the same open quotation still gets its punctuation
     // pause in renderGroup, but it should not create a new prosody state.
     const previousBoundaryStrength =
       previous.boundaryStrength ?? baseBoundaryStrength(previous.punctuationKind);
     const hardBoundary =
       ["paragraph", "newline"].includes(previous.punctuationKind) &&
-      previousBoundaryStrength >= (storyMode ? 0.82 : 0.58) &&
+      previousBoundaryStrength >= (storyMode ? 0.82 : broadcastMode ? 0.72 : 0.58) &&
       !sameDirectQuote;
     const tooDifferent =
       microDistance(currentAverage, phrase.micro) >
-      (storyMode ? 3.6 : sameDirectQuote || reportingBridge ? 2.8 : 2.35);
+      (storyMode ? 3.6 : broadcastMode ? 3.05 : sameDirectQuote || reportingBridge ? 2.8 : 2.35);
     const sentenceBoundary =
       ["period", "question", "exclamation", "mixed"].includes(previous.punctuationKind) &&
       previousBoundaryStrength >= 0.57;
@@ -1266,11 +1315,16 @@ export function renderEdgeOmniInspiredMarkup(
       sentenceBoundary &&
       !sameDirectQuote &&
       !reportingBridge &&
-      Math.abs(currentAverage.rateFactor - phrase.micro.rateFactor) >= 0.006;
+      previousBoundaryStrength >= (broadcastMode ? 0.68 : 0.57) &&
+      Math.abs(currentAverage.rateFactor - phrase.micro.rateFactor) >= (broadcastMode ? 0.008 : 0.006);
     const tooLong =
       current.length >=
-        (storyMode ? (sameDirectQuote ? 18 : 15) : (sameDirectQuote ? 10 : 8)) &&
-      previousBoundaryStrength >= (storyMode ? 0.62 : 0.36);
+        (storyMode
+          ? (sameDirectQuote ? 18 : 15)
+          : broadcastMode
+            ? (sameDirectQuote ? 15 : 12)
+            : (sameDirectQuote ? 10 : 8)) &&
+      previousBoundaryStrength >= (storyMode ? 0.62 : broadcastMode ? 0.52 : 0.36);
 
     if (
       hardBoundary ||
