@@ -1243,80 +1243,84 @@ function semanticBreak(
     return 0;
   }
 
-  // V17 broadcast flow: borrow V16's "finish the sentence before continuing"
-  // principle, but keep newsroom pauses much tighter than story mode. Each preset
-  // keeps its own presenter character: calm is roomier, bulletin is the tightest,
-  // expressive has a little more air around turns, and standard news sits between.
+  // V29 broadcast flow: the four presenter presets now use the same natural
+  // layered breathing hierarchy as story mode while preserving their own base
+  // rates, pitch/volume character and document-emotion direction. There is no
+  // fixed word-to-word gap. Pauses are derived from semantic strength, sentence
+  // length, document role and quotation continuity.
   if (deliveryMode === "broadcast") {
-    const profile = {
-      news: {
-        commaMin: 45,
-        commaMax: 75,
-        sentenceMin: 34,
-        sentenceMax: 58,
-        paragraphMin: 105,
-        paragraphMax: 150,
-        item: 82,
-      },
-      calm: {
-        commaMin: 45,
-        commaMax: 75,
-        sentenceMin: 42,
-        sentenceMax: 68,
-        paragraphMin: 120,
-        paragraphMax: 165,
-        item: 92,
-      },
-      bulletin: {
-        commaMin: 45,
-        commaMax: 75,
-        sentenceMin: 26,
-        sentenceMax: 46,
-        paragraphMin: 90,
-        paragraphMax: 130,
-        item: 72,
-      },
-      expressive: {
-        commaMin: 45,
-        commaMax: 75,
-        sentenceMin: 38,
-        sentenceMax: 64,
-        paragraphMin: 110,
-        paragraphMax: 160,
-        item: 88,
-      },
-    }[broadcastPreset ?? "news"];
+    const clean = phrase.text.trim();
+    const words = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
+    const enoughSpeech = clean.length >= 24 || words >= 5;
+    const presetBias =
+      broadcastPreset === "calm" ? 0.05 :
+      broadcastPreset === "bulletin" ? -0.04 :
+      broadcastPreset === "expressive" ? 0.025 : 0;
+    const adjustedStrength = clamp(strength + presetBias, 0.04, 0.96);
+    const roleBonus =
+      phrase.segment?.role === "ending" ? 18 :
+      phrase.segment?.role === "climax" ? 12 :
+      phrase.segment?.role === "transition" ? 6 : 0;
 
-    if (phrase.newsItemClose) return profile.item;
+    // Keep the special news-item hand-off, but let it breathe with context rather
+    // than forcing one identical timing in every preset.
+    if (phrase.newsItemClose) {
+      return Math.round(clamp(70 + adjustedStrength * 34 + roleBonus * 0.25, 72, 105));
+    }
 
     if (kind === "paragraph") {
-      if (strength <= 0.18) return 0;
-      const paragraphBreath = profile.paragraphMin +
-        (profile.paragraphMax - profile.paragraphMin) * clamp(strength, 0, 1);
-      return Math.round(clamp(paragraphBreath, profile.paragraphMin, profile.paragraphMax));
+      if (adjustedStrength <= 0.18) return 0;
+      // Real paragraph transitions are discourse boundaries. Ordinary paragraph
+      // moves occupy the lower part of 240-400 ms; major role/emotion shifts land
+      // toward the upper end so the next paragraph never crowds the previous one.
+      return adjustedStrength >= 0.84
+        ? Math.round(clamp(150 + adjustedStrength * 280 + roleBonus * 0.35, 320, 400))
+        : Math.round(clamp(135 + adjustedStrength * 210 + roleBonus * 0.25, 240, 320));
     }
 
-    // V18: a broadcast comma is a presenter breathing point, not a near-zero gap.
-    // Keep it clearly shorter than a completed-sentence pause, but long enough for
-    // the first clause to release before the second clause begins. Very low boundary
-    // strength still means the Kazakh dependency guard has found a syntactically
-    // bound phrase, so no artificial breath is inserted there.
     if (kind === "comma") {
-      // V23: 45 ms is the absolute floor after semantic/dependency analysis.
-      // Every written broadcast comma keeps at least a 45 ms presenter gap,
-      // while normal presenter commas dynamically expand up to 75 ms.
-      if (strength <= 0.12) return 45;
-      const normalizedStrength = clamp((strength - 0.12) / 0.38, 0, 1);
-      const commaBreath = profile.commaMin +
-        (profile.commaMax - profile.commaMin) * normalizedStrength;
-      return Math.round(clamp(commaBreath, profile.commaMin, profile.commaMax));
+      // Every written presenter comma keeps a 45 ms floor, but the exact release
+      // grows with semantic boundary strength. This replaces the old universal
+      // 45-75 ms profile with the requested 45-60 ms natural clause band.
+      const commaBreath = 45 + adjustedStrength * 15;
+      return Math.round(clamp(commaBreath, 45, 60));
     }
 
-    if (["period", "question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
-      if (kind === "period" && strength <= 0.18) return 0;
-      const sentenceBreath = profile.sentenceMin +
-        (profile.sentenceMax - profile.sentenceMin) * clamp(strength, 0, 1);
-      return Math.round(clamp(sentenceBreath, profile.sentenceMin, profile.sentenceMax));
+    if (["question", "exclamation", "mixed", "ellipsis"].includes(kind)) {
+      const expressiveBreath =
+        kind === "ellipsis"
+          ? 112 + adjustedStrength * 48 + roleBonus
+          : 96 + adjustedStrength * 54 + roleBonus;
+      return Math.round(
+        clamp(
+          expressiveBreath,
+          kind === "ellipsis" ? 115 : 100,
+          kind === "ellipsis" ? 175 : 160,
+        ),
+      );
+    }
+
+    if (kind === "period") {
+      // A period suppressed by a very strong dependency guard is treated as bad
+      // source formatting rather than a completed sentence. Genuine completed
+      // sentences use semantic strength + length + document role within 100-165 ms.
+      if (strength <= 0.18) return 0;
+      const lengthBonus = Math.min(20, Math.max(0, (words - 6) * 1.45));
+      const quoteAdjustment = phrase.directQuote && !phrase.quoteEnd ? -6 : 0;
+      const sentenceBreath =
+        94 + adjustedStrength * 62 + lengthBonus + roleBonus + quoteAdjustment;
+      return Math.round(clamp(sentenceBreath, 100, 165));
+    }
+
+    // Single newlines are lighter than true paragraph changes. Semicolon, colon
+    // and dash form the requested 40-72 ms middle layer when they are real
+    // semantic boundaries; dependency-suppressed marks stay connected.
+    if (kind === "newline" && adjustedStrength >= 0.3) {
+      return Math.round(clamp(38 + adjustedStrength * 48, 50, 82));
+    }
+    if (["semicolon", "colon", "dash"].includes(kind)) {
+      if (strength <= 0.18 || !enoughSpeech) return 0;
+      return Math.round(clamp(28 + adjustedStrength * 50, 40, 72));
     }
   }
 
@@ -1344,9 +1348,9 @@ function naturalTextMarkup(
   renderText: EdgeMarkupRenderer = escapeXml,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
 ) {
-  // V28: do not insert a fixed gap between every word in story mode. Word timing
-  // stays fully native to the neural voice; breathing is controlled only at real
-  // semantic, sentence and paragraph boundaries.
+  // V29: story and all four broadcast presets leave word-to-word timing entirely
+  // to Edge's neural voice. No fixed <break> is inserted between ordinary words;
+  // explicit breathing exists only at real semantic/discourse boundaries.
   const renderNaturalText = (value: string) => renderText(value);
 
   // A presenter may write "Бірінші жаңалық бүгін..." without punctuation after
@@ -1425,8 +1429,21 @@ function naturalTextMarkup(
     // together. This preserves modifier-head, name-title and number-unit groups.
     if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
 
+    const dependency = kazakhDependencyGuard(left, right);
+    if (dependency.score >= 0.55) continue;
+
     output += renderNaturalText(text.slice(cursor, boundary));
-    output += '<break time="16ms"/>';
+    // V29: long punctuation-free presenter spans breathe only at dependency-safe
+    // semantic connectors. The pause is deliberately light and dynamic rather
+    // than the previous fixed 16 ms, so long sentences remain continuous without
+    // letting the second half press against the first.
+    const clauseLoad = clamp((left.length - 42) / 120, 0, 1);
+    const dependencyRelease = clamp(1 - dependency.score, 0, 1);
+    const softBreath =
+      deliveryMode === "broadcast"
+        ? Math.round(clamp(30 + clauseLoad * 12 + dependencyRelease * 6, 32, 48))
+        : 16;
+    output += `<break time="${softBreath}ms"/>`;
     cursor = boundary;
     lastBoundary = boundary;
     inserted += 1;
