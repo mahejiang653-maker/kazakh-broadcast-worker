@@ -115,6 +115,17 @@ function startsWithNewsItemCue(text: string) {
   return Boolean(newsItemCueMatch(text));
 }
 
+// V32: standalone ordinal labels are spoken discourse markers. When a presenter
+// or narrator says "Бірінші." / "Екінші." / etc. as its own sentence, the
+// following content must not crowd the label. Keep the period for native Edge
+// sentence-final contour and add a deliberately larger semantic hand-off.
+const STANDALONE_ORDINAL_PATTERN =
+  /^(?:бірінші|екінші|үшінші|төртінші|бесінші|алтыншы|жетінші|сегізінші|тоғызыншы|оныншы|он\s+бірінші|он\s+екінші|он\s+үшінші|он\s+төртінші|он\s+бесінші|он\s+алтыншы|он\s+жетінші|он\s+сегізінші|он\s+тоғызыншы|жиырмасыншы)$/iu;
+
+function isStandaloneOrdinalCue(text: string) {
+  return STANDALONE_ORDINAL_PATTERN.test(normalize(text));
+}
+
 function scanQuoteState(value: string, initialActive = false) {
   let active = initialActive;
   let opened = false;
@@ -566,8 +577,9 @@ function localMicro(text: string, kind: PunctuationKind) {
   // load than ordinary clauses. Ease the local rate slightly before adding any
   // breathing so the voice does not race simply because the writer omitted marks.
   if (clean.length >= 260) rateFactor *= 0.974;
-  else if (clean.length >= 180) rateFactor *= 0.98;
-  else if (clean.length >= 105) rateFactor *= 0.986;
+  // V32: begin the stronger long-span easing at about 90 characters instead of
+  // waiting until 180. This matters most for poorly punctuated Kazakh passages.
+  else if (clean.length >= 90) rateFactor *= 0.98;
   else if (clean.length <= 24 && digitCount === 0) rateFactor *= 1.012;
 
   if (startsWithCue(clean, FOCUS_CUES)) {
@@ -1225,6 +1237,23 @@ function semanticBreak(
   // intonation, but the larger structural boundary decides the breathing tier.
   const kind = phrase.layoutBoundary ?? phrase.punctuationKind;
 
+  // V32: "Бірінші.", "Екінші." and similar standalone ordinal labels need a
+  // clear rhetorical hand-off. This is longer than an ordinary sentence but is
+  // still context-sensitive rather than one fixed pause. If a source line break
+  // is also present, this value naturally sits in the paragraph-transition band.
+  if (
+    phrase.punctuationKind === "period" &&
+    isStandaloneOrdinalCue(phrase.text) &&
+    (deliveryMode === "story" || deliveryMode === "broadcast")
+  ) {
+    const modeBias =
+      deliveryMode === "story" ? 14 :
+      broadcastPreset === "calm" ? 18 :
+      broadcastPreset === "bulletin" ? -8 :
+      broadcastPreset === "expressive" ? 10 : 0;
+    return Math.round(clamp(258 + strength * 82 + modeBias, 270, 360));
+  }
+
   // Story V28: natural word timing + layered breathing inside one continuous
   // acoustic state. There is no fixed word-to-word gap. Clause commas remain
   // 45-60 ms, completed sentences settle around 100-165 ms, and real paragraph
@@ -1407,7 +1436,9 @@ function renderPunctuationFreeFallback(
   deliveryMode: "story" | "broadcast",
 ) {
   const matches = Array.from(text.matchAll(/\S+/gu));
-  if (matches.length < 18) return renderNaturalText(text);
+  // V32: a 14+ word unpunctuated span is already long enough to require a breath
+  // check. The old 18-word gate left many medium-long sentences completely flat.
+  if (matches.length < 14) return renderNaturalText(text);
 
   const words = matches.map((match) => ({
     text: match[0],
@@ -1417,11 +1448,11 @@ function renderPunctuationFreeFallback(
   const averageWordLength =
     words.reduce((sum, word) => sum + word.text.length, 0) / Math.max(1, words.length);
   const densityAdjustment = averageWordLength >= 8 ? -2 : averageWordLength <= 5.5 ? 1 : 0;
-  const baseTarget = (deliveryMode === "story" ? 17 : 16) + densityAdjustment;
-  const maxBreaths =
-    words.length >= 72 ? 4 :
-    words.length >= 50 ? 3 :
-    words.length >= 32 ? 2 : 1;
+  const baseTarget = (deliveryMode === "story" ? 15 : 14) + densityAdjustment;
+  // Let the amount of breathing scale with actual length. This can yield 1, 2,
+  // 3... breaths as needed, capped conservatively so it never becomes word-by-word.
+  const idealSpan = Math.max(11, baseTarget + 1);
+  const maxBreaths = Math.round(clamp(Math.ceil(words.length / idealSpan) - 1, 1, 6));
 
   let output = "";
   let charCursor = 0;
@@ -1430,16 +1461,21 @@ function renderPunctuationFreeFallback(
 
   while (inserted < maxBreaths) {
     const remainingWords = words.length - wordCursor;
-    if (remainingWords < 22) break;
+    if (remainingWords < 16) break;
 
-    // Rebalance the target as the tail gets shorter so pauses do not fall at
-    // mechanically equal intervals. Dense/long-word passages breathe a little
-    // earlier; lighter passages can carry a few more words naturally.
-    const tailAdjustment = remainingWords >= 45 ? 1 : remainingWords <= 27 ? -1 : 0;
-    const targetWords = Math.max(12, baseTarget + tailAdjustment);
-    const minWords = Math.max(11, targetWords - 4);
+    // Re-estimate each breath from the remaining passage. Dense/long-word text
+    // breathes earlier; a short tail pushes the candidate slightly forward/back.
+    const remainingBreaths = Math.max(1, maxBreaths - inserted);
+    const evenShare = Math.round(remainingWords / (remainingBreaths + 1));
+    const tailAdjustment = remainingWords >= 42 ? 1 : remainingWords <= 23 ? -1 : 0;
+    const targetWords = Math.round(clamp(
+      (baseTarget * 0.58 + evenShare * 0.42) + tailAdjustment,
+      10,
+      19,
+    ));
+    const minWords = Math.max(9, targetWords - 4);
     const maxWords = targetWords + 5;
-    const minTailWords = 9;
+    const minTailWords = 7;
     const firstCandidate = wordCursor + minWords - 1;
     const lastCandidate = Math.min(
       wordCursor + maxWords - 1,
@@ -1452,11 +1488,11 @@ function renderPunctuationFreeFallback(
     const chooseCandidate = (dependencyLimit: number) => {
       for (let index = firstCandidate; index <= lastCandidate; index += 1) {
         const leftWindow = words
-          .slice(Math.max(wordCursor, index - 5), index + 1)
+          .slice(Math.max(wordCursor, index - 6), index + 1)
           .map((word) => word.text)
           .join(" ");
         const rightWindow = words
-          .slice(index + 1, Math.min(words.length, index + 7))
+          .slice(index + 1, Math.min(words.length, index + 8))
           .map((word) => word.text)
           .join(" ");
         if (!leftWindow || !rightWindow) continue;
@@ -1466,13 +1502,15 @@ function renderPunctuationFreeFallback(
 
         const chunkWords = index - wordCursor + 1;
         const semanticBonus = startsWithCue(rightWindow, STRONG_BOUNDARY_STARTERS)
-          ? -1.4
+          ? -1.6
           : startsWithCue(rightWindow, CONTINUATION_STARTERS)
-            ? -0.45
+            ? -0.55
             : 0;
+        const balancePenalty = Math.abs((words.length - index - 1) - minTailWords) < 2 ? 0.5 : 0;
         const score =
           Math.abs(chunkWords - targetWords) +
-          dependency.score * 4 +
+          dependency.score * 4.4 +
+          balancePenalty +
           semanticBonus;
         if (!best || score < best.score) {
           best = { index, score, dependency: dependency.score };
@@ -1480,21 +1518,22 @@ function renderPunctuationFreeFallback(
       }
     };
 
-    // Prefer very safe dependency boundaries. If a poorly punctuated long span
-    // has none, allow a still-conservative second pass rather than reading the
-    // entire paragraph in one breath.
+    // Prefer strongly dependency-safe boundaries. If the writer supplied no
+    // punctuation and no very safe option exists, widen gradually rather than
+    // allowing the whole span to be spoken in one breath.
     chooseCandidate(0.55);
     if (!best) chooseCandidate(0.72);
+    if (!best) chooseCandidate(0.82);
     if (!best) break;
 
     const boundary = words[best.index].end;
     const chunkWords = best.index - wordCursor + 1;
-    const chunkLoad = clamp((chunkWords - 11) / 11, 0, 1);
-    const lexicalLoad = clamp((averageWordLength - 5.5) / 4, 0, 1);
+    const chunkLoad = clamp((chunkWords - 9) / 11, 0, 1);
+    const lexicalLoad = clamp((averageWordLength - 5.2) / 4.3, 0, 1);
     const dependencyRelease = clamp(1 - best.dependency, 0, 1);
     const breath = deliveryMode === "story"
-      ? Math.round(clamp(46 + chunkLoad * 8 + lexicalLoad * 7 + dependencyRelease * 4, 48, 68))
-      : Math.round(clamp(42 + chunkLoad * 8 + lexicalLoad * 6 + dependencyRelease * 4, 44, 62));
+      ? Math.round(clamp(48 + chunkLoad * 9 + lexicalLoad * 8 + dependencyRelease * 5, 50, 72))
+      : Math.round(clamp(44 + chunkLoad * 9 + lexicalLoad * 7 + dependencyRelease * 5, 46, 66));
 
     output += renderNaturalText(text.slice(charCursor, boundary));
     output += `<break time="${breath}ms"/>`;
@@ -1563,7 +1602,8 @@ function naturalTextMarkup(
       const dependency = kazakhDependencyGuard(left, right);
       if (dependency.score >= 0.55) continue;
 
-      output += renderNaturalText(text.slice(cursor, boundary));
+      const prefix = text.slice(cursor, boundary);
+      output += renderPunctuationFreeFallback(prefix, renderNaturalText, "story");
       output += `<break time="${Math.round(clamp(45 + Math.max(0, clean.length - 112) * 0.08, 45, 60))}ms"/>`;
       cursor = boundary;
       lastBoundary = boundary;
@@ -1604,7 +1644,10 @@ function naturalTextMarkup(
     const dependency = kazakhDependencyGuard(left, right);
     if (dependency.score >= 0.55) continue;
 
-    output += renderNaturalText(text.slice(cursor, boundary));
+    const prefix = text.slice(cursor, boundary);
+    output += deliveryMode === "broadcast"
+      ? renderPunctuationFreeFallback(prefix, renderNaturalText, "broadcast")
+      : renderNaturalText(prefix);
     // V29: long punctuation-free presenter spans breathe only at dependency-safe
     // semantic connectors. The pause is deliberately light and dynamic rather
     // than the previous fixed 16 ms, so long sentences remain continuous without
