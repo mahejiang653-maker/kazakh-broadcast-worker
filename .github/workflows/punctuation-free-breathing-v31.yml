@@ -1,0 +1,26 @@
+name: Punctuation-free breathing V31
+
+on:
+  push:
+    paths:
+      - '.github/workflows/punctuation-free-breathing-v31.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Apply V31 punctuation-free breathing patch
+        run: python .github/scripts/punctuation-free-breathing-v31.py
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/lib/edge-omnivoice-inspired.ts
+          git commit -m "Add dependency-safe breathing to punctuation-free passages"
+          git push
