@@ -79,7 +79,7 @@ const SOFT_SYNTAGMA_PATTERN =
   /(?<![\p{L}\p{N}])(?:бірақ|алайда|дегенмен|өйткені|сондықтан|сол себепті|нәтижесінде|осылайша|яғни|демек|керісінше|соған қарамастан)(?![\p{L}\p{N}])/giu;
 
 const REPORTING_VERB_PATTERN =
-  /(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|表示|称|说|指出|宣布|写道|强调|透露|回应|said|says|stated|reported|announced|wrote|noted|added)/iu;
+  /(?<![\p{L}\p{N}_])(?:деді|дейді|деп|айтты|мәлімдеді|хабарлады|жазды|ескертті|түсіндірді|растады|қосты|атап өтті|said|says|stated|reported|announced|wrote|noted|added)(?![\p{L}\p{N}_])|(?:表示|称|说|指出|宣布|写道|强调|透露|回应)/iu;
 const OPEN_QUOTE_CHARS = new Set(["«", "“", "„", "「", "『"]);
 const CLOSE_QUOTE_CHARS = new Set(["»", "”", "」", "』"]);
 const SENTENCE_TERMINAL_KINDS = new Set<PunctuationKind>([
@@ -1008,7 +1008,10 @@ export function renderEdgeOmniInspiredMarkup(
       !reportingBridge &&
       ((incomingFocus >= 0.72 && previousFocus < 0.55) ||
         (previousFocus >= 0.72 && incomingFocus < 0.55));
-    const hardBoundary = ["paragraph", "newline"].includes(previous.punctuationKind);
+    // A paragraph inside the same open quotation still gets its punctuation
+    // pause in renderGroup, but it should not create a new prosody state.
+    const hardBoundary =
+      ["paragraph", "newline"].includes(previous.punctuationKind) && !sameDirectQuote;
     const tooDifferent =
       microDistance(currentAverage, phrase.micro) > (sameDirectQuote || reportingBridge ? 2.8 : 2.35);
     const sentenceBoundary = ["period", "question", "exclamation", "mixed"].includes(
