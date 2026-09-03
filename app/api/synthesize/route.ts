@@ -779,6 +779,7 @@ function renderContinuousStoryBody(
   basePitch: number,
   baseVolume: number,
   useMultilingual: boolean,
+  documentPlan?: EdgeDocumentPlan,
 ) {
   // Story V5: one continuous narrator, with sparse local acting only when the
   // story actually changes emotional state. This preserves identity and flow
@@ -807,9 +808,14 @@ function renderContinuousStoryBody(
         ? previous.items.reduce((sum, item) => sum + item.text.length, 0)
         : 0;
       const maxChars = direction.beat === "narrator" ? 760 : 360;
+      const previousTurn = previous?.items[0]?.speakerTurn ?? 0;
+      const sameRoleTurn =
+        (previousTurn === 0 && sentence.speakerTurn === 0) ||
+        previousTurn === sentence.speakerTurn;
       const canJoin =
         previous &&
         previous.beat === direction.beat &&
+        sameRoleTurn &&
         previous.items.length < maxItems &&
         previousChars + sentence.text.length <= maxChars;
 
@@ -836,21 +842,29 @@ function renderContinuousStoryBody(
       );
 
       const rawText = group.items.map((sentence) => sentence.text).join(" ");
-      const content = renderStoryPunctuationAwareContent(rawText, useMultilingual);
 
-      if (group.beat === "narrator") {
-        paragraphBody += `${content} `;
-        continue;
-      }
-
-      // Emotion is visible but bounded. We never turn the narrator into a
-      // different person, and only genuine story beats receive a local span.
-      const strength = group.beat === "dialogue" ? 0.62 : group.beat === "ending" ? 0.72 : 0.7;
+      // Emotion is visible but bounded. All story text now passes through the
+      // same semantic punctuation + Kazakh dependency layer as broadcast text.
+      const strength =
+        group.beat === "narrator" ? 0 : group.beat === "dialogue" ? 0.62 : group.beat === "ending" ? 0.72 : 0.7;
       const rate = clamp(direction.rate * strength, -3.8, 3.4);
       const pitch = clamp(direction.pitch * strength, -0.75, 0.75);
       const volume = clamp(direction.volume * strength, -0.7, 0.7);
+      const renderLanguageAwareText = useMultilingual
+        ? (value: string) => renderStoryTextSegment(value, true)
+        : undefined;
+      const content = renderEdgeOmniInspiredMarkup(
+        rawText,
+        {
+          speed: clamp(1 + rate / 100, 0.94, 1.06),
+          pitch,
+          volume,
+        },
+        documentPlan,
+        renderLanguageAwareText,
+      );
 
-      paragraphBody += `<prosody rate="${signedPercent(rate)}" pitch="${signedPercent(pitch)}" volume="${signedPercent(volume)}">${content}</prosody> `;
+      paragraphBody += `${content} `;
     }
 
     body += `<p>${paragraphBody.trim()}</p>`;
@@ -909,6 +923,7 @@ function renderEmotionDirectedBody(
       basePitch,
       baseVolume,
       useMultilingual,
+      documentPlan,
     );
   }
 

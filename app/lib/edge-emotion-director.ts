@@ -225,9 +225,11 @@ function looksLikeImplicitSpeech(text: string) {
   const value = normalize(text);
   if (!value) return false;
   if (/[?？!！]/u.test(text)) return true;
-  if (/^(?:мен|біз|сен|сіз|сендер|сіздер|маған|мағанша|менің|біздің|你|你们|我|我们)(?:\s|$)/iu.test(value)) return true;
+  if (/^(?:мен|біз|сен|сіз|сендер|сіздер|маған|менің|біздің|жоқ|иә|әрине|меніңше|ойымша|你|你们|我|我们|不|是的|当然)(?:\s|$)/iu.test(value)) return true;
   if (/(?:ңыз|ңіз|ыңдар|іңдер|шы|ші)(?:\s|[.!?！？。]|$)/iu.test(text)) return true;
-  return text.length <= 220;
+  if (text.length <= 185 && /(?:керек|тиіс|мүмкін|емес|жоқ|болмайды|болады|қажет)(?:\s|[.!?！？。]|$)/iu.test(text)) return true;
+  if (text.length <= 145 && /(?:мын|мін|бын|бін|пын|пін|мыз|міз|сың|сің|сыз|сіз)(?:\s|[.!?！？。]|$)/iu.test(text)) return true;
+  return false;
 }
 
 function inferSpeechStructure(units: Array<{ text: string; paragraphIndex: number }>): SpeechInference[] {
@@ -280,7 +282,7 @@ function inferSpeechStructure(units: Array<{ text: string; paragraphIndex: numbe
           act: nextAct,
           mood: attributionMood(text),
           paragraphIndex: unit.paragraphIndex,
-          remaining: 3,
+          remaining: 2,
         };
         activeDialogueTurn = turnCounter;
       } else {
@@ -493,7 +495,12 @@ function isProtectedRole(role: EdgeDocumentRole | null) {
  */
 function contextualizeMoods(sentences: EdgeEmotionSentence[]) {
   return sentences.map((sentence, index) => {
-    if (isProtectedRole(sentence.role) || sentence.confidence >= 0.76) return sentence;
+    if (
+      isProtectedRole(sentence.role) ||
+      sentence.confidence >= 0.76 ||
+      sentence.speakerTurn > 0 ||
+      !["narration", "reported"].includes(sentence.speechAct)
+    ) return sentence;
     if (sentence.mood === "urgent" || sentence.mood === "sad" || sentence.mood === "ending") return sentence;
 
     const previous = sentences[index - 1];
