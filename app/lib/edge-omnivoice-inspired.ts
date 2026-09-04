@@ -1121,6 +1121,17 @@ function semanticBoundaryStrength(
     );
   }
 
+  // V34: every genuine written period is a hard sentence boundary even when it
+  // appears inside the same source paragraph, semantic segment or quotation.
+  // Semantic/dependency analysis may tune the release, but cannot erase the
+  // sentence boundary. A following line/paragraph break can still raise it higher.
+  if (
+    (deliveryMode === "story" || deliveryMode === "broadcast") &&
+    current.punctuationKind === "period"
+  ) {
+    strength = Math.max(strength, current.layoutBoundary === "paragraph" ? 0.78 : 0.62);
+  }
+
   // Question marks retain question intonation regardless of this score. The
   // score controls boundary/pause strength only, not the interrogative contour.
   if (kind === "question") strength = Math.max(strength, sameDirectQuote ? 0.42 : 0.5);
@@ -1201,13 +1212,11 @@ function acousticPunctuation(
     if (kind === "dash") return strength >= 0.42 ? phrase.punctuation : "";
   }
 
-  // V17: news presenters also need a real sentence-final contour. Keep genuine
-  // periods audible unless the Kazakh dependency guard has identified a likely
-  // formatting mistake inside a syntactically bound phrase.
+  // V34: every genuine presenter period stays acoustically present, including
+  // periods inside one paragraph. Dependency/semantic analysis may shape the
+  // following pause, but must not strip the sentence-final contour itself.
   if (deliveryMode === "broadcast" && kind === "period") {
-    return strength <= 0.18
-      ? closingPunctuationSuffix(phrase.punctuation)
-      : phrase.punctuation;
+    return phrase.punctuation;
   }
 
   if (kind === "comma") return strength >= 0.43 ? phrase.punctuation : "";
