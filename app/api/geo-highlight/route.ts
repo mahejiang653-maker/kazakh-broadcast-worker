@@ -54,11 +54,18 @@ function pointInGeometry(lon: number, lat: number, g?: Geometry | null): boolean
 }
 
 function chinaLevel(placeType: string, location: string): number | null {
-  const t = `${placeType} ${location}`;
+  // Explicit placeType always wins. This prevents parent names such as
+  // “台湾省新北市” or “新疆维吾尔自治区石河子市” from being mistaken for level-1.
+  const t = String(placeType || "");
   if (/省|自治区|特别行政区|直辖市|province|state/i.test(t)) return 1;
-  if (/县|区|旗|county|district/i.test(t)) return 3;
   if (/自治州|地区|盟|城市|市|city|prefecture/i.test(t)) return 2;
+  if (/县|区|旗|county|district/i.test(t)) return 3;
   if (/区域|region|area/i.test(t)) return 3;
+
+  const l = String(location || "");
+  if (/特别行政区|自治区|省|直辖市|province|state/i.test(l)) return 1;
+  if (/自治州|地区|盟|城市|市|city|prefecture/i.test(l)) return 2;
+  if (/县|区|旗|county|district/i.test(l)) return 3;
   return null;
 }
 
@@ -106,10 +113,13 @@ async function resolveChinaAdmin(
     const names = [p.full_name, p.name, p.city, p.province].map(cleanName).filter(Boolean);
     return names.some((n) => q.includes(n) || n.includes(q));
   });
+
+  // Never silently jump to some other same-level area just because the final
+  // story coordinate happens to be inside it. Name match comes first, then coordinate validation.
   let chosen = named.find((f) => pointInGeometry(lon, lat, f.geometry));
   if (!chosen && named.length === 1) chosen = named[0];
-  if (!chosen) chosen = features.find((f) => pointInGeometry(lon, lat, f.geometry));
   if (!chosen?.geometry) return null;
+
   return {
     geometry: chosen.geometry,
     label: chosen.properties?.full_name || chosen.properties?.name || location,
@@ -145,7 +155,7 @@ async function resolveNominatim(
     format: "jsonv2",
     polygon_geojson: "1",
     addressdetails: "1",
-    limit: "6",
+    limit: "8",
   });
   const r = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`, {
     headers: {
@@ -167,7 +177,7 @@ async function resolveNominatim(
       score += scoreNameMatch(location, [d, row.name, row.namedetails?.name, row.address?.state, row.address?.province, row.address?.city, row.address?.county, row.address?.municipality, row.address?.region, row.address?.suburb]);
       score += scoreNameMatch(country, [d, row.address?.country]);
       if (countryIso3 && String(row.address?.ISO3166_1_alpha3 || "").toUpperCase() === countryIso3) score += 6;
-      if (/city|town|village|municipality/.test(cls) && /城市|city/.test(typeText)) score += 4;
+      if (/city|town|village|municipality/.test(cls) && /城市|市|city/.test(typeText)) score += 4;
       if (/state|province|region/.test(cls) && /省|州|区域|state|province|region/.test(typeText)) score += 4;
       if (/river|waterway/.test(cls) && /河|江|river/.test(typeText)) score += 4;
       if (/sea|ocean|strait|gulf|bay/.test(cls) && /海|湾|海峡|sea|strait|gulf/.test(typeText)) score += 4;
@@ -175,10 +185,10 @@ async function resolveNominatim(
       const rl = Number(row.lon), rt = Number(row.lat);
       if (Number.isFinite(rl) && Number.isFinite(rt)) {
         const dist = Math.hypot((rl - lon) * Math.cos((lat * Math.PI) / 180), rt - lat);
-        score += Math.max(0, 5 - dist);
+        score += Math.max(0, 7 - dist * 2);
       }
-      if (row.geojson && pointInGeometry(lon, lat, row.geojson)) score += 8;
-      if (/administrative|boundary/.test(cls) && /省|州|区域|state|province|region|市|县|区|city|county|district/.test(typeText)) score += 5;
+      if (row.geojson && pointInGeometry(lon, lat, row.geojson)) score += 10;
+      if (/administrative|boundary/.test(cls) && /省|州|区域|地区|state|province|region|市|县|区|city|county|district/.test(typeText)) score += 5;
       if (/country/.test(cls) && /国家|country/.test(typeText)) score += 5;
       return { row, score };
     })
@@ -218,6 +228,16 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // Force a real administrative boundary for the West Bank instead of an approximate box.
+    if (/约旦河西岸|west\s*bank/i.test(location)) {
+      const wb = await resolveNominatim("West Bank", "Palestine", "PSE", "地区", 35.25, 31.95);
+      if (wb?.geometry && !wb.approximate) {
+        return NextResponse.json({ ...wb, label: "约旦河西岸" }, {
+          headers: { "Cache-Control": "public, max-age=86400, s-maxage=604800" },
+        });
+      }
+    }
+
     if (countryIso3 === "CHN" && chinaLevel(placeType, location)) {
       const china = await resolveChinaAdmin(location, placeType, lon, lat);
       if (china) {
