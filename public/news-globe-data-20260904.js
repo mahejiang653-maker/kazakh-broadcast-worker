@@ -1,0 +1,20 @@
+(function(G){
+G.DATA_KEY='news-globe-v14-data-20260904-run';
+G.demo=[
+{id:1,title:'霍尔木兹船流持续低迷，全球油气运输风险继续上升。',location:'霍尔木兹海峡',region:'波斯湾出入口',placeType:'海峡',date:'2026-09-04',lon:56.27,lat:26.56,country:'伊朗/阿曼',height:1800000,focusLine:[[55.75,26.55],[56.18,26.61],[56.62,26.52],[57.05,26.38]],focusLabel:'霍尔木兹海峡',focusRadiusKm:80,summary:'霍尔木兹海峡船流持续低于近期平均水平，全球原油和液化天然气运输风险继续上升。'},
+{id:2,title:'以军称清除黎南部关键山脊地下真主党力量。',location:'阿里·塔希尔山脊',region:'纳巴提耶省',placeType:'山脉',date:'2026-09-04',lon:35.5122,lat:33.3759,countryIso3:'LBN',country:'黎巴嫩',conflict:true,adminChain:[{location:'纳巴提耶省',focusLabel:'纳巴提耶省',placeType:'省',focusQuery:'Nabatieh Governorate, Lebanon',lon:35.50,lat:33.38}],focusBounds:[35.46,33.34,35.56,33.41],focusLabel:'阿里·塔希尔山脊',summary:'以色列军方称已清除黎巴嫩南部阿里·塔希尔山脊地下隧道中的真主党力量。'},
+{id:3,title:'特朗普要求欧洲偿还美国此前提供的援乌军费。',location:'华盛顿',region:'哥伦比亚特区',placeType:'城市',date:'2026-09-04',lon:-77.0369,lat:38.9072,countryIso3:'USA',country:'美国',summary:'特朗普表示将要求欧洲国家偿还美国此前向乌克兰提供的部分军事援助和弹药费用。'},
+{id:4,title:'胡塞被指向也门西部发射14枚弹道导弹并发动袭击。',location:'也门西部沿海',region:'塔伊兹省—荷台达省',placeType:'冲突区域',date:'2026-09-04',lon:43.20,lat:14.10,countryIso3:'YEM',country:'也门',conflict:true,focusBounds:[42.60,13.00,43.80,15.35],focusLabel:'塔伊兹—荷台达西部沿海',summary:'也门政府军称胡塞武装向塔伊兹省和荷台达省西部沿海地区发射14枚弹道导弹并发动无人机袭击。'},
+{id:5,title:'韩国研究参与霍尔木兹航行保障，目前尚未最终决定。',location:'首尔',region:'首尔特别市',placeType:'城市',date:'2026-09-04',lon:126.9780,lat:37.5665,countryIso3:'KOR',country:'韩国',summary:'韩国总统办公室表示正在研究参与霍尔木兹海峡航行保障的可能方案，但尚未作出最终决定。'},
+{id:6,title:'以色列释放多名黎巴嫩人员，人道沟通渠道仍在运作。',location:'黎巴嫩',region:'黎巴嫩全国',placeType:'国家',date:'2026-09-04',lon:35.8623,lat:33.8547,countryIso3:'LBN',country:'黎巴嫩',summary:'以色列释放多名黎巴嫩相关人员，交接由红十字国际委员会协助，人道沟通渠道仍在运作。'},
+{id:7,title:'中新海军将在湛江附近开展实弹、补给及联合搜救演习。',location:'湛江附近海空域',region:'广东省湛江市',placeType:'海域',date:'2026-09-04',lon:110.25,lat:20.85,countryIso3:'CHN',country:'中华人民共和国',adminChain:[{location:'广东省',focusLabel:'广东省',placeType:'省',lon:113.27,lat:23.13},{location:'湛江市',focusLabel:'湛江市',placeType:'市',lon:110.36,lat:21.27}],focusBounds:[109.80,20.35,110.90,21.20],focusLabel:'湛江附近海空域',summary:'中国和新加坡海军将在广东湛江附近海空域举行“海上合作-2026”联演，包含实弹射击、海上补给和联合搜救。'},
+{id:8,title:'NVIDIA以129.303亿美元收购Hugging Face。',location:'美国',region:'美国全国',placeType:'国家',date:'2026-09-04',lon:-98.5795,lat:39.8283,countryIso3:'USA',country:'美国',summary:'NVIDIA宣布以129.303亿美元收购Hugging Face，后者将继续保持开放和可互操作的平台定位。'},
+{id:9,title:'七部门发布数字绿色转型方案，重点降低AI和算力能耗。',location:'北京',region:'北京市',placeType:'城市',date:'2026-09-04',lon:116.4074,lat:39.9042,countryIso3:'CHN',country:'中华人民共和国',summary:'中央网信办等七部门发布数字化绿色化协同转型方案，强调提升人工智能、算力设施和通信基站等领域用能效率。'},
+{id:10,title:'我国计划到2030年培育约2.2万家专精特新“小巨人”。',location:'北京',region:'北京市',placeType:'城市',date:'2026-09-04',lon:116.4074,lat:39.9042,countryIso3:'CHN',country:'中华人民共和国',summary:'我国新一轮中小企业发展规划提出，到2030年将专精特新“小巨人”企业数量提高到约2.2万家。'},
+{id:11,title:'前7月我国服务贸易增长8.3%，出口增长17.1%。',location:'北京',region:'北京市',placeType:'城市',date:'2026-09-04',lon:116.4074,lat:39.9042,countryIso3:'CHN',country:'中华人民共和国',summary:'商务部数据显示，今年前7个月我国服务进出口总额同比增长8.3%，其中出口同比增长17.1%。'},
+{id:12,title:'新疆吉木萨尔持续突破近4000米深层页岩油开发技术。',location:'吉木萨尔县',region:'新疆昌吉回族自治州',placeType:'县',date:'2026-09-04',lon:89.18,lat:44.02,countryIso3:'CHN',country:'中华人民共和国',adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.62,lat:43.82},{location:'昌吉回族自治州',focusLabel:'昌吉回族自治州',placeType:'自治州',lon:87.31,lat:44.01}],summary:'新疆吉木萨尔国家级陆相页岩油示范区持续突破近4000米深层页岩油开发技术。'},
+{id:13,title:'新疆农优品亮相广州SIAL展，加快拓展海内外销售渠道。',location:'广州保利世贸博览馆',region:'广东省广州市海珠区',placeType:'展馆',date:'2026-09-04',lon:113.3578,lat:23.0980,countryIso3:'CHN',country:'中华人民共和国',adminChain:[{location:'广东省',focusLabel:'广东省',placeType:'省',lon:113.27,lat:23.13},{location:'广州市',focusLabel:'广州市',placeType:'市',lon:113.2644,lat:23.1291},{location:'海珠区',focusLabel:'海珠区',placeType:'区',lon:113.3172,lat:23.0833}],focusBounds:[113.345,23.088,113.370,23.108],focusLabel:'广州保利世贸博览馆',summary:'新疆展团亮相2026 SIAL西雅国际食品和饮料展览会（广州），借助粤港澳大湾区平台拓展海内外销售渠道。'}
+];
+G.payload={meta:{date:'2026-09-04',edition:'daily-13-20260904'},news:G.demo};
+G.news=G.payload.news;G.meta=G.payload.meta;
+})(window.NG14);
