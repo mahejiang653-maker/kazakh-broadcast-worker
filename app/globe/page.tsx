@@ -13,17 +13,18 @@ export default function GlobePage() {
         height: "100%",
         margin: 0,
         padding: 0,
-        overflow: "hidden",
+        overflow: "auto",
         background: "#020711",
         zIndex: 9999,
       }}
     >
       <iframe
-        src="/news-globe-v3.html"
+        src="/news-globe-v4.html"
         title="全球新闻十三地新闻地球仪"
         style={{
           display: "block",
           width: "100%",
+          minHeight: "100%",
           height: "100%",
           border: 0,
           background: "#020711",
