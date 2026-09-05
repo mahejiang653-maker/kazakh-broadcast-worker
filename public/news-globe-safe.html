@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>全球新闻 · 十三地新闻地球仪</title>
+<style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020711}iframe{display:block;width:100%;height:100%;border:0;background:#020711}</style>
+</head>
+<body>
+<iframe id="globeFrame" src="/news-globe.html" title="全球新闻十三地新闻地球仪" allow="fullscreen"></iframe>
+<script>
+const frame=document.getElementById('globeFrame');
+frame.addEventListener('load',()=>{
+  try{
+    const d=frame.contentDocument;
+    if(!d)return;
+    const drawer=d.getElementById('drawerBackdrop');
+    if(drawer)drawer.classList.remove('show');
+    const status=d.getElementById('mapStatus');
+    const tokenInput=d.getElementById('tokenInput');
+    const hasSavedToken=Boolean(frame.contentWindow?.localStorage?.getItem('news-globe-v1-tdt'));
+    if(status && !hasSavedToken){
+      status.textContent='无 Key 安全模式 · 不显示国界';
+      status.classList.remove('bad');
+    }
+    if(tokenInput && !hasSavedToken){
+      tokenInput.placeholder='可选：以后取得天地图 Key 再填写';
+    }
+  }catch(e){console.warn(e)}
+});
+</script>
+</body>
+</html>
