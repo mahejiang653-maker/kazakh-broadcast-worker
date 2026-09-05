@@ -81,7 +81,7 @@ async function resolveChinaAdmin(
     headers: { Accept: "application/geo+json,application/json" },
   });
   if (!r.ok) return null;
-  const fc = await r.json<any>();
+  const fc: any = await r.json();
   const features: Feature[] = Array.isArray(fc?.features) ? fc.features : [];
   const q = cleanName(location);
 
@@ -139,7 +139,7 @@ async function resolveNominatim(
     },
   });
   if (!r.ok) return null;
-  const rows = await r.json<any[]>();
+  const rows: any[] = await r.json();
   if (!Array.isArray(rows) || !rows.length) return null;
 
   const typeText = placeType.toLowerCase();
