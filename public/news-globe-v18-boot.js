@@ -1,1 +1,0 @@
-(async()=>{try{const b=window.__GLOBE18_B64||'';delete window.__GLOBE18_B64;const u=Uint8Array.from(atob(b),c=>c.charCodeAt(0)),ds=new DecompressionStream('gzip'),t=await new Response(new Blob([u]).stream().pipeThrough(ds)).text();(0,eval)(t)}catch(e){console.error('V18 runtime boot failed',e);const s=document.getElementById('mapStatus');if(s)s.textContent='地球脚本加载失败，请刷新'}})();
