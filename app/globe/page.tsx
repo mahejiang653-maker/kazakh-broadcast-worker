@@ -19,7 +19,7 @@ export default function GlobePage() {
       }}
     >
       <iframe
-        src="/news-globe-v4.html?v=7"
+        src="/news-globe-v4.html?v=8"
         title="全球新闻十三地新闻地球仪"
         style={{
           display: "block",
