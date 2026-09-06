@@ -46,20 +46,32 @@ jobs:
           await frame.waitForFunction(()=>window.NG14?.news?.length===13 && window.NG14?.viewer,{timeout:90000});
           const data=await frame.evaluate(()=>({date:window.NG14.meta?.date,len:window.NG14.news?.length,titles:window.NG14.news?.map(x=>x.title)}));
           if(data.date!=='2026-09-06'||data.len!==13) throw new Error('Wrong daily data '+JSON.stringify(data));
-          const seen=[];let last=0;const deadline=Date.now()+510000;
-          while(Date.now()<deadline&&seen.length<13){
-            const state=await frame.evaluate(()=>({count:document.querySelector('#count')?.textContent||'',title:document.querySelector('#title')?.textContent||'',loc:document.querySelector('#location')?.textContent||''}));
-            const n=/^(\d+)\s*\/\s*13$/.exec(state.count.trim())?.[1];const k=n?Number(n):0;
-            if(k&&k!==last){
-              if(k!==seen.length+1)throw new Error(`Sequence break expected ${seen.length+1} got ${k}`);
-              seen.push({top:k,title:state.title,location:state.loc});last=k;
-              await page.waitForTimeout(8000);
-              await page.screenshot({path:`globe-verify/top-${String(k).padStart(2,'0')}.png`,fullPage:true});
-            }
-            await page.waitForTimeout(1000);
+          await frame.evaluate(()=>window.NG14.pause?.());
+          const seen=[];
+          for(let i=0;i<13;i++){
+            const expected=i+1;
+            const duration=await frame.evaluate((idx)=>{
+              const G=window.NG14;G.pause?.();G.focus(idx,true);return G.storyDuration(G.news[idx]);
+            },i);
+            await page.waitForTimeout(Math.max(22000,duration+3500));
+            const state=await frame.evaluate(()=>({
+              count:document.querySelector('#count')?.textContent||'',
+              title:document.querySelector('#title')?.textContent||'',
+              loc:document.querySelector('#location')?.textContent||'',
+              current:window.NG14.current+1,
+              viewer:!!window.NG14.viewer,
+              sceneDestroyed:window.NG14.viewer?.scene?.isDestroyed?.()||false,
+              activeIso:window.NG14.activeIso||'',
+              localCount:window.NG14.localHighlightEntities?.length||0
+            }));
+            const k=Number(/^(\d+)\s*\/\s*13$/.exec(state.count.trim())?.[1]||0);
+            if(k!==expected||state.current!==expected) throw new Error(`Sequence break expected ${expected} got ${JSON.stringify(state)}`);
+            if(!state.viewer||state.sceneDestroyed) throw new Error(`Cesium render failure at Top${expected}: ${JSON.stringify(state)}`);
+            if(!state.title||!state.loc) throw new Error(`Missing story display at Top${expected}: ${JSON.stringify(state)}`);
+            seen.push({top:expected,title:state.title,location:state.loc,activeIso:state.activeIso,localCount:state.localCount});
+            await page.screenshot({path:`globe-verify/top-${String(expected).padStart(2,'0')}.png`,fullPage:true});
           }
-          if(seen.length!==13)throw new Error('Playback did not reach 13/13: '+JSON.stringify(seen));
-          await page.waitForTimeout(5000);
+          if(seen.length!==13) throw new Error('Playback did not reach 13/13: '+JSON.stringify(seen));
           const final=await frame.evaluate(()=>({current:window.NG14.current+1,title:document.querySelector('#title')?.textContent||'',newsLen:window.NG14.news.length,date:window.NG14.meta.date}));
           fs.writeFileSync('globe-verify/report.json',JSON.stringify({url,data,seen,final,errors},null,2));
           const blocking=errors.filter(x=>!/favicon|Failed to load resource.*404/i.test(x));
