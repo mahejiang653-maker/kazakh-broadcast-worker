@@ -1,0 +1,78 @@
+name: Verify 2026-09-06 News Globe
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260906')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run full Top1 to Top13 browser verification
+        run: |
+          mkdir -p globe-verify
+          cat > /tmp/verify-globe.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          import fs from 'node:fs';
+          const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260906.html';
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:1440,height:900}});
+          const errors=[];
+          page.on('pageerror',e=>errors.push('PAGEERROR '+e.message));
+          page.on('console',m=>{if(m.type()==='error')errors.push('CONSOLE '+m.text())});
+          let loaded=false;
+          for(let i=0;i<30&&!loaded;i++){
+            try{
+              const r=await page.goto(url,{waitUntil:'domcontentloaded',timeout:30000});
+              if(r&&r.ok()){loaded=true;break}
+            }catch{}
+            await page.waitForTimeout(10000);
+          }
+          if(!loaded) throw new Error('Deployed daily page did not become reachable');
+          await page.waitForSelector('iframe#base',{timeout:60000});
+          const iframe=page.locator('iframe#base');
+          const frame=page.frames().find(f=>f.url().includes('news-globe-run-20260906-v34.html'));
+          if(!frame) throw new Error('V43 did not load 20260906 V34 base');
+          await frame.waitForFunction(()=>window.NG14?.news?.length===13 && window.NG14?.viewer,{timeout:90000});
+          const data=await frame.evaluate(()=>({date:window.NG14.meta?.date,len:window.NG14.news?.length,titles:window.NG14.news?.map(x=>x.title)}));
+          if(data.date!=='2026-09-06'||data.len!==13) throw new Error('Wrong daily data '+JSON.stringify(data));
+          const seen=[];
+          let last=0;
+          const deadline=Date.now()+510000;
+          while(Date.now()<deadline && seen.length<13){
+            const state=await frame.evaluate(()=>({started:window.NG14.started,playing:window.NG14.playing,current:window.NG14.current+1,count:document.querySelector('#count')?.textContent||'',title:document.querySelector('#title')?.textContent||'',loc:document.querySelector('#location')?.textContent||'',viewer:!!window.NG14.viewer,renderError:window.NG14.viewer?.scene?.renderError?false:false}));
+            const n=/^(\d+)\s*\/\s*13$/.exec(state.count.trim())?.[1];
+            const k=n?Number(n):0;
+            if(k && k!==last){
+              if(k!==seen.length+1) throw new Error(`Sequence break expected ${seen.length+1} got ${k}`);
+              seen.push({top:k,title:state.title,location:state.loc}); last=k;
+              await page.waitForTimeout(8000);
+              await page.screenshot({path:`globe-verify/top-${String(k).padStart(2,'0')}.png`,fullPage:true});
+            }
+            await page.waitForTimeout(1000);
+          }
+          if(seen.length!==13) throw new Error('Playback did not reach 13/13: '+JSON.stringify(seen));
+          await page.waitForTimeout(5000);
+          const final=await frame.evaluate(()=>({current:window.NG14.current+1,title:document.querySelector('#title')?.textContent||'',newsLen:window.NG14.news.length,date:window.NG14.meta.date}));
+          fs.writeFileSync('globe-verify/report.json',JSON.stringify({url,data,seen,final,errors},null,2));
+          const blocking=errors.filter(x=>!/favicon|Failed to load resource.*404/i.test(x));
+          if(blocking.length) throw new Error('Browser errors: '+blocking.join(' | '));
+          await browser.close();
+          console.log(JSON.stringify({status:'PASS',seen:seen.length,final},null,2));
+          EOF
+          node /tmp/verify-globe.mjs
+      - name: Upload verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: news-globe-20260906-verification
+          path: globe-verify
