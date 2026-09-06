@@ -45,6 +45,9 @@ jobs:
           await frame.waitForFunction(()=>window.NG14?.news?.length===13 && window.NG14?.viewer,{timeout:90000});
           const data=await frame.evaluate(()=>({date:window.NG14.meta?.date,len:window.NG14.news?.length,titles:window.NG14.news?.map(x=>x.title)}));
           if(data.date!=='2026-09-06'||data.len!==13) throw new Error('Wrong daily data '+JSON.stringify(data));
+          // V43 injects precision patches after the iframe load and deliberately restarts playback.
+          // Wait until that restart has happened before taking deterministic control for the full test.
+          await page.waitForTimeout(6500);
           await frame.evaluate(()=>window.NG14.pause?.());
           const seen=[];
           for(let i=0;i<13;i++){
