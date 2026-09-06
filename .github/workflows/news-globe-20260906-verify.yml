@@ -36,9 +36,13 @@ jobs:
           }
           if(!loaded) throw new Error('Deployed daily page did not become reachable');
           await page.waitForSelector('iframe#base',{timeout:60000});
-          await page.waitForTimeout(1000);
-          const frame=page.frames().find(f=>f.url().includes('news-globe-run-20260906-v34.html'));
-          if(!frame) throw new Error('V43 did not load 20260906 V34 base');
+          let frame=null;
+          const frameDeadline=Date.now()+60000;
+          while(Date.now()<frameDeadline&&!frame){
+            frame=page.frames().find(f=>f.url().includes('news-globe-run-20260906-v34.html'))||null;
+            if(!frame)await page.waitForTimeout(500);
+          }
+          if(!frame) throw new Error('V43 did not load 20260906 V34 base; frames='+page.frames().map(f=>f.url()).join(' | '));
           await frame.waitForFunction(()=>window.NG14?.news?.length===13 && window.NG14?.viewer,{timeout:90000});
           const data=await frame.evaluate(()=>({date:window.NG14.meta?.date,len:window.NG14.news?.length,titles:window.NG14.news?.map(x=>x.title)}));
           if(data.date!=='2026-09-06'||data.len!==13) throw new Error('Wrong daily data '+JSON.stringify(data));
