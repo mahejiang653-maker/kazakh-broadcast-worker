@@ -39,7 +39,7 @@ jobs:
           let frame=null;
           const frameDeadline=Date.now()+60000;
           while(Date.now()<frameDeadline&&!frame){
-            frame=page.frames().find(f=>f.url().includes('news-globe-run-20260906-v34.html'))||null;
+            frame=page.frames().find(f=>f.url().includes('news-globe-run-20260906-v34'))||null;
             if(!frame)await page.waitForTimeout(500);
           }
           if(!frame) throw new Error('V43 did not load 20260906 V34 base; frames='+page.frames().map(f=>f.url()).join(' | '));
