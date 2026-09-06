@@ -9,7 +9,12 @@ for(const n of G.news){
     n.scenePlan.contextCountries=['THA','USA'];
     n.scenePlan.platform='carrier';
     n.scenePlan.platformCountryIso3='USA';
+    n.scenePlan.platformLabel='亚伯拉罕·林肯号';
     n.scenePlan.portEffect='carrier_dock_departure';
+    n.scenePlan.platformLon=100.84;
+    n.scenePlan.platformLat=13.06;
+    n.scenePlan.departureLon=100.70;
+    n.scenePlan.departureLat=13.00;
     n.scenePlan.finalType='port';
     n.scenePlan.finalLocation=true;
     n.platform='carrier';
