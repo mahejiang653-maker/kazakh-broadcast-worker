@@ -54,13 +54,21 @@ for(const n of G.news){
   }
   if(id===12){
     n.sceneMode='POINT';
-    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'city'});
-    n.focusLabel='北屯市';
+    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'road-pass'});
+    n.location='哈希勒根达坂';
+    n.region='新疆维吾尔自治区独库公路';
+    n.lon=84.47;n.lat=43.12;
+    n.focusLabel='独库公路哈希勒根达坂';
+    n.placeType='高山公路具体地点';
   }
   if(id===13){
     n.sceneMode='POINT';
-    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'venue'});
-    n.focusLabel='新疆迎宾馆';
+    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'glacier'});
+    n.location='慕士塔格峰2号冰川';
+    n.region='新疆维吾尔自治区克孜勒苏柯尔克孜自治州阿克陶县';
+    n.lon=75.11;n.lat=38.28;
+    n.focusLabel='慕士塔格峰2号冰川';
+    n.placeType='冰川具体地点';
   }
 }
 if(G.payload&&Array.isArray(G.payload.news))G.payload.news=G.news;
