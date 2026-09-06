@@ -1,0 +1,49 @@
+(function(G){
+if(!G||!Array.isArray(G.news))return;
+for(const n of G.news){
+  const id=Number(n.id);
+  n.scenePlan={...(n.scenePlan||{})};
+  if(id===6){
+    n.sceneMode='POINT';
+    n.scenePlan.primaryIso3='THA';
+    n.scenePlan.contextCountries=['THA','USA'];
+    n.scenePlan.platform='carrier';
+    n.scenePlan.platformCountryIso3='USA';
+    n.scenePlan.portEffect='carrier_dock_departure';
+    n.scenePlan.finalType='port';
+    n.scenePlan.finalLocation=true;
+    n.platform='carrier';
+    n.platformCountryIso3='USA';
+  }
+  if(id===7){
+    n.sceneMode='ORGANIZATION';
+    n.scenePlan.organization='OPEC+';
+    n.scenePlan.keyCountries=['IRN'];
+    n.scenePlan.coreCountries=['SAU','RUS'];
+    n.scenePlan.finalLocationRelevant=false;
+    n.countryIso3='';
+    n.country='OPEC+';
+    n.location='OPEC+';
+    n.region='OPEC+成员国与本条关键国家';
+    n.focusLabel='OPEC+';
+    n.displayCountriesLabel='OPEC+ · 伊朗';
+  }
+  if(id===11){
+    n.sceneMode='POINT';
+    n.scenePlan.primaryIso3='CHN';
+    n.scenePlan.contextCountries=['CHN','SGP'];
+    n.scenePlan.finalLocation=true;
+    n.scenePlan.finalType='city';
+  }
+  if(id===4){
+    n.sceneMode='POINT';
+    n.scenePlan.primaryIso3='UKR';
+    n.scenePlan.finalLocation=true;
+    n.scenePlan.finalType='city';
+  }
+  if(id===2||id===3){
+    n.scenePlan.sourcePrecision='directional';
+  }
+}
+if(G.payload&&Array.isArray(G.payload.news))G.payload.news=G.news;
+})(window.NG14);
