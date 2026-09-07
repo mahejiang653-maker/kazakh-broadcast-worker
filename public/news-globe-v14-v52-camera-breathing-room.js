@@ -47,6 +47,30 @@
     return oldFlyToBoundingSphere.call(this,bs,options);
   };
 
+  // V52 hotfix: entering overview must remove every custom scene entity from the
+  // previously viewed story. Keep the existing overview camera/UI behavior unchanged.
+  const G=window.NG14;
+  if(G&&typeof G.overview==='function'&&!G.__v52OverviewCleanupFix){
+    G.__v52OverviewCleanupFix=true;
+    const oldOverview=G.overview;
+    const sceneLists=['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'];
+    function clearList(name){
+      const list=G[name];
+      if(!Array.isArray(list))return;
+      for(const e of list.splice(0)){
+        try{G.viewer&&G.viewer.entities&&G.viewer.entities.remove(e)}catch(err){}
+      }
+    }
+    G.overview=function(){
+      for(const name of sceneLists)clearList(name);
+      try{G.clearInteractionEffects&&G.clearInteractionEffects()}catch(e){}
+      try{G.clearSecondaryCountry&&G.clearSecondaryCountry()}catch(e){}
+      const hud=document.getElementById('scenePlanHud');
+      if(hud){hud.style.display='none';hud.innerHTML=''}
+      return oldOverview.apply(this,arguments);
+    };
+  }
+
   window.NG52_VIEW_RULES={
     countryBackoff:'8–10%',
     eventBackoff:'18–22%',
