@@ -1,0 +1,40 @@
+name: Scan V52 JavaScript syntax
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  scan:
+    if: contains(github.event.head_commit.message, 'SCAN_GLOBE_V52')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check V52 loaded scripts
+        run: |
+          files=(
+            public/news-globe-data-20260907-v52-night.js
+            public/news-globe-v14-v48-data-fix.js
+            public/news-globe-v14-v50-data-fix.js
+            public/news-globe-v14-v51-data-fix.js
+            public/news-globe-v14-v35-ellipse-hotfix.js
+            public/news-globe-v14-v37-targeted-fix.js
+            public/news-globe-v14-v38-hierarchy-precision.js
+            public/news-globe-v14-v44-regression-guard.js
+            public/news-globe-v14-v45b-semantic-fix.js
+            public/news-globe-v14-v47-sceneplan-engine.js
+            public/news-globe-v14-v48-clarity-rules.js
+            public/news-globe-v14-v49-render-discipline.js
+            public/news-globe-v14-v50-render-rules.js
+            public/news-globe-v14-v51-scene-engine.js
+            public/news-globe-v14-v52-camera-breathing-room.js
+            public/news-globe-v14-main.js
+          )
+          failed=0
+          for f in "${files[@]}"; do
+            echo "CHECK $f"
+            if ! node --check "$f"; then failed=1; fi
+          done
+          exit $failed
