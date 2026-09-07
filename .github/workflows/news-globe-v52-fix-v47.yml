@@ -1,0 +1,33 @@
+name: Fix V47 syntax in V52 stack
+on:
+  push:
+permissions:
+  contents: write
+jobs:
+  fix:
+    if: contains(github.event.head_commit.message, 'FIX_GLOBE_V47_SYNTAX')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply minimal syntax fix
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('public/news-globe-v14-v47-sceneplan-engine.js')
+          s=p.read_text()
+          old="for(const [region,is]=entries){idx++;orgHud(q.org,region,idx,entries.length);clearVisuals();const ps=[];for(const iso of is)"
+          new="for(const [region,isos] of entries){idx++;orgHud(q.org,region,idx,entries.length);clearVisuals();const ps=[];for(const iso of isos)"
+          if old not in s:
+              raise SystemExit('target syntax fragment not found')
+          p.write_text(s.replace(old,new,1))
+          PY
+          node --check public/news-globe-v14-v47-sceneplan-engine.js
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/news-globe-v14-v47-sceneplan-engine.js
+          git commit -m "Fix V47 organization scene syntax"
+          git push origin HEAD:main
