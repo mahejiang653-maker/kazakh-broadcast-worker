@@ -16,4 +16,8 @@ G.demo=[
 {id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN'},title:'新疆出台措施扩大新能源有效投资并提升新能源利用率。',location:'乌鲁木齐',region:'新疆维吾尔自治区',placeType:'自治区政策发布地',date:'2026-09-08',lon:87.6177,lat:43.7928,countryIso3:'CHN',country:'中华人民共和国',adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆维吾尔自治区',placeType:'自治区',lon:87.62,lat:43.82},{location:'乌鲁木齐市',focusLabel:'乌鲁木齐市',placeType:'市',lon:87.6177,lat:43.7928}],focusLabel:'乌鲁木齐',summary:'新疆多部门联合出台措施扩大新能源有效投资、提升消纳利用水平。页面按中国→新疆维吾尔自治区→乌鲁木齐市逐级进入。'}
 ];
 G.PAYLOAD={meta:{date:'2026-09-08',edition:'daily-13-20260908-v52',scenePlanVersion:'2.0'},news:G.demo};
+G.payload=G.PAYLOAD;
+G.news=G.demo;
+G.meta=G.PAYLOAD.meta;
+try{localStorage.removeItem('news-globe-v14-data')}catch{}
 })(window.NG14=window.NG14||{});
