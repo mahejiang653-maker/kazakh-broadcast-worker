@@ -23,41 +23,46 @@ jobs:
           cat > verify-globe.mjs <<'EOF'
           import { chromium } from 'playwright';
           import fs from 'node:fs';
-          const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260909.html';
+          const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260909.html?v=20260909-52r2';
           const expectedDate='2026-09-09';
           const expected=[
             {title:'俄军恢复大规模袭击基辅，至少5人死亡、近30人受伤。',mode:'ATTACK',focus:'基辅',loc:'基辅',attacker:'RUS',victim:'UKR'},
-            {title:'胡塞武装袭击沙特南部能源设施和城市，73人受伤。',mode:'ATTACK',focus:'艾卜哈',loc:'艾卜哈',attacker:'YEM',victim:'SAU'},
-            {title:'美军打击多艘伊朗油轮，美伊海上冲突进一步升级。',mode:'ATTACK',focus:'波斯湾中部海域',loc:'波斯湾中部海域',attacker:'USA',victim:'IRN'},
-            {title:'韩国派调查组赴阿联酋评估霍尔木兹海峡安全局势。',mode:'DIPLOMACY_MULTI',focus:'阿布扎比',loc:'阿布扎比',primary:'ARE'},
-            {title:'美国对伊朗航空体系实施36项新制裁。',mode:'DIPLOMACY_MULTI',focus:'华盛顿',loc:'华盛顿',primary:'USA'},
-            {title:'英国公布针对伊朗核项目的新一轮强化制裁立法。',mode:'DIPLOMACY_MULTI',focus:'伦敦',loc:'伦敦',primary:'GBR'},
-            {title:'匈牙利宣布驱逐10名俄罗斯外交官。',mode:'DIPLOMACY_MULTI',focus:'布达佩斯',loc:'布达佩斯',primary:'HUN'},
-            {title:'特朗普与普京实际通话，讨论尽快结束俄乌战争。',mode:'DIPLOMACY_MULTI',focus:null,loc:'美国—俄罗斯领导人通话',primary:'USA'},
-            {title:'英法加限制以色列定居点商品，以色列关闭英国驻东耶路撒冷领馆。',mode:'DIPLOMACY_MULTI',focus:'东耶路撒冷',loc:'东耶路撒冷',primary:'ISR'},
+            {title:'胡塞武装袭击沙特南部能源设施和城市，73人受伤。',mode:'ATTACK',focus:'艾卜哈等沙特南部受袭地',loc:'艾卜哈',attacker:'YEM',victim:'SAU'},
+            {title:'美军打击多艘伊朗油轮，美伊海上冲突进一步升级。',mode:'ATTACK',focus:'哈尔克岛外海域',loc:'哈尔克岛外海域',attacker:'USA',victim:'IRN',sourcePrecision:'regional'},
+            {title:'韩国派调查组赴阿联酋评估霍尔木兹海峡安全局势。',mode:'POINT',focus:'阿布扎比',loc:'阿布扎比',primary:'ARE'},
+            {title:'美国对伊朗航空体系实施36项新制裁。',mode:'POINT',focus:'华盛顿',loc:'华盛顿',primary:'USA'},
+            {title:'英国公布针对伊朗核项目的新一轮强化制裁立法。',mode:'POINT',focus:'伦敦',loc:'伦敦',primary:'GBR'},
+            {title:'匈牙利宣布驱逐10名俄罗斯外交官。',mode:'POINT',focus:'布达佩斯',loc:'布达佩斯',primary:'HUN'},
+            {title:'特朗普与普京实际通话，讨论尽快结束俄乌战争。',mode:'DIPLOMACY_2',focus:null,loc:'美国—俄罗斯领导人通话',primary:'USA',noFakePoint:true},
+            {title:'英法加限制以色列定居点商品，以色列关闭英国驻东耶路撒冷领馆。',mode:'POINT',focus:'东耶路撒冷',loc:'东耶路撒冷',primary:'ISR'},
             {title:'加拿大对约200亿美元美国商品的报复性关税正式生效。',mode:'COUNTRY',focus:'加拿大',loc:'加拿大',primary:'CAN'},
-            {title:'美国指控多家中国AI企业蒸馏美国模型，称或增强军事网络能力。',mode:'DIPLOMACY_MULTI',focus:'华盛顿',loc:'华盛顿',primary:'USA'},
-            {title:'新疆公布防汛抗旱新成效，累计供水446.6亿立方米。',mode:'POINT',focus:'新疆维吾尔自治区',loc:'新疆维吾尔自治区',primary:'CHN'},
+            {title:'美国指控多家中国AI企业蒸馏美国模型，称或增强军事网络能力。',mode:'POINT',focus:'华盛顿',loc:'华盛顿',primary:'USA'},
+            {title:'新疆公布防汛抗旱新成效，累计供水446.6亿立方米。',mode:'ADMIN_REGION',focus:'新疆维吾尔自治区',loc:'新疆维吾尔自治区',primary:'CHN',regionOnly:true},
             {title:'国际知名人士新疆友好交流会在乌鲁木齐举行。',mode:'POINT',focus:'乌鲁木齐',loc:'乌鲁木齐',primary:'CHN'}
           ];
+          const ISO_LEAK=new Set(['CHN','USA','RUS','UKR','IRN','ISR','LBN','SAU','YEM','ARE','KOR','GBR','FRA','CAN','HUN','DEU','SGP','OMN','KWT','BHR']);
           const browser=await chromium.launch({headless:true});
           const page=await browser.newPage({viewport:{width:1440,height:900}});
           const pageErrors=[]; page.on('pageerror',e=>pageErrors.push(e.message));
           const r=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
           if(!r||!r.ok()) throw new Error('Daily V52 page unreachable');
           await page.waitForFunction(()=>window.NG14?.viewer && (window.NG14?.news?.length===13 || window.NG14?.demo?.length===13),{timeout:90000});
-          await page.waitForTimeout(5000);
-          const data=await page.evaluate(()=>({date:window.NG14.meta?.date||window.NG14.PAYLOAD?.meta?.date,news:(window.NG14.news||window.NG14.demo||[]).map(n=>({title:n.title,mode:n.sceneMode,focus:n.focusLabel||null,loc:n.location,primary:n.scenePlan?.primaryIso3||null,attacker:n.scenePlan?.attackerIso3||null,victim:n.scenePlan?.victimIso3||null}))}));
+          await page.waitForTimeout(6000);
+          const data=await page.evaluate(()=>({date:window.NG14.meta?.date||window.NG14.PAYLOAD?.meta?.date,hotfix:!!window.NG14.__dailySemanticHotfix20260909,news:(window.NG14.news||window.NG14.demo||[]).map(n=>({title:n.title,mode:n.sceneMode,focus:n.focusLabel||null,loc:n.location,primary:n.scenePlan?.primaryIso3||null,attacker:n.scenePlan?.attackerIso3||null,victim:n.scenePlan?.victimIso3||null,sourcePrecision:n.scenePlan?.sourcePrecision||null}))}));
+          if(!data.hotfix) throw new Error('20260909 semantic hotfix not installed');
           if(data.date!==expectedDate||data.news.length!==13) throw new Error('Wrong daily data '+JSON.stringify(data));
-          for(let i=0;i<13;i++){const a=data.news[i],e=expected[i];for(const k of ['title','mode','focus','loc','primary','attacker','victim'])if(e[k]!==undefined&&a[k]!==e[k])throw new Error(`Top${i+1} semantic mismatch ${k}: got=${a[k]} expected=${e[k]}`);}
+          for(let i=0;i<13;i++){const a=data.news[i],e=expected[i];for(const k of ['title','mode','focus','loc','primary','attacker','victim','sourcePrecision'])if(e[k]!==undefined&&a[k]!==e[k])throw new Error(`Top${i+1} semantic mismatch ${k}: got=${a[k]} expected=${e[k]}`);}
           await page.evaluate(()=>window.NG14.pause?.());
           const seen=[];
           for(let i=0;i<13;i++){
             const duration=await page.evaluate((idx)=>{const G=window.NG14;G.pause?.();if(typeof G.focus==='function')G.focus(idx,true);else{G.current=idx;G.play?.();}const n=(G.news||G.demo||[])[idx];return Number(G.storyDuration?.(n)||19000);},i);
             await page.waitForTimeout(Math.max(22000,duration+4500));
-            const state=await page.evaluate(()=>{const G=window.NG14,n=(G.news||G.demo||[])[G.current??0];return {current:(G.current??0)+1,title:document.querySelector('#title')?.textContent?.trim()||'',location:document.querySelector('#location')?.textContent?.trim()||'',mode:n?.sceneMode||'',focus:n?.focusLabel||null,rawLoc:n?.location||'',primary:n?.scenePlan?.primaryIso3||null,attacker:n?.scenePlan?.attackerIso3||null,victim:n?.scenePlan?.victimIso3||null,viewer:!!G.viewer,sceneDestroyed:G.viewer?.scene?.isDestroyed?.()||false,cameraHeight:G.viewer?.camera?.positionCartographic?.height||0};});
+            const state=await page.evaluate(()=>{const G=window.NG14,n=(G.news||G.demo||[])[G.current??0],now=Cesium.JulianDate.now();const labels=(G.viewer?.entities?.values||[]).map(e=>{try{const x=e.label?.text;return typeof x?.getValue==='function'?String(x.getValue(now)||''):typeof x==='string'?x:''}catch{return''}}).filter(Boolean);return {current:(G.current??0)+1,title:document.querySelector('#title')?.textContent?.trim()||'',location:document.querySelector('#location')?.textContent?.trim()||'',mode:n?.sceneMode||'',focus:n?.focusLabel||null,rawLoc:n?.location||'',primary:n?.scenePlan?.primaryIso3||null,attacker:n?.scenePlan?.attackerIso3||null,victim:n?.scenePlan?.victimIso3||null,viewer:!!G.viewer,sceneDestroyed:G.viewer?.scene?.isDestroyed?.()||false,cameraHeight:G.viewer?.camera?.positionCartographic?.height||0,labels};});
             const e=expected[i];
             if(state.current!==i+1||state.title!==e.title||state.mode!==e.mode||state.rawLoc!==e.loc||(e.focus!==undefined&&state.focus!==e.focus)||(e.primary!==undefined&&state.primary!==e.primary)||(e.attacker!==undefined&&state.attacker!==e.attacker)||(e.victim!==undefined&&state.victim!==e.victim))throw new Error(`Top${i+1} runtime semantic mismatch ${JSON.stringify(state)} expected=${JSON.stringify(e)}`);
+            const leaks=state.labels.filter(x=>ISO_LEAK.has(x)); if(leaks.length)throw new Error(`Top${i+1} ISO label leak: ${leaks.join(',')}`);
+            if(e.noFakePoint&&state.labels.includes('美国—俄罗斯领导人通话'))throw new Error('Top8 fake geographic point remains');
+            if(e.regionOnly&&state.labels.some(x=>x==='新闻地点'||x==='新疆防汛抗旱新闻点'))throw new Error('Top12 fake point remains');
             if(!state.location||!state.viewer||state.sceneDestroyed||!Number.isFinite(state.cameraHeight)||state.cameraHeight<=0)throw new Error(`Top${i+1} display/Cesium failure ${JSON.stringify(state)}`);
             seen.push(state); await page.screenshot({path:`globe-verify/top-${String(i+1).padStart(2,'0')}.png`,fullPage:true});
           }
@@ -72,5 +77,5 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: news-globe-20260909-v52-exact-semantic-verification
+          name: news-globe-20260909-v52-exact-semantic-verification-r2
           path: globe-verify
