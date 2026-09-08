@@ -1,0 +1,40 @@
+name: Mobile smoke 2026-09-09 V52
+on:
+  push:
+permissions:
+  contents: read
+jobs:
+  mobile-smoke:
+    if: contains(github.event.head_commit.message, 'VERIFY_MOBILE_GLOBE_20260909_V52')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run mobile Top1 to Top13 smoke
+        run: |
+          cat > mobile-smoke.mjs <<'EOF'
+          import { chromium } from 'playwright';
+          const browser=await chromium.launch({headless:true});
+          const page=await browser.newPage({viewport:{width:393,height:852},deviceScaleFactor:2,isMobile:true,hasTouch:true});
+          const errors=[];
+          page.on('pageerror',e=>errors.push(e.message));
+          await page.goto('https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260909.html?v=20260909-52r3',{waitUntil:'domcontentloaded',timeout:60000});
+          await page.waitForFunction(()=>window.NG14?.viewer && (window.NG14?.news?.length===13 || window.NG14?.demo?.length===13),{timeout:90000});
+          await page.waitForTimeout(5000);
+          for(let i=0;i<13;i++){
+            await page.evaluate(idx=>{const G=window.NG14;G.pause?.();if(typeof G.focus==='function')G.focus(idx,true);else{G.current=idx;G.play?.();}},i);
+            await page.waitForTimeout(i===7?15000:6500);
+            const state=await page.evaluate(()=>({current:(window.NG14.current??0)+1,viewer:!!window.NG14.viewer,destroyed:window.NG14.viewer?.scene?.isDestroyed?.()||false}));
+            if(state.current!==i+1||!state.viewer||state.destroyed)throw new Error('bad state '+JSON.stringify(state));
+            if(errors.length)throw new Error('pageerror at Top'+(i+1)+': '+errors.join(' | '));
+          }
+          await browser.close();
+          console.log('PASS_MOBILE_13_13');
+          EOF
+          node mobile-smoke.mjs
