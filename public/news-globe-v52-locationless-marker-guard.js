@@ -17,10 +17,12 @@
       const p=C.Cartesian3.fromDegrees(lon,lat,30000);
       G.markers.push(G.viewer.entities.add({
         position:p,
-        point:{pixelSize:4.2,color:C.Color.fromCssColorString('#61dcff').withAlpha(.66),outlineColor:C.Color.WHITE.withAlpha(.42),outlineWidth:.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}
+        show:false,
+        point:{pixelSize:6,color:C.Color.fromCssColorString('#ff4d4d'),outlineColor:C.Color.WHITE.withAlpha(.9),outlineWidth:1,disableDepthTestDistance:Number.POSITIVE_INFINITY}
       }));
       G.pulses.push(G.viewer.entities.add({
         position:C.Cartesian3.fromDegrees(lon,lat,500),
+        show:false,
         ellipse:{
           semiMajorAxis:new C.CallbackProperty(()=>i===G.current&&G.started&&!G.overviewMode?18000+((Math.sin(G.pulsePhase)+1)/2)*22000:1,false),
           semiMinorAxis:new C.CallbackProperty(()=>i===G.current&&G.started&&!G.overviewMode?18000+((Math.sin(G.pulsePhase)+1)/2)*22000:1,false),
@@ -38,29 +40,29 @@
     G.markers.forEach((e,i)=>{
       const pulse=G.pulses?.[i]||null;
       if(!e){ if(pulse) pulse.show=false; return; }
-      if(G.overviewMode||!G.started){e.show=false;if(pulse)pulse.show=false;return;}
+      if(G.overviewMode||!G.started||i!==G.current){e.show=false;if(pulse)pulse.show=false;return;}
       let p=null,v=false;
-      try{p=e.position?.getValue?.(G.viewer.clock.currentTime);v=!!p&&o.isPointVisible(p)&&i<=G.current;}catch{}
+      try{p=e.position?.getValue?.(G.viewer.clock.currentTime);v=!!p&&o.isPointVisible(p);}catch{}
       e.show=v;
-      if(pulse)pulse.show=v&&i===G.current;
+      if(pulse)pulse.show=v;
     });
   };
 
   G.restyle=()=>{
     G.markers.forEach((e,i)=>{
       if(!e)return;
-      if(G.overviewMode||!G.started){e.point.pixelSize=1;e.point.color=C.Color.TRANSPARENT;e.point.outlineColor=C.Color.TRANSPARENT;return;}
-      const a=i===G.current,v=i<G.current;
-      e.point.pixelSize=a?6:(v?4.2:1);
-      e.point.color=a?C.Color.fromCssColorString('#ff4d4d'):(v?C.Color.fromCssColorString('#61dcff').withAlpha(.82):C.Color.TRANSPARENT);
-      e.point.outlineColor=a?C.Color.WHITE.withAlpha(.9):(v?C.Color.WHITE.withAlpha(.34):C.Color.TRANSPARENT);
-      e.point.outlineWidth=a?1:.7;
+      const active=G.started&&!G.overviewMode&&i===G.current;
+      e.point.pixelSize=active?6:1;
+      e.point.color=active?C.Color.fromCssColorString('#ff4d4d'):C.Color.TRANSPARENT;
+      e.point.outlineColor=active?C.Color.WHITE.withAlpha(.9):C.Color.TRANSPARENT;
+      e.point.outlineWidth=active?1:0;
+      if(!active)e.show=false;
+      const pulse=G.pulses?.[i];if(pulse&&!active)pulse.show=false;
     });
     [...$('timeline').children].forEach((e,i)=>{e.classList.toggle('active',G.started&&!G.overviewMode&&i===G.current);e.classList.toggle('visited',G.started&&i<G.current)});
     G.updateOcclusion();
   };
 
-  const oldClearScene=G.clearScene;
   G.clearScene=()=>{
     try{G.clearArc?.()}catch{}
     try{G.clearLocal?.()}catch{}
