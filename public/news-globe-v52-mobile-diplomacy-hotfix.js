@@ -2,67 +2,40 @@
   const G=window.NG14=window.NG14||{};
   if(G.__v52MobileDiplomacyHotfix)return;
   const baseRun=G.runSequence;
-  if(typeof baseRun!=='function'){
-    // Main engine may not be ready yet. Retry instead of permanently returning.
-    return setTimeout(attach,50);
-  }
+  if(typeof baseRun!=='function')return setTimeout(attach,50);
   G.__v52MobileDiplomacyHotfix=true;
-  const C=window.Cesium;
-  const safeEntities=[];
-  function clearSafe(){
-    if(!G.viewer?.entities)return;
-    while(safeEntities.length){const e=safeEntities.pop();try{G.viewer.entities.remove(e)}catch{}}
+
+  function ensureOverlay(){
+    let el=document.getElementById('v52DiplomacyOverlay');
+    if(el)return el;
+    const frame=document.querySelector('.map-frame');
+    if(!frame)return null;
+    el=document.createElement('div');
+    el.id='v52DiplomacyOverlay';
+    el.style.cssText='position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 48%,rgba(14,43,67,.90),rgba(2,7,17,.97));pointer-events:none;padding:24px;text-align:center;color:#eef7ff;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif';
+    el.innerHTML='<div style="width:min(560px,92%);border:1px solid rgba(97,220,255,.28);background:rgba(5,15,28,.82);border-radius:20px;padding:24px 18px;box-shadow:0 18px 70px rgba(0,0,0,.45)"><div style="font-size:12px;letter-spacing:.16em;color:#61dcff;margin-bottom:18px">跨国远程外交 · 无单一事件地点</div><div style="display:flex;align-items:center;justify-content:center;gap:15px;flex-wrap:wrap;font-weight:800;font-size:clamp(22px,6vw,34px)"><span style="color:#ff6b75">美国</span><span style="color:#9edcff;font-size:.8em">↔</span><span style="color:#5dbbff">俄罗斯</span></div><div style="margin-top:16px;font-size:15px;color:#d7e8f4">特朗普与普京远程通话</div><div style="margin-top:7px;font-size:12px;color:#8ea7bb">此新闻没有真实的单一地理落点，因此不制造虚假红点或海上位置。</div></div>';
+    frame.appendChild(el);
+    return el;
   }
-  function clearHeavy(){
-    for(const k of ['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities']){
-      const a=G[k]; if(!Array.isArray(a))continue;
-      while(a.length){const e=a.pop();try{G.viewer?.entities?.remove(e)}catch{}}
-    }
-    try{G.clearInteractionEffects?.()}catch{}
-    try{G.clearSecondaryCountry?.()}catch{}
-    try{G.clearLocal?.()}catch{}
-    try{G.clearCountry?.()}catch{}
-    try{G.clearArc?.()}catch{}
-    clearSafe();
-  }
-  function addSideLabel(lon,lat,text,color){
-    if(!G.viewer?.entities||!C)return;
-    const e=G.viewer.entities.add({
-      position:C.Cartesian3.fromDegrees(lon,lat,150000),
-      label:{
-        text,
-        font:'600 17px sans-serif',
-        fillColor:color,
-        outlineColor:C.Color.BLACK.withAlpha(0.9),
-        outlineWidth:4,
-        style:C.LabelStyle.FILL_AND_OUTLINE,
-        showBackground:true,
-        backgroundColor:C.Color.BLACK.withAlpha(0.6),
-        pixelOffset:new C.Cartesian2(0,-20),
-        disableDepthTestDistance:Number.POSITIVE_INFINITY,
-        distanceDisplayCondition:new C.DistanceDisplayCondition(0,2.5e7)
-      }
-    });
-    safeEntities.push(e);
-  }
+  function hideOverlay(){const el=document.getElementById('v52DiplomacyOverlay');if(el)el.style.display='none';}
+  function showOverlay(){const el=ensureOverlay();if(el)el.style.display='flex';}
+
   G.runSequence=async function(n,iso,s){
     const mode=String(n?.sceneMode||'').toUpperCase();
     const p=n?.scenePlan||{};
     const participants=Array.isArray(p.participants)?p.participants.map(x=>String(x).toUpperCase()):[];
     const isRemoteDiplomacy=mode==='DIPLOMACY_2' && p.finalLocation===false && participants.length>=2;
-    if(!isRemoteDiplomacy)return baseRun(n,iso,s);
 
-    clearHeavy();
-    if(s!==G.navSerial)return;
-    try{if(G.markers?.[G.current])G.markers[G.current].show=false}catch{}
-    try{if(G.pulses?.[G.current])G.pulses[G.current].show=false}catch{}
+    if(isRemoteDiplomacy){
+      // Absolute isolation: do not touch Cesium entities, primitives, labels, polygons,
+      // camera or render loop at all. This preserves the last known-good Cesium state
+      // and prevents Android WebGL/Cesium collection corruption from propagating to
+      // stories 9-13. The visual for this no-location story is pure DOM.
+      showOverlay();
+      return;
+    }
 
-    addSideLabel(-77.0369,38.9072,'美国 · 通话方',C?.Color?.fromCssColorString?.('#ff5b68')||C.Color.WHITE);
-    addSideLabel(37.6173,55.7558,'俄罗斯 · 通话方',C?.Color?.fromCssColorString?.('#42a5ff')||C.Color.WHITE);
-
-    try{
-      G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(-20,52,17500000),duration:1.2});
-    }catch{}
-    try{G.viewer.scene.requestRender()}catch{}
+    hideOverlay();
+    return baseRun(n,iso,s);
   };
 })();
