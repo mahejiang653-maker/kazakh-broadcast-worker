@@ -26,16 +26,23 @@ function install(){
     if(n?.sceneMode==='ADMIN_REGION'){
       clean();
       try{if(G.markers?.[G.current])G.markers[G.current].show=false;if(G.pulses?.[G.current])G.pulses[G.current].show=false}catch{}
+      const countryIso=String(n.countryIso3||iso||'CHN').toUpperCase();
+      // Required hierarchy: country first, then province/state/autonomous region.
+      if(typeof G.countryStage==='function'){
+        const ok=await G.countryStage(n,countryIso,s);
+        if(!ok||s!==G.navSerial)return;
+      }
+      try{G.clearCountry?.()}catch{}
       const steps=G.adminSteps?.(n)||[];
       if(steps.length&&typeof G.flashAdmin==='function'){
         for(const st of steps){
           if(s!==G.navSerial)return;
-          await G.flashAdmin(st,String(n.countryIso3||iso||'CHN').toUpperCase(),s,4200);
+          await G.flashAdmin(st,countryIso,s,4200);
           if(s!==G.navSerial)return;
         }
         return;
       }
-      return oldRun({...n,sceneMode:'POINT'},iso,s);
+      return oldRun({...n,sceneMode:'POINT'},countryIso,s);
     }
     if(n?.scenePlan?.sourcePrecision==='regional'&&Number.isFinite(+n.sourceLon)&&Number.isFinite(+n.sourceLat)){
       const x={...n,scenePlan:{...n.scenePlan,sourcePrecision:'platform'}};
