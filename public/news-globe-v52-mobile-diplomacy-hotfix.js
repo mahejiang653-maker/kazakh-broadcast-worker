@@ -1,8 +1,12 @@
-(function(G){
-  if(!G||G.__v52MobileDiplomacyHotfix)return;
-  G.__v52MobileDiplomacyHotfix=true;
+(function attach(){
+  const G=window.NG14=window.NG14||{};
+  if(G.__v52MobileDiplomacyHotfix)return;
   const baseRun=G.runSequence;
-  if(typeof baseRun!=='function')return;
+  if(typeof baseRun!=='function'){
+    // Main engine may not be ready yet. Retry instead of permanently returning.
+    return setTimeout(attach,50);
+  }
+  G.__v52MobileDiplomacyHotfix=true;
   const C=window.Cesium;
   const safeEntities=[];
   function clearSafe(){
@@ -48,10 +52,6 @@
     const isRemoteDiplomacy=mode==='DIPLOMACY_2' && p.finalLocation===false && participants.length>=2;
     if(!isRemoteDiplomacy)return baseRun(n,iso,s);
 
-    // Remote phone diplomacy has no physical event location. On mobile we deliberately
-    // avoid ALL country-border polygon generation for this scene because very large
-    // USA/Russia MultiPolygons can crash some Android WebGL/Cesium stacks with
-    // RangeError: Invalid array length. Use two lightweight participant labels only.
     clearHeavy();
     if(s!==G.navSerial)return;
     try{if(G.markers?.[G.current])G.markers[G.current].show=false}catch{}
@@ -61,11 +61,8 @@
     addSideLabel(37.6173,55.7558,'俄罗斯 · 通话方',C?.Color?.fromCssColorString?.('#42a5ff')||C.Color.WHITE);
 
     try{
-      G.viewer.camera.flyTo({
-        destination:C.Cartesian3.fromDegrees(-20,52,17500000),
-        duration:1.2
-      });
+      G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(-20,52,17500000),duration:1.2});
     }catch{}
     try{G.viewer.scene.requestRender()}catch{}
   };
-})(window.NG14=window.NG14||{});
+})();
