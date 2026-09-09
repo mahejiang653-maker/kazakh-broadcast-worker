@@ -5,37 +5,40 @@
   if(typeof baseRun!=='function')return setTimeout(attach,50);
   G.__v52MobileDiplomacyHotfix=true;
 
-  function ensureOverlay(){
-    let el=document.getElementById('v52DiplomacyOverlay');
-    if(el)return el;
-    const frame=document.querySelector('.map-frame');
-    if(!frame)return null;
-    el=document.createElement('div');
-    el.id='v52DiplomacyOverlay';
-    el.style.cssText='position:absolute;inset:0;z-index:9;display:none;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 48%,rgba(14,43,67,.90),rgba(2,7,17,.97));pointer-events:none;padding:24px;text-align:center;color:#eef7ff;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif';
-    el.innerHTML='<div style="width:min(560px,92%);border:1px solid rgba(97,220,255,.28);background:rgba(5,15,28,.82);border-radius:20px;padding:24px 18px;box-shadow:0 18px 70px rgba(0,0,0,.45)"><div style="font-size:12px;letter-spacing:.16em;color:#61dcff;margin-bottom:18px">跨国远程外交 · 无单一事件地点</div><div style="display:flex;align-items:center;justify-content:center;gap:15px;flex-wrap:wrap;font-weight:800;font-size:clamp(22px,6vw,34px)"><span style="color:#ff6b75">美国</span><span style="color:#9edcff;font-size:.8em">↔</span><span style="color:#5dbbff">俄罗斯</span></div><div style="margin-top:16px;font-size:15px;color:#d7e8f4">特朗普与普京远程通话</div><div style="margin-top:7px;font-size:12px;color:#8ea7bb">此新闻没有真实的单一地理落点，因此不制造虚假红点或海上位置。</div></div>';
-    frame.appendChild(el);
-    return el;
+  const CN={CHN:'中华人民共和国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:'伊朗',ISR:'以色列',LBN:'黎巴嫩',SAU:'沙特阿拉伯',YEM:'也门',ARE:'阿联酋',KOR:'韩国',GBR:'英国',FRA:'法国',CAN:'加拿大',HUN:'匈牙利',DEU:'德国',SGP:'新加坡',OMN:'阿曼',KWT:'科威特',BHR:'巴林'};
+  function removeOverlay(){
+    const el=document.getElementById('v52DiplomacyOverlay');
+    if(el)el.remove();
   }
-  function hideOverlay(){const el=document.getElementById('v52DiplomacyOverlay');if(el)el.style.display='none';}
-  function showOverlay(){const el=ensureOverlay();if(el)el.style.display='flex';}
 
   G.runSequence=async function(n,iso,s){
+    removeOverlay();
     const mode=String(n?.sceneMode||'').toUpperCase();
     const p=n?.scenePlan||{};
-    const participants=Array.isArray(p.participants)?p.participants.map(x=>String(x).toUpperCase()):[];
+    const participants=Array.isArray(p.participants)?p.participants.map(x=>String(x).toUpperCase()).filter(Boolean):[];
     const isRemoteDiplomacy=mode==='DIPLOMACY_2' && p.finalLocation===false && participants.length>=2;
 
     if(isRemoteDiplomacy){
-      // Absolute isolation: do not touch Cesium entities, primitives, labels, polygons,
-      // camera or render loop at all. This preserves the last known-good Cesium state
-      // and prevents Android WebGL/Cesium collection corruption from propagating to
-      // stories 9-13. The visual for this no-location story is pure DOM.
-      showOverlay();
-      return;
+      // Generic rule for locationless two-country stories:
+      // render ONLY the second country as a whole-country scene.
+      // Do not create a fake point, cross-country arc, or two-country DOM card.
+      const secondIso=participants[1];
+      const secondName=CN[secondIso]||String(n?.secondaryCountry||secondIso||'第二个国家');
+      const safe={
+        ...n,
+        sceneMode:'COUNTRY',
+        scenePlan:{primaryIso3:secondIso,contextCountries:[secondIso],finalLocation:false},
+        countryIso3:secondIso,
+        country:secondName,
+        location:secondName,
+        region:secondName+'全境',
+        placeType:'国家',
+        countryOnly:true,
+        focusLabel:secondName
+      };
+      return baseRun(safe,secondIso,s);
     }
 
-    hideOverlay();
     return baseRun(n,iso,s);
   };
 })();
