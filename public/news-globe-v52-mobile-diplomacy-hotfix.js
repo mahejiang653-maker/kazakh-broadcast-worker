@@ -3,7 +3,44 @@
   G.__v52MobileDiplomacyHotfix=true;
   const baseRun=G.runSequence;
   if(typeof baseRun!=='function')return;
-  const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
+  const C=window.Cesium;
+  const safeEntities=[];
+  function clearSafe(){
+    if(!G.viewer?.entities)return;
+    while(safeEntities.length){const e=safeEntities.pop();try{G.viewer.entities.remove(e)}catch{}}
+  }
+  function clearHeavy(){
+    for(const k of ['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities']){
+      const a=G[k]; if(!Array.isArray(a))continue;
+      while(a.length){const e=a.pop();try{G.viewer?.entities?.remove(e)}catch{}}
+    }
+    try{G.clearInteractionEffects?.()}catch{}
+    try{G.clearSecondaryCountry?.()}catch{}
+    try{G.clearLocal?.()}catch{}
+    try{G.clearCountry?.()}catch{}
+    try{G.clearArc?.()}catch{}
+    clearSafe();
+  }
+  function addSideLabel(lon,lat,text,color){
+    if(!G.viewer?.entities||!C)return;
+    const e=G.viewer.entities.add({
+      position:C.Cartesian3.fromDegrees(lon,lat,150000),
+      label:{
+        text,
+        font:'600 17px sans-serif',
+        fillColor:color,
+        outlineColor:C.Color.BLACK.withAlpha(0.9),
+        outlineWidth:4,
+        style:C.LabelStyle.FILL_AND_OUTLINE,
+        showBackground:true,
+        backgroundColor:C.Color.BLACK.withAlpha(0.6),
+        pixelOffset:new C.Cartesian2(0,-20),
+        disableDepthTestDistance:Number.POSITIVE_INFINITY,
+        distanceDisplayCondition:new C.DistanceDisplayCondition(0,2.5e7)
+      }
+    });
+    safeEntities.push(e);
+  }
   G.runSequence=async function(n,iso,s){
     const mode=String(n?.sceneMode||'').toUpperCase();
     const p=n?.scenePlan||{};
@@ -11,26 +48,24 @@
     const isRemoteDiplomacy=mode==='DIPLOMACY_2' && p.finalLocation===false && participants.length>=2;
     if(!isRemoteDiplomacy)return baseRun(n,iso,s);
 
-    // Mobile-safe remote diplomacy: never build two giant country polygon sets at once.
-    // Render each participant country sequentially, with no fake midpoint/event pin.
-    const originalMode=n.sceneMode;
-    const originalPlan=n.scenePlan;
-    const originalIso=n.countryIso3;
+    // Remote phone diplomacy has no physical event location. On mobile we deliberately
+    // avoid ALL country-border polygon generation for this scene because very large
+    // USA/Russia MultiPolygons can crash some Android WebGL/Cesium stacks with
+    // RangeError: Invalid array length. Use two lightweight participant labels only.
+    clearHeavy();
+    if(s!==G.navSerial)return;
+    try{if(G.markers?.[G.current])G.markers[G.current].show=false}catch{}
+    try{if(G.pulses?.[G.current])G.pulses[G.current].show=false}catch{}
+
+    addSideLabel(-77.0369,38.9072,'美国 · 通话方',C?.Color?.fromCssColorString?.('#ff5b68')||C.Color.WHITE);
+    addSideLabel(37.6173,55.7558,'俄罗斯 · 通话方',C?.Color?.fromCssColorString?.('#42a5ff')||C.Color.WHITE);
+
     try{
-      for(let i=0;i<participants.length;i++){
-        if(s!==G.navSerial)return;
-        const k=participants[i];
-        n.sceneMode='COUNTRY';
-        n.scenePlan={...originalPlan,primaryIso3:k,contextCountries:[k],finalLocation:false};
-        n.countryIso3=k;
-        await baseRun(n,k,s);
-        if(s!==G.navSerial)return;
-        await wait(i===participants.length-1?950:350,s);
-      }
-    } finally {
-      n.sceneMode=originalMode;
-      n.scenePlan=originalPlan;
-      n.countryIso3=originalIso;
-    }
+      G.viewer.camera.flyTo({
+        destination:C.Cartesian3.fromDegrees(-20,52,17500000),
+        duration:1.2
+      });
+    }catch{}
+    try{G.viewer.scene.requestRender()}catch{}
   };
 })(window.NG14=window.NG14||{});
