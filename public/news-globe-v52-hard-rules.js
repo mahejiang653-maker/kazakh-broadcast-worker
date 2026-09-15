@@ -4,8 +4,11 @@ const COUNTRY_ZH={CHN:'中国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:
 G.countryNameZh=iso=>COUNTRY_ZH[String(iso||'').toUpperCase()]||G.countryName?.(iso)||'';
 const oldCountryName=G.countryName;G.countryName=function(iso){const k=String(iso||'').toUpperCase();return COUNTRY_ZH[k]||(oldCountryName?oldCountryName.call(this,iso):'');};
 function normalize(n){if(!n)return n;const p=n.scenePlan||(n.scenePlan={});
- if(n.sceneMode==='BORDER_CONFLICT'&&n.id===2)n.sceneMode='POINT';
- if(n.sceneMode==='ADMIN_REGION'){p.finalLocation=false;n.noPoint=true;n.secondaryCountryIso3=null;if(Array.isArray(p.contextCountries)&&p.contextCountries.length)p.contextCountries=[];}
+ if(n.id===2)n.sceneMode='POINT';
+ if(n.id===3){n.sceneMode='POINT';delete p.attackerIso3;delete p.victimIso3;p.sourceUnconfirmed=true;}
+ if(n.id===4){n.sceneMode='POINT';p.primaryIso3='SAU';p.nonStateActor='胡塞武装';delete p.attackerIso3;delete p.victimIso3;delete n.secondaryCountryIso3;}
+ if(n.sceneMode==='ADMIN_REGION'){p.finalLocation=false;n.noPoint=true;delete n.secondaryCountryIso3;if(!p.regionalContext)p.contextCountries=[];}
+ if(n.id===9){p.regionalContext=true;p.contextCountries=['ARE','QAT'];}
  if(n.countryIso3==='CHN'&&Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true;}
  return n;}
 G.applyV52HardRules=function(news){return(Array.isArray(news)?news:[]).map(normalize)};
