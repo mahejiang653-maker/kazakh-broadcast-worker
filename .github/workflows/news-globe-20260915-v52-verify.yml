@@ -1,6 +1,7 @@
 name: Verify 2026-09-15 Globe V52
 on:
   push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,6 +12,15 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Confirm current V52 verifier revision
+        run: |
+          git fetch origin main --depth=1
+          git checkout -B main origin/main
+          echo "VERIFY_SHA=$(git rev-parse HEAD)"
+          grep -q 'PASS_13_13_RENDERED_VISUAL_STAGES' .github/scripts/verify-20260915-v52.mjs
+          grep -q 'visual-7' .github/scripts/verify-20260915-v52.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -18,5 +28,5 @@ jobs:
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
-      - name: Run production Top1 to Top13 hard-rule verification
+      - name: Run production Top1 to Top13 rendered visual-stage verification
         run: node .github/scripts/verify-20260915-v52.mjs
