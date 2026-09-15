@@ -25,8 +25,8 @@ function normalize(n){
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
 if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
 const oldRun=G.runSequence;
-async function runCountry(iso,n,s,hold=1700){
- if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();trace('country',{iso,label:G.countryName(iso),whole:true});
+async function runCountry(iso,n,s,hold=1700,traceType='country'){
+ if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();trace(traceType,{iso,label:G.countryName(iso),whole:true});
  const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],finalLocation:false,regionalContext:false}};
  const r=await oldRun.call(G,q,iso,s);if(s!==G.navSerial)return false;await wait(hold,s);return r!==false;
 }
@@ -43,13 +43,12 @@ G.runSequence=async function(n,iso,s){
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
  if(p.nonStateActor){await runCountry(primary,n,s,1100);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,participants:[],contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
- /* Generic two-country context rule: never draw both country labels/flags at once.
-    Show the primary country, then each contextual country, then continue to the actual event.
-    Unconfirmed source-direction context remains context and is never promoted to attacker state. */
+ /* Generic two-country context rule: show each country separately before the actual location.
+    This is common V52 behavior for diplomacy/cooperation/context stories, not a story-ID patch. */
  const ctx=[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];
  if(ctx.length){
-   if(primary){await runCountry(primary,n,s,850);if(s!==G.navSerial)return false;}
-   for(const x of ctx){await runCountry(x,n,s,850);if(s!==G.navSerial)return false;}
+   if(primary){await runCountry(primary,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
+   for(const x of ctx){await runCountry(x,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
    const q={...n,scenePlan:{...p,contextCountries:[]}};
    return oldRun?oldRun.call(this,q,iso,s):false;
  }
