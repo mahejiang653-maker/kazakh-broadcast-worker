@@ -37,7 +37,7 @@ const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.nav
 async function runCountry(iso,n,s,hold=1700){
  if(!iso||typeof oldRun!=='function')return false;
  iso=String(iso).toUpperCase();trace('country',{iso,label:G.countryName(iso),whole:true});
- const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,contextCountries:[],adminChain:[],finalLocation:false}};
+ const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,contextCountries:[],adminChain:[],finalLocation:false,regionalContext:false}};
  const r=await oldRun.call(G,q,iso,s);if(s!==G.navSerial)return false;await wait(hold,s);return r!==false;
 }
 async function showActorCard(n,s){
@@ -50,8 +50,10 @@ async function showActorCard(n,s){
 G.runSequence=async function(n,iso,s){
  normalize(n);if(s!==G.navSerial)return false;const p=n.scenePlan||{},mode=String(n.sceneMode||'').toUpperCase(),primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();
  trace('sequence',{mode,primary,title:String(n.title||'')});
- if(mode==='ADMIN_REGION'&&!p.regionalContext)return runCountry(primary,n,s,2100);
- if(mode==='ADMIN_REGION'&&p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,900)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
+ /* Regional context is a semantic requirement, not a scene-mode special case.
+    Any story declaring it must show the involved countries before the regional focus. */
+ if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,900)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
+ if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
  if(p.nonStateActor){await runCountry(primary,n,s,900);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}
  return false;
