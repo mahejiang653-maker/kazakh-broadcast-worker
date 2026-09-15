@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260915-v52-r1.html?v=20260915-r3-verify';
+const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260915-v52-r1.html?v=20260915-r3-locked13';
 const expected=[
 ['俄军约200架无人机夜袭乌克兰，基辅能源设施遭击。','ATTACK','基辅市区能源与仓储设施'],
 ['乌军在顿涅茨克北部发动“维瓦尔第”新攻势。','BORDER_CONFLICT','斯洛维扬斯克—克拉马托尔斯克北部战区'],
