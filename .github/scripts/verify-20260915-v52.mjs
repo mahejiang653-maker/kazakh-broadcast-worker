@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260915-v52-r1.html?v=20260916-v52-visual-7';
+const url='https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260915-v52-r1.html?v=20260916-v52-visual-8';
 const titles=['俄军约200架无人机夜袭乌克兰，基辅能源设施遭击。','乌军在顿涅茨克北部发动“维瓦尔第”新攻势。','北约战机在立陶宛击落疑似从白俄罗斯方向进入的无人机。','胡塞再袭沙特哈米斯穆谢特，13名平民受伤。','俄军舰向丹麦军用直升机发射照明弹，引发外交抗议。','乌克兰加速研发AI拦截系统应对俄喷气式无人机。','美军进入撤离伊拉克收尾阶段，亲伊朗民兵拒绝缴械。','韩国与哈萨克斯坦签署和平核能合作备忘录。','胡塞袭击与霍尔木兹航运下滑拖累海湾股市。','中国科技与国家安全相关新出入境规定正式生效。','联合国称加沙新发现遗体进一步引发战争罪担忧。','第三届新疆数字经济创新发展大会在乌鲁木齐启动。','新疆若羌风电装备项目一期投产，制造能力继续扩张。'];
 const browser=await chromium.launch({headless:true});const page=await browser.newPage({viewport:{width:412,height:915}});const errs=[];page.on('pageerror',e=>errs.push(e.message));
 const r=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});if(!r?.ok())throw Error('page unreachable');await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.news?.length===13&&window.NG14?.__v52HardRules&&window.NG14?.getV52SceneTrace,{timeout:90000});await page.waitForTimeout(5000);
