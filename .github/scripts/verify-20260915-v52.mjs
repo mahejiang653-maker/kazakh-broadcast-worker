@@ -15,13 +15,18 @@ if(adminProbe[0]?.join('/')!=='新疆/乌鲁木齐'||adminProbe[1]?.join('/')!==
 if(adminProbe[2]!=='立陶宛'||adminProbe[3]!=='白俄罗斯')throw Error('Chinese country-name resolver failed');
 function hasCountry(t,iso){return t.some(e=>e.type==='country'&&e.iso===iso&&e.whole===true)}
 function admins(t){return t.filter(e=>e.type==='admin').map(e=>e.name)}
+async function waitForLongSequence(i){
+ if(i===8)await page.waitForFunction(()=>{const t=window.NG14.getV52SceneTrace();return ['SAU','ARE','QAT'].every(iso=>t.some(e=>e.type==='country'&&e.iso===iso&&e.whole===true))&&t.some(e=>e.type==='regional-context')},{timeout:12000});
+ if(i===11)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/乌鲁木齐',{timeout:12000});
+ if(i===12)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/巴音郭楞/若羌',{timeout:15000});
+}
 for(let i=0;i<13;i++){
- await page.evaluate(idx=>{const G=window.NG14;G.v52SceneTrace.length=0;G.pause?.();G.focus?.(idx,true)},i);await page.waitForTimeout(7000);
+ await page.evaluate(idx=>{const G=window.NG14;G.v52SceneTrace.length=0;G.pause?.();G.focus?.(idx,true)},i);await page.waitForTimeout(7000);await waitForLongSequence(i);
  const s=await page.evaluate(()=>{const G=window.NG14,n=G.news[G.current??0],c=G.viewer.camera.positionCartographic,text=document.body.innerText;return{idx:(G.current??0)+1,title:n?.title,h:c?.height,lon:Cesium.Math.toDegrees(c.longitude),lat:Cesium.Math.toDegrees(c.latitude),isoLeak:/\b(?:LTU|BLR|YEM|DNK|KOR|KAZ|PSE|IRQ|UKR|RUS|USA|IRN|SAU|ARE|QAT)\b/.test(text),trace:G.getV52SceneTrace()};});
  if(s.idx!==i+1||s.title!==titles[i])throw Error(`TOP${i+1} switch failed`);if(!Number.isFinite(s.h)||s.h<=0||!Number.isFinite(s.lon)||!Number.isFinite(s.lat))throw Error(`TOP${i+1} camera invalid`);if(s.isoLeak)throw Error(`TOP${i+1} visible ISO abbreviation leak`);
  if(i===3&&(!hasCountry(s.trace,'SAU')||!s.trace.some(e=>e.type==='actor-visible'&&e.actor==='胡塞武装')))throw Error('TOP4 visible attacker/target stage missing');
  if(i===5&&!hasCountry(s.trace,'UKR'))throw Error('TOP6 whole-Ukraine rendered stage missing');
- if(i===8&&(!hasCountry(s.trace,'ARE')||!hasCountry(s.trace,'QAT')||!s.trace.some(e=>e.type==='regional-context')))throw Error('TOP9 regional country context not rendered');
+ if(i===8&&(!hasCountry(s.trace,'SAU')||!hasCountry(s.trace,'ARE')||!hasCountry(s.trace,'QAT')||!s.trace.some(e=>e.type==='regional-context')))throw Error('TOP9 regional country context not rendered');
  if(i===9&&!hasCountry(s.trace,'CHN'))throw Error('TOP10 whole-China rendered stage missing');
  if(i===11&&admins(s.trace).join('/')!=='新疆/乌鲁木齐')throw Error('TOP12 rendered admin order wrong: '+admins(s.trace).join('/'));
  if(i===12&&admins(s.trace).join('/')!=='新疆/巴音郭楞/若羌')throw Error('TOP13 rendered admin order wrong: '+admins(s.trace).join('/'));
