@@ -14,7 +14,7 @@ const adminProbe=await page.evaluate(()=>{const G=window.NG14;return [G.adminSte
 if(adminProbe[0]?.join('/')!=='新疆/乌鲁木齐'||adminProbe[1]?.join('/')!=='新疆/巴音郭楞/若羌')throw Error('engine did not adopt explicit adminChain');if(adminProbe[2]!=='立陶宛'||adminProbe[3]!=='白俄罗斯')throw Error('Chinese country-name resolver failed');
 function hasCountry(t,iso){return t.some(e=>e.type==='country'&&e.iso===iso&&e.whole===true)}function admins(t){return t.filter(e=>e.type==='admin').map(e=>e.name)}
 async function waitForLongSequence(i){
- if(i===7)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='diplomacy-country').map(e=>e.iso).join('/')==='KAZ/KOR',{timeout:18000});
+ if(i===7)await page.waitForFunction(()=>{const t=window.NG14.getV52SceneTrace();return t.filter(e=>e.type==='diplomacy-country').map(e=>e.iso).join('/')==='KAZ/KOR'&&t.some(e=>e.type==='two-country-location'&&e.eventCountry==='KOR')},{timeout:22000});
  if(i===8)await page.waitForFunction(()=>{const t=window.NG14.getV52SceneTrace();return ['SAU','ARE','QAT'].every(iso=>t.some(e=>e.type==='country'&&e.iso===iso&&e.whole===true))&&t.some(e=>e.type==='regional-context')},{timeout:18000});
  if(i===11)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/乌鲁木齐',{timeout:16000});
  if(i===12)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/巴音郭楞/若羌',{timeout:19000});
