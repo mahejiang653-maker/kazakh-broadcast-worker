@@ -43,15 +43,16 @@ G.runSequence=async function(n,iso,s){
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
  if(p.nonStateActor){await runCountry(primary,n,s,1100);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,participants:[],contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
- /* Common two-country rule: A whole country -> B whole country -> actual event location.
-    The final-location pass deliberately clears country context so the legacy POINT renderer
-    cannot show A (or B) for a second time. */
+ /* Common ordinary two-country rule: A = other country, B = actual event country.
+    Always show A whole country -> B whole country -> actual location inside B.
+    Attack/missile/drone/border-conflict semantics are handled by their dedicated modes. */
  const ctx=[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];
  if(ctx.length){
-   if(primary){await runCountry(primary,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
+   const eventCountry=primary;
    for(const x of ctx){await runCountry(x,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
+   if(eventCountry){await runCountry(eventCountry,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
    const q={...n,countryIso3:null,secondaryCountryIso3:null,scenePlan:{...p,primaryIso3:'',participants:[],contextCountries:[]}};
-   trace('two-country-location',{countries:[primary,...ctx],location:String(n.focusLabel||n.location||'')});
+   trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});
    return oldRun?oldRun.call(this,q,'',s):false;
  }
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}
