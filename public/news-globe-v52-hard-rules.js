@@ -4,24 +4,18 @@ const COUNTRY_ZH={CHN:'中国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:
 const oldCountryName=G.countryName;
 G.countryNameZh=iso=>COUNTRY_ZH[String(iso||'').toUpperCase()]||(oldCountryName?oldCountryName.call(G,iso):'')||'未知国家';
 G.countryName=function(iso){return G.countryNameZh(iso)};
-
-/* Runtime scene trace is deliberately tied to what the renderer actually enters.
-   Acceptance tests use this instead of trusting normalized metadata. */
 G.v52SceneTrace=[];
 function trace(type,data={}){const e={type,serial:G.navSerial,index:(G.current??0)+1,at:Date.now(),...data};G.v52SceneTrace.push(e);if(G.v52SceneTrace.length>300)G.v52SceneTrace.splice(0,G.v52SceneTrace.length-300);return e}
 G.getV52SceneTrace=()=>G.v52SceneTrace.slice();
-
+const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 const oldAdminSteps=G.adminSteps;
 G.adminSteps=function(n){const a=n?.scenePlan?.adminChain;if(Array.isArray(a)&&a.length)return a.slice();return oldAdminSteps?oldAdminSteps.call(this,n):[]};
-/* Observe the real admin renderer, not only adminChain data. */
 if(typeof G.flashAdmin==='function'){
  const oldFlashAdmin=G.flashAdmin;
- G.flashAdmin=async function(step,iso,s,...rest){trace('admin',{name:String(step||''),iso:String(iso||'').toUpperCase()});return oldFlashAdmin.call(this,step,iso,s,...rest)};
+ G.flashAdmin=async function(step,iso,s,...rest){trace('admin',{name:String(step||''),iso:String(iso||'').toUpperCase()});const r=await oldFlashAdmin.call(this,step,iso,s,...rest);if(s===G.navSerial)await wait(1150,s);return r};
 }
-
 function normalize(n){
- if(!n)return n;const p=n.scenePlan||(n.scenePlan={});
- const mode=String(n.sceneMode||'').toUpperCase();
+ if(!n)return n;const p=n.scenePlan||(n.scenePlan={});const mode=String(n.sceneMode||'').toUpperCase();
  if(p.sourceUnconfirmed){delete p.attackerIso3;delete p.victimIso3;}
  if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3;}
  if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true;}
@@ -29,32 +23,36 @@ function normalize(n){
  return n;
 }
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
-if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
-if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
-
+if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
 const oldRun=G.runSequence;
-const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 async function runCountry(iso,n,s,hold=1700){
- if(!iso||typeof oldRun!=='function')return false;
- iso=String(iso).toUpperCase();trace('country',{iso,label:G.countryName(iso),whole:true});
- const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,contextCountries:[],adminChain:[],finalLocation:false,regionalContext:false}};
+ if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();trace('country',{iso,label:G.countryName(iso),whole:true});
+ const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],finalLocation:false,regionalContext:false}};
  const r=await oldRun.call(G,q,iso,s);if(s!==G.navSerial)return false;await wait(hold,s);return r!==false;
 }
 async function showActorCard(n,s){
  const p=n.scenePlan||{},actor=String(p.nonStateActor||'').trim();if(!actor)return;
  const target=String(n.focusLabel||n.location||'目标地点');trace('actor',{actor,target});
  const h=document.getElementById('scenePlanHud');if(!h){trace('actor-missing-hud',{actor,target});return;}
- h.style.display='block';h.innerHTML='<div style="font-weight:700">'+actor+'</div><div style="opacity:.8;margin-top:4px">袭击目标：'+target+'</div>';
- trace('actor-visible',{actor,target});await wait(1450,s);h.style.display='none';
+ h.style.display='block';h.style.zIndex='40';h.innerHTML='<div style="font-weight:800;font-size:16px">'+actor+' <span style="color:#ff982f">→</span> '+target+'</div><div style="opacity:.78;margin-top:4px">袭击方（非国家行为体） → 袭击目标</div>';
+ trace('actor-visible',{actor,target});await wait(2400,s);h.style.display='none';
 }
 G.runSequence=async function(n,iso,s){
  normalize(n);if(s!==G.navSerial)return false;const p=n.scenePlan||{},mode=String(n.sceneMode||'').toUpperCase(),primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();
  trace('sequence',{mode,primary,title:String(n.title||'')});
- /* Regional context is a semantic requirement, not a scene-mode special case.
-    Any story declaring it must show the involved countries before the regional focus. */
- if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,900)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
+ if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
- if(p.nonStateActor){await runCountry(primary,n,s,900);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
+ if(p.nonStateActor){await runCountry(primary,n,s,1100);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,participants:[],contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
+ /* Generic two-country context rule: never draw both country labels/flags at once.
+    Show the primary country, then each contextual country, then continue to the actual event.
+    Unconfirmed source-direction context remains context and is never promoted to attacker state. */
+ const ctx=[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];
+ if(ctx.length){
+   if(primary){await runCountry(primary,n,s,850);if(s!==G.navSerial)return false;}
+   for(const x of ctx){await runCountry(x,n,s,850);if(s!==G.navSerial)return false;}
+   const q={...n,scenePlan:{...p,contextCountries:[]}};
+   return oldRun?oldRun.call(this,q,iso,s):false;
+ }
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}
  return false;
 };
