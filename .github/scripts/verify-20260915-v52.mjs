@@ -1,3 +1,4 @@
+// Browser acceptance for the locked 2026-09-15 V52 daily globe.
 import { chromium } from 'playwright';
 
 const url = 'https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260915-v52-r1.html?v=20260915-r2-verify';
