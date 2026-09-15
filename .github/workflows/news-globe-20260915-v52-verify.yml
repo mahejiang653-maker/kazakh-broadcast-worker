@@ -1,12 +1,22 @@
 name: Verify 2026-09-15 Globe V52
-on: push
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   verify:
-    if: contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260915_V52')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260915_V52')
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '22'}
-      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
-      - run: node .github/scripts/verify-20260915-v52.mjs
+        with:
+          node-version: '22'
+      - name: Install Chromium verifier
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run production Top1 to Top13 hard-rule verification
+        run: node .github/scripts/verify-20260915-v52.mjs
