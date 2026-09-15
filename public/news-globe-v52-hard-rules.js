@@ -5,20 +5,25 @@ const oldCountryName=G.countryName;
 G.countryNameZh=iso=>COUNTRY_ZH[String(iso||'').toUpperCase()]||(oldCountryName?oldCountryName.call(G,iso):'')||'未知国家';
 G.countryName=function(iso){return G.countryNameZh(iso)};
 
-/* Explicit adminChain is the single source of truth for hierarchical stories.
-   This makes every future CHN province/prefecture/county story run:
-   country -> province -> prefecture/city -> county -> final point. */
+/* Runtime scene trace is deliberately tied to what the renderer actually enters.
+   Acceptance tests use this instead of trusting normalized metadata. */
+G.v52SceneTrace=[];
+function trace(type,data={}){const e={type,serial:G.navSerial,index:(G.current??0)+1,at:Date.now(),...data};G.v52SceneTrace.push(e);if(G.v52SceneTrace.length>300)G.v52SceneTrace.splice(0,G.v52SceneTrace.length-300);return e}
+G.getV52SceneTrace=()=>G.v52SceneTrace.slice();
+
 const oldAdminSteps=G.adminSteps;
 G.adminSteps=function(n){const a=n?.scenePlan?.adminChain;if(Array.isArray(a)&&a.length)return a.slice();return oldAdminSteps?oldAdminSteps.call(this,n):[]};
+/* Observe the real admin renderer, not only adminChain data. */
+if(typeof G.flashAdmin==='function'){
+ const oldFlashAdmin=G.flashAdmin;
+ G.flashAdmin=async function(step,iso,s,...rest){trace('admin',{name:String(step||''),iso:String(iso||'').toUpperCase()});return oldFlashAdmin.call(this,step,iso,s,...rest)};
+}
 
 function normalize(n){
  if(!n)return n;const p=n.scenePlan||(n.scenePlan={});
  const mode=String(n.sceneMode||'').toUpperCase();
- /* Uncertain origin/direction must never become a confirmed attacker. */
  if(p.sourceUnconfirmed){delete p.attackerIso3;delete p.victimIso3;}
- /* A named non-state actor is not a state. Never synthesize a country attacker. */
  if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3;}
- /* Region/country-wide stories must not fabricate a precise event point. */
  if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true;}
  if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true;}
  return n;
@@ -31,27 +36,23 @@ const oldRun=G.runSequence;
 const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 async function runCountry(iso,n,s,hold=1700){
  if(!iso||typeof oldRun!=='function')return false;
+ iso=String(iso).toUpperCase();trace('country',{iso,label:G.countryName(iso),whole:true});
  const q={...n,sceneMode:'COUNTRY',countryIso3:iso,secondaryCountryIso3:null,noPoint:true,scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,contextCountries:[],adminChain:[],finalLocation:false}};
  const r=await oldRun.call(G,q,iso,s);if(s!==G.navSerial)return false;await wait(hold,s);return r!==false;
 }
 async function showActorCard(n,s){
  const p=n.scenePlan||{},actor=String(p.nonStateActor||'').trim();if(!actor)return;
- const h=document.getElementById('scenePlanHud');if(!h)return;
- const target=String(n.focusLabel||n.location||'目标地点');
+ const target=String(n.focusLabel||n.location||'目标地点');trace('actor',{actor,target});
+ const h=document.getElementById('scenePlanHud');if(!h){trace('actor-missing-hud',{actor,target});return;}
  h.style.display='block';h.innerHTML='<div style="font-weight:700">'+actor+'</div><div style="opacity:.8;margin-top:4px">袭击目标：'+target+'</div>';
- await wait(1450,s);h.style.display='none';
+ trace('actor-visible',{actor,target});await wait(1450,s);h.style.display='none';
 }
 G.runSequence=async function(n,iso,s){
  normalize(n);if(s!==G.navSerial)return false;const p=n.scenePlan||{},mode=String(n.sceneMode||'').toUpperCase(),primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();
- /* Nationwide: always show the complete country in red and stop there. */
+ trace('sequence',{mode,primary,title:String(n.title||'')});
  if(mode==='ADMIN_REGION'&&!p.regionalContext)return runCountry(primary,n,s,2100);
- /* Regional story: establish every relevant country first; do not invent one red point. */
- if(mode==='ADMIN_REGION'&&p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,900)}return true;}
- /* Non-state attack: first identify target country, then explicitly identify the actor,
-    then let the point renderer finish at the real target. No fake Yemen/state trajectory. */
+ if(mode==='ADMIN_REGION'&&p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,900)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
  if(p.nonStateActor){await runCountry(primary,n,s,900);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
- /* Hierarchical point stories are handled by the engine naturally now that adminSteps
-    reads scenePlan.adminChain: country -> every admin level -> final point. */
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}
  return false;
 };
