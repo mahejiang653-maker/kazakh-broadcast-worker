@@ -43,14 +43,16 @@ G.runSequence=async function(n,iso,s){
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true;}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
  if(p.nonStateActor){await runCountry(primary,n,s,1100);if(s!==G.navSerial)return false;await showActorCard(n,s);if(s!==G.navSerial)return false;const q={...n,scenePlan:{...p,participants:[],contextCountries:[],adminChain:p.adminChain||[]}};return oldRun?oldRun.call(this,q,iso,s):false;}
- /* Generic two-country context rule: show each country separately before the actual location.
-    This is common V52 behavior for diplomacy/cooperation/context stories, not a story-ID patch. */
+ /* Common two-country rule: A whole country -> B whole country -> actual event location.
+    The final-location pass deliberately clears country context so the legacy POINT renderer
+    cannot show A (or B) for a second time. */
  const ctx=[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];
  if(ctx.length){
    if(primary){await runCountry(primary,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
    for(const x of ctx){await runCountry(x,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false;}
-   const q={...n,scenePlan:{...p,contextCountries:[]}};
-   return oldRun?oldRun.call(this,q,iso,s):false;
+   const q={...n,countryIso3:null,secondaryCountryIso3:null,scenePlan:{...p,primaryIso3:'',participants:[],contextCountries:[]}};
+   trace('two-country-location',{countries:[primary,...ctx],location:String(n.focusLabel||n.location||'')});
+   return oldRun?oldRun.call(this,q,'',s):false;
  }
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}
  return false;
