@@ -19,8 +19,14 @@ async function waitForLongSequence(i){
  if(i===11)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/乌鲁木齐',{timeout:16000});
  if(i===12)await page.waitForFunction(()=>window.NG14.getV52SceneTrace().filter(e=>e.type==='admin').map(e=>e.name).join('/')==='新疆/巴音郭楞/若羌',{timeout:19000});
 }
+async function assertStablePlaceLabel(i){
+ if(i!==3)return;
+ const samples=[];
+ for(let k=0;k<18;k++){const a=await page.evaluate(()=>{const G=window.NG14,t=G.viewer.clock.currentTime;const es=G.viewer.entities.values||[];const e=es.find(x=>{try{const v=x.label?.text?.getValue?x.label.text.getValue(t):x.label?.text;return String(v||'').includes('哈米斯穆谢特')}catch{return false}});if(!e?.label)return null;const o=e.label.pixelOffset?.getValue?e.label.pixelOffset.getValue(t):e.label.pixelOffset;return o?{x:+o.x,y:+o.y}:null});if(a)samples.push(a);await page.waitForTimeout(120)}
+ if(samples.length<3)throw Error('TOP4 place label not observable');const first=samples[0];if(samples.some(o=>Math.abs(o.x-first.x)>.1||Math.abs(o.y-first.y)>.1))throw Error('TOP4 place label pixelOffset flipped during zoom: '+JSON.stringify(samples));console.log('TOP_04_LABEL_STABLE',JSON.stringify(first),samples.length);
+}
 for(let i=0;i<13;i++){
- await page.evaluate(idx=>{const G=window.NG14;G.v52SceneTrace.length=0;G.pause?.();G.focus?.(idx,true)},i);await page.waitForTimeout(7000);await waitForLongSequence(i);
+ await page.evaluate(idx=>{const G=window.NG14;G.v52SceneTrace.length=0;G.pause?.();G.focus?.(idx,true)},i);await page.waitForTimeout(7000);await waitForLongSequence(i);await assertStablePlaceLabel(i);
  const s=await page.evaluate(()=>{const G=window.NG14,n=G.news[G.current??0],c=G.viewer.camera.positionCartographic,text=document.body.innerText;return{idx:(G.current??0)+1,title:n?.title,h:c?.height,lon:Cesium.Math.toDegrees(c.longitude),lat:Cesium.Math.toDegrees(c.latitude),isoLeak:/\b(?:LTU|BLR|YEM|DNK|KOR|KAZ|PSE|IRQ|UKR|RUS|USA|IRN|SAU|ARE|QAT)\b/.test(text),trace:G.getV52SceneTrace()};});
  if(s.idx!==i+1||s.title!==titles[i])throw Error(`TOP${i+1} switch failed`);if(!Number.isFinite(s.h)||s.h<=0||!Number.isFinite(s.lon)||!Number.isFinite(s.lat))throw Error(`TOP${i+1} camera invalid`);if(s.isoLeak)throw Error(`TOP${i+1} visible ISO abbreviation leak`);
  if(i===3&&(!hasCountry(s.trace,'SAU')||!s.trace.some(e=>e.type==='actor-visible'&&e.actor==='胡塞武装')))throw Error('TOP4 visible attacker/target stage missing');
@@ -31,4 +37,4 @@ for(let i=0;i<13;i++){
  if(i===11&&admins(s.trace).join('/')!=='新疆/乌鲁木齐')throw Error('TOP12 rendered admin order wrong: '+admins(s.trace).join('/'));if(i===12&&admins(s.trace).join('/')!=='新疆/巴音郭楞/若羌')throw Error('TOP13 rendered admin order wrong: '+admins(s.trace).join('/'));
  console.log('TOP_'+String(i+1).padStart(2,'0')+'_PASS',s.lon.toFixed(2),s.lat.toFixed(2),Math.round(s.h),'TRACE',s.trace.map(e=>e.type+(e.iso?':'+e.iso:e.name?':'+e.name:e.actor?':'+e.actor:'')).join(','));
 }
-if(errs.length)throw Error('page errors: '+errs.join(' | '));await browser.close();console.log('PASS_13_13_RENDERED_VISUAL_STAGES');
+if(errs.length)throw Error('page errors: '+errs.join(' | '));await browser.close();console.log('PASS_13_13_RENDERED_VISUAL_STAGES_AND_LABEL_STABILITY');
