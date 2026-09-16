@@ -1,0 +1,18 @@
+name: Verify 2026-09-16 Globe V52
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  verify:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260916_V52')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: main}
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
+      - run: node .github/scripts/verify-20260916-v52.mjs
