@@ -1,0 +1,11 @@
+(function attach(){
+ const G=window.NG14,C=window.Cesium;if(!G||!C||!G.viewer||typeof G.runSequence!=='function'||!G.countries?.size)return setTimeout(attach,100);if(G.__v52CountryIntroGuard)return;G.__v52CountryIntroGuard=true;
+ const baseRun=G.runSequence,ISO2={CHN:'cn',USA:'us',RUS:'ru',UKR:'ua',IRN:'ir',ISR:'il',PSE:'ps',LBN:'lb',DEU:'de',FRA:'fr',GBR:'gb',POL:'pl',ROU:'ro',TUR:'tr',SYR:'sy',JOR:'jo',EGY:'eg',IND:'in',PAK:'pk',AFG:'af',JPN:'jp',PRK:'kp',AUS:'au',CAN:'ca',BRA:'br',THA:'th',SGP:'sg',SAU:'sa',ARE:'ae',QAT:'qa',IRQ:'iq',KWT:'kw',VEN:'ve',KAZ:'kz',OMN:'om',YEM:'ye',KOR:'kr',CHE:'ch'};
+ let introFlag=null;
+ function rmFlag(){try{if(introFlag)G.viewer.entities.remove(introFlag)}catch{}introFlag=null}
+ function addFlag(iso,c){rmFlag();const cc=ISO2[iso];if(!cc||!c)return;introFlag=G.viewer.entities.add({__v52CountryIntroFlag:true,position:C.Cartesian3.fromDegrees(+c[0],+c[1],110000),billboard:{image:`https://flagcdn.com/w80/${cc}.png`,width:34,height:22,pixelOffset:new C.Cartesian2(0,-34),disableDepthTestDistance:Number.POSITIVE_INFINITY}});if(introFlag)introFlag.__v52CountryIntroFlag=true}
+ async function intro(n,iso,s){const c=G.countries.get(iso);if(!c?.sphere)return true;try{G.clearLocal?.();G.clearArc?.();G.flashCountry?.(iso,{...n,countryIso3:iso,country:G.countryNameZh?.(iso)||G.countryName?.(iso)});addFlag(iso,c.center);await new Promise(r=>G.viewer.camera.flyToBoundingSphere(c.sphere,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-90),Math.max(900000,Math.min(15000000,c.sphere.radius*2.55))),duration:1.15,complete:r,cancel:r}));if(s!==G.navSerial)return false;G.__v52IntroGuardTrace={iso,story:+n.id,visible:true,at:Date.now()};await new Promise(r=>setTimeout(r,3000));return s===G.navSerial}catch(e){console.warn('[V52 country intro guard]',e);return s===G.navSerial}}
+ G.runSequence=async function(n,iso,s){iso=String(n?.countryIso3||iso||'').toUpperCase();const mode=String(n?.sceneMode||'').toUpperCase(),regional=!!n?.scenePlan?.regionalContext;if((mode==='POINT'||mode==='ADMIN')&&!regional&&iso){const ok=await intro(n,iso,s);rmFlag();if(!ok)return false}return baseRun.call(this,n,iso,s)};
+ const baseOverview=G.overview;G.overview=function(){rmFlag();return baseOverview.apply(this,arguments)};
+ G.__V52_COUNTRY_INTRO_GUARD='r23';console.info('[News Globe] V52 r23 country-intro guard active');
+})();
