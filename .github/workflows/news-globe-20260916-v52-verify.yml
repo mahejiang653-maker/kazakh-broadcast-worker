@@ -1,4 +1,4 @@
-name: Verify 2026-09-16 Globe V52
+name: Verify Globe V52 Daily
 on:
   workflow_dispatch:
   push:
@@ -7,7 +7,7 @@ permissions:
   contents: read
 jobs:
   verify:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260916_V52')
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260916_V52') || contains(github.event.head_commit.message, 'VERIFY_GLOBE_20260917_V52')
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -15,4 +15,10 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
-      - run: node .github/scripts/verify-20260916-v52.mjs
+      - name: Run daily verifier
+        run: |
+          if [[ "${{ github.event.head_commit.message }}" == *"VERIFY_GLOBE_20260917_V52"* ]]; then
+            node .github/scripts/verify-20260917-v52.mjs
+          else
+            node .github/scripts/verify-20260916-v52.mjs
+          fi
