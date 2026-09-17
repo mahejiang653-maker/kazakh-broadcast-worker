@@ -12,4 +12,4 @@
 {id:11,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',contextCountries:['USA'],finalLocation:true},title:'中美安全专家提出核军控式AI安全红线，建议军事网络攻击保留人工控制并设事件热线。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',secondaryCountryIso3:'USA',focusLabel:'北京'},
 {id:12,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true,adminChain:['新疆','乌鲁木齐']},title:'《中国新疆地区历史》《中国新疆地区宗教史》出版后，新疆宗教界最新集中回应引发关注。',location:'新疆乌鲁木齐',lon:87.6168,lat:43.8256,countryIso3:'CHN',focusLabel:'乌鲁木齐'},
 {id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true,adminChain:['甘肃','酒泉市']},title:'我国在酒泉成功发射天仪51、52星，卫星顺利进入预定轨道。',location:'甘肃酒泉卫星发射中心',lon:100.291,lat:40.960,countryIso3:'CHN',focusLabel:'酒泉卫星发射中心'}
-];})(window.NG14=window.NG14||{});
+];G.DAILY_LOCK='20260917-13';})(window.NG14=window.NG14||{});
