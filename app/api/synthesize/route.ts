@@ -10,8 +10,9 @@ import {
 import { structureEdgeText } from "../../lib/edge-natural-structure";
 import { analyzeStoryEmotionTrajectory } from "../../lib/edge-story-emotion-trajectory";
 import {
+  planEdgeTextChunks,
   renderEdgeOmniInspiredMarkup,
-  splitEdgeTextByDuration,
+  type EdgeChunkBoundaryKind,
 } from "../../lib/edge-omnivoice-inspired";
 
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
@@ -798,6 +799,10 @@ function renderContinuousStoryBody(
   baseVolume: number,
   useMultilingual: boolean,
   documentPlan?: EdgeDocumentPlan,
+  continuityBefore = "",
+  continuityAfter = "",
+  continuityBoundaryBefore?: EdgeChunkBoundaryKind,
+  continuityBoundaryAfter?: EdgeChunkBoundaryKind,
 ) {
   // V10 continuity rule: analyze emotion finely, but synthesize in long acoustic
   // movements. Narration may cross source paragraph boundaries when the speaker
@@ -854,7 +859,8 @@ function renderContinuousStoryBody(
 
   let body = "";
 
-  for (const group of groups) {
+  for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
+    const group = groups[groupIndex];
     const totalChars = Math.max(
       1,
       group.items.reduce((sum, sentence) => sum + sentence.text.length, 0),
@@ -959,6 +965,10 @@ function renderContinuousStoryBody(
         pitch: localPitch,
         volume: localVolume,
         deliveryMode: "story",
+        continuityBefore: groupIndex === 0 ? continuityBefore : undefined,
+        continuityAfter: groupIndex === groups.length - 1 ? continuityAfter : undefined,
+        continuityBoundaryBefore: groupIndex === 0 ? continuityBoundaryBefore : undefined,
+        continuityBoundaryAfter: groupIndex === groups.length - 1 ? continuityBoundaryAfter : undefined,
       },
       documentPlan,
       renderLanguageAwareText,
@@ -981,6 +991,10 @@ function renderEmotionDirectedBody(
   emotionPlan: EdgeEmotionPlan,
   documentPlan: EdgeDocumentPlan | undefined,
   useMultilingual: boolean,
+  continuityBefore = "",
+  continuityAfter = "",
+  continuityBoundaryBefore?: EdgeChunkBoundaryKind,
+  continuityBoundaryAfter?: EdgeChunkBoundaryKind,
 ) {
   const presetSettings = PRESETS[preset];
   const emotionStrength = EMOTION_STRENGTH_BY_PRESET[preset];
@@ -1024,6 +1038,10 @@ function renderEmotionDirectedBody(
       baseVolume,
       useMultilingual,
       documentPlan,
+      continuityBefore,
+      continuityAfter,
+      continuityBoundaryBefore,
+      continuityBoundaryAfter,
     );
   }
 
@@ -1077,6 +1095,10 @@ function renderEmotionDirectedBody(
           // V17: the shared fluent closure engine knows which presenter cadence
           // to preserve, without changing the preset's existing base speed.
           broadcastPreset: preset,
+          continuityBefore,
+          continuityAfter,
+          continuityBoundaryBefore,
+          continuityBoundaryAfter,
         },
         documentPlan,
         renderLanguageAwareText,
@@ -1101,10 +1123,17 @@ function buildEdgeSsml(
   documentPlan?: EdgeDocumentPlan,
   useMultilingual = false,
   emotionPlan: EdgeEmotionPlan | null = null,
+  continuityBefore = "",
+  continuityAfter = "",
+  continuityBoundaryBefore?: EdgeChunkBoundaryKind,
+  continuityBoundaryAfter?: EdgeChunkBoundaryKind,
 ) {
   if (!useMultilingual) {
     const body = emotionPlan
-      ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, documentPlan, false)
+      ? renderEmotionDirectedBody(
+          text, settings, voice, preset, emotionPlan, documentPlan, false,
+          continuityBefore, continuityAfter, continuityBoundaryBefore, continuityBoundaryAfter,
+        )
       : edgeNativeProsody(text, settings, voice, preset);
     return [
       '<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ">',
@@ -1138,7 +1167,10 @@ function buildEdgeSsml(
     7,
   );
   const body = emotionPlan
-    ? renderEmotionDirectedBody(text, settings, voice, preset, emotionPlan, documentPlan, true)
+    ? renderEmotionDirectedBody(
+        text, settings, voice, preset, emotionPlan, documentPlan, true,
+        continuityBefore, continuityAfter, continuityBoundaryBefore, continuityBoundaryAfter,
+      )
     : runs
         .map((run) =>
           `<lang xml:lang="${edgeLanguageCode(run.language)}">${escapeXml(run.text)}</lang>`,
@@ -1169,6 +1201,10 @@ async function synthesizeEdgeChunk(
   documentPlan: EdgeDocumentPlan,
   useMultilingual: boolean,
   emotionPlan: EdgeEmotionPlan | null,
+  continuityBefore = "",
+  continuityAfter = "",
+  continuityBoundaryBefore?: EdgeChunkBoundaryKind,
+  continuityBoundaryAfter?: EdgeChunkBoundaryKind,
 ) {
   const response = await fetchWithTimeout(
     `https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`,
@@ -1180,7 +1216,10 @@ async function synthesizeEdgeChunk(
         "User-Agent": "okhttp/4.5.0",
         "X-Microsoft-OutputFormat": "audio-24khz-160kbitrate-mono-mp3",
       },
-      body: buildEdgeSsml(text, voice, preset, settings, documentPlan, useMultilingual, emotionPlan),
+      body: buildEdgeSsml(
+        text, voice, preset, settings, documentPlan, useMultilingual, emotionPlan,
+        continuityBefore, continuityAfter, continuityBoundaryBefore, continuityBoundaryAfter,
+      ),
     },
     120000,
   );
@@ -1274,6 +1313,127 @@ async function synthesizeElevenChunk(
   return response.arrayBuffer();
 }
 
+type Mp3FrameInfo = {
+  length: number;
+  sampleRate: number;
+  bitrateKbps: number;
+};
+
+function synchsafeInt(bytes: Uint8Array, offset: number) {
+  return ((bytes[offset] & 0x7f) << 21) |
+    ((bytes[offset + 1] & 0x7f) << 14) |
+    ((bytes[offset + 2] & 0x7f) << 7) |
+    (bytes[offset + 3] & 0x7f);
+}
+
+function mp3FrameInfo(bytes: Uint8Array, offset: number): Mp3FrameInfo | null {
+  if (offset + 4 > bytes.length) return null;
+  const b0 = bytes[offset];
+  const b1 = bytes[offset + 1];
+  const b2 = bytes[offset + 2];
+  if (b0 !== 0xff || (b1 & 0xe0) !== 0xe0) return null;
+
+  const versionBits = (b1 >> 3) & 0x03;
+  const layerBits = (b1 >> 1) & 0x03;
+  if (versionBits === 0x01 || layerBits !== 0x01) return null; // Layer III only.
+  const bitrateIndex = (b2 >> 4) & 0x0f;
+  const sampleRateIndex = (b2 >> 2) & 0x03;
+  if (bitrateIndex === 0 || bitrateIndex === 0x0f || sampleRateIndex === 0x03) return null;
+
+  const mpeg1Bitrates = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+  const mpeg2Bitrates = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160];
+  const sampleRates = [44100, 48000, 32000];
+  const isMpeg1 = versionBits === 0x03;
+  const divisor = versionBits === 0x03 ? 1 : versionBits === 0x02 ? 2 : 4;
+  const bitrateKbps = (isMpeg1 ? mpeg1Bitrates : mpeg2Bitrates)[bitrateIndex];
+  const sampleRate = Math.floor(sampleRates[sampleRateIndex] / divisor);
+  const padding = (b2 >> 1) & 0x01;
+  const length = Math.floor((isMpeg1 ? 144000 : 72000) * bitrateKbps / sampleRate) + padding;
+  if (!Number.isFinite(length) || length < 24) return null;
+  return { length, sampleRate, bitrateKbps };
+}
+
+function hasAscii(bytes: Uint8Array, start: number, end: number, value: string) {
+  const pattern = Array.from(value).map((char) => char.charCodeAt(0));
+  const limit = Math.min(bytes.length, end) - pattern.length;
+  for (let index = Math.max(0, start); index <= limit; index += 1) {
+    let match = true;
+    for (let cursor = 0; cursor < pattern.length; cursor += 1) {
+      if (bytes[index + cursor] !== pattern[cursor]) {
+        match = false;
+        break;
+      }
+    }
+    if (match) return true;
+  }
+  return false;
+}
+
+function firstMp3Frame(bytes: Uint8Array, offset: number) {
+  for (let index = offset; index + 4 <= bytes.length; index += 1) {
+    const first = mp3FrameInfo(bytes, index);
+    if (!first || index + first.length > bytes.length) continue;
+    const nextOffset = index + first.length;
+    const next = mp3FrameInfo(bytes, nextOffset);
+    if (next || nextOffset >= bytes.length - 4) return { offset: index, info: first };
+  }
+  return null;
+}
+
+/**
+ * V37 seam cleaner: Edge returns a complete MP3 file for every REST request.
+ * Concatenating those files byte-for-byte can leave ID3/Xing metadata in the
+ * middle of the final stream. Remove container metadata, align every piece to
+ * complete MPEG frames, and drop metadata-only Xing/Info lead frames. This is
+ * intentionally codec-free so the Worker keeps the existing MP3 format and
+ * avoids a heavy PCM decode/re-encode dependency.
+ */
+function cleanEdgeMp3Chunk(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer);
+  let start = 0;
+  if (
+    bytes.length >= 10 &&
+    bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33
+  ) {
+    const flags = bytes[5];
+    start = 10 + synchsafeInt(bytes, 6) + ((flags & 0x10) ? 10 : 0);
+  }
+
+  const first = firstMp3Frame(bytes, start);
+  if (!first) return buffer;
+  start = first.offset;
+
+  // Xing/Info/LAME headers describe one independent request and should not sit
+  // between spoken chunks in the combined stream. Their first frame is normally
+  // metadata/encoder priming rather than useful speech.
+  if (
+    hasAscii(bytes, start, start + first.info.length, "Xing") ||
+    hasAscii(bytes, start, start + first.info.length, "Info")
+  ) {
+    const next = start + first.info.length;
+    if (mp3FrameInfo(bytes, next)) start = next;
+  }
+
+  let cursor = start;
+  let lastComplete = start;
+  while (cursor + 4 <= bytes.length) {
+    const frame = mp3FrameInfo(bytes, cursor);
+    if (!frame || cursor + frame.length > bytes.length) break;
+    cursor += frame.length;
+    lastComplete = cursor;
+  }
+
+  // Ignore a trailing ID3v1 TAG or any non-frame bytes after the final complete
+  // audio frame. If parsing looks suspicious, preserve the original response.
+  if (lastComplete <= start) return buffer;
+  return bytes.slice(start, lastComplete).buffer;
+}
+
+function smoothEdgeMp3Seams(chunks: ArrayBuffer[]) {
+  if (chunks.length <= 1) return chunks;
+  return chunks.map((chunk) => cleanEdgeMp3Chunk(chunk));
+}
+
 async function synthesizeWithEdge(
   text: string,
   voice: string,
@@ -1289,39 +1449,30 @@ async function synthesizeWithEdge(
       ? text
       : prepareNativeKazakhEnglishPronunciation(text);
 
-  // Build a hidden spoken form first (English acronym pronunciation for native
-  // voices, then numbers/years/percentages/dates), followed by typography
-  // cleanup. The user's visible article is never changed.
   const spokenText = normalizeKazakhSpeechText(pronunciationPreparedText);
   const preparedText = prepareEdgeHumanText(spokenText);
   if (!preparedText) return [];
 
-  // Preserve one coherent article context for as long as the service allows.
-  // Unlike the older 1600-character path, a typical news article now needs
-  // only one request (or two for very long copy), which greatly reduces the
-  // audible prosody reset at MP3 boundaries.
   const documentPlan = analyzeEdgeDocument(preparedText);
   const effectiveSpeed = settings.speed * PRESETS[preset].rateFactor;
-  const chunks = splitEdgeTextByDuration(
+  const chunkPlans = planEdgeTextChunks(
     preparedText,
     effectiveSpeed,
     EDGE_MAX_CHUNK_SIZE,
     300,
     420,
   );
-  // Native profiles keep the original Daulet/Aigul acoustic voice for pure
-  // Kazakh. Unified profiles always use one multilingual voice. If a native
-  // profile receives Chinese, switch that whole request to the matching
-  // multilingual voice so the Chinese can be pronounced correctly.
   const useMultilingual = isUnifiedProfile || articleHasHan;
   const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
   const audioChunks: ArrayBuffer[] = [];
 
-  for (const chunk of chunks) {
+  for (let index = 0; index < chunkPlans.length; index += 1) {
+    const chunk = chunkPlans[index];
+    const beforeBoundary = index > 0 ? chunkPlans[index - 1].boundary : undefined;
     try {
       audioChunks.push(
         await synthesizeEdgeChunk(
-          chunk,
+          chunk.text,
           voice,
           preset,
           settings,
@@ -1329,26 +1480,37 @@ async function synthesizeWithEdge(
           documentPlan,
           useMultilingual,
           emotionPlan,
+          chunk.contextBefore ?? "",
+          chunk.contextAfter ?? "",
+          beforeBoundary,
+          chunk.boundary,
         ),
       );
       continue;
     } catch (error) {
-      // Be aggressive about context, conservative about reliability: if this
-      // internal Edge endpoint ever rejects a long request, retry it at a much
-      // smaller sentence-aware size instead of failing the user's whole稿件.
-      if (chunk.length < 2300) throw error;
-      const fallbackChunks = splitEdgeTextByDuration(
-        chunk,
+      // Keep the continuity model even on reliability fallback. The fallback
+      // plan gets its own overlap windows inside the failed chunk, while the
+      // outer article context is inherited at the first/last fallback edges.
+      if (chunk.text.length < 2300) throw error;
+      const fallbackPlans = planEdgeTextChunks(
+        chunk.text,
         effectiveSpeed,
         2100,
         78,
         145,
       );
-      if (fallbackChunks.length <= 1) throw error;
-      for (const fallback of fallbackChunks) {
+      if (fallbackPlans.length <= 1) throw error;
+
+      for (let fallbackIndex = 0; fallbackIndex < fallbackPlans.length; fallbackIndex += 1) {
+        const fallback = fallbackPlans[fallbackIndex];
+        const fallbackBeforeBoundary = fallbackIndex > 0
+          ? fallbackPlans[fallbackIndex - 1].boundary
+          : beforeBoundary;
+        const fallbackBefore = fallback.contextBefore || chunk.contextBefore || "";
+        const fallbackAfter = fallback.contextAfter || chunk.contextAfter || "";
         audioChunks.push(
           await synthesizeEdgeChunk(
-            fallback,
+            fallback.text,
             voice,
             preset,
             settings,
@@ -1356,13 +1518,17 @@ async function synthesizeWithEdge(
             documentPlan,
             useMultilingual,
             emotionPlan,
+            fallbackBefore,
+            fallbackAfter,
+            fallbackBeforeBoundary,
+            fallback.boundary,
           ),
         );
       }
     }
   }
 
-  return audioChunks;
+  return smoothEdgeMp3Seams(audioChunks);
 }
 
 async function synthesizeWithEleven(

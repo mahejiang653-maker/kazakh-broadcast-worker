@@ -9,6 +9,13 @@ export type EdgeOmniSettings = {
   // V17: keep the same fluent sentence-closure mechanism across all four news
   // presets while preserving each presenter's own pause density.
   broadcastPreset?: "news" | "calm" | "bulletin" | "expressive";
+  // V37: adjacent chunks contribute director context without becoming audible
+  // duplicate text. This lets a new Edge request inherit the previous acoustic
+  // movement while keeping the spoken slice lossless.
+  continuityBefore?: string;
+  continuityAfter?: string;
+  continuityBoundaryBefore?: EdgeChunkBoundaryKind;
+  continuityBoundaryAfter?: EdgeChunkBoundaryKind;
 };
 
 type PunctuationKind =
@@ -264,6 +271,9 @@ export type EdgeChunkPlan = {
   end: number;
   boundary: EdgeChunkBoundaryKind;
   estimatedSeconds: number;
+  // Director-only overlap. These strings are never emitted as duplicate speech.
+  contextBefore?: string;
+  contextAfter?: string;
 };
 
 type NaturalBoundaryKind = Exclude<EdgeChunkBoundaryKind, "hard" | "end">;
@@ -378,6 +388,41 @@ function chooseEdgeNaturalBoundary(
   }
 
   return best?.boundary ?? null;
+}
+
+function edgeContextTail(source: string, index: number, maxWords = 22, maxChars = 260) {
+  const raw = source.slice(Math.max(0, index - maxChars * 3), index).trim();
+  if (!raw) return "";
+  const words = Array.from(raw.matchAll(/\S+/gu));
+  let start = 0;
+  if (words.length > maxWords) start = words[words.length - maxWords].index ?? 0;
+  let value = raw.slice(start);
+  if (value.length > maxChars) {
+    value = value.slice(-maxChars);
+    value = value.replace(/^\S+\s*/u, "");
+  }
+  return value.trim();
+}
+
+function edgeContextHead(source: string, index: number, maxWords = 18, maxChars = 220) {
+  const raw = source.slice(index, Math.min(source.length, index + maxChars * 3)).trim();
+  if (!raw) return "";
+  const words = Array.from(raw.matchAll(/\S+/gu));
+  let end = raw.length;
+  if (words.length > maxWords) end = words[maxWords].index ?? raw.length;
+  let value = raw.slice(0, end);
+  if (value.length > maxChars) {
+    value = value.slice(0, maxChars).replace(/\s+\S*$/u, "");
+  }
+  return value.trim();
+}
+
+function attachEdgeChunkContext(source: string, chunks: EdgeChunkPlan[]) {
+  return chunks.map((chunk) => ({
+    ...chunk,
+    contextBefore: chunk.start > 0 ? edgeContextTail(source, chunk.start) : "",
+    contextAfter: chunk.end < source.length ? edgeContextHead(source, chunk.end) : "",
+  }));
 }
 
 /**
@@ -511,7 +556,7 @@ export function planEdgeTextChunks(
     }
   }
 
-  return chunks;
+  return attachEdgeChunkContext(normalized, chunks);
 }
 
 export function splitEdgeTextByDuration(
@@ -1019,6 +1064,83 @@ function bidirectionalSmooth(
       },
     };
   });
+}
+
+function contextMicroSeed(
+  text: string | undefined,
+  deliveryMode: EdgeOmniSettings["deliveryMode"],
+  fromEnd: boolean,
+) {
+  if (!text?.trim()) return null;
+  const contextPhrases = buildPhrases(text, undefined, deliveryMode);
+  if (!contextPhrases.length) return null;
+  return (fromEnd ? contextPhrases[contextPhrases.length - 1] : contextPhrases[0]).micro;
+}
+
+function continuityCarryWeight(boundary: EdgeChunkBoundaryKind | PunctuationKind | undefined) {
+  if (boundary === "paragraph") return 0.06;
+  if (boundary === "line" || boundary === "newline") return 0.1;
+  if (["sentence", "period", "question", "exclamation", "mixed", "ellipsis"].includes(boundary ?? "")) {
+    return 0.16;
+  }
+  if (boundary === "hard" || boundary === "whitespace" || boundary === "none") return 0.31;
+  if (["comma", "semicolon", "colon", "dash"].includes(boundary ?? "")) return 0.27;
+  return 0.22;
+}
+
+function inertiaBlend(local: MicroProsody, carry: MicroProsody, weight: number): MicroProsody {
+  const desiredRate = 1 +
+    (local.rateFactor - 1) * (1 - weight) +
+    (carry.rateFactor - 1) * weight;
+  const desiredPitch = local.pitchDelta * (1 - weight) + carry.pitchDelta * weight;
+  const desiredVolume = local.volumeDelta * (1 - weight) + carry.volumeDelta * weight;
+  return {
+    // The limiter is important: inertia should remove abrupt resets, never erase
+    // an intentional question, contrast, climax or character cue.
+    rateFactor: clamp(desiredRate, local.rateFactor - 0.0065, local.rateFactor + 0.0065),
+    pitchDelta: clamp(desiredPitch, local.pitchDelta - 0.024, local.pitchDelta + 0.024),
+    volumeDelta: clamp(desiredVolume, local.volumeDelta - 0.028, local.volumeDelta + 0.028),
+  };
+}
+
+/**
+ * V37 prosody inertia. A human presenter does not return to a neutral rate/pitch
+ * at every period. We carry a small amount of the previous movement across
+ * sentence boundaries, and a stronger amount across artificial chunk seams.
+ * Real paragraphs remain comparatively independent.
+ */
+function applyProsodyInertia(phrases: Phrase[], settings: EdgeOmniSettings) {
+  if (!phrases.length) return phrases;
+  const beforeSeed = contextMicroSeed(settings.continuityBefore, settings.deliveryMode, true);
+  let carry = beforeSeed ?? phrases[0].micro;
+
+  const smoothed = phrases.map((phrase, index) => {
+    const previous = phrases[index - 1];
+    const boundary = index === 0
+      ? settings.continuityBoundaryBefore
+      : (previous?.layoutBoundary ?? previous?.punctuationKind);
+    let weight = continuityCarryWeight(boundary);
+    if (isEmphasisRole(phrase.segment?.role)) weight *= 0.58;
+    if (phrase.quoteStart) weight *= 0.72;
+
+    const micro = inertiaBlend(phrase.micro, carry, weight);
+    carry = micro;
+    return { ...phrase, micro };
+  });
+
+  const afterSeed = contextMicroSeed(settings.continuityAfter, settings.deliveryMode, false);
+  if (afterSeed && smoothed.length) {
+    const lastIndex = smoothed.length - 1;
+    const last = smoothed[lastIndex];
+    let weight = continuityCarryWeight(settings.continuityBoundaryAfter) * 0.42;
+    if (isEmphasisRole(last.segment?.role)) weight *= 0.55;
+    smoothed[lastIndex] = {
+      ...last,
+      micro: inertiaBlend(last.micro, afterSeed, weight),
+    };
+  }
+
+  return smoothed;
 }
 
 function hasNumericFocusAnchor(text: string) {
@@ -1633,9 +1755,10 @@ function renderPunctuationFreeFallback(
   deliveryMode: "story" | "broadcast",
 ) {
   const matches = Array.from(text.matchAll(/\S+/gu));
-  // V32: a 14+ word unpunctuated span is already long enough to require a breath
-  // check. The old 18-word gate left many medium-long sentences completely flat.
-  if (matches.length < 14) return renderNaturalText(text);
+  const totalBreathSeconds = estimateEdgeSpeechSeconds(text, 1);
+  // V37: breathing is based on accumulated spoken load, not a mechanical word
+  // interval. Dense Kazakh text can need air earlier even with fewer words.
+  if (matches.length < 10 && totalBreathSeconds < 3.4) return renderNaturalText(text);
 
   const words = matches.map((match) => ({
     text: match[0],
@@ -1646,10 +1769,18 @@ function renderPunctuationFreeFallback(
     words.reduce((sum, word) => sum + word.text.length, 0) / Math.max(1, words.length);
   const densityAdjustment = averageWordLength >= 8 ? -2 : averageWordLength <= 5.5 ? 1 : 0;
   const baseTarget = (deliveryMode === "story" ? 15 : 14) + densityAdjustment;
-  // Let the amount of breathing scale with actual length. This can yield 1, 2,
-  // 3... breaths as needed, capped conservatively so it never becomes word-by-word.
-  const idealSpan = Math.max(11, baseTarget + 1);
-  const maxBreaths = Math.round(clamp(Math.ceil(words.length / idealSpan) - 1, 1, 6));
+  const lexicalPressure = clamp((averageWordLength - 5.4) / 4.4, 0, 1);
+  const targetBreathSeconds = clamp(
+    (deliveryMode === "story" ? 4.35 : 3.85) - lexicalPressure * 0.38,
+    deliveryMode === "story" ? 3.75 : 3.35,
+    deliveryMode === "story" ? 4.45 : 3.95,
+  );
+  const timedBreaths = Math.max(0, Math.ceil(totalBreathSeconds / targetBreathSeconds) - 1);
+  const wordBreaths = words.length >= 18 ? Math.max(1, Math.ceil(words.length / Math.max(11, baseTarget + 1)) - 1) : 0;
+  // Several breaths are allowed in a truly long sentence, but never dense enough
+  // to become a robotic every-N-words pattern.
+  const maxBreaths = Math.round(clamp(Math.max(timedBreaths, wordBreaths), 0, 7));
+  if (maxBreaths <= 0) return renderNaturalText(text);
 
   let output = "";
   let charCursor = 0;
@@ -1704,9 +1835,15 @@ function renderPunctuationFreeFallback(
             ? -0.55
             : 0;
         const balancePenalty = Math.abs((words.length - index - 1) - minTailWords) < 2 ? 0.5 : 0;
+        const candidateSeconds = estimateEdgeSpeechSeconds(
+          text.slice(charCursor, words[index].end),
+          1,
+        );
+        const breathDebtPenalty = Math.abs(candidateSeconds - targetBreathSeconds) * 1.35;
         const score =
           Math.abs(chunkWords - targetWords) +
           dependency.score * 4.4 +
+          breathDebtPenalty +
           balancePenalty +
           semanticBonus;
         if (!best || score < best.score) {
@@ -1728,9 +1865,11 @@ function renderPunctuationFreeFallback(
     const chunkLoad = clamp((chunkWords - 9) / 11, 0, 1);
     const lexicalLoad = clamp((averageWordLength - 5.2) / 4.3, 0, 1);
     const dependencyRelease = clamp(1 - best.dependency, 0, 1);
+    const spokenSeconds = estimateEdgeSpeechSeconds(text.slice(charCursor, boundary), 1);
+    const breathDebt = clamp((spokenSeconds - targetBreathSeconds * 0.72) / (targetBreathSeconds * 0.55), 0, 1);
     const breath = deliveryMode === "story"
-      ? Math.round(clamp(48 + chunkLoad * 9 + lexicalLoad * 8 + dependencyRelease * 5, 50, 72))
-      : Math.round(clamp(44 + chunkLoad * 9 + lexicalLoad * 7 + dependencyRelease * 5, 46, 66));
+      ? Math.round(clamp(48 + chunkLoad * 8 + lexicalLoad * 7 + dependencyRelease * 5 + breathDebt * 8, 50, 76))
+      : Math.round(clamp(44 + chunkLoad * 8 + lexicalLoad * 6 + dependencyRelease * 5 + breathDebt * 8, 46, 70));
 
     output += renderNaturalText(text.slice(charCursor, boundary));
     output += `<break time="${breath}ms"/>`;
@@ -1781,7 +1920,8 @@ function naturalTextMarkup(
   if (deliveryMode === "story") {
     const clean = text.trim();
     const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
-    if (clean.length < 112 || wordCount < 18) return renderNaturalText(text);
+    const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
+    if (spokenLoad < 3.6 && wordCount < 12 && clean.length < 80) return renderNaturalText(text);
 
     SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
     let output = "";
@@ -1820,7 +1960,8 @@ function naturalTextMarkup(
   // breathing, and only at strong semantic connectors.
   const clean = text.trim();
   const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
-  if (clean.length < 96 || wordCount < 15) return renderNaturalText(text);
+  const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
+  if (spokenLoad < 3.3 && wordCount < 11 && clean.length < 72) return renderNaturalText(text);
 
   SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
   let output = "";
@@ -1922,19 +2063,22 @@ export function renderEdgeOmniInspiredMarkup(
   plan?: EdgeDocumentPlan,
   renderText: EdgeMarkupRenderer = escapeXml,
 ) {
-  const phrases = annotateSemanticBoundaries(
-    annotateBroadcastCadence(
-      applyDirectQuoteContinuity(
-        applyLogicalFocusContrast(
-          bidirectionalSmooth(
-            annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode)),
-            settings.deliveryMode,
+  const phrases = applyProsodyInertia(
+    annotateSemanticBoundaries(
+      annotateBroadcastCadence(
+        applyDirectQuoteContinuity(
+          applyLogicalFocusContrast(
+            bidirectionalSmooth(
+              annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode)),
+              settings.deliveryMode,
+            ),
           ),
         ),
+        settings.deliveryMode,
       ),
       settings.deliveryMode,
     ),
-    settings.deliveryMode,
+    settings,
   );
   if (!phrases.length) return renderText(text);
 
