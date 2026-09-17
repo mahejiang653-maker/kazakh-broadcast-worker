@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
@@ -26,10 +28,11 @@ jobs:
         run: python .github/scripts/edge-human-v38.py
       - name: Test production build
         run: npm test
-      - name: Commit patch
+      - name: Commit patch safely
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/lib/edge-readaloud-boundary.ts app/lib/edge-omnivoice-inspired.ts app/api/synthesize/route.ts
           git commit -m "Strengthen Edge boundary-aware humanization"
-          git push
+          git pull --rebase origin main
+          git push origin main
