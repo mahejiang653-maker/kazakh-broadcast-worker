@@ -1078,14 +1078,16 @@ function contextMicroSeed(
 }
 
 function continuityCarryWeight(boundary: EdgeChunkBoundaryKind | PunctuationKind | undefined) {
-  if (boundary === "paragraph") return 0.06;
-  if (boundary === "line" || boundary === "newline") return 0.1;
+  if (boundary === "paragraph") return 0.05;
+  if (boundary === "line" || boundary === "newline") return 0.08;
   if (["sentence", "period", "question", "exclamation", "mixed", "ellipsis"].includes(boundary ?? "")) {
-    return 0.16;
+    return 0.21;
   }
-  if (boundary === "hard" || boundary === "whitespace" || boundary === "none") return 0.31;
-  if (["comma", "semicolon", "colon", "dash"].includes(boundary ?? "")) return 0.27;
-  return 0.22;
+  // V38: technical seams need the strongest carry because Edge starts a fresh
+  // acoustic request there. Real discourse boundaries remain much more independent.
+  if (boundary === "hard" || boundary === "whitespace" || boundary === "none") return 0.38;
+  if (["comma", "semicolon", "colon", "dash"].includes(boundary ?? "")) return 0.29;
+  return 0.25;
 }
 
 function inertiaBlend(local: MicroProsody, carry: MicroProsody, weight: number): MicroProsody {
@@ -1097,9 +1099,9 @@ function inertiaBlend(local: MicroProsody, carry: MicroProsody, weight: number):
   return {
     // The limiter is important: inertia should remove abrupt resets, never erase
     // an intentional question, contrast, climax or character cue.
-    rateFactor: clamp(desiredRate, local.rateFactor - 0.0065, local.rateFactor + 0.0065),
-    pitchDelta: clamp(desiredPitch, local.pitchDelta - 0.024, local.pitchDelta + 0.024),
-    volumeDelta: clamp(desiredVolume, local.volumeDelta - 0.028, local.volumeDelta + 0.028),
+    rateFactor: clamp(desiredRate, local.rateFactor - 0.008, local.rateFactor + 0.008),
+    pitchDelta: clamp(desiredPitch, local.pitchDelta - 0.03, local.pitchDelta + 0.03),
+    volumeDelta: clamp(desiredVolume, local.volumeDelta - 0.034, local.volumeDelta + 0.034),
   };
 }
 
@@ -1132,7 +1134,7 @@ function applyProsodyInertia(phrases: Phrase[], settings: EdgeOmniSettings) {
   if (afterSeed && smoothed.length) {
     const lastIndex = smoothed.length - 1;
     const last = smoothed[lastIndex];
-    let weight = continuityCarryWeight(settings.continuityBoundaryAfter) * 0.42;
+    let weight = continuityCarryWeight(settings.continuityBoundaryAfter) * 0.55;
     if (isEmphasisRole(last.segment?.role)) weight *= 0.55;
     smoothed[lastIndex] = {
       ...last,
@@ -1771,15 +1773,15 @@ function renderPunctuationFreeFallback(
   const baseTarget = (deliveryMode === "story" ? 15 : 14) + densityAdjustment;
   const lexicalPressure = clamp((averageWordLength - 5.4) / 4.4, 0, 1);
   const targetBreathSeconds = clamp(
-    (deliveryMode === "story" ? 4.35 : 3.85) - lexicalPressure * 0.38,
-    deliveryMode === "story" ? 3.75 : 3.35,
-    deliveryMode === "story" ? 4.45 : 3.95,
+    (deliveryMode === "story" ? 4.05 : 3.55) - lexicalPressure * 0.42,
+    deliveryMode === "story" ? 3.5 : 3.08,
+    deliveryMode === "story" ? 4.2 : 3.72,
   );
   const timedBreaths = Math.max(0, Math.ceil(totalBreathSeconds / targetBreathSeconds) - 1);
   const wordBreaths = words.length >= 18 ? Math.max(1, Math.ceil(words.length / Math.max(11, baseTarget + 1)) - 1) : 0;
   // Several breaths are allowed in a truly long sentence, but never dense enough
   // to become a robotic every-N-words pattern.
-  const maxBreaths = Math.round(clamp(Math.max(timedBreaths, wordBreaths), 0, 7));
+  const maxBreaths = Math.round(clamp(Math.max(timedBreaths, wordBreaths), 0, 8));
   if (maxBreaths <= 0) return renderNaturalText(text);
 
   let output = "";
@@ -1921,7 +1923,7 @@ function naturalTextMarkup(
     const clean = text.trim();
     const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
-    if (spokenLoad < 3.6 && wordCount < 12 && clean.length < 80) return renderNaturalText(text);
+    if (spokenLoad < 3.2 && wordCount < 10 && clean.length < 72) return renderNaturalText(text);
 
     SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
     let output = "";
@@ -1961,7 +1963,7 @@ function naturalTextMarkup(
   const clean = text.trim();
   const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
   const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
-  if (spokenLoad < 3.3 && wordCount < 11 && clean.length < 72) return renderNaturalText(text);
+  if (spokenLoad < 2.95 && wordCount < 9 && clean.length < 64) return renderNaturalText(text);
 
   SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
   let output = "";

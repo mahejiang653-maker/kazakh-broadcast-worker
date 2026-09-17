@@ -10,10 +10,13 @@ import {
 import { structureEdgeText } from "../../lib/edge-natural-structure";
 import { analyzeStoryEmotionTrajectory } from "../../lib/edge-story-emotion-trajectory";
 import {
+  estimateEdgeSpeechSeconds,
   planEdgeTextChunks,
   renderEdgeOmniInspiredMarkup,
   type EdgeChunkBoundaryKind,
+  type EdgeChunkPlan,
 } from "../../lib/edge-omnivoice-inspired";
+import { probeEdgeBoundaries } from "../../lib/edge-readaloud-boundary";
 
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
@@ -1434,6 +1437,103 @@ function smoothEdgeMp3Seams(chunks: ArrayBuffer[]) {
   return chunks.map((chunk) => cleanEdgeMp3Chunk(chunk));
 }
 
+function edgeSentenceContextBefore(source: string, index: number, maxChars = 420) {
+  const raw = source.slice(Math.max(0, index - maxChars), index);
+  const matches = Array.from(raw.matchAll(/[.!?。！？…]+["'”’»›》」』】）)\]]*\s*/gu));
+  const previousTerminal = matches.length >= 2
+    ? (matches[matches.length - 2].index ?? 0) + matches[matches.length - 2][0].length
+    : 0;
+  return raw.slice(previousTerminal).trim();
+}
+
+function edgeSentenceContextAfter(source: string, index: number, maxChars = 360) {
+  const raw = source.slice(index, Math.min(source.length, index + maxChars));
+  const match = raw.match(/[.!?。！？…]+["'”’»›》」』】）)\]]*/u);
+  return (match ? raw.slice(0, (match.index ?? 0) + match[0].length) : raw).trim();
+}
+
+function refreshEdgePlanContext(source: string, plans: EdgeChunkPlan[], speed: number) {
+  return plans.map((plan) => ({
+    ...plan,
+    text: source.slice(plan.start, plan.end),
+    estimatedSeconds: estimateEdgeSpeechSeconds(source.slice(plan.start, plan.end), speed),
+    contextBefore: plan.start > 0 ? edgeSentenceContextBefore(source, plan.start) : "",
+    contextAfter: plan.end < source.length ? edgeSentenceContextAfter(source, plan.end) : "",
+  }));
+}
+
+function locateProbeBoundaries(windowText: string, items: Array<{ text: string }>) {
+  const positions: number[] = [];
+  let cursor = 0;
+  for (const item of items) {
+    const value = item.text.trim();
+    if (!value) continue;
+    let found = windowText.indexOf(value, cursor);
+    if (found < 0) found = windowText.indexOf(value);
+    if (found < 0) continue;
+    const end = found + value.length;
+    positions.push(end);
+    cursor = end;
+  }
+  return positions;
+}
+
+async function validateEdgeChunkSeams(
+  source: string,
+  plans: EdgeChunkPlan[],
+  voice: string,
+  speed: number,
+) {
+  if (plans.length <= 1) return refreshEdgePlanContext(source, plans, speed);
+  const adjusted = plans.map((plan) => ({ ...plan }));
+
+  for (let index = 0; index < adjusted.length - 1; index += 1) {
+    const left = adjusted[index];
+    const right = adjusted[index + 1];
+    const seam = left.end;
+    const windowStart = Math.max(left.start, seam - 620);
+    const windowEnd = Math.min(right.end, seam + 620);
+    const windowText = source.slice(windowStart, windowEnd);
+    const metadata = await probeEdgeBoundaries(windowText, voice, "SentenceBoundary", 5500);
+    const positions = locateProbeBoundaries(windowText, metadata)
+      .map((position) => windowStart + position)
+      .filter((position) => position > left.start + 180 && position < right.end - 180);
+    if (!positions.length) continue;
+
+    let candidate = positions[0];
+    let distance = Math.abs(candidate - seam);
+    for (const position of positions.slice(1)) {
+      const nextDistance = Math.abs(position - seam);
+      if (nextDistance < distance) {
+        candidate = position;
+        distance = nextDistance;
+      }
+    }
+    if (distance > 220) continue;
+
+    const leftText = source.slice(left.start, candidate);
+    const rightText = source.slice(candidate, right.end);
+    const leftSeconds = estimateEdgeSpeechSeconds(leftText, speed);
+    const rightSeconds = estimateEdgeSpeechSeconds(rightText, speed);
+    if (
+      leftText.length > EDGE_MAX_CHUNK_SIZE ||
+      rightText.length > EDGE_MAX_CHUNK_SIZE ||
+      leftSeconds > 420 ||
+      rightSeconds > 420
+    ) continue;
+
+    left.end = candidate;
+    left.boundary = "sentence";
+    left.text = leftText;
+    left.estimatedSeconds = leftSeconds;
+    right.start = candidate;
+    right.text = rightText;
+    right.estimatedSeconds = rightSeconds;
+  }
+
+  return refreshEdgePlanContext(source, adjusted, speed);
+}
+
 async function synthesizeWithEdge(
   text: string,
   voice: string,
@@ -1455,7 +1555,7 @@ async function synthesizeWithEdge(
 
   const documentPlan = analyzeEdgeDocument(preparedText);
   const effectiveSpeed = settings.speed * PRESETS[preset].rateFactor;
-  const chunkPlans = planEdgeTextChunks(
+  const initialChunkPlans = planEdgeTextChunks(
     preparedText,
     effectiveSpeed,
     EDGE_MAX_CHUNK_SIZE,
@@ -1463,6 +1563,18 @@ async function synthesizeWithEdge(
     420,
   );
   const useMultilingual = isUnifiedProfile || articleHasHan;
+  const resolvedEdgeVoice = useMultilingual
+    ? (MULTILINGUAL_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyiMultilingualNeural")
+    : voice;
+  // V38: ask Edge's Read Aloud metadata channel how it recognizes the seam.
+  // This is best-effort and never replaces the stable REST audio path; on any
+  // handshake/protocol failure we simply keep the V36/V37 planned boundaries.
+  const chunkPlans = await validateEdgeChunkSeams(
+    preparedText,
+    initialChunkPlans,
+    resolvedEdgeVoice,
+    effectiveSpeed,
+  ).catch(() => refreshEdgePlanContext(preparedText, initialChunkPlans, effectiveSpeed));
   const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
   const audioChunks: ArrayBuffer[] = [];
 
