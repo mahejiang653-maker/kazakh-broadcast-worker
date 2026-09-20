@@ -1973,15 +1973,101 @@ function isEmphasisRole(role: EdgeDocumentRole | undefined) {
   return role === "title" || role === "key_number" || role === "climax";
 }
 
+type HumanTimbreMotion = {
+  rateFactor: number;
+  pitchDelta: number;
+  volumeDelta: number;
+  rangePercent: number;
+};
+
+function stableMotionPhase(text: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return ((hash >>> 0) % 1000) / 1000 * Math.PI * 2;
+}
+
+/**
+ * V39 perceived-timbre humanizer.
+ *
+ * Edge's base speaker identity is fixed, so this layer does not pretend to
+ * "clone" a new voice. Instead it removes part of the synthetic impression
+ * caused by perfectly stable pitch range, loudness and tempo. Motion is slow,
+ * deterministic and document-progress-aware so adjacent groups drift together
+ * instead of jittering sentence by sentence.
+ */
+function humanTimbreMotion(
+  group: Phrase[],
+  settings: EdgeOmniSettings,
+  groupIndex: number,
+  totalGroups: number,
+): HumanTimbreMotion {
+  const cleanText = group.map((item) => item.text).join(" ").trim();
+  const progresses = group
+    .map((item) => item.segment?.progress)
+    .filter((value): value is number => typeof value === "number");
+  const progress = progresses.length
+    ? progresses.reduce((sum, value) => sum + value, 0) / progresses.length
+    : (groupIndex + 0.5) / Math.max(1, totalGroups);
+  const fallbackPhase = progresses.length ? 0 : stableMotionPhase(cleanText) * 0.22;
+  const primary = Math.sin(progress * Math.PI * 3.4 + fallbackPhase);
+  const secondary = Math.sin(progress * Math.PI * 2.1 + 1.17 + fallbackPhase * 0.6);
+  const importanceValues = group
+    .map((item) => item.segment?.importance)
+    .filter((value): value is number => typeof value === "number");
+  const importance = importanceValues.length
+    ? importanceValues.reduce((sum, value) => sum + value, 0) / importanceValues.length
+    : 0.45;
+
+  const presetStrength =
+    settings.deliveryMode === "story" ? 1 :
+    settings.deliveryMode === "broadcast"
+      ? settings.broadcastPreset === "expressive" ? 0.95
+        : settings.broadcastPreset === "calm" ? 0.62
+        : settings.broadcastPreset === "bulletin" ? 0.7
+        : 0.78
+      : 0.66;
+  const emphasisScale = group.some((item) => isEmphasisRole(item.segment?.role)) ? 0.68 : 1;
+  const quoteScale = group.some((item) => item.directQuote) ? 1.06 : 1;
+  const lengthScale = cleanText.length < 24 ? 0.3 : cleanText.length < 60 ? 0.65 : 1;
+  const intensity = presetStrength * emphasisScale * quoteScale;
+
+  const baseRange =
+    settings.deliveryMode === "story" ? 8.2 :
+    settings.deliveryMode === "broadcast"
+      ? settings.broadcastPreset === "expressive" ? 7.8
+        : settings.broadcastPreset === "calm" ? 4.8
+        : settings.broadcastPreset === "bulletin" ? 5.4
+        : 6.2
+      : 5.2;
+  const rangePercent = clamp(
+    (baseRange + Math.abs(primary) * 1.2 + importance * 0.65) * (0.55 + lengthScale * 0.45),
+    2.8,
+    10.5,
+  );
+
+  return {
+    rateFactor: 1 + primary * 0.0018 * intensity * lengthScale,
+    pitchDelta: (primary * 0.11 + secondary * 0.05) * intensity * lengthScale,
+    volumeDelta: (secondary * 0.06 - primary * 0.018) * intensity * lengthScale,
+    rangePercent,
+  };
+}
+
 function renderGroup(
   group: Phrase[],
   settings: EdgeOmniSettings,
   renderText: EdgeMarkupRenderer,
+  groupIndex: number,
+  totalGroups: number,
 ) {
   const average = blendMicros(group.map((item) => ({ micro: item.micro, weight: 1 })));
-  const phraseSpeed = clamp(settings.speed * average.rateFactor, 0.6, 1.35);
-  const phrasePitch = clamp(settings.pitch + average.pitchDelta, -18, 18);
-  const phraseVolume = clamp(settings.volume + average.volumeDelta, -7, 7);
+  const timbre = humanTimbreMotion(group, settings, groupIndex, totalGroups);
+  const phraseSpeed = clamp(settings.speed * average.rateFactor * timbre.rateFactor, 0.6, 1.35);
+  const phrasePitch = clamp(settings.pitch + average.pitchDelta + timbre.pitchDelta, -18, 18);
+  const phraseVolume = clamp(settings.volume + average.volumeDelta + timbre.volumeDelta, -7, 7);
   let body = "";
 
   for (const item of group) {
@@ -1997,7 +2083,10 @@ function renderGroup(
     if (pause) body += `<break time="${pause}ms"/>`;
   }
 
-  return `<prosody rate="${speedToRate(phraseSpeed)}" pitch="${signedPercent(phrasePitch)}" volume="${signedPercent(phraseVolume)}">${body}</prosody>`;
+  // Pitch range is widened only at the long prosody-movement level. This gives
+  // the neural voice more room for natural intonation without changing identity
+  // or introducing sentence-by-sentence pitch effects.
+  return `<prosody rate="${speedToRate(phraseSpeed)}" pitch="${signedPercent(phrasePitch)}" range="${signedPercent(timbre.rangePercent)}" volume="${signedPercent(phraseVolume)}">${body}</prosody>`;
 }
 
 /**
@@ -2123,5 +2212,7 @@ export function renderEdgeOmniInspiredMarkup(
   }
   flush();
 
-  return groups.map((group) => renderGroup(group, settings, renderText)).join("");
+  return groups
+    .map((group, groupIndex) => renderGroup(group, settings, renderText, groupIndex, groups.length))
+    .join("");
 }
