@@ -1757,10 +1757,21 @@ function renderPunctuationFreeFallback(
   deliveryMode: "story" | "broadcast",
 ) {
   const matches = Array.from(text.matchAll(/\S+/gu));
-  const totalBreathSeconds = estimateEdgeSpeechSeconds(text, 1);
-  // V37: breathing is based on accumulated spoken load, not a mechanical word
-  // interval. Dense Kazakh text can need air earlier even with fewer words.
-  if (matches.length < 10 && totalBreathSeconds < 3.4) return renderNaturalText(text);
+  const cleanText = text.trim();
+  const totalBreathSeconds = estimateEdgeSpeechSeconds(cleanText, 1);
+  // V38 anti-false-pause rule: an ordinary sentence stays continuous. Synthetic
+  // breathing is allowed only when a genuinely long punctuation-free span is
+  // simultaneously long by words, characters, and estimated spoken duration.
+  // This prevents a normal Kazakh sentence from being split merely because its
+  // words are information-dense.
+  const minimumWords = deliveryMode === "story" ? 20 : 18;
+  const minimumChars = deliveryMode === "story" ? 140 : 125;
+  const minimumSeconds = deliveryMode === "story" ? 5.6 : 5.0;
+  if (
+    matches.length < minimumWords ||
+    cleanText.length < minimumChars ||
+    totalBreathSeconds < minimumSeconds
+  ) return renderNaturalText(text);
 
   const words = matches.map((match) => ({
     text: match[0],
@@ -1773,15 +1784,17 @@ function renderPunctuationFreeFallback(
   const baseTarget = (deliveryMode === "story" ? 15 : 14) + densityAdjustment;
   const lexicalPressure = clamp((averageWordLength - 5.4) / 4.4, 0, 1);
   const targetBreathSeconds = clamp(
-    (deliveryMode === "story" ? 4.05 : 3.55) - lexicalPressure * 0.42,
-    deliveryMode === "story" ? 3.5 : 3.08,
-    deliveryMode === "story" ? 4.2 : 3.72,
+    (deliveryMode === "story" ? 5.3 : 4.85) - lexicalPressure * 0.25,
+    deliveryMode === "story" ? 4.8 : 4.4,
+    deliveryMode === "story" ? 5.5 : 5.05,
   );
   const timedBreaths = Math.max(0, Math.ceil(totalBreathSeconds / targetBreathSeconds) - 1);
-  const wordBreaths = words.length >= 18 ? Math.max(1, Math.ceil(words.length / Math.max(11, baseTarget + 1)) - 1) : 0;
-  // Several breaths are allowed in a truly long sentence, but never dense enough
-  // to become a robotic every-N-words pattern.
-  const maxBreaths = Math.round(clamp(Math.max(timedBreaths, wordBreaths), 0, 8));
+  const wordBreaths = words.length >= 28
+    ? Math.max(1, Math.ceil(words.length / Math.max(15, baseTarget + 3)) - 1)
+    : 0;
+  // V38: long sentences may breathe more than once, but do not force a pause
+  // simply to satisfy a word-count quota. Four artificial breaths is a hard cap.
+  const maxBreaths = Math.round(clamp(Math.max(timedBreaths, wordBreaths), 0, 4));
   if (maxBreaths <= 0) return renderNaturalText(text);
 
   let output = "";
@@ -1854,12 +1867,12 @@ function renderPunctuationFreeFallback(
       }
     };
 
-    // Prefer strongly dependency-safe boundaries. If the writer supplied no
-    // punctuation and no very safe option exists, widen gradually rather than
-    // allowing the whole span to be spoken in one breath.
-    chooseCandidate(0.55);
-    if (!best) chooseCandidate(0.72);
-    if (!best) chooseCandidate(0.82);
+    // V38: false pauses are worse than a slightly long breath. Only split at a
+    // genuinely dependency-safe boundary; never widen all the way into a tightly
+    // bound modifier/head, name/title, number/unit, or predicate structure.
+    chooseCandidate(0.40);
+    if (!best) chooseCandidate(0.52);
+    if (!best) chooseCandidate(0.62);
     if (!best) break;
 
     const boundary = words[best.index].end;
@@ -1870,8 +1883,8 @@ function renderPunctuationFreeFallback(
     const spokenSeconds = estimateEdgeSpeechSeconds(text.slice(charCursor, boundary), 1);
     const breathDebt = clamp((spokenSeconds - targetBreathSeconds * 0.72) / (targetBreathSeconds * 0.55), 0, 1);
     const breath = deliveryMode === "story"
-      ? Math.round(clamp(48 + chunkLoad * 8 + lexicalLoad * 7 + dependencyRelease * 5 + breathDebt * 8, 50, 76))
-      : Math.round(clamp(44 + chunkLoad * 8 + lexicalLoad * 6 + dependencyRelease * 5 + breathDebt * 8, 46, 70));
+      ? Math.round(clamp(36 + chunkLoad * 6 + lexicalLoad * 5 + dependencyRelease * 4 + breathDebt * 6, 40, 58))
+      : Math.round(clamp(32 + chunkLoad * 6 + lexicalLoad * 5 + dependencyRelease * 4 + breathDebt * 6, 36, 54));
 
     output += renderNaturalText(text.slice(charCursor, boundary));
     output += `<break time="${breath}ms"/>`;
@@ -1916,104 +1929,36 @@ function naturalTextMarkup(
     }
   }
 
-  // Story V11: keep long acoustic continuity but reintroduce sparse, dependency-
-  // safe breathing inside genuinely long punctuation-free clauses. This is not
-  // a prosody reset: the short break remains inside the same rendered group.
+  // V38: keep a normal sentence acoustically continuous. Strong connectors
+  // (бірақ/сондықтан/etc.) influence candidate ranking inside the fallback,
+  // but no longer create their own automatic break. Only truly long,
+  // punctuation-free speech can enter the breathing planner.
   if (deliveryMode === "story") {
     const clean = text.trim();
     const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
     const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
-    if (spokenLoad < 3.2 && wordCount < 10 && clean.length < 72) return renderNaturalText(text);
-
-    SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
-    let output = "";
-    let cursor = 0;
-    let lastBoundary = -1000;
-    let inserted = 0;
-    const maxBreaths = clean.length >= 270 || wordCount >= 40 ? 2 : 1;
-    let match: RegExpExecArray | null;
-
-    while ((match = SOFT_SYNTAGMA_PATTERN.exec(text)) && inserted < maxBreaths) {
-      const boundary = match.index;
-      const left = text.slice(cursor, boundary).trim();
-      const right = text.slice(boundary).trim();
-      if (left.length < 54 || right.length < 34 || boundary - lastBoundary < 72) continue;
-      const dependency = kazakhDependencyGuard(left, right);
-      if (dependency.score >= 0.55) continue;
-
-      const prefix = text.slice(cursor, boundary);
-      output += renderPunctuationFreeFallback(prefix, renderNaturalText, "story");
-      output += `<break time="${Math.round(clamp(45 + Math.max(0, clean.length - 112) * 0.08, 45, 60))}ms"/>`;
-      cursor = boundary;
-      lastBoundary = boundary;
-      inserted += 1;
+    if (spokenLoad < 5.6 || wordCount < 20 || clean.length < 140) {
+      return renderNaturalText(text);
     }
-
-    if (!inserted) {
-      return renderPunctuationFreeFallback(text, renderNaturalText, "story");
-    }
-    const tail = text.slice(cursor);
-    output += renderPunctuationFreeFallback(tail, renderNaturalText, "story");
-    return output;
+    return renderPunctuationFreeFallback(text, renderNaturalText, "story");
   }
 
-  // Short and normally punctuated phrases are best left entirely to the neural
-  // voice. Only unusually long, punctuation-free spans receive soft syntagma
-  // breathing, and only at strong semantic connectors.
+  // V38 broadcast anti-false-pause rule. A conjunction or contrast word changes
+  // local delivery, but it does not by itself justify silence. Artificial breath
+  // is reserved for truly long punctuation-free spans; the dependency-safe
+  // fallback then chooses the least disruptive semantic boundary.
   const clean = text.trim();
   const wordCount = clean ? clean.split(/\s+/u).filter(Boolean).length : 0;
   const spokenLoad = estimateEdgeSpeechSeconds(clean, 1);
-  if (spokenLoad < 2.95 && wordCount < 9 && clean.length < 64) return renderNaturalText(text);
-
-  SOFT_SYNTAGMA_PATTERN.lastIndex = 0;
-  let output = "";
-  let cursor = 0;
-  let lastBoundary = -1000;
-  let inserted = 0;
-  let match: RegExpExecArray | null;
-
-  while ((match = SOFT_SYNTAGMA_PATTERN.exec(text)) && inserted < 2) {
-    const boundary = match.index;
-    const left = text.slice(cursor, boundary).trim();
-    const right = text.slice(boundary).trim();
-
-    // Avoid tiny fragments and avoid placing two artificial breaths close
-    // together. This preserves modifier-head, name-title and number-unit groups.
-    if (left.length < 42 || right.length < 30 || boundary - lastBoundary < 58) continue;
-
-    const dependency = kazakhDependencyGuard(left, right);
-    if (dependency.score >= 0.55) continue;
-
-    const prefix = text.slice(cursor, boundary);
-    output += deliveryMode === "broadcast"
-      ? renderPunctuationFreeFallback(prefix, renderNaturalText, "broadcast")
-      : renderNaturalText(prefix);
-    // V29: long punctuation-free presenter spans breathe only at dependency-safe
-    // semantic connectors. The pause is deliberately light and dynamic rather
-    // than the previous fixed 16 ms, so long sentences remain continuous without
-    // letting the second half press against the first.
-    const clauseLoad = clamp((left.length - 42) / 120, 0, 1);
-    const dependencyRelease = clamp(1 - dependency.score, 0, 1);
-    const softBreath =
-      deliveryMode === "broadcast"
-        ? Math.round(clamp(30 + clauseLoad * 12 + dependencyRelease * 6, 32, 48))
-        : 16;
-    output += `<break time="${softBreath}ms"/>`;
-    cursor = boundary;
-    lastBoundary = boundary;
-    inserted += 1;
+  if (
+    deliveryMode !== "broadcast" ||
+    spokenLoad < 5.0 ||
+    wordCount < 18 ||
+    clean.length < 125
+  ) {
+    return renderNaturalText(text);
   }
-
-  if (!inserted) {
-    return deliveryMode === "broadcast"
-      ? renderPunctuationFreeFallback(text, renderNaturalText, "broadcast")
-      : renderNaturalText(text);
-  }
-  const tail = text.slice(cursor);
-  output += deliveryMode === "broadcast"
-    ? renderPunctuationFreeFallback(tail, renderNaturalText, "broadcast")
-    : renderNaturalText(tail);
-  return output;
+  return renderPunctuationFreeFallback(text, renderNaturalText, "broadcast");
 }
 
 function microDistance(a: MicroProsody, b: MicroProsody) {
