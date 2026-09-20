@@ -8,6 +8,8 @@ on:
       - '.github/scripts/verify-20260920-v52.mjs'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   verify:
     runs-on: ubuntu-24.04
@@ -19,3 +21,11 @@ jobs:
         with: {node-version: 22}
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
       - run: node .github/scripts/verify-20260920-v52.mjs
+      - name: Publish verification marker
+        run: |
+          echo "PASS_13_13_V52_20260920" > public/news-globe-verify-20260920-v52.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/news-globe-verify-20260920-v52.txt
+          git commit -m "Verify 2026-09-20 V52 globe 13/13" || exit 0
+          git push
