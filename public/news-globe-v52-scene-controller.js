@@ -27,13 +27,13 @@ async function travelTransition(n,s){
   const toLon=C.Math.toRadians(+n.lon),toLat=C.Math.toRadians(+n.lat),dl=toLon-from.longitude;
   const ang=Math.acos(Math.max(-1,Math.min(1,Math.sin(from.latitude)*Math.sin(toLat)+Math.cos(from.latitude)*Math.cos(toLat)*Math.cos(dl))));
   if(ang<C.Math.toRadians(7))return true;
-  const km=ang*6378.137,total=Math.max(2.8,Math.min(6.2,2.6+km/2600)),cruise=1700000+Math.min(5200000,km*520),lift=Math.max(cruise,from.height||0);
+  const km=ang*6378.137,total=Math.max(2.15,Math.min(4.77,(2.6+km/2600)/1.30)),cruise=1700000+Math.min(5200000,km*520),lift=Math.max(cruise,from.height||0);
   const dlon=Math.atan2(Math.sin(toLon-from.longitude),Math.cos(toLon-from.longitude)),midLon=from.longitude+dlon*.52,midLat=from.latitude+(toLat-from.latitude)*.52;
   const leg=(dest,dur)=>new Promise(r=>G.viewer.camera.flyTo({destination:dest,orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration:dur,easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,complete:r,cancel:r}));
   try{G.viewer.camera.cancelFlight()}catch{}
-  await leg(C.Cartesian3.fromRadians(from.longitude,from.latitude,lift),total*.32);if(s!==G.navSerial)return false;
-  await leg(C.Cartesian3.fromRadians(midLon,midLat,cruise),total*.46);if(s!==G.navSerial)return false;
-  await leg(C.Cartesian3.fromRadians(toLon,toLat,cruise*.88),total*.22);if(s!==G.navSerial)return false;
+  await leg(C.Cartesian3.fromRadians(from.longitude+dlon*.08,from.latitude+(toLat-from.latitude)*.08,lift),total*.26);if(s!==G.navSerial)return false;
+  await leg(C.Cartesian3.fromRadians(midLon,midLat,cruise),total*.48);if(s!==G.navSerial)return false;
+  await leg(C.Cartesian3.fromRadians(toLon,toLat,cruise*.88),total*.26);if(s!==G.navSerial)return false;
   G.__v52Trace.push({stage:'travel-transition',km:Math.round(km),peak:Math.round(cruise),duration:+total.toFixed(2)});return true
 }
 G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;clear();if(!await travelTransition(n,s))return;iso=String(n.countryIso3||iso||'').toUpperCase();const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r31b-exclusive-label-owner';console.info('[News Globe] V52 r31b: neighbor-label callback disabled; duplicate labels purged');})();
