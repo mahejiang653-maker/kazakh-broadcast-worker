@@ -536,8 +536,12 @@ function edgeNativeProsody(
 ) {
   const presetSettings = PRESETS[preset];
   const isDaulet = voice === "kk-KZ-DauletNeural";
-  const antiCreakRate = isDaulet ? 1.002 : 1;
-  const antiCreakPitch = isDaulet ? 1.8 : 0;
+  const isAigul = voice === "kk-KZ-AigulNeural";
+  // V39 warmth compensation: the old +1.8% Daulet lift reduced creak but also
+  // made the native male voice noticeably brighter/harder. Keep a smaller lift
+  // and give Aigul an almost imperceptible warm bias instead of changing identity.
+  const antiCreakRate = isDaulet ? 1.001 : isAigul ? 0.9995 : 1;
+  const antiCreakPitch = isDaulet ? 0.75 : isAigul ? -0.15 : 0;
 
   const effectiveSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
@@ -1002,8 +1006,19 @@ function renderEmotionDirectedBody(
   const presetSettings = PRESETS[preset];
   const emotionStrength = EMOTION_STRENGTH_BY_PRESET[preset];
   const isDauletProfile = profileVoice === "kk-KZ-DauletNeural";
-  const antiCreakRate = useMultilingual ? 1 : isDauletProfile ? 1.002 : 1;
-  const antiCreakPitch = useMultilingual ? 0 : isDauletProfile ? 1.8 : 0;
+  const isAigulProfile = profileVoice === "kk-KZ-AigulNeural";
+  // V39: keep native timbre warmer before the semantic/emotion director adds
+  // local motion. Multilingual profiles keep their original acoustic baseline.
+  const antiCreakRate = useMultilingual
+    ? 1
+    : isDauletProfile ? 1.001
+      : isAigulProfile ? 0.9995
+        : 1;
+  const antiCreakPitch = useMultilingual
+    ? 0
+    : isDauletProfile ? 0.75
+      : isAigulProfile ? -0.15
+        : 0;
   const baseSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
     0.58,
