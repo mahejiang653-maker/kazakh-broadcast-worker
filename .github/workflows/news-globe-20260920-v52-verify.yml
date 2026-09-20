@@ -7,6 +7,7 @@ on:
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'public/news-globe-v52-scene-controller.js'
       - 'public/news-globe-v14-v52-camera-breathing-room.js'
+      - '.github/workflows/news-globe-20260920-v52-verify.yml'
       - '.github/scripts/verify-20260920-v52.mjs'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
   workflow_dispatch:
