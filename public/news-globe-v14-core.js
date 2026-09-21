@@ -28,7 +28,7 @@ for(const f of G.worldGeo.features||[]){
  const iso=String(f?.properties?.iso_a3||'').toUpperCase();if(!iso)continue;
  const ents=[],pts=[];let west=Infinity,south=Infinity,east=-Infinity,north=-Infinity,sumLon=0,sumLat=0,count=0;
  for(const r of G.outerRings(f.geometry)){
-  for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];if(!Number.isFinite(+a?.[0])||!Number.isFinite(+a?.[1])||!Number.isFinite(+b?.[0])||!Number.isFinite(+b?.[1]))continue;const k=edgekey(a,b);let e=edgeMap.get(k);if(!e){const pos=G.positions([a,b],18000);if(pos.length){e=G.viewer.entities.add({polyline:{positions:pos,width:.52,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.38)}});e._countryIsos=new Set();e._edgeAB=[a,b];edgeMap.set(k,e);G.borderEntities.push(e)}}if(e){e._countryIsos.add(iso);if(!ents.includes(e))ents.push(e)}}
+  for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i];if(!Number.isFinite(+a?.[0])||!Number.isFinite(+a?.[1])||!Number.isFinite(+b?.[0])||!Number.isFinite(+b?.[1]))continue;const k=edgekey(a,b);let e=edgeMap.get(k);if(!e){const pos=G.positions([a,b],18000);if(pos.length){e=G.viewer.entities.add({polyline:{positions:pos,width:.42,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.38)}});e._countryIsos=new Set();e._edgeAB=[a,b];edgeMap.set(k,e);G.borderEntities.push(e)}}if(e){e._countryIsos.add(iso);if(!ents.includes(e))ents.push(e)}}
   for(const q of r)if(Number.isFinite(+q[0])&&Number.isFinite(+q[1])){const lon=+q[0],lat=+q[1];pts.push(Cesium.Cartesian3.fromDegrees(lon,lat,0));west=Math.min(west,lon);south=Math.min(south,lat);east=Math.max(east,lon);north=Math.max(north,lat);sumLon+=lon;sumLat+=lat;count++}
  }
  G.countries.set(iso,{feature:f,entities:ents,sphere:pts.length?Cesium.BoundingSphere.fromPoints(pts):null,name:f.properties?.name_zh||f.properties?.name||iso,iso2:f.properties?.iso_a2,bbox:count?[west,south,east,north]:null,center:count?[sumLon/count,sumLat/count]:null})
@@ -51,7 +51,7 @@ try{
   const china=[];
   for(const r of G.outerRings(chinaOutline.geometry)){
    const pos=G.positions(r,22000);if(!pos.length)continue;
-   const e=G.viewer.entities.add({polyline:{positions:pos,width:.52,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.38)}});
+   const e=G.viewer.entities.add({polyline:{positions:pos,width:.42,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.38)}});
    e._countryIsos=new Set(['CHN']);e._chinaAuthoritativeOutline=true;china.push(e);G.borderEntities.push(e)
   }
   ch.entities=china;
