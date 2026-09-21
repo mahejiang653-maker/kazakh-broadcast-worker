@@ -32,11 +32,30 @@ function prelight(iso){
 }
 async function travelTransition(n,iso,s){
   iso=String(iso||n?.countryIso3||'').toUpperCase();
-  // R40: do not create a separate high-altitude midpoint flight here.
-  // The next scene stage owns the one real camera flight to its destination.
-  // Cancelling first prevents rapid navigation from leaving an older flight alive.
+  let from;try{from=C.Cartographic.fromCartesian(G.viewer.camera.positionWC)}catch{return true}
+  const center=mainland(iso);if(!from||!center)return true;
+  const toLon=C.Math.toRadians(+center[0]),toLat=C.Math.toRadians(+center[1]);
+  const dl=toLon-from.longitude;
+  const ang=Math.acos(Math.max(-1,Math.min(1,Math.sin(from.latitude)*Math.sin(toLat)+Math.cos(from.latitude)*Math.cos(toLat)*Math.cos(dl))));
+  if(ang<C.Math.toRadians(7)){G.__v52Trace.push({stage:'travel-ready',iso,midpoint:false});return true}
+  const km=ang*6378.137;
+  const cruise=1700000+Math.min(5200000,km*520);
+  const dlon=Math.atan2(Math.sin(toLon-from.longitude),Math.cos(toLon-from.longitude));
+  const midLon=from.longitude+dlon*.50,midLat=from.latitude+(toLat-from.latitude)*.50;
+  const dur=Math.max(.70,Math.min(1.45,.60+km/6500));
   cancelCameraFlight();
-  G.__v52Trace.push({stage:'travel-ready',iso});
-  return s===G.navSerial
+  await new Promise(r=>G.viewer.camera.flyTo({
+    destination:C.Cartesian3.fromRadians(midLon,midLat,cruise),
+    orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},
+    duration:dur,
+    easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,
+    complete:r,cancel:r
+  }));
+  if(s!==G.navSerial)return false;
+  // R41: the artificial cruise midpoint is restored, but this function stops here.
+  // The following scene stage owns the single descent/fit to the country, avoiding
+  // the former duplicate country fit that caused push-up-rise camera glitches.
+  G.__v52Trace.push({stage:'travel-midpoint',iso,km:Math.round(km),peak:Math.round(cruise),duration:+dur.toFixed(2)});
+  return true
 }
-G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r40-single-owner-camera-flight';console.info('[News Globe] V52 R40: single-owner camera flights; no artificial cruise midpoint; R38 rendering restored');})();
+G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r41-midpoint-single-descent';console.info('[News Globe] V52 R41: artificial cruise midpoint restored; single descent/fit retained; R38 rendering unchanged');})();
