@@ -74,7 +74,7 @@ function smoothApproachPoint(lon,lat,h,s){
   const ang=Math.acos(Math.max(-1,Math.min(1,Math.sin(startLat)*Math.sin(endLat)+Math.cos(startLat)*Math.cos(endLat)*Math.cos(dlon))));
   const km=ang*6378.137;
   const heightGap=Math.abs(startH-endH);
-  const duration=Math.max(1.45,Math.min(2.35,1.40+km/3800+heightGap/9000000));
+  const duration=Math.max(1.85,Math.min(2.85,1.72+km/4300+heightGap/8000000));
   const smoother=x=>x<=0?0:x>=1?1:x*x*x*(x*(x*6-15)+10);
   cancelCameraFlight();
   return new Promise(resolve=>{
@@ -84,11 +84,14 @@ function smoothApproachPoint(lon,lat,h,s){
     const step=now=>{
       if(s!==G.navSerial){finish(false);return}
       const t=Math.min(1,(now-t0)/(duration*1000));
-      const u=smoother(t);
-      let xlon=startLon+(endLon-startLon)*u;
+      // Horizontal travel starts slightly earlier; descent follows a fraction later.
+      // This prevents the camera from feeling like it suddenly dives toward the red dot.
+      const uh=smoother(t);
+      const uv=smoother(Math.max(0,Math.min(1,(t-.06)/.94)));
+      let xlon=startLon+(endLon-startLon)*uh;
       xlon=Math.atan2(Math.sin(xlon),Math.cos(xlon));
-      const xlat=startLat+(endLat-startLat)*u;
-      const xh=startH+(endH-startH)*u;
+      const xlat=startLat+(endLat-startLat)*uh;
+      const xh=startH+(endH-startH)*uv;
       try{G.viewer.camera.setView({destination:C.Cartesian3.fromRadians(xlon,xlat,xh),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}})}catch{finish(false);return}
       if(t>=1){finish(true);return}
       routeRaf=requestAnimationFrame(step)
@@ -102,7 +105,7 @@ function countryName(iso,lon,lat,color){if(!good(lon,lat))return;const text=NAME
 function territory(iso,color){iso=String(iso||'').toUpperCase();const col=C.Color.fromCssColorString('#b70f1f'),ch=iso==='CHN'?G.countries.get('CHN'):null,g=ch?.authoritativeOutline||feature(iso);for(const p of polygons(g)){const r=p?.[0]||[];if(r.length<3)continue;const pos=r.filter(q=>good(q?.[0],q?.[1])).map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000));if(pos.length<3)continue;ents.push(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(pos),height:5000,material:col.withAlpha(.34),outline:false}}))}}
 async function belligerents(att,vic,s){clear();territory(att,'#ff4050');territory(vic,'#3dbdff');const ac=mainland(att),vc=mainland(vic);if(ac){countryName(att,ac[0],ac[1],'#b91f35');flag(att,ac[0],ac[1],0,-30,32,21,'attack')}if(vc){countryName(vic,vc[0],vc[1],'#167caf');flag(vic,vc[0],vc[1],0,-30,32,21,'attack')}const ps=[...carts(att),...carts(vic)];if(!ps.length)return false;if(!await fit(ps,s,900000,11000000))return false;G.__v52Trace.push({stage:'belligerents',red:att,blue:vic,names:true,flags:true});return wait(1800,s)}
 async function hiSwiss(){if(G.__v52SwissPrecise)return;try{const j=await fetch('https://raw.githubusercontent.com/ZHB/switzerland-geojson/master/country/switzerland.geojson',{cache:'force-cache'}).then(r=>r.json());const f=j.type==='Feature'?j:(j.features?.[0]);if(f?.geometry){const e=G.countries.get('CHE');if(e)e.feature=f;G.__v52SwissPrecise=true}}catch(e){console.warn('[V52] precise Swiss boundary unavailable',e)}}
-async function country(iso,n,s){clear();if(iso==='CHE')await hiSwiss();territory(iso,'#ff4050');const c=mainland(iso);if(c){countryName(iso,c[0],c[1],'#b91f35');flag(iso,c[0],c[1],0,-30,32,21,'country')}const ps=carts(iso),arrived=G.__v52CruiseArrival&&G.__v52CruiseArrival.iso===iso&&G.__v52CruiseArrival.serial===s;G.__v52CruiseArrival=null;if(!arrived&&ps.length&&!await fit(ps,s,iso==='CHE'?430000:700000,9000000))return false;purgeForeignLabels();G.__v52Trace.push({stage:'country-intro',iso,red:true,name:true,flag:true,continuousArrival:!!arrived});return s===G.navSerial&&wait(2100,s)}
+async function country(iso,n,s){clear();if(iso==='CHE')await hiSwiss();territory(iso,'#ff4050');const c=mainland(iso);if(c){countryName(iso,c[0],c[1],'#b91f35');flag(iso,c[0],c[1],0,-30,32,21,'country')}const ps=carts(iso),arrived=G.__v52CruiseArrival&&G.__v52CruiseArrival.iso===iso&&G.__v52CruiseArrival.serial===s;G.__v52CruiseArrival=null;if(!arrived&&ps.length&&!await fit(ps,s,iso==='CHE'?430000:700000,9000000))return false;purgeForeignLabels();const continuing=good(n?.lon,n?.lat)||chain(n).length>0;G.__v52Trace.push({stage:'country-intro',iso,red:true,name:true,flag:true,continuousArrival:!!arrived,continuing});return s===G.navSerial&&wait(continuing?720:2100,s)}
 function chain(n){const p=n.scenePlan||{};return (Array.isArray(n.adminChain)?n.adminChain:Array.isArray(p.targetAdminChain)?p.targetAdminChain:Array.isArray(p.adminChain)?p.adminChain:[]).filter(Boolean)}
 async function cityStage(a,iso,s){if(!a||!good(a.lon,a.lat))return true;clear();const label=String(a.focusLabel||a.location||'城市');if(!await fly(+a.lon,+a.lat,850000,s,1.25))return false;if(s!==G.navSerial)return false;try{G.localLabelEntity=G.label?.(label,+a.lon,+a.lat,'country');if(G.localLabelEntity)G.localLabelEntity.__v52OwnedLabel=true}catch{}G.__v52Trace.push({stage:'city',name:label,iso,lon:+a.lon,lat:+a.lat,height:850000});return wait(1700,s)}
 function taiwanFeature(){const fs=G.chinaLevel1Geo?.features||[];const norm=x=>String(x||'').replace(/中华人民共和国|中国|台湾省|台湾地区|台湾/g,'台湾').replace(/省|地区/g,'');for(const f of fs){const vals=Object.values(f.properties||{}).map(String);if(vals.some(v=>/台湾/.test(v)||norm(v)==='台湾'))return f}return null}
@@ -126,4 +129,4 @@ async function travelTransition(n,iso,s){
   G.__v52Trace.push({stage:'travel-continuous',iso,continuous:true,midpoint:true,km:Math.round(result.km),peak:Math.round(result.cruise),duration:+result.duration.toFixed(2)});
   return s===G.navSerial
 }
-G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r45-soft-final-approach';console.info('[News Globe] V52 R45: soft continuous country/region-to-event approach; target context retained during motion');})();
+G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r46-soft-final-approach';console.info('[News Globe] V52 R46: shorter country dwell and gentler continuous approach to event point');})();
