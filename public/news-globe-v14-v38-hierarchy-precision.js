@@ -18,7 +18,7 @@ async function showCountryWhole(n,iso,serial,hold=1650){
  const c=G.countries?.get?.(iso);const sp=iso==='CHN'?(chinaSphere()||c?.sphere):c?.sphere;
  if(sp)await new Promise(r=>G.viewer.camera.flyToBoundingSphere(sp,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-88),Math.max(1800000,Math.min(15000000,sp.radius*2.65))),duration:1.3,complete:r,cancel:r}));
  if(serial!==G.navSerial)return false;
- await wait(hold,serial);return serial===G.navSerial;
+ await wait(hold,serial);if(serial!==G.navSerial)return false;/* After the temporary whole-country presentation, restore the persistent base border style instead of leaving the presentation border active. This prevents CHN from showing a second emphasized outline during later Xinjiang/Horgos stages. */try{if(iso==='CHN'){if(G.countryBlinkTimer){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null}G.setCountry?.(iso,false)}}catch{}return serial===G.navSerial;
 }
 
 function norm(s){return String(s||'').replace(/中华人民共和国|中国/g,'').replace(/特别行政区|维吾尔自治区|壮族自治区|回族自治区|自治区|省|直辖市|地区|自治州|州|市|区|县/g,'').replace(/\s+/g,'').trim()}
