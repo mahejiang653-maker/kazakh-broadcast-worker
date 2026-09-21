@@ -66,7 +66,7 @@ G.addSecondaryFill=g=>{
     G.secondaryCountryFillEntities.push(G.viewer.entities.add({polygon:{
       hierarchy:h,height:9000,perPositionHeight:false,arcType:C.ArcType.GEODESIC,
       granularity:C.Math.RADIANS_PER_DEGREE/4,
-      material:C.Color.fromCssColorString('#319cff').withAlpha(.30),outline:false
+      material:C.Color.fromCssColorString('#319cff').withAlpha(.45),outline:false
     }}));
   };
   if(g.type==='Polygon')add(g.coordinates);
@@ -87,7 +87,7 @@ G.setSecondaryCountry=(iso,on,phase=1)=>{
     e.polyline.width=width;
     e.polyline.material=on
       ?C.Color.fromCssColorString('#55b7ff').withAlpha(alpha)
-      :C.Color.fromCssColorString('#c9e8f6').withAlpha(.30);
+      :C.Color.fromCssColorString('#c9e8f6').withAlpha(.45);
   }
 };
 G.blinkSecondaryCountry=(iso,interval=240)=>{
