@@ -1,4 +1,4 @@
-name: Verify 2026-09-20 Globe V52
+name: Verify Locked 2026-09-21 Globe V52
 on:
   push:
     branches: [main]
@@ -26,9 +26,9 @@ jobs:
       - run: node .github/scripts/verify-20260920-v52.mjs
       - name: Publish verification marker
         run: |
-          echo "PASS_13_13_V52_20260920" > public/news-globe-verify-20260920-v52.txt
+          echo "PASS_13_13_V52_LOCKED_20260921" > public/news-globe-verify-20260920-v52.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add public/news-globe-verify-20260920-v52.txt
-          git commit -m "Verify 2026-09-20 V52 globe 13/13" || exit 0
+          git commit -m "Verify locked 2026-09-21 V52 globe 13/13" || exit 0
           git push
