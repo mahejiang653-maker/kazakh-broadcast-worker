@@ -36,7 +36,7 @@ for(const f of G.worldGeo.features||[]){
 const ch=G.countries.get('CHN');
 if(ch){
  const old=new Set(ch.entities||[]);
- for(const e of old){try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1)}
+ for(const e of old){try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1);/* Remove this stale shared entity from every neighbour country too, otherwise KAZ/RUS/etc can later restyle/show an Entity that no longer belongs to the authoritative network. */for(const cc of G.countries.values()){if(Array.isArray(cc?.entities))cc.entities=cc.entities.filter(x=>x!==e)}}
  const china=[];
  for(const r of G.outerRings(ch.feature?.geometry)){const pos=G.positions(r,22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaCanonical=true;china.push(e);G.borderEntities.push(e)}
  ch.entities=china;
