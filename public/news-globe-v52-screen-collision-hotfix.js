@@ -1,21 +1,13 @@
 (function attach(){
  const G=window.NG14,C=window.Cesium;if(!G||!C||!G.viewer)return setTimeout(attach,80);if(G.__v52ScreenCollision)return;G.__v52ScreenCollision=true;
- let last=0,lastRefresh=0,cachedCount=-1,pointEntities=[],labelEntities=[];
+ let last=0;
  function screenOf(e,t){try{const p=e.position?.getValue?e.position.getValue(t):e.position;if(!p)return null;return C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,p)}catch{return null}}
  function offsetOf(prop,t){try{return prop?.getValue?prop.getValue(t):prop}catch{return null}}
- function refreshCandidates(now){
-   const vals=G.viewer.entities.values||[];
-   if(vals.length===cachedCount&&now-lastRefresh<700)return;
-   cachedCount=vals.length;lastRefresh=now;pointEntities=[];labelEntities=[];
-   for(const e of vals){if(e?.point)pointEntities.push(e);if(e?.label)labelEntities.push(e)}
- }
  function tick(){
-   const now=performance.now();if(now-last<100)return;last=now;
-   if(G.overviewMode)return;
-   refreshCandidates(now);
-   const t=G.viewer.clock.currentTime,points=[];
-   for(const e of pointEntities){const p=screenOf(e,t);if(p)points.push(p)}
-   for(const e of labelEntities){const p=screenOf(e,t);if(!p)continue;
+   const now=performance.now();if(now-last<80)return;last=now;
+   const t=G.viewer.clock.currentTime,vals=G.viewer.entities.values||[],points=[];
+   for(const e of vals){if(!e.point)continue;const p=screenOf(e,t);if(p)points.push(p)}
+   for(const e of vals){if(!e.label)continue;const p=screenOf(e,t);if(!p)continue;
      const tag=e.__v52CollisionBase||(e.__v52CollisionBase=offsetOf(e.label.pixelOffset,t)||new C.Cartesian2(0,0));
      if(e.__v52CollisionLocked){try{e.label.pixelOffset=e.__v52CollisionLocked}catch{}continue}
      // A place-name label and its own red/yellow/blue marker share the same world
@@ -36,5 +28,5 @@
      try{e.label.pixelOffset=e.__v52CollisionLocked}catch{}
    }
  }
- G.viewer.scene.postRender.addEventListener(tick);console.log('[V52 R39] collision candidates cached');
+ G.viewer.scene.postRender.addEventListener(tick);
 })();
