@@ -33,8 +33,8 @@ function smoothCruiseToCountry(iso,s){
   const startLon=from.longitude,endLon=startLon+dlon,startLat=from.latitude,endLat=toLat,startH=Math.max(120000,from.height||120000);
   const baseCruise=1700000+Math.min(5200000,km*520);
   const cruise=Math.max(baseCruise,Math.min(12000000,Math.max(startH,endH)*1.08));
-  const duration=Math.max(1.80,Math.min(3.10,1.55+km/6500));
-  const lift=cruise-(startH+endH)*.5;
+  const duration=Math.max(2.05,Math.min(3.45,1.78+km/6200));
+  const smoother=x=>x<=0?0:x>=1?1:x*x*x*(x*(x*6-15)+10);
   cancelCameraFlight();
   return new Promise(resolve=>{
     routeResolve=resolve;
@@ -43,11 +43,21 @@ function smoothCruiseToCountry(iso,s){
     const step=now=>{
       if(s!==G.navSerial){finish(false);return}
       const t=Math.min(1,(now-t0)/(duration*1000));
-      const u=t*t*(3-2*t);
+      const u=smoother(t);
       let lon=startLon+(endLon-startLon)*u;
       lon=Math.atan2(Math.sin(lon),Math.cos(lon));
       const lat=startLat+(endLat-startLat)*u;
-      const h=startH+(endH-startH)*u+Math.sin(Math.PI*u)*lift;
+      // R44: altitude uses two quintic Hermite halves. At the cruise midpoint
+      // vertical velocity and acceleration settle smoothly to zero, then the
+      // descent restarts gently instead of snapping into the downward leg.
+      let h;
+      if(u<=.5){
+        const q=smoother(u*2);
+        h=startH+(cruise-startH)*q;
+      }else{
+        const q=smoother((u-.5)*2);
+        h=cruise+(endH-cruise)*q;
+      }
       try{G.viewer.camera.setView({destination:C.Cartesian3.fromRadians(lon,lat,h),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}})}catch{finish(false);return}
       if(t>=1){finish(true);return}
       routeRaf=requestAnimationFrame(step)
@@ -84,4 +94,4 @@ async function travelTransition(n,iso,s){
   G.__v52Trace.push({stage:'travel-continuous',iso,continuous:true,midpoint:true,km:Math.round(result.km),peak:Math.round(result.cruise),duration:+result.duration.toFixed(2)});
   return s===G.navSerial
 }
-G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r43-continuous-midpoint-flight';console.info('[News Globe] V52 R43: continuous start-midpoint-country flight; midpoint has no stop/restart; cruise height guarded');})();
+G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r44-soft-descent-midpoint-flight';console.info('[News Globe] V52 R44: continuous midpoint flight with quintic soft descent; no node stop/restart');})();
