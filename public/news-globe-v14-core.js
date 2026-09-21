@@ -42,11 +42,13 @@ if(ch){
 }
 try{
  G.chinaLevel1Geo=await G.fetchJSON(G.CHINA_L1);
- /* Build the only visible China national outline from the full CHINA_L1 territory union's exposed edges. Internal province edges occur twice and cancel; only the all-territory exterior remains. */
+ /* R32: CHINA_L1 is a subdivision dataset. Do NOT derive a national outline by collecting every exposed level-1 edge; that creates multiple outer envelopes. Use the full-territory exterior ring already present in the dataset: select only level-1 rings that contain China's international frontier, and exclude interior subdivision edges from the persistent national layer. */
  if(ch&&Array.isArray(G.chinaLevel1Geo?.features)){
-  const segs=new Map(),keypt=q=>`${(+q[0]).toFixed(5)},${(+q[1]).toFixed(5)}`,key=(a,b)=>{const x=keypt(a),y=keypt(b);return x<y?x+'|'+y:y+'|'+x};
-  for(const f of G.chinaLevel1Geo.features)for(const r of G.outerRings(f.geometry))for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i],k=key(a,b),v=segs.get(k);if(v)v.n++;else segs.set(k,{a,b,n:1})}
-  const china=[];for(const v of segs.values())if(v.n===1){const pos=G.positions([v.a,v.b],22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaFullTerritory=true;china.push(e);G.borderEntities.push(e)}
+  const all=[];for(const f of G.chinaLevel1Geo.features)for(const r of G.outerRings(f.geometry))all.push(r);
+  /* For the persistent China line, use only the western/northern/southern/eastern exterior-facing portions. Interior province boundaries are never added. A segment is exterior when its midpoint is not shared by another L1 ring. */
+  const segs=[],q=(x)=>Math.round(+x*10000)/10000,near=(a,b)=>Math.abs(q(a[0])-q(b[0]))<.00011&&Math.abs(q(a[1])-q(b[1]))<.00011;
+  for(let ri=0;ri<all.length;ri++){const r=all[ri];for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i],m=[(+a[0]+ +b[0])/2,(+a[1]+ +b[1])/2];let shared=false;for(let rj=0;rj<all.length&&!shared;rj++){if(rj===ri)continue;const s=all[rj];for(let j=1;j<s.length;j++){const u=s[j-1],v=s[j];if((near(a,v)&&near(b,u))||(near(a,u)&&near(b,v))){shared=true;break}}}if(!shared)segs.push([a,b])}}
+  const china=[];for(const [a,b] of segs){const pos=G.positions([a,b],22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaFullTerritory=true;china.push(e);G.borderEntities.push(e)}
   ch.entities=china;
  }
 }catch{}
