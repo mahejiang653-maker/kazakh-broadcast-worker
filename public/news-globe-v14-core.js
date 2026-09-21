@@ -35,12 +35,20 @@ for(const f of G.worldGeo.features||[]){
 /* R28: build a dedicated canonical China outline and permanently remove every generic world-border segment touching China. This avoids trying to match two different datasets/segmentations at runtime. Normal China outline and red China highlight are the SAME entities. */
 const ch=G.countries.get('CHN');
 if(ch){
+ /* R31: WORLD/CHN is the unwanted mainland-style outline. Remove it completely and NEVER rebuild a China line from WORLD geometry. */
  const old=new Set(ch.entities||[]);
- for(const e of old){try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1);/* Remove this stale shared entity from every neighbour country too, otherwise KAZ/RUS/etc can later restyle/show an Entity that no longer belongs to the authoritative network. */for(const cc of G.countries.values()){if(Array.isArray(cc?.entities))cc.entities=cc.entities.filter(x=>x!==e)}}
- const china=[];
- for(const r of G.outerRings(ch.feature?.geometry)){const pos=G.positions(r,22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaCanonical=true;china.push(e);G.borderEntities.push(e)}
- ch.entities=china;
+ for(const e of old){try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1);for(const cc of G.countries.values()){if(Array.isArray(cc?.entities))cc.entities=cc.entities.filter(x=>x!==e)}}
+ ch.entities=[];
 }
-try{G.chinaLevel1Geo=await G.fetchJSON(G.CHINA_L1)}catch{}
+try{
+ G.chinaLevel1Geo=await G.fetchJSON(G.CHINA_L1);
+ /* Build the only visible China national outline from the full CHINA_L1 territory union's exposed edges. Internal province edges occur twice and cancel; only the all-territory exterior remains. */
+ if(ch&&Array.isArray(G.chinaLevel1Geo?.features)){
+  const segs=new Map(),keypt=q=>`${(+q[0]).toFixed(5)},${(+q[1]).toFixed(5)}`,key=(a,b)=>{const x=keypt(a),y=keypt(b);return x<y?x+'|'+y:y+'|'+x};
+  for(const f of G.chinaLevel1Geo.features)for(const r of G.outerRings(f.geometry))for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i],k=key(a,b),v=segs.get(k);if(v)v.n++;else segs.set(k,{a,b,n:1})}
+  const china=[];for(const v of segs.values())if(v.n===1){const pos=G.positions([v.a,v.b],22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaFullTerritory=true;china.push(e);G.borderEntities.push(e)}
+  ch.entities=china;
+ }
+}catch{}
 }catch(e){console.warn(e)}};
 })();
