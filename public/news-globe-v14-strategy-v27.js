@@ -79,15 +79,11 @@ G.setSecondaryCountry=(iso,on,phase=1)=>{
   const alpha=on?(phase?0.98:0.60):0.30;
   for(const e of c.entities){
     if(!e?.polyline)continue;
-    /* Shared-border invariant: a secondary country must never resurrect or recolor a border segment that belongs to CHN. China owns those segments and only its primary red-highlight path may show them. This prevents KAZ (item 12) from bringing the China/Kazakhstan frontier back as a second blue/pale line. */
-    const sharedWithChina=!!e?._countryIsos?.has?.('CHN')||e?._countryIso==='CHN';
-    if(iso!=='CHN'&&sharedWithChina){e.show=false;continue}
-    if(iso==='CHN'&&!on){e.show=false;continue}
     e.show=true;
     e.polyline.width=width;
     e.polyline.material=on
       ?C.Color.fromCssColorString('#55b7ff').withAlpha(alpha)
-      :C.Color.fromCssColorString('#c9e8f6').withAlpha(.45);
+      :C.Color.fromCssColorString('#d8f3ff').withAlpha(.62);
   }
 };
 G.blinkSecondaryCountry=(iso,interval=240)=>{
