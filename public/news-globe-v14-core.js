@@ -4,6 +4,7 @@ G.$=id=>document.getElementById(id);G.DATA_KEY='news-globe-v14-data';G.TOKEN_KEY
 G.WORLD=['https://cdn.jsdelivr.net/gh/GIStudio/SpatialHarness@main/demo/data/ne_110m_admin_0_countries.geojson','https://raw.githubusercontent.com/GIStudio/SpatialHarness/main/demo/data/ne_110m_admin_0_countries.geojson'];
 G.CHINA_LINES=['https://cdn.jsdelivr.net/gh/GIStudio/SpatialHarness@main/demo/data/china_boundary_lines.geojson','https://raw.githubusercontent.com/GIStudio/SpatialHarness/main/demo/data/china_boundary_lines.geojson'];
 G.CHINA_L1=['https://cdn.jsdelivr.net/gh/JayMuShui/chinese-global-compliant-geodata@main/src/geojson/countries/as/chn/global/chn-level-1.json','https://raw.githubusercontent.com/JayMuShui/chinese-global-compliant-geodata/main/src/geojson/countries/as/chn/global/chn-level-1.json'];
+G.CHINA_OUTLINE=['/news-globe-china-outline-v52.geojson'];
 const D=[['北京海淀区','中华人民共和国','区',116.31,39.98,'CHN','中华人民共和国'],['哈尔科夫','乌克兰','城市',36.23,49.99,'UKR','乌克兰'],['布什尔省','伊朗','省',50.84,28.92,'IRN','伊朗'],['别尔哥罗德州','俄罗斯','州',36.59,50.60,'RUS','俄罗斯'],['布鲁塞尔首都大区','比利时','区域',4.36,50.88,'BEL','比利时'],['横须贺','日本','城市',139.67,35.28,'JPN','日本'],['釜山','韩国','城市',129.08,35.18,'KOR','韩国'],['卡纳塔克邦','印度','州',77.59,12.97,'IND','印度'],['苏伊士运河北段','埃及','河流/运河',32.31,30.57,'EGY','埃及'],['阿尔卑斯山东部','德国','山脉',11.58,48.14,'DEU','德国'],['纽约州','美国','州',-74.01,40.71,'USA','美国'],['圣保罗州','巴西','州',-46.63,-23.55,'BRA','巴西'],['塔斯曼海西部','澳大利亚','海域',151.21,-33.87,'AUS','澳大利亚']];
 G.demo=D.map((x,i)=>({id:i+1,title:`演示新闻 ${i+1}｜实际发生地定位示例`,location:x[0],region:x[1],placeType:x[2],date:G.today,lon:x[3],lat:x[4],countryIso3:x[5],country:x[6],height:2300000,summary:'演示数据：国家先以红色全境提示，再定位实际新闻地点。'}));
 G.loadStored=()=>{try{const x=JSON.parse(localStorage.getItem(G.DATA_KEY)||'null');return x&&Array.isArray(x.news)?x:null}catch{return null}};
@@ -42,15 +43,20 @@ if(ch){
 }
 try{
  G.chinaLevel1Geo=await G.fetchJSON(G.CHINA_L1);
- /* R32: CHINA_L1 is a subdivision dataset. Do NOT derive a national outline by collecting every exposed level-1 edge; that creates multiple outer envelopes. Use the full-territory exterior ring already present in the dataset: select only level-1 rings that contain China's international frontier, and exclude interior subdivision edges from the persistent national layer. */
- if(ch&&Array.isArray(G.chinaLevel1Geo?.features)){
-  const all=[];for(const f of G.chinaLevel1Geo.features)for(const r of G.outerRings(f.geometry))all.push(r);
-  /* For the persistent China line, use only the western/northern/southern/eastern exterior-facing portions. Interior province boundaries are never added. A segment is exterior when its midpoint is not shared by another L1 ring. */
-  const segs=[],q=(x)=>Math.round(+x*10000)/10000,near=(a,b)=>Math.abs(q(a[0])-q(b[0]))<.00011&&Math.abs(q(a[1])-q(b[1]))<.00011;
-  for(let ri=0;ri<all.length;ri++){const r=all[ri];for(let i=1;i<r.length;i++){const a=r[i-1],b=r[i],m=[(+a[0]+ +b[0])/2,(+a[1]+ +b[1])/2];let shared=false;for(let rj=0;rj<all.length&&!shared;rj++){if(rj===ri)continue;const s=all[rj];for(let j=1;j<s.length;j++){const u=s[j-1],v=s[j];if((near(a,v)&&near(b,u))||(near(a,u)&&near(b,v))){shared=true;break}}}if(!shared)segs.push([a,b])}}
-  const china=[];for(const [a,b] of segs){const pos=G.positions([a,b],22000);if(!pos.length)continue;const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});e._countryIsos=new Set(['CHN']);e._chinaFullTerritory=true;china.push(e);G.borderEntities.push(e)}
+ const chinaOutline=await G.fetchJSON(G.CHINA_OUTLINE);
+ /* R33: the persistent China national border comes ONLY from the pre-dissolved national outline.
+    CHINA_L1 remains available for red full-territory fill/admin highlighting, but its province rings
+    are never converted into national-border entities. */
+ if(ch&&chinaOutline?.geometry){
+  const china=[];
+  for(const r of G.outerRings(chinaOutline.geometry)){
+   const pos=G.positions(r,22000);if(!pos.length)continue;
+   const e=G.viewer.entities.add({polyline:{positions:pos,width:.92,arcType:Cesium.ArcType.GEODESIC,material:Cesium.Color.fromCssColorString('#d8f3ff').withAlpha(.62)}});
+   e._countryIsos=new Set(['CHN']);e._chinaAuthoritativeOutline=true;china.push(e);G.borderEntities.push(e)
+  }
   ch.entities=china;
+  ch.authoritativeOutline=chinaOutline;
  }
-}catch{}
+}catch(e){console.warn('[V52] authoritative China outline unavailable',e)}
 }catch(e){console.warn(e)}};
 })();
