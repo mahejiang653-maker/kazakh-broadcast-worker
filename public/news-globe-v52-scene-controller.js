@@ -12,13 +12,54 @@ function clear(){for(const e of ents.splice(0))rm(e);for(const k of ['v51SceneEn
 function feature(iso){return G.countries.get(String(iso||'').toUpperCase())?.feature||null}function collect(x,o=[]){if(!x)return o;if(Array.isArray(x)){if(x.length>1&&typeof x[0]==='number'&&typeof x[1]==='number')o.push(x);else for(const y of x)collect(y,o)}else if(x.coordinates)collect(x.coordinates,o);else if(x.geometry)collect(x.geometry,o);else if(x.features)for(const y of x.features)collect(y,o);return o}function carts(iso){return collect(feature(iso),[]).filter(p=>good(p[0],p[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0))}
 function polygons(g){if(!g)return[];if(g.type==='Feature')return polygons(g.geometry);if(g.type==='FeatureCollection')return(g.features||[]).flatMap(x=>polygons(x));if(g.type==='Polygon')return[g.coordinates];if(g.type==='MultiPolygon')return g.coordinates||[];return[]}function area(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(+r[j][0])*(+r[i][1])-(+r[i][0])*(+r[j][1]);return Math.abs(a/2)}function mainRing(iso){let best=null,ba=-1;for(const p of polygons(feature(iso))){const r=p?.[0]||[],a=area(r);if(r.length>3&&a>ba){best=r;ba=a}}return best}function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1])){x+=+p[0];y+=+p[1];n++}}return n?[x/n,y/n]:null}function mainland(iso){return centroid(mainRing(iso))||G.countries.get(iso)?.center||null}
 function sample(r,max=320){if(!r)return[];if(r.length<=max)return r;const step=Math.ceil(r.length/max),out=[];for(let i=0;i<r.length;i+=step)out.push(r[i]);return out}function directionalOrigin(att,targetLon,targetLat){const r=mainRing(att),ca=mainland(att);if(!r||!ca)return null;let best=null,bd=Infinity;for(const p of sample(r)){let dx=+p[0]-targetLon;if(dx>180)dx-=360;if(dx<-180)dx+=360;const dy=+p[1]-targetLat,d=(dx*Math.cos(targetLat*Math.PI/180))**2+dy**2;if(d<bd){bd=d;best=[+p[0],+p[1]]}}if(!best)return null;return{lon:best[0]*.9+ca[0]*.1,lat:best[1]*.9+ca[1]*.1}}
-function cancelCameraFlight(){try{G.viewer.camera.cancelFlight()}catch{}}async function fit(ps,s,min=650000,max=15000000,duration=1.25){if(!ps.length)return false;cancelCameraFlight();const b=C.BoundingSphere.fromPoints(ps),range=Math.max(min,Math.min(max,b.radius*2.2));await new Promise(r=>G.viewer.camera.flyToBoundingSphere(b,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-89),range),duration,easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,complete:r,cancel:r}));return s===G.navSerial}async function fly(lon,lat,h,s,duration=1.20){cancelCameraFlight();await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,h),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,complete:r,cancel:r}));return s===G.navSerial}
+let routeRaf=0,routeResolve=null;
+function cancelCameraFlight(){
+  try{G.viewer.camera.cancelFlight()}catch{}
+  if(routeRaf){cancelAnimationFrame(routeRaf);routeRaf=0}
+  if(routeResolve){const r=routeResolve;routeResolve=null;try{r(false)}catch{}}
+}
+async function fit(ps,s,min=650000,max=15000000,duration=1.25){if(!ps.length)return false;cancelCameraFlight();const b=C.BoundingSphere.fromPoints(ps),range=Math.max(min,Math.min(max,b.radius*2.2));await new Promise(r=>G.viewer.camera.flyToBoundingSphere(b,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-89),range),duration,easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,complete:r,cancel:r}));return s===G.navSerial}
+async function fly(lon,lat,h,s,duration=1.20){cancelCameraFlight();await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,h),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,complete:r,cancel:r}));return s===G.navSerial}
+function smoothCruiseToCountry(iso,s){
+  iso=String(iso||'').toUpperCase();
+  const ps=carts(iso),center=mainland(iso);if(!ps.length||!center)return Promise.resolve(false);
+  let from;try{from=C.Cartographic.fromCartesian(G.viewer.camera.positionWC)}catch{return Promise.resolve(false)}
+  const toLonRaw=C.Math.toRadians(+center[0]),toLat=C.Math.toRadians(+center[1]);
+  const dlon=Math.atan2(Math.sin(toLonRaw-from.longitude),Math.cos(toLonRaw-from.longitude));
+  const ang=Math.acos(Math.max(-1,Math.min(1,Math.sin(from.latitude)*Math.sin(toLat)+Math.cos(from.latitude)*Math.cos(toLat)*Math.cos(dlon))));
+  if(ang<C.Math.toRadians(7))return Promise.resolve(false);
+  const km=ang*6378.137,b=C.BoundingSphere.fromPoints(ps);
+  const endH=Math.max(700000,Math.min(9000000,b.radius*2.2));
+  const cruise=1700000+Math.min(5200000,km*520);
+  const startLon=from.longitude,endLon=startLon+dlon,startLat=from.latitude,endLat=toLat,startH=Math.max(120000,from.height||120000);
+  const duration=Math.max(1.80,Math.min(3.10,1.55+km/6500));
+  const lift=cruise-(startH+endH)*.5;
+  cancelCameraFlight();
+  return new Promise(resolve=>{
+    routeResolve=resolve;
+    const t0=performance.now();
+    const finish=ok=>{if(routeRaf){cancelAnimationFrame(routeRaf);routeRaf=0}if(routeResolve===resolve)routeResolve=null;resolve(ok)};
+    const step=now=>{
+      if(s!==G.navSerial){finish(false);return}
+      const t=Math.min(1,(now-t0)/(duration*1000));
+      const u=t*t*(3-2*t);
+      let lon=startLon+(endLon-startLon)*u;
+      lon=Math.atan2(Math.sin(lon),Math.cos(lon));
+      const lat=startLat+(endLat-startLat)*u;
+      const h=startH+(endH-startH)*u+Math.sin(Math.PI*u)*lift;
+      try{G.viewer.camera.setView({destination:C.Cartesian3.fromRadians(lon,lat,h),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}})}catch{finish(false);return}
+      if(t>=1){finish(true);return}
+      routeRaf=requestAnimationFrame(step)
+    };
+    routeRaf=requestAnimationFrame(step)
+  }).then(ok=>ok?{ok:true,km,cruise,duration,endH}:false)
+}
 function flag(iso,lon,lat,dx=0,dy=-30,w=32,h=21,kind='attack'){if(G.overviewMode)return;const cc=ISO2[iso];if(!cc||!good(lon,lat))return;const o={position:C.Cartesian3.fromDegrees(+lon,+lat,82000),billboard:{image:`https://flagcdn.com/w80/${cc}.png`,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}};if(kind==='attack')o.__v52AttackFlag=true;else o.__v52CountryIntroFlag=true;const e=G.viewer.entities.add(o);if(e){if(kind==='attack')e.__v52AttackFlag=true;else e.__v52CountryIntroFlag=true;ents.push(e)}}
 function countryName(iso,lon,lat,color){if(!good(lon,lat))return;const text=NAME[iso]||G.countryNameZh?.(iso)||G.countryName?.(iso)||iso;const e=G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,76000),label:{text:String(text),font:'700 15px "Microsoft YaHei","PingFang SC",sans-serif',fillColor:C.Color.WHITE,outlineColor:C.Color.BLACK.withAlpha(.95),outlineWidth:3,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString(color).withAlpha(.70),padding:new C.Cartesian2(8,5),pixelOffset:new C.Cartesian2(0,12),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}});e.__v52OwnedLabel=true;ents.push(e)}
 function territory(iso,color){iso=String(iso||'').toUpperCase();const col=C.Color.fromCssColorString('#b70f1f'),ch=iso==='CHN'?G.countries.get('CHN'):null,g=ch?.authoritativeOutline||feature(iso);for(const p of polygons(g)){const r=p?.[0]||[];if(r.length<3)continue;const pos=r.filter(q=>good(q?.[0],q?.[1])).map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000));if(pos.length<3)continue;ents.push(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(pos),height:5000,material:col.withAlpha(.34),outline:false}}))}}
 async function belligerents(att,vic,s){clear();territory(att,'#ff4050');territory(vic,'#3dbdff');const ac=mainland(att),vc=mainland(vic);if(ac){countryName(att,ac[0],ac[1],'#b91f35');flag(att,ac[0],ac[1],0,-30,32,21,'attack')}if(vc){countryName(vic,vc[0],vc[1],'#167caf');flag(vic,vc[0],vc[1],0,-30,32,21,'attack')}const ps=[...carts(att),...carts(vic)];if(!ps.length)return false;if(!await fit(ps,s,900000,11000000))return false;G.__v52Trace.push({stage:'belligerents',red:att,blue:vic,names:true,flags:true});return wait(1800,s)}
 async function hiSwiss(){if(G.__v52SwissPrecise)return;try{const j=await fetch('https://raw.githubusercontent.com/ZHB/switzerland-geojson/master/country/switzerland.geojson',{cache:'force-cache'}).then(r=>r.json());const f=j.type==='Feature'?j:(j.features?.[0]);if(f?.geometry){const e=G.countries.get('CHE');if(e)e.feature=f;G.__v52SwissPrecise=true}}catch(e){console.warn('[V52] precise Swiss boundary unavailable',e)}}
-async function country(iso,n,s){clear();if(iso==='CHE')await hiSwiss();territory(iso,'#ff4050');const c=mainland(iso);if(c){countryName(iso,c[0],c[1],'#b91f35');flag(iso,c[0],c[1],0,-30,32,21,'country')}const ps=carts(iso);if(ps.length&&!await fit(ps,s,iso==='CHE'?430000:700000,9000000))return false;purgeForeignLabels();G.__v52Trace.push({stage:'country-intro',iso,red:true,name:true,flag:true});return s===G.navSerial&&wait(2100,s)}
+async function country(iso,n,s){clear();if(iso==='CHE')await hiSwiss();territory(iso,'#ff4050');const c=mainland(iso);if(c){countryName(iso,c[0],c[1],'#b91f35');flag(iso,c[0],c[1],0,-30,32,21,'country')}const ps=carts(iso),arrived=G.__v52CruiseArrival&&G.__v52CruiseArrival.iso===iso&&G.__v52CruiseArrival.serial===s;G.__v52CruiseArrival=null;if(!arrived&&ps.length&&!await fit(ps,s,iso==='CHE'?430000:700000,9000000))return false;purgeForeignLabels();G.__v52Trace.push({stage:'country-intro',iso,red:true,name:true,flag:true,continuousArrival:!!arrived});return s===G.navSerial&&wait(2100,s)}
 function chain(n){const p=n.scenePlan||{};return (Array.isArray(n.adminChain)?n.adminChain:Array.isArray(p.targetAdminChain)?p.targetAdminChain:Array.isArray(p.adminChain)?p.adminChain:[]).filter(Boolean)}
 async function cityStage(a,iso,s){if(!a||!good(a.lon,a.lat))return true;clear();const label=String(a.focusLabel||a.location||'城市');if(!await fly(+a.lon,+a.lat,850000,s,1.25))return false;if(s!==G.navSerial)return false;try{G.localLabelEntity=G.label?.(label,+a.lon,+a.lat,'country');if(G.localLabelEntity)G.localLabelEntity.__v52OwnedLabel=true}catch{}G.__v52Trace.push({stage:'city',name:label,iso,lon:+a.lon,lat:+a.lat,height:850000});return wait(1700,s)}
 function taiwanFeature(){const fs=G.chinaLevel1Geo?.features||[];const norm=x=>String(x||'').replace(/中华人民共和国|中国|台湾省|台湾地区|台湾/g,'台湾').replace(/省|地区/g,'');for(const f of fs){const vals=Object.values(f.properties||{}).map(String);if(vals.some(v=>/台湾/.test(v)||norm(v)==='台湾'))return f}return null}
@@ -32,30 +73,14 @@ function prelight(iso){
 }
 async function travelTransition(n,iso,s){
   iso=String(iso||n?.countryIso3||'').toUpperCase();
-  let from;try{from=C.Cartographic.fromCartesian(G.viewer.camera.positionWC)}catch{return true}
-  const center=mainland(iso);if(!from||!center)return true;
-  const toLon=C.Math.toRadians(+center[0]),toLat=C.Math.toRadians(+center[1]);
-  const dl=toLon-from.longitude;
-  const ang=Math.acos(Math.max(-1,Math.min(1,Math.sin(from.latitude)*Math.sin(toLat)+Math.cos(from.latitude)*Math.cos(toLat)*Math.cos(dl))));
-  if(ang<C.Math.toRadians(7)){G.__v52Trace.push({stage:'travel-ready',iso,midpoint:false});return true}
-  const km=ang*6378.137;
-  const cruise=1700000+Math.min(5200000,km*520);
-  const dlon=Math.atan2(Math.sin(toLon-from.longitude),Math.cos(toLon-from.longitude));
-  const midLon=from.longitude+dlon*.50,midLat=from.latitude+(toLat-from.latitude)*.50;
-  const dur=Math.max(.70,Math.min(1.45,.60+km/6500));
-  cancelCameraFlight();
-  await new Promise(r=>G.viewer.camera.flyTo({
-    destination:C.Cartesian3.fromRadians(midLon,midLat,cruise),
-    orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},
-    duration:dur,
-    easingFunction:C.EasingFunction.QUADRATIC_IN_OUT,
-    complete:r,cancel:r
-  }));
-  if(s!==G.navSerial)return false;
-  // R41: the artificial cruise midpoint is restored, but this function stops here.
-  // The following scene stage owns the single descent/fit to the country, avoiding
-  // the former duplicate country fit that caused push-up-rise camera glitches.
-  G.__v52Trace.push({stage:'travel-midpoint',iso,km:Math.round(km),peak:Math.round(cruise),duration:+dur.toFixed(2)});
-  return true
+  const result=await smoothCruiseToCountry(iso,s);
+  if(result===false){
+    if(s!==G.navSerial)return false;
+    G.__v52Trace.push({stage:'travel-ready',iso,continuous:true,midpoint:false});
+    return true
+  }
+  G.__v52CruiseArrival={iso,serial:s};
+  G.__v52Trace.push({stage:'travel-continuous',iso,continuous:true,midpoint:true,km:Math.round(result.km),peak:Math.round(result.cruise),duration:+result.duration.toFixed(2)});
+  return s===G.navSerial
 }
-G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r41-midpoint-single-descent';console.info('[News Globe] V52 R41: artificial cruise midpoint restored; single descent/fit retained; R38 rendering unchanged');})();
+G.__v52Trace=[];G.getV52Trace=()=>G.__v52Trace.slice();G.runSequence=async function(n,iso,s){G.__v52Trace.length=0;iso=String(n.countryIso3||iso||'').toUpperCase();storyIsos=storyCountries(n,iso);clear();prelight(iso);if(!await travelTransition(n,iso,s))return;const mode=String(n.sceneMode||'').toUpperCase(),p=n.scenePlan||{};if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return attack(n,iso,s);if(p.regionalContext)return regional(n,s);if(mode==='POINT'||mode==='ADMIN'||chain(n).length){if(!await country(iso,n,s))return;if(!await admins(n,iso,s))return;return final(n,s)}return legacy(n,iso,s)};G.__V52_SEQUENCE_OWNER='r42-continuous-midpoint-flight';console.info('[News Globe] V52 R42: continuous start-midpoint-country flight; no stop/restart at midpoint; R38 rendering unchanged');})();
