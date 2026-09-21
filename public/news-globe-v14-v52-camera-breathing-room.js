@@ -23,6 +23,7 @@
   }
 
   P.flyTo=function(options){
+    if(window.NG14?.__v52AuthoritativeController)return oldFlyTo.call(this,options);
     try{
       if(options&&options.destination&&options.destination instanceof C.Cartesian3){
         const cart=C.Cartographic.fromCartesian(options.destination);
@@ -36,6 +37,7 @@
   };
 
   P.flyToBoundingSphere=function(bs,options){
+    if(window.NG14?.__v52AuthoritativeController)return oldFlyToBoundingSphere.call(this,bs,options);
     try{
       if(options&&options.offset&&Number.isFinite(options.offset.range)&&options.offset.range>0){
         const o=options.offset;
