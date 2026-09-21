@@ -30,8 +30,9 @@ function smoothCruiseToCountry(iso,s){
   if(ang<C.Math.toRadians(7))return Promise.resolve(false);
   const km=ang*6378.137,b=C.BoundingSphere.fromPoints(ps);
   const endH=Math.max(700000,Math.min(9000000,b.radius*2.2));
-  const cruise=1700000+Math.min(5200000,km*520);
   const startLon=from.longitude,endLon=startLon+dlon,startLat=from.latitude,endLat=toLat,startH=Math.max(120000,from.height||120000);
+  const baseCruise=1700000+Math.min(5200000,km*520);
+  const cruise=Math.max(baseCruise,Math.min(12000000,Math.max(startH,endH)*1.08));
   const duration=Math.max(1.80,Math.min(3.10,1.55+km/6500));
   const lift=cruise-(startH+endH)*.5;
   cancelCameraFlight();
