@@ -29,6 +29,7 @@ export type EdgeOmniSettings = {
   vocalFryBaseRate?: number;
   vocalFryBasePitch?: number;
   vocalFryBaseVolume?: number;
+  fineGrainedFocus?: boolean;
   deliveryMode?: "neutral" | "broadcast" | "story";
   // V17: keep the same fluent sentence-closure mechanism across all four news
   // presets while preserving each presenter's own pause density.
@@ -2075,6 +2076,132 @@ function renderPunctuationFreeFallback(
   return output;
 }
 
+
+type FineFocusKind = "number" | "entity" | "turn" | "critical" | "negation";
+type FineFocusSpan = {
+  start: number;
+  end: number;
+  kind: FineFocusKind;
+  priority: number;
+};
+
+const KAZAKH_NUMBER_WORDS =
+  "(?:нөл|бір|екі|үш|төрт|бес|алты|жеті|сегіз|тоғыз|он|жиырма|отыз|қырық|елу|алпыс|жетпіс|сексен|тоқсан|жүз|мың|миллион|миллиард|триллион)";
+const NEWS_UNIT_WORDS =
+  "(?:пайыз|процент|адам|километр|метр|тонна|килограмм|гектар|градус|мегаватт|гигаватт|киловатт|гигабайт|терабайт|герц|доллар|еуро|юань|теңге)";
+const NEWS_ENTITY_WORD_PATTERN =
+  /\b(?:Ресей|Украина|Қытай|АҚШ|Иран|Израиль|Палестина|Сирия|Ливан|Түркия|Катар|Үндістан|Пәкістан|Ауғанстан|Жапония|Молдова|Беларусь|Армения|Әзербайжан|Грузия|Қазақстан|Өзбекстан|Қырғызстан|Тәжікстан|Түрікменстан|НАТО|Еуропа Одағы)\b/gu;
+const INLINE_TURN_PATTERN =
+  /\b(?:бірақ|алайда|дегенмен|сондықтан|сол себепті|нәтижесінде|осылайша|демек|керісінше|ең бастысы|маңыздысы|әсіресе|атап айтқанда)\b/giu;
+const INLINE_CRITICAL_PATTERN =
+  /\b(?:қаза тапты|жараланды|расталды|мәлімдеді|хабарлады|растады|жариялады|қол қойды|іске қосты|бастады|тоқтатты|жіберді|аттандырды|жетті)\b/giu;
+const INLINE_NEGATION_PATTERN =
+  /\b(?:емес|жоқ|расталған жоқ|анықталған жоқ|орын алған жоқ)\b/giu;
+
+function pushFineFocusSpan(
+  spans: FineFocusSpan[],
+  start: number,
+  end: number,
+  kind: FineFocusKind,
+  priority: number,
+) {
+  if (start < 0 || end <= start) return;
+  spans.push({ start, end, kind, priority });
+}
+
+function collectFishInlineFocusSpans(text: string, phrase: Phrase) {
+  if (text.trim().length < 5) return [] as FineFocusSpan[];
+  const spans: FineFocusSpan[] = [];
+
+  const numberUnitPattern = new RegExp(
+    `(?:\\b\\d+(?:[.,]\\d+)?|\\b${KAZAKH_NUMBER_WORDS}(?:\\s+${KAZAKH_NUMBER_WORDS}){0,5})\\s+${NEWS_UNIT_WORDS}\\b`,
+    "giu",
+  );
+  for (const match of text.matchAll(numberUnitPattern)) {
+    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "number", 1);
+  }
+
+  for (const match of text.matchAll(NEWS_ENTITY_WORD_PATTERN)) {
+    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "entity", 0.82);
+  }
+
+  // Multi-word proper names and organization names are safer than a single
+  // capitalized sentence-initial word, which is often just normal grammar.
+  const multiWordEntity = /\b[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}(?:\s+[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}){1,3}\b/gu;
+  for (const match of text.matchAll(multiWordEntity)) {
+    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "entity", 0.76);
+  }
+
+  for (const match of text.matchAll(INLINE_TURN_PATTERN)) {
+    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "turn", 0.73);
+  }
+
+  // Casualty and confirmation verbs receive word-level focus only when the
+  // phrase is already important in the document model. This prevents every
+  // ordinary reporting verb from becoming "announcer emphasis".
+  if (
+    ["lead", "key_number", "climax"].includes(phrase.segment?.role ?? "") ||
+    /(?:қаза тапты|жараланды)/iu.test(text)
+  ) {
+    for (const match of text.matchAll(INLINE_CRITICAL_PATTERN)) {
+      pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "critical", 0.7);
+    }
+  }
+
+  for (const match of text.matchAll(INLINE_NEGATION_PATTERN)) {
+    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "negation", 0.68);
+  }
+
+  const maxSpans = text.length >= 150 ? 3 : 2;
+  const selected: FineFocusSpan[] = [];
+  for (const candidate of spans.sort((a, b) => b.priority - a.priority || a.start - b.start)) {
+    if (selected.some((item) => candidate.start < item.end && candidate.end > item.start)) continue;
+    const selectedChars = selected.reduce((sum, item) => sum + item.end - item.start, 0);
+    if ((selectedChars + candidate.end - candidate.start) / Math.max(1, text.length) > 0.4) continue;
+    selected.push(candidate);
+    if (selected.length >= maxSpans) break;
+  }
+
+  return selected.sort((a, b) => a.start - b.start);
+}
+
+function fineFocusProsody(kind: FineFocusKind) {
+  switch (kind) {
+    case "number":
+      return { rate: -1.8, pitch: 0.65, volume: 0.9 };
+    case "entity":
+      return { rate: -0.7, pitch: 0.45, volume: 0.5 };
+    case "turn":
+      return { rate: -1.1, pitch: 0.55, volume: 0.55 };
+    case "critical":
+      return { rate: -1.0, pitch: 0.25, volume: 0.75 };
+    case "negation":
+      return { rate: -1.25, pitch: 0.3, volume: 0.7 };
+  }
+}
+
+function renderFishStyleInlineFocus(
+  text: string,
+  phrase: Phrase,
+  renderText: EdgeMarkupRenderer,
+  enabled: boolean,
+) {
+  if (!enabled) return renderText(text);
+  const spans = collectFishInlineFocusSpans(text, phrase);
+  if (!spans.length) return renderText(text);
+
+  let output = "";
+  let cursor = 0;
+  for (const span of spans) {
+    if (span.start > cursor) output += renderText(text.slice(cursor, span.start));
+    const prosody = fineFocusProsody(span.kind);
+    output += `<prosody rate="${signedPercent(prosody.rate)}" pitch="${signedPercent(prosody.pitch)}" volume="${signedPercent(prosody.volume)}">${renderText(text.slice(span.start, span.end))}</prosody>`;
+    cursor = span.end;
+  }
+  if (cursor < text.length) output += renderText(text.slice(cursor));
+  return output;
+}
+
 function naturalTextMarkup(
   text: string,
   renderText: EdgeMarkupRenderer = escapeXml,
@@ -2248,7 +2375,14 @@ function renderGroup(
   let body = "";
 
   for (const item of group) {
-    let spoken = naturalTextMarkup(item.text, renderText, settings.deliveryMode);
+    const fineRender: EdgeMarkupRenderer = (value) =>
+      renderFishStyleInlineFocus(
+        value,
+        item,
+        renderText,
+        Boolean(settings.fineGrainedFocus),
+      );
+    let spoken = naturalTextMarkup(item.text, fineRender, settings.deliveryMode);
     const renderedPunctuation = acousticPunctuation(item, settings.deliveryMode);
     if (renderedPunctuation) spoken += escapeXml(renderedPunctuation);
 
