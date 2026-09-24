@@ -15,6 +15,8 @@ import {
   renderEdgeOmniInspiredMarkup,
   type EdgeChunkBoundaryKind,
   type EdgeChunkPlan,
+  type EdgeEmotionName,
+  type EdgeEmotionOverride,
 } from "../../lib/edge-omnivoice-inspired";
 import { probeEdgeBoundaries } from "../../lib/edge-readaloud-boundary";
 
@@ -94,10 +96,18 @@ type ElevenVoiceSettings = {
   speakerBoost: boolean;
 };
 
+type EdgeDirectorOverrideInput = {
+  index: number;
+  emotion: EdgeEmotionName;
+  intensity: number;
+};
+
 type EdgeVoiceSettings = {
   speed: number;
   pitch: number;
   volume: number;
+  directorOverrides: EdgeDirectorOverrideInput[];
+  emotionOverrides?: EdgeEmotionOverride[];
 };
 
 let tokenCache: {
@@ -118,6 +128,64 @@ class ElevenLabsError extends Error {
     this.detail = detail;
     this.chunkIndex = chunkIndex;
   }
+}
+
+const EDGE_EMOTIONS = new Set<EdgeEmotionName>([
+  "happy",
+  "angry",
+  "sad",
+  "afraid",
+  "disgusted",
+  "melancholic",
+  "surprised",
+  "calm",
+]);
+
+function readEdgeDirectorOverrides(value: unknown): EdgeDirectorOverrideInput[] | null {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > 240) return null;
+
+  const output: EdgeDirectorOverrideInput[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") return null;
+    const record = item as Record<string, unknown>;
+    const index = record.index;
+    const emotion = record.emotion;
+    const intensity = record.intensity;
+    if (
+      typeof index !== "number" ||
+      !Number.isInteger(index) ||
+      index < 0 ||
+      index > 999 ||
+      typeof emotion !== "string" ||
+      !EDGE_EMOTIONS.has(emotion as EdgeEmotionName) ||
+      typeof intensity !== "number" ||
+      !Number.isFinite(intensity) ||
+      intensity < 0 ||
+      intensity > 1
+    ) return null;
+    output.push({
+      index,
+      emotion: emotion as EdgeEmotionName,
+      intensity,
+    });
+  }
+  return output;
+}
+
+function materializeEdgeEmotionOverrides(
+  plan: EdgeEmotionPlan,
+  overrides: EdgeDirectorOverrideInput[],
+): EdgeEmotionOverride[] {
+  return overrides.flatMap((override) => {
+    const sentence = plan.sentences[override.index];
+    if (!sentence?.text) return [];
+    return [{
+      text: sentence.text,
+      emotion: override.emotion,
+      intensity: override.intensity,
+    }];
+  });
 }
 
 function jsonError(message: string, status: number) {
@@ -1662,6 +1730,10 @@ async function synthesizeWithEdge(
     effectiveSpeed,
   ).catch(() => refreshEdgePlanContext(preparedText, initialChunkPlans, effectiveSpeed));
   const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
+  const synthesisSettings: EdgeVoiceSettings = {
+    ...settings,
+    emotionOverrides: materializeEdgeEmotionOverrides(emotionPlan, settings.directorOverrides),
+  };
   const audioChunks: ArrayBuffer[] = [];
 
   for (let index = 0; index < chunkPlans.length; index += 1) {
@@ -1673,7 +1745,7 @@ async function synthesizeWithEdge(
           chunk.text,
           voice,
           preset,
-          settings,
+          synthesisSettings,
           endpoint,
           documentPlan,
           useMultilingual,
@@ -1711,7 +1783,7 @@ async function synthesizeWithEdge(
             fallback.text,
             voice,
             preset,
-            settings,
+            synthesisSettings,
             endpoint,
             documentPlan,
             useMultilingual,
@@ -1840,6 +1912,7 @@ export async function POST(request: Request) {
     speakerBoost,
     edgePitch,
     edgeVolume,
+    edgeEmotionOverrides,
   } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
@@ -1946,10 +2019,16 @@ export async function POST(request: Request) {
     return jsonError("Edge TTS 音量必须在 -8% 到 +8% 之间。", 400);
   }
 
+  const selectedDirectorOverrides = readEdgeDirectorOverrides(edgeEmotionOverrides);
+  if (!selectedDirectorOverrides) {
+    return jsonError("Edge 情绪导演参数无效。", 400);
+  }
+
   const edgeSettings: EdgeVoiceSettings = {
     speed: selectedSpeed,
     pitch: selectedPitch,
     volume: selectedVolume,
+    directorOverrides: selectedDirectorOverrides,
   };
 
   try {
