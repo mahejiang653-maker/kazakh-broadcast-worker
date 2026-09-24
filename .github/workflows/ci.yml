@@ -150,22 +150,26 @@ jobs:
         run: |
           set -euo pipefail
           SITE="https://kazakh-broadcast-worker.mahejiang653.workers.dev"
-          CONFIG="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/kk_KZ-issai-high.onnx.json"
+          CONFIG="$SITE/api/piper-model/kk/kk_KZ/issai/high/kk_KZ-issai-high.onnx.json"
+          MODEL="$SITE/api/piper-model/kk/kk_KZ/issai/high/kk_KZ-issai-high.onnx"
 
           runtime_status="$(curl --silent --show-error --location --max-time 60 --range 0-511 --output /tmp/piper-runtime.bin --dump-header /tmp/piper-runtime.headers --write-out '%{http_code}' "$SITE/api/piper-runtime/piper-tts-web.js" || true)"
           sample0_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample0.bin --dump-header /tmp/piper-sample0.headers --write-out '%{http_code}' "$SITE/api/piper-sample?speaker=0" || true)"
           sample5_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample5.bin --dump-header /tmp/piper-sample5.headers --write-out '%{http_code}' "$SITE/api/piper-sample?speaker=5" || true)"
           config_status="$(curl --silent --show-error --location --max-time 45 --output /tmp/piper-config.json --write-out '%{http_code}' "$CONFIG" || true)"
+          model_status="$(curl --silent --show-error --location --max-time 60 --range 0-1023 --output /tmp/piper-model.bin --dump-header /tmp/piper-model.headers --write-out '%{http_code}' "$MODEL" || true)"
 
           runtime_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/piper-runtime.headers | tail -1)"
           sample0_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/piper-sample0.headers | tail -1)"
+          model_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/piper-model.headers | tail -1)"
           runtime_size="$(wc -c < /tmp/piper-runtime.bin 2>/dev/null || echo 0)"
           sample0_size="$(wc -c < /tmp/piper-sample0.bin 2>/dev/null || echo 0)"
+          model_size="$(wc -c < /tmp/piper-model.bin 2>/dev/null || echo 0)"
 
-          echo "Piper same-origin: runtime=$runtime_status/$runtime_type/$runtime_size sample0=$sample0_status/$sample0_type/$sample0_size sample5=$sample5_status config=$config_status"
+          echo "Piper same-origin: runtime=$runtime_status/$runtime_type/$runtime_size sample0=$sample0_status/$sample0_type/$sample0_size sample5=$sample5_status config=$config_status model=$model_status/$model_type/$model_size"
           node -e 'const f=require("fs"); const j=JSON.parse(f.readFileSync("/tmp/piper-config.json","utf8")); if(j.num_speakers!==6) process.exit(1); if(!j.speaker_id_map || Object.keys(j.speaker_id_map).length!==6) process.exit(1); console.log("Piper config confirms 6 speakers.");'
 
-          for status in "$runtime_status" "$sample0_status" "$sample5_status" "$config_status"; do
+          for status in "$runtime_status" "$sample0_status" "$sample5_status" "$config_status" "$model_status"; do
             if [[ "$status" != "200" && "$status" != "206" ]]; then
               echo "Piper Local asset smoke test failed."
               exit 1
@@ -176,8 +180,8 @@ jobs:
             echo "Piper runtime has invalid MIME type: $runtime_type"
             exit 1
           fi
-          if [[ "$sample0_type" != audio/* || "$runtime_size" -le 100 || "$sample0_size" -le 100 ]]; then
-            echo "Piper proxied runtime/sample content is invalid."
+          if [[ "$sample0_type" != audio/* || "$runtime_size" -le 100 || "$sample0_size" -le 100 || "$model_size" -le 100 ]]; then
+            echo "Piper proxied runtime/sample/model content is invalid."
             exit 1
           fi
-          echo "Piper Local same-origin asset smoke test passed."
+          echo "Piper Local same-origin runtime/sample/model smoke test passed."
