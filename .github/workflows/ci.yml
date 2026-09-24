@@ -83,3 +83,22 @@ jobs:
             exit 1
           fi
           echo "Daulet V2 anti-fry smoke test passed."
+
+      - name: Live Fish S2-style inline focus smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://kazakh-broadcast-worker.mahejiang653.workers.dev/api/synthesize"
+          PAYLOAD='{"text":"Ресейде жиырма бес адам жараланды. Сондықтан қауіпсіздік шаралары күшейтілді.","engine":"edge","voice":"kk-KZ-DauletNeural","preset":"news","speed":1,"edgePitch":0,"edgeVolume":0,"edgeFineFocus":true,"edgeEmotionOverrides":[],"stability":0.5,"similarityBoost":0.75,"style":0,"speakerBoost":true}'
+          rm -f /tmp/fish-focus.bin /tmp/fish-focus.headers
+          status="$(curl --silent --show-error --location --max-time 90             --output /tmp/fish-focus.bin             --dump-header /tmp/fish-focus.headers             --write-out '%{http_code}'             --request POST "$URL"             --header 'Content-Type: application/json'             --data "$PAYLOAD" || true)"
+          content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/fish-focus.headers | tail -1)"
+          size="$(wc -c < /tmp/fish-focus.bin 2>/dev/null || echo 0)"
+          echo "Fish inline focus: HTTP $status · Content-Type $content_type · $size bytes"
+          if [[ "$status" != "200" || "$content_type" != audio/mpeg* || "$size" -le 1000 ]]; then
+            echo "Fish inline focus smoke test failed."
+            head -c 600 /tmp/fish-focus.bin || true
+            echo
+            exit 1
+          fi
+          echo "Fish S2-style inline focus smoke test passed."
