@@ -149,20 +149,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          MODULE="https://cdn.jsdelivr.net/npm/piper-tts-web@1.1.2/dist/piper-tts-web.js"
+          PACKAGE_META="https://registry.npmjs.org/piper-tts-web/1.1.2"
           CONFIG="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/kk_KZ-issai-high.onnx.json"
           SAMPLE0="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/samples/speaker_0.mp3"
           SAMPLE5="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/samples/speaker_5.mp3"
 
-          module_status="$(curl --silent --show-error --head --location --max-time 45 --output /tmp/piper-module.headers --write-out '%{http_code}' "$MODULE" || true)"
+          package_status="$(curl --silent --show-error --location --max-time 45 --output /tmp/piper-package.json --write-out '%{http_code}' "$PACKAGE_META" || true)"
           config_status="$(curl --silent --show-error --location --max-time 45 --output /tmp/piper-config.json --write-out '%{http_code}' "$CONFIG" || true)"
           sample0_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample0.bin --write-out '%{http_code}' "$SAMPLE0" || true)"
           sample5_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample5.bin --write-out '%{http_code}' "$SAMPLE5" || true)"
 
-          echo "Piper assets: module=$module_status config=$config_status sample0=$sample0_status sample5=$sample5_status"
-          node -e 'const f=require("fs"); const j=JSON.parse(f.readFileSync("/tmp/piper-config.json","utf8")); if(j.num_speakers!==6) process.exit(1); if(!j.speaker_id_map || Object.keys(j.speaker_id_map).length!==6) process.exit(1); console.log("Piper config confirms 6 speakers.");'
+          echo "Piper assets: npm=$package_status config=$config_status sample0=$sample0_status sample5=$sample5_status"
+          node -e 'const f=require("fs"); const p=JSON.parse(f.readFileSync("/tmp/piper-package.json","utf8")); if(p.version!=="1.1.2") process.exit(1); const j=JSON.parse(f.readFileSync("/tmp/piper-config.json","utf8")); if(j.num_speakers!==6) process.exit(1); if(!j.speaker_id_map || Object.keys(j.speaker_id_map).length!==6) process.exit(1); console.log("Piper package and 6-speaker Kazakh config confirmed.");'
 
-          for status in "$module_status" "$config_status" "$sample0_status" "$sample5_status"; do
+          for status in "$package_status" "$config_status" "$sample0_status" "$sample5_status"; do
             if [[ "$status" != "200" && "$status" != "206" ]]; then
               echo "Piper Local asset smoke test failed."
               exit 1
