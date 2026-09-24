@@ -108,6 +108,21 @@ const TONE_PRESETS = [
   },
 ] as const;
 
+const ELEVEN_V3_DIRECTION_TAGS = [
+  { token: "[短停顿]", label: "短停顿", note: "轻微换气" },
+  { token: "[长停顿]", label: "长停顿", note: "段落停留" },
+  { token: "[开心]", label: "开心", note: "更明亮" },
+  { token: "[悲伤]", label: "悲伤", note: "更低沉" },
+  { token: "[惊讶]", label: "惊讶", note: "抬高语气" },
+  { token: "[生气]", label: "生气", note: "增强力度" },
+  { token: "[害怕]", label: "紧张", note: "更谨慎" },
+  { token: "[平静]", label: "平静", note: "克制稳定" },
+  { token: "[耳语]", label: "耳语", note: "压低声线" },
+  { token: "[叹气]", label: "叹气", note: "自然呼吸" },
+  { token: "[轻笑]", label: "轻笑", note: "轻微笑声" },
+  { token: "[清嗓]", label: "清嗓", note: "播音前动作" },
+] as const;
+
 
 type Engine = "edge" | "eleven" | "omnivoice";
 type PresetId = (typeof PRESETS)[number]["id"];
@@ -240,6 +255,7 @@ export default function Home() {
   const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
   const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
   const audioUrlRef = useRef<string | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
@@ -525,6 +541,32 @@ export default function Home() {
     resetAudio();
   }
 
+  function insertDirectionTag(token: string) {
+    const textarea = textAreaRef.current;
+    const start = textarea?.selectionStart ?? text.length;
+    const end = textarea?.selectionEnd ?? start;
+    const selected = text.slice(start, end);
+    const insertion = selected ? `${selected}${token}` : token;
+    const nextText = `${text.slice(0, start)}${insertion}${text.slice(end)}`;
+
+    if (nextText.length > MAX_CHARACTERS) {
+      setError(`加入标签后文本不能超过 ${MAX_CHARACTERS} 个字符。`);
+      return;
+    }
+
+    setText(nextText);
+    setError("");
+    resetEmotionAnalysis();
+    resetAudio();
+
+    window.requestAnimationFrame(() => {
+      if (!textarea) return;
+      const nextCaret = start + insertion.length;
+      textarea.focus();
+      textarea.setSelectionRange(nextCaret, nextCaret);
+    });
+  }
+
   const speedControl = (label: string) => (
     <fieldset className="field-block">
       <legend>{label}</legend>
@@ -619,6 +661,7 @@ export default function Home() {
             <span>Edge / OmniVoice / ElevenLabs</span>
             <span>Edge / v3 中哈自动混读</span>
             <span>三种模式均可调倍速</span>
+            <span>ISSAI 式表达标签</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
           </div>
@@ -650,6 +693,7 @@ export default function Home() {
             </div>
             <div className="textarea-wrap">
               <textarea
+                ref={textAreaRef}
                 id="kazakh-text"
                 value={text}
                 maxLength={MAX_CHARACTERS}
@@ -662,6 +706,35 @@ export default function Home() {
                 spellCheck={false}
                 aria-describedby="character-count"
               />
+              {engine === "eleven" ? (
+                <div className="direction-panel" aria-label="ElevenLabs v3 表达控制">
+                  <div className="direction-panel-head">
+                    <div>
+                      <strong>ISSAI 式表达控制</strong>
+                      <small>句尾点情绪标签控制前一句；停顿与动作标签可直接插在需要的位置</small>
+                    </div>
+                    <span>v3</span>
+                  </div>
+                  <div className="direction-grid">
+                    {ELEVEN_V3_DIRECTION_TAGS.map((item) => (
+                      <button
+                        className="direction-chip"
+                        type="button"
+                        key={item.token}
+                        onClick={() => insertDirectionTag(item.token)}
+                        title={`${item.token} · ${item.note}`}
+                      >
+                        <strong>{item.label}</strong>
+                        <small>{item.token}</small>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="direction-panel-foot">
+                    <span>生成时自动转换为 Eleven v3 Audio Tags</span>
+                    <span>切回 Edge 时不会把这些标签念出来</span>
+                  </div>
+                </div>
+              ) : null}
               {engine === "edge" ? (
                 <div
                   aria-live="polite"
@@ -740,7 +813,7 @@ export default function Home() {
                 <span className="voice-avatar">3</span>
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
-                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 中文自动识别</small>
+                  <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 表达标签 / 中文自动识别</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
