@@ -676,11 +676,12 @@ function edgeNativeProsody(
   const presetSettings = PRESETS[preset];
   const isDaulet = voice === "kk-KZ-DauletNeural";
   const isAigul = voice === "kk-KZ-AigulNeural";
-  // V39 warmth compensation: the old +1.8% Daulet lift reduced creak but also
-  // made the native male voice noticeably brighter/harder. Keep a smaller lift
-  // and give Aigul an almost imperceptible warm bias instead of changing identity.
-  const antiCreakRate = isDaulet ? 1.001 : isAigul ? 0.9995 : 1;
-  const antiCreakPitch = isDaulet ? 0.75 : isAigul ? -0.15 : 0;
+  // V40: keep Daulet's dark identity, but raise the global floor just enough that
+  // long low-energy passages do not sit in the model's creakiest register. The
+  // stronger protection now happens locally at phrase endings in the renderer.
+  const antiCreakRate = isDaulet ? 1.004 : isAigul ? 0.9995 : 1;
+  const antiCreakPitch = isDaulet ? 0.95 : isAigul ? -0.15 : 0;
+  const antiCreakVolume = isDaulet ? 0.04 : 0;
 
   const effectiveSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
@@ -693,7 +694,7 @@ function edgeNativeProsody(
     18,
   );
   const effectiveVolume = clamp(
-    settings.volume + presetSettings.volume,
+    settings.volume + presetSettings.volume + antiCreakVolume,
     -7,
     7,
   );
@@ -949,6 +950,7 @@ function renderContinuousStoryBody(
   continuityAfter = "",
   continuityBoundaryBefore?: EdgeChunkBoundaryKind,
   continuityBoundaryAfter?: EdgeChunkBoundaryKind,
+  vocalFryGuard = 0,
 ) {
   // V10 continuity rule: analyze emotion finely, but synthesize in long acoustic
   // movements. Narration may cross source paragraph boundaries when the speaker
@@ -1115,6 +1117,7 @@ function renderContinuousStoryBody(
         continuityAfter: groupIndex === groups.length - 1 ? continuityAfter : undefined,
         continuityBoundaryBefore: groupIndex === 0 ? continuityBoundaryBefore : undefined,
         continuityBoundaryAfter: groupIndex === groups.length - 1 ? continuityBoundaryAfter : undefined,
+        vocalFryGuard,
       },
       documentPlan,
       renderLanguageAwareText,
@@ -1150,14 +1153,22 @@ function renderEmotionDirectedBody(
   // local motion. Multilingual profiles keep their original acoustic baseline.
   const antiCreakRate = useMultilingual
     ? 1
-    : isDauletProfile ? 1.001
+    : isDauletProfile ? 1.004
       : isAigulProfile ? 0.9995
         : 1;
   const antiCreakPitch = useMultilingual
     ? 0
-    : isDauletProfile ? 0.75
+    : isDauletProfile ? 0.95
       : isAigulProfile ? -0.15
         : 0;
+  const antiCreakVolume = useMultilingual
+    ? 0
+    : isDauletProfile ? 0.04
+      : 0;
+  const vocalFryGuard =
+    !useMultilingual && isDauletProfile
+      ? (preset === "calm" || preset === "story" ? 1 : 0.9)
+      : 0;
   const baseSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
     0.58,
@@ -1169,7 +1180,7 @@ function renderEmotionDirectedBody(
     18,
   );
   const baseVolume = clamp(
-    settings.volume + presetSettings.volume,
+    settings.volume + presetSettings.volume + antiCreakVolume,
     -7,
     7,
   );
@@ -1199,6 +1210,7 @@ function renderEmotionDirectedBody(
       continuityAfter,
       continuityBoundaryBefore,
       continuityBoundaryAfter,
+      vocalFryGuard,
     );
   }
 
@@ -1257,6 +1269,7 @@ function renderEmotionDirectedBody(
           continuityBoundaryBefore,
           continuityBoundaryAfter,
           emotionOverrides: settings.emotionOverrides,
+          vocalFryGuard,
         },
         documentPlan,
         renderLanguageAwareText,
