@@ -547,32 +547,9 @@ export default function Home() {
     setError("");
 
     try {
-      const shouldAnalyzeEmotion = engine === "edge";
-      if (shouldAnalyzeEmotion) {
-        setEmotionAnalysisStatus("analyzing");
-        setEmotionSentenceCount(0);
-
-        const analysisResponse = await fetch("/api/edge-emotion-analysis", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: cleanText }),
-        });
-        const analysisPayload = (await analysisResponse.json().catch(() => null)) as
-          | { status?: string; sentenceCount?: number; error?: string }
-          | null;
-
-        if (!analysisResponse.ok || analysisPayload?.status !== "completed") {
-          setEmotionAnalysisStatus("failed");
-          throw new Error(analysisPayload?.error || "情绪分析失败，请稍后重试。");
-        }
-
-        setEmotionSentenceCount(
-          typeof analysisPayload.sentenceCount === "number" ? analysisPayload.sentenceCount : 0,
-        );
-        setEmotionAnalysisStatus("completed");
-      } else {
-        resetEmotionAnalysis();
-      }
+      // Emotion preflight is best-effort UI feedback only. Never block TTS on it:
+      // the synthesis route runs the real full emotion/prosody plan itself.
+      if (engine !== "edge") resetEmotionAnalysis();
 
       const response = await fetch("/api/synthesize", {
         method: "POST",
