@@ -679,9 +679,11 @@ function edgeNativeProsody(
   // V40: keep Daulet's dark identity, but raise the global floor just enough that
   // long low-energy passages do not sit in the model's creakiest register. The
   // stronger protection now happens locally at phrase endings in the renderer.
-  const antiCreakRate = isDaulet ? 1.004 : isAigul ? 0.9995 : 1;
-  const antiCreakPitch = isDaulet ? 0.95 : isAigul ? -0.15 : 0;
-  const antiCreakVolume = isDaulet ? 0.04 : 0;
+  // V2 keeps the global compensation smaller and lets the final-state guard
+  // target only genuinely risky closures.
+  const antiCreakRate = isDaulet ? 1.003 : isAigul ? 0.9995 : 1;
+  const antiCreakPitch = isDaulet ? 0.82 : isAigul ? -0.15 : 0;
+  const antiCreakVolume = isDaulet ? 0.03 : 0;
 
   const effectiveSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
@@ -1118,6 +1120,9 @@ function renderContinuousStoryBody(
         continuityBoundaryBefore: groupIndex === 0 ? continuityBoundaryBefore : undefined,
         continuityBoundaryAfter: groupIndex === groups.length - 1 ? continuityBoundaryAfter : undefined,
         vocalFryGuard,
+        vocalFryBaseRate: baseSpeed,
+        vocalFryBasePitch: basePitch,
+        vocalFryBaseVolume: baseVolume,
       },
       documentPlan,
       renderLanguageAwareText,
@@ -1153,21 +1158,25 @@ function renderEmotionDirectedBody(
   // local motion. Multilingual profiles keep their original acoustic baseline.
   const antiCreakRate = useMultilingual
     ? 1
-    : isDauletProfile ? 1.004
+    : isDauletProfile ? 1.003
       : isAigulProfile ? 0.9995
         : 1;
   const antiCreakPitch = useMultilingual
     ? 0
-    : isDauletProfile ? 0.95
+    : isDauletProfile ? 0.82
       : isAigulProfile ? -0.15
         : 0;
   const antiCreakVolume = useMultilingual
     ? 0
-    : isDauletProfile ? 0.04
+    : isDauletProfile ? 0.03
       : 0;
   const vocalFryGuard =
     !useMultilingual && isDauletProfile
-      ? (preset === "calm" || preset === "story" ? 1 : 0.9)
+      ? preset === "calm" || preset === "story"
+        ? 1.08
+        : preset === "bulletin"
+          ? 0.94
+          : 1
       : 0;
   const baseSpeed = clamp(
     settings.speed * presetSettings.rateFactor * antiCreakRate,
@@ -1270,6 +1279,9 @@ function renderEmotionDirectedBody(
           continuityBoundaryAfter,
           emotionOverrides: settings.emotionOverrides,
           vocalFryGuard,
+          vocalFryBaseRate: baseSpeed,
+          vocalFryBasePitch: basePitch,
+          vocalFryBaseVolume: baseVolume,
         },
         documentPlan,
         renderLanguageAwareText,
