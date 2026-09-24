@@ -959,6 +959,9 @@ function renderContinuousStoryBody(
   continuityBoundaryBefore?: EdgeChunkBoundaryKind,
   continuityBoundaryAfter?: EdgeChunkBoundaryKind,
   vocalFryGuard = 0,
+  continuityStateBefore?: EdgeContinuityState,
+  continuityStateAfter?: EdgeContinuityState,
+  longFormCorrection?: EdgeContinuityState,
 ) {
   // V10 continuity rule: analyze emotion finely, but synthesize in long acoustic
   // movements. Narration may cross source paragraph boundaries when the speaker
@@ -1130,6 +1133,11 @@ function renderContinuousStoryBody(
         vocalFryBasePitch: basePitch,
         vocalFryBaseVolume: baseVolume,
         fineGrainedFocus: settings.fineGrainedFocus,
+        continuityStateBefore:
+          groupIndex === 0 ? continuityStateBefore : undefined,
+        continuityStateAfter:
+          groupIndex === groups.length - 1 ? continuityStateAfter : undefined,
+        longFormCorrection,
       },
       documentPlan,
       renderLanguageAwareText,
@@ -1227,6 +1235,9 @@ function renderEmotionDirectedBody(
       continuityBoundaryBefore,
       continuityBoundaryAfter,
       vocalFryGuard,
+      settings.continuityStateBefore,
+      settings.continuityStateAfter,
+      settings.longFormCorrection,
     );
   }
 
@@ -1290,6 +1301,9 @@ function renderEmotionDirectedBody(
           vocalFryBasePitch: basePitch,
           vocalFryBaseVolume: baseVolume,
           fineGrainedFocus: settings.fineGrainedFocus,
+          continuityStateBefore: settings.continuityStateBefore,
+          continuityStateAfter: settings.continuityStateAfter,
+          longFormCorrection: settings.longFormCorrection,
         },
         documentPlan,
         renderLanguageAwareText,
