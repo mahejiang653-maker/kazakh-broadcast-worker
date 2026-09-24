@@ -1481,7 +1481,7 @@ export default function Home() {
                 </div>
               </div>
             </>
-          ) : (
+          ) : engine === "omnivoice" ? (
             <>
               <div className="broadcast-note" style={{ marginTop: 24 }}>
                 <div className="broadcast-index">OV</div>
@@ -1505,9 +1505,33 @@ export default function Home() {
                 <span className="button-arrow" aria-hidden="true">→</span>
               </button>
             </>
+          ) : (
+            <>
+              <div className="broadcast-note" style={{ marginTop: 24 }}>
+                <div className="broadcast-index">P</div>
+                <div>
+                  <strong>Piper Local · 免费模式 3 已选中</strong>
+                  <p>完全非 Edge 的浏览器本地模式，包含 ISSAI KazakhTTS 的 6 个说话人。可先试听官方样音，再决定是否下载本地模型。</p>
+                </div>
+              </div>
+              <button
+                className="generate-button"
+                type="button"
+                onClick={() =>
+                  document.getElementById("piper-local")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
+              >
+                <span className="button-icon" aria-hidden="true"><i className="play-triangle" /></span>
+                <span>
+                  <strong>进入 Piper Local 声线筛选区</strong>
+                  <small>6 个官方说话人 · 浏览器本地生成 · 不使用 Edge</small>
+                </span>
+                <span className="button-arrow" aria-hidden="true">→</span>
+              </button>
+            </>
           )}
 
-          {engine !== "omnivoice" ? (
+          {engine !== "omnivoice" && engine !== "piper" ? (
             <>
           {error ? (
             <div className="error-message" role="alert">
@@ -1598,11 +1622,12 @@ export default function Home() {
       </section>
 
       <OmniVoiceStudio sourceText={text} />
+      <PiperLocalStudio sourceText={text} />
 
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
         <p>
-          免费模式一基于 Edge TTS · 免费模式二使用 KazakhTTS-OmniVoice 公共 Demo · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
+          免费模式一基于 Edge TTS · 免费模式二使用 KazakhTTS-OmniVoice 公共 Demo · 免费模式三使用 Piper + ISSAI KazakhTTS 浏览器本地推理 · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
           <a href="https://github.com/linshenkx/edge-tts-openai-cf-worker" target="_blank" rel="noreferrer">
             查看免费通道开源项目
           </a>
