@@ -1256,6 +1256,7 @@ function renderEmotionDirectedBody(
           continuityAfter,
           continuityBoundaryBefore,
           continuityBoundaryAfter,
+          emotionOverrides: settings.emotionOverrides,
         },
         documentPlan,
         renderLanguageAwareText,
