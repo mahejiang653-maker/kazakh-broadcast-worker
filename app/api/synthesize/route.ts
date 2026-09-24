@@ -287,6 +287,67 @@ async function getEndpoint() {
   return endpoint;
 }
 
+const STUDIO_EMOTION_TAGS: Record<string, string> = {
+  "开心": "[happy]",
+  "悲伤": "[sad]",
+  "惊讶": "[surprised]",
+  "生气": "[angry]",
+  "害怕": "[fearful]",
+  "厌恶": "[disgusted]",
+  "平静": "[calm]",
+  "耳语": "[whispers]",
+};
+
+const STUDIO_ACTION_TAGS: Record<string, string> = {
+  "短停顿": "[short pause]",
+  "长停顿": "[long pause]",
+  "叹气": "[sighs]",
+  "轻笑": "[laughs]",
+  "清嗓": "[clears throat]",
+};
+
+const STUDIO_DIRECTION_NAMES = [
+  ...Object.keys(STUDIO_EMOTION_TAGS),
+  ...Object.keys(STUDIO_ACTION_TAGS),
+].join("|");
+
+function normalizeElevenStudioDirectionTags(text: string) {
+  let output = text;
+
+  // User-facing emotion tags are intentionally written after a sentence.
+  // Eleven v3 directions work more reliably before the affected delivery,
+  // so move known trailing emotion tags in front of that sentence.
+  for (const [name, tag] of Object.entries(STUDIO_EMOTION_TAGS)) {
+    const trailing = new RegExp(
+      "([^。！？.!?\\n]+[。！？.!?]+)\\s*\\[" + name + "\\]",
+      "gu",
+    );
+    output = output.replace(trailing, (_match, sentence: string) => `${tag} ${sentence}`);
+  }
+
+  for (const [name, tag] of Object.entries(STUDIO_EMOTION_TAGS)) {
+    output = output.replaceAll(`[${name}]`, tag);
+  }
+  for (const [name, tag] of Object.entries(STUDIO_ACTION_TAGS)) {
+    output = output.replaceAll(`[${name}]`, tag);
+  }
+
+  return output.replace(/[ \t]+\n/gu, "\n").trim();
+}
+
+function normalizeEdgeStudioDirectionTags(text: string) {
+  const directionPattern = new RegExp(`\\[(?:${STUDIO_DIRECTION_NAMES})\\]`, "gu");
+  return text
+    .replaceAll("[长停顿]", "\n\n")
+    .replaceAll("[短停顿]", "，")
+    .replaceAll("[叹气]", "，")
+    .replaceAll("[轻笑]", "，")
+    .replaceAll("[清嗓]", "，")
+    .replace(directionPattern, "")
+    .replace(/[ \t]+\n/gu, "\n")
+    .trim();
+}
+
 function splitText(text: string, maxChunkSize: number) {
   const normalized = text.replaceAll("\r\n", "\n").replace(/[\t ]+/g, " ").trim();
   if (normalized.length <= maxChunkSize) return [normalized];
@@ -1810,6 +1871,10 @@ export async function POST(request: Request) {
   }
 
   const safeText = text.replaceAll("\u0000", "").trim();
+  const directedText =
+    selectedEngine === "eleven"
+      ? normalizeElevenStudioDirectionTags(safeText)
+      : normalizeEdgeStudioDirectionTags(safeText);
   const selectedSpeed =
     typeof speed === "number" && Number.isFinite(speed) ? speed : 1;
 
@@ -1853,7 +1918,7 @@ export async function POST(request: Request) {
 
     try {
       const audioChunks = await synthesizeWithEleven(
-        safeText,
+        directedText,
         voice,
         apiKey,
         settings,
@@ -1889,7 +1954,7 @@ export async function POST(request: Request) {
 
   try {
     const audioChunks = await synthesizeWithEdge(
-      safeText,
+      directedText,
       voice,
       preset as PresetName,
       edgeSettings,
