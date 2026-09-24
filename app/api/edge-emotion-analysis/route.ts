@@ -45,11 +45,11 @@ export async function POST(request: Request) {
 
     const documentPlan = analyzeEdgeDocument(preparedText);
 
-    // V25: this endpoint is only a UI preflight/status check. For long-form text,
-    // do not spend Worker CPU running the same detailed word-level emotion pass that
-    // synthesis will run again. The document planner already proves the text can be
-    // structured and gives us a reliable unit count.
-    if (preparedText.length >= 6000) {
+    // This endpoint is only a UI preflight/status check. Do not duplicate the
+    // expensive word-level emotion pass for normal/long broadcast scripts: actual
+    // synthesis already runs the full director. Keeping the UI probe lightweight
+    // prevents Cloudflare from terminating a preflight before TTS even starts.
+    if (preparedText.length >= 1800) {
       if (!documentPlan.segments.length) {
         return Response.json({ status: "failed", error: "未识别到可分析的句子。" }, { status: 422 });
       }
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         tokenCount,
         emotionEvidenceCount: 0,
         version: 4,
-        analysisMode: "long-form-preflight",
+        analysisMode: "lightweight-preflight",
       });
     }
 
