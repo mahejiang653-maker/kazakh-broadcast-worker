@@ -135,6 +135,7 @@ type VoiceDirectorDecision = {
   emotion: string;
   label: string;
   confidence: number;
+  intensity: number;
   reason: string;
   applied: boolean;
   actionTag?: string | null;
@@ -187,14 +188,26 @@ function signed(value: number, suffix = "%") {
 }
 
 const DIRECTOR_EMOTION_LABELS: Record<string, string> = {
-  neutral: "平静",
   happy: "开心",
-  sad: "悲伤",
   angry: "生气",
-  fearful: "害怕",
-  surprised: "惊讶",
+  sad: "悲伤",
+  afraid: "害怕",
   disgusted: "厌恶",
+  melancholic: "忧郁",
+  surprised: "惊讶",
+  calm: "平静",
 };
+
+const INDEX_EMOTION_OPTIONS = [
+  ["happy", "开心"],
+  ["angry", "生气"],
+  ["sad", "悲伤"],
+  ["afraid", "害怕"],
+  ["disgusted", "厌恶"],
+  ["melancholic", "忧郁"],
+  ["surprised", "惊讶"],
+  ["calm", "平静"],
+] as const;
 
 
 type SafeRangeProps = {
@@ -289,6 +302,7 @@ export default function Home() {
   const [voiceDirectorResult, setVoiceDirectorResult] = useState<VoiceDirectorResult | null>(null);
   const [voiceDirectorError, setVoiceDirectorError] = useState("");
   const [voiceDirectorUndoText, setVoiceDirectorUndoText] = useState<string | null>(null);
+  const [edgeDirectorEnabled, setEdgeDirectorEnabled] = useState(true);
   const audioUrlRef = useRef<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -430,6 +444,7 @@ export default function Home() {
 
       setVoiceDirectorResult(payload as VoiceDirectorResult);
       setVoiceDirectorStatus("completed");
+      setEdgeDirectorEnabled(true);
     } catch (caught) {
       setVoiceDirectorResult(null);
       setVoiceDirectorStatus("failed");
@@ -453,6 +468,33 @@ export default function Home() {
     resetVoiceDirector();
     resetEmotionAnalysis();
     resetAudio();
+  }
+
+  function updateVoiceDirectorDecision(
+    index: number,
+    patch: Partial<Pick<VoiceDirectorDecision, "emotion" | "intensity">>,
+  ) {
+    setVoiceDirectorResult((current) => {
+      if (!current) return current;
+      const decisions = current.decisions.map((item) => {
+        if (item.index !== index) return item;
+        const emotion = patch.emotion ?? item.emotion;
+        const intensity = patch.intensity ?? item.intensity;
+        return {
+          ...item,
+          ...patch,
+          emotion,
+          intensity,
+          label: DIRECTOR_EMOTION_LABELS[emotion] ?? emotion,
+        };
+      });
+      const counts = decisions.reduce<Record<string, number>>((result, item) => {
+        result[item.emotion] = (result[item.emotion] ?? 0) + 1;
+        return result;
+      }, {});
+      return { ...current, decisions, counts };
+    });
+    markAudioSettingsDirty();
   }
 
   async function loadElevenVoices() {
@@ -568,6 +610,14 @@ export default function Home() {
           similarityBoost,
           style,
           speakerBoost,
+          edgeEmotionOverrides:
+            engine === "edge" && edgeDirectorEnabled && voiceDirectorStatus === "completed" && voiceDirectorResult
+              ? voiceDirectorResult.decisions.map((item) => ({
+                  index: item.index,
+                  emotion: item.emotion,
+                  intensity: Math.max(0, Math.min(1, item.intensity)),
+                }))
+              : [],
         }),
       });
 
@@ -735,6 +785,7 @@ export default function Home() {
             <span>Edge / v3 中哈自动混读</span>
             <span>三种模式均可调倍速</span>
             <span>ISSAI 式表达标签</span>
+            <span>Index 2.5 式情绪强度</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
           </div>
@@ -795,7 +846,7 @@ export default function Home() {
                     <div className="director-card-head">
                       <div>
                         <strong>AI 导演 · 新闻稳健</strong>
-                        <small>逐句判断 ISSAI 七类情绪；战争、袭击等严肃内容默认保持中性，不自动表演化</small>
+                        <small>逐句判断并参考 Index 2.5 八维情绪；战争、袭击等严肃内容默认保持平静，不自动表演化</small>
                       </div>
                       <button
                         className="director-run"
@@ -874,43 +925,129 @@ export default function Home() {
                 </div>
               ) : null}
               {engine === "edge" ? (
-                <div
-                  aria-live="polite"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 17px",
-                    borderTop: "1px solid var(--line)",
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color:
-                      emotionAnalysisStatus === "completed"
-                        ? "var(--mint)"
+                <>
+                  <div
+                    aria-live="polite"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 17px",
+                      borderTop: "1px solid var(--line)",
+                      fontSize: 12,
+                      fontWeight: 700,
+                      color:
+                        emotionAnalysisStatus === "completed"
+                          ? "var(--mint)"
+                          : emotionAnalysisStatus === "failed"
+                            ? "#b42318"
+                            : "var(--muted)",
+                    }}
+                  >
+                    <span aria-hidden="true">
+                      {emotionAnalysisStatus === "completed"
+                        ? "✓"
                         : emotionAnalysisStatus === "failed"
-                          ? "#b42318"
-                          : "var(--muted)",
-                  }}
-                >
-                  <span aria-hidden="true">
-                    {emotionAnalysisStatus === "completed"
-                      ? "✓"
-                      : emotionAnalysisStatus === "failed"
-                        ? "✕"
-                        : emotionAnalysisStatus === "analyzing"
-                          ? "◌"
-                          : "○"}
-                  </span>
-                  <span>
-                    {emotionAnalysisStatus === "completed"
-                      ? `情绪分析完成${emotionSentenceCount ? ` · 已分析 ${emotionSentenceCount} 句` : ""}`
-                      : emotionAnalysisStatus === "failed"
-                        ? "情绪分析失败"
-                        : emotionAnalysisStatus === "analyzing"
-                          ? "正在分析全文情绪…"
-                          : "等待输入完成后自动分析"}
-                  </span>
-                </div>
+                          ? "✕"
+                          : emotionAnalysisStatus === "analyzing"
+                            ? "◌"
+                            : "○"}
+                    </span>
+                    <span>
+                      {emotionAnalysisStatus === "completed"
+                        ? `情绪分析完成${emotionSentenceCount ? ` · 已分析 ${emotionSentenceCount} 句` : ""}`
+                        : emotionAnalysisStatus === "failed"
+                          ? "情绪分析失败"
+                          : emotionAnalysisStatus === "analyzing"
+                            ? "正在分析全文情绪…"
+                            : "等待输入完成后自动分析"}
+                    </span>
+                  </div>
+
+                  <div className="edge-index-panel" aria-live="polite">
+                    <div className="director-card-head">
+                      <div>
+                        <strong>Index 2.5 式情绪强度 · 免费版</strong>
+                        <small>8 维情绪 + 0–100% 逐句强度。自动建议保持在约 60% 以下，优先保证新闻自然度。</small>
+                      </div>
+                      <button
+                        className="director-run"
+                        type="button"
+                        onClick={() => void runVoiceDirector()}
+                        disabled={voiceDirectorStatus === "analyzing" || !text.trim()}
+                      >
+                        {voiceDirectorStatus === "analyzing" ? "分析中…" : "分析整篇"}
+                      </button>
+                    </div>
+
+                    {voiceDirectorStatus === "completed" && voiceDirectorResult ? (
+                      <>
+                        <div className="director-summary">
+                          <span>已分析 {voiceDirectorResult.sentenceCount} 句</span>
+                          <span>8 维情绪</span>
+                          <button
+                            className={edgeDirectorEnabled ? "director-toggle enabled" : "director-toggle"}
+                            type="button"
+                            onClick={() => {
+                              setEdgeDirectorEnabled((current) => !current);
+                              markAudioSettingsDirty();
+                            }}
+                          >
+                            情绪导演：{edgeDirectorEnabled ? "开启" : "关闭"}
+                          </button>
+                        </div>
+
+                        <details className="director-details">
+                          <summary>逐句调整情绪与强度</summary>
+                          <div className="director-decision-list">
+                            {voiceDirectorResult.decisions.map((item) => (
+                              <div className="director-decision index-decision" key={item.index}>
+                                <div>
+                                  <strong>{item.index + 1}. {DIRECTOR_EMOTION_LABELS[item.emotion] ?? item.emotion}</strong>
+                                  <span>{Math.round(item.intensity * 100)}%</span>
+                                </div>
+                                <p>{item.text}</p>
+                                <div className="index-emotion-controls">
+                                  <select
+                                    aria-label={`第 ${item.index + 1} 句情绪`}
+                                    value={item.emotion}
+                                    onChange={(event) =>
+                                      updateVoiceDirectorDecision(item.index, { emotion: event.target.value })
+                                    }
+                                  >
+                                    {INDEX_EMOTION_OPTIONS.map(([value, label]) => (
+                                      <option value={value} key={value}>{label}</option>
+                                    ))}
+                                  </select>
+                                  <SafeRange
+                                    ariaLabel={`第 ${item.index + 1} 句情绪强度`}
+                                    min={0}
+                                    max={1}
+                                    step={0.05}
+                                    value={item.intensity}
+                                    onValueChange={(value) =>
+                                      updateVoiceDirectorDecision(item.index, { intensity: value })
+                                    }
+                                  />
+                                </div>
+                                <small>{item.reason} · 建议 {Math.round(item.intensity * 100)}%</small>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                        <div className="director-hint">
+                          这里不会改写稿件。下一次生成 Edge TTS 时直接把这些强度送入免费引擎；关闭“情绪导演”即可恢复原来的自动播音。
+                        </div>
+                      </>
+                    ) : voiceDirectorStatus === "failed" ? (
+                      <div className="director-error">{voiceDirectorError || "情绪导演分析失败，请重试。"}</div>
+                    ) : (
+                      <div className="director-hint">
+                        点“分析整篇”后生成 8 维情绪和逐句强度；不分析也不影响原来的 Edge TTS。
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : null}
               <div className="textarea-footer" id="character-count">
                 <span>{wordCount ? `${wordCount} 个词 · ${formatDuration(estimatedDuration)}` : "等待输入"}</span>
