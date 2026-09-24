@@ -959,6 +959,7 @@ function renderContinuousStoryBody(
   continuityBoundaryBefore?: EdgeChunkBoundaryKind,
   continuityBoundaryAfter?: EdgeChunkBoundaryKind,
   vocalFryGuard = 0,
+  fineGrainedFocus = true,
   continuityStateBefore?: EdgeContinuityState,
   continuityStateAfter?: EdgeContinuityState,
   longFormCorrection?: EdgeContinuityState,
@@ -1132,7 +1133,7 @@ function renderContinuousStoryBody(
         vocalFryBaseRate: baseSpeed,
         vocalFryBasePitch: basePitch,
         vocalFryBaseVolume: baseVolume,
-        fineGrainedFocus: settings.fineGrainedFocus,
+        fineGrainedFocus,
         continuityStateBefore:
           groupIndex === 0 ? continuityStateBefore : undefined,
         continuityStateAfter:
@@ -1235,6 +1236,7 @@ function renderEmotionDirectedBody(
       continuityBoundaryBefore,
       continuityBoundaryAfter,
       vocalFryGuard,
+      settings.fineGrainedFocus,
       settings.continuityStateBefore,
       settings.continuityStateAfter,
       settings.longFormCorrection,
