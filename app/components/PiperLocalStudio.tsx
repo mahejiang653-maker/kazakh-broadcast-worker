@@ -423,6 +423,9 @@ function yieldToBrowser() {
   });
 }
 
+function sampleUrl() {
+  return "/api/piper-sample?speaker=0";
+}
 
 export default function PiperLocalStudio({ sourceText }: { sourceText?: string }) {
   const [text, setText] = useState(
