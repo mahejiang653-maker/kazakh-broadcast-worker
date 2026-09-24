@@ -383,6 +383,61 @@ textarea::placeholder { color: rgba(7, 21, 17, 0.34); }
   letter-spacing: 0.08em;
 }
 
+.edge-index-panel {
+  border-top: 1px solid var(--line);
+  padding: 14px;
+  background: rgba(67, 216, 174, 0.035);
+}
+
+.edge-index-panel .director-card-head {
+  margin-bottom: 2px;
+}
+
+.director-toggle {
+  border: 1px solid rgba(7, 21, 17, 0.14);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.director-toggle.enabled {
+  border-color: rgba(14, 123, 99, 0.35);
+  background: rgba(67, 216, 174, 0.12);
+  color: var(--mint-dark);
+}
+
+.index-decision {
+  min-width: 0;
+}
+
+.index-emotion-controls {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: minmax(88px, 0.34fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+
+.index-emotion-controls select {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(7, 21, 17, 0.14);
+  border-radius: 5px;
+  padding: 8px 9px;
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink);
+  font-size: 10px;
+  outline: none;
+}
+
+.index-emotion-controls input[type="range"] {
+  min-width: 0;
+}
+
 .director-card {
   margin: 0 0 12px;
   padding: 12px;
@@ -582,6 +637,8 @@ textarea::placeholder { color: rgba(7, 21, 17, 0.34); }
   .director-card-head { display: block; }
   .director-run { width: 100%; margin-top: 9px; }
   .director-actions { grid-template-columns: 1fr; }
+  .edge-index-panel { padding: 12px; }
+  .index-emotion-controls { grid-template-columns: 92px minmax(0, 1fr); gap: 8px; }
 }
 
 .textarea-footer {
