@@ -15,6 +15,7 @@ import {
   renderEdgeOmniInspiredMarkup,
   type EdgeChunkBoundaryKind,
   type EdgeChunkPlan,
+  type EdgeContinuityState,
   type EdgeEmotionName,
   type EdgeEmotionOverride,
 } from "../../lib/edge-omnivoice-inspired";
@@ -109,6 +110,10 @@ type EdgeVoiceSettings = {
   directorOverrides: EdgeDirectorOverrideInput[];
   emotionOverrides?: EdgeEmotionOverride[];
   fineGrainedFocus: boolean;
+  longFormContinuity: boolean;
+  continuityStateBefore?: EdgeContinuityState;
+  continuityStateAfter?: EdgeContinuityState;
+  longFormCorrection?: EdgeContinuityState;
 };
 
 let tokenCache: {
@@ -1717,6 +1722,157 @@ async function validateEdgeChunkSeams(
   return refreshEdgePlanContext(source, adjusted, speed);
 }
 
+type IndexedEmotionSentence = {
+  start: number;
+  end: number;
+  rateFactor: number;
+  pitchDelta: number;
+  volumeDelta: number;
+};
+
+function indexEmotionSentences(source: string, plan: EdgeEmotionPlan) {
+  const indexed: IndexedEmotionSentence[] = [];
+  let cursor = 0;
+
+  for (const sentence of plan.sentences) {
+    const value = sentence.text.trim();
+    if (!value) continue;
+    let start = source.indexOf(value, cursor);
+    if (start < 0) start = source.indexOf(value);
+    if (start < 0) continue;
+    const end = start + value.length;
+    indexed.push({
+      start,
+      end,
+      rateFactor: sentence.rateFactor,
+      pitchDelta: sentence.pitchDelta,
+      volumeDelta: sentence.volumeDelta,
+    });
+    cursor = end;
+  }
+
+  return indexed;
+}
+
+function edgeChunkEmotionState(
+  chunk: EdgeChunkPlan,
+  indexed: IndexedEmotionSentence[],
+  preset: PresetName,
+): EdgeContinuityState {
+  let total = 0;
+  let rate = 0;
+  let pitch = 0;
+  let volume = 0;
+
+  for (const sentence of indexed) {
+    const overlap = Math.max(
+      0,
+      Math.min(chunk.end, sentence.end) - Math.max(chunk.start, sentence.start),
+    );
+    if (!overlap) continue;
+    total += overlap;
+    rate += (sentence.rateFactor - 1) * overlap;
+    pitch += sentence.pitchDelta * overlap;
+    volume += sentence.volumeDelta * overlap;
+  }
+
+  if (!total) return { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 };
+
+  const presetStrength = EMOTION_STRENGTH_BY_PRESET[preset];
+  const continuityStrength =
+    preset === "story"
+      ? 0.72
+      : presetStrength *
+        (preset === "expressive" ? 0.64 : preset === "bulletin" ? 0.58 : 0.52);
+
+  return {
+    rateFactor: 1 + clamp((rate / total) * continuityStrength, -0.021, 0.021),
+    pitchDelta: clamp((pitch / total) * continuityStrength, -0.42, 0.42),
+    volumeDelta: clamp((volume / total) * continuityStrength, -0.38, 0.38),
+  };
+}
+
+function edgeSeamMemoryWeight(boundary: EdgeChunkBoundaryKind | undefined) {
+  if (boundary === "paragraph") return 0.12;
+  if (boundary === "line") return 0.2;
+  if (boundary === "sentence") return 0.42;
+  if (boundary === "whitespace") return 0.68;
+  if (boundary === "hard") return 0.76;
+  return 0.3;
+}
+
+function blendContinuityState(
+  local: EdgeContinuityState,
+  memory: EdgeContinuityState,
+  weight: number,
+): EdgeContinuityState {
+  const w = clamp(weight, 0, 0.82);
+  return {
+    rateFactor: 1 +
+      (local.rateFactor - 1) * (1 - w) +
+      (memory.rateFactor - 1) * w,
+    pitchDelta: local.pitchDelta * (1 - w) + memory.pitchDelta * w,
+    volumeDelta: local.volumeDelta * (1 - w) + memory.volumeDelta * w,
+  };
+}
+
+function planVibeLongFormStates(
+  source: string,
+  chunks: EdgeChunkPlan[],
+  emotionPlan: EdgeEmotionPlan,
+  preset: PresetName,
+) {
+  const indexed = indexEmotionSentences(source, emotionPlan);
+  const local = chunks.map((chunk) => edgeChunkEmotionState(chunk, indexed, preset));
+  if (local.length <= 1) {
+    return local.map((state) => ({
+      state,
+      before: undefined,
+      after: undefined,
+      correction: { rateFactor: 1, pitchDelta: 0, volumeDelta: 0 },
+    }));
+  }
+
+  const forward = local.map((state) => ({ ...state }));
+  for (let index = 1; index < forward.length; index += 1) {
+    const seam = chunks[index - 1].boundary;
+    forward[index] = blendContinuityState(
+      local[index],
+      forward[index - 1],
+      edgeSeamMemoryWeight(seam),
+    );
+  }
+
+  const smoothed = forward.map((state) => ({ ...state }));
+  for (let index = smoothed.length - 2; index >= 0; index -= 1) {
+    const seam = chunks[index].boundary;
+    const backwardWeight = edgeSeamMemoryWeight(seam) * 0.28;
+    smoothed[index] = blendContinuityState(
+      smoothed[index],
+      smoothed[index + 1],
+      backwardWeight,
+    );
+  }
+
+  return smoothed.map((state, index) => {
+    const own = local[index];
+    return {
+      state,
+      before: index > 0 ? smoothed[index - 1] : undefined,
+      after: index + 1 < smoothed.length ? smoothed[index + 1] : undefined,
+      correction: {
+        rateFactor: clamp(
+          state.rateFactor / Math.max(0.94, own.rateFactor),
+          0.994,
+          1.006,
+        ),
+        pitchDelta: clamp(state.pitchDelta - own.pitchDelta, -0.09, 0.09),
+        volumeDelta: clamp(state.volumeDelta - own.volumeDelta, -0.08, 0.08),
+      } satisfies EdgeContinuityState,
+    };
+  });
+}
+
 async function synthesizeWithEdge(
   text: string,
   voice: string,
@@ -1763,18 +1919,31 @@ async function synthesizeWithEdge(
     ...settings,
     emotionOverrides: materializeEdgeEmotionOverrides(emotionPlan, settings.directorOverrides),
   };
+  const longFormStates =
+    settings.longFormContinuity && chunkPlans.length > 1
+      ? planVibeLongFormStates(preparedText, chunkPlans, emotionPlan, preset)
+      : chunkPlans.map(() => null);
   const audioChunks: ArrayBuffer[] = [];
 
   for (let index = 0; index < chunkPlans.length; index += 1) {
     const chunk = chunkPlans[index];
     const beforeBoundary = index > 0 ? chunkPlans[index - 1].boundary : undefined;
+    const longForm = longFormStates[index];
+    const chunkSettings: EdgeVoiceSettings = longForm
+      ? {
+          ...synthesisSettings,
+          continuityStateBefore: longForm.before,
+          continuityStateAfter: longForm.after,
+          longFormCorrection: longForm.correction,
+        }
+      : synthesisSettings;
     try {
       audioChunks.push(
         await synthesizeEdgeChunk(
           chunk.text,
           voice,
           preset,
-          synthesisSettings,
+          chunkSettings,
           endpoint,
           documentPlan,
           useMultilingual,
@@ -1812,7 +1981,7 @@ async function synthesizeWithEdge(
             fallback.text,
             voice,
             preset,
-            synthesisSettings,
+            chunkSettings,
             endpoint,
             documentPlan,
             useMultilingual,
@@ -1943,6 +2112,7 @@ export async function POST(request: Request) {
     edgeVolume,
     edgeEmotionOverrides,
     edgeFineFocus,
+    edgeLongFormContinuity,
   } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
@@ -2056,7 +2226,12 @@ export async function POST(request: Request) {
   if (edgeFineFocus !== undefined && typeof edgeFineFocus !== "boolean") {
     return jsonError("Edge 句内重点参数无效。", 400);
   }
+  if (edgeLongFormContinuity !== undefined && typeof edgeLongFormContinuity !== "boolean") {
+    return jsonError("Edge 长稿连续性参数无效。", 400);
+  }
   const selectedFineFocus = edgeFineFocus === undefined ? true : edgeFineFocus;
+  const selectedLongFormContinuity =
+    edgeLongFormContinuity === undefined ? true : edgeLongFormContinuity;
 
   const edgeSettings: EdgeVoiceSettings = {
     speed: selectedSpeed,
@@ -2064,6 +2239,7 @@ export async function POST(request: Request) {
     volume: selectedVolume,
     directorOverrides: selectedDirectorOverrides,
     fineGrainedFocus: selectedFineFocus,
+    longFormContinuity: selectedLongFormContinuity,
   };
 
   try {
