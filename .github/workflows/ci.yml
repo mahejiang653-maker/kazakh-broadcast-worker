@@ -154,7 +154,7 @@ jobs:
           SAMPLE0="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/samples/speaker_0.mp3"
           SAMPLE5="https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/samples/speaker_5.mp3"
 
-          module_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-module.bin --write-out '%{http_code}' "$MODULE" || true)"
+          module_status="$(curl --silent --show-error --head --location --max-time 45 --output /tmp/piper-module.headers --write-out '%{http_code}' "$MODULE" || true)"
           config_status="$(curl --silent --show-error --location --max-time 45 --output /tmp/piper-config.json --write-out '%{http_code}' "$CONFIG" || true)"
           sample0_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample0.bin --write-out '%{http_code}' "$SAMPLE0" || true)"
           sample5_status="$(curl --silent --show-error --location --max-time 45 --range 0-511 --output /tmp/piper-sample5.bin --write-out '%{http_code}' "$SAMPLE5" || true)"
