@@ -1,10 +1,27 @@
 import type { EdgeDocumentPlan, EdgeDocumentRole, EdgePlannedSegment } from "./edge-director";
 import { kazakhDependencyGuard } from "./edge-kazakh-dependency";
 
+export type EdgeEmotionName =
+  | "happy"
+  | "angry"
+  | "sad"
+  | "afraid"
+  | "disgusted"
+  | "melancholic"
+  | "surprised"
+  | "calm";
+
+export type EdgeEmotionOverride = {
+  text: string;
+  emotion: EdgeEmotionName;
+  intensity: number;
+};
+
 export type EdgeOmniSettings = {
   speed: number;
   pitch: number;
   volume: number;
+  emotionOverrides?: EdgeEmotionOverride[];
   deliveryMode?: "neutral" | "broadcast" | "story";
   // V17: keep the same fluent sentence-closure mechanism across all four news
   // presets while preserving each presenter's own pause density.
@@ -851,10 +868,75 @@ function combine(a: MicroProsody, b: MicroProsody): MicroProsody {
   };
 }
 
+const INDEX_EMOTION_MICRO: Record<EdgeEmotionName, MicroProsody> = {
+  happy: { rateFactor: 1.010, pitchDelta: 0.12, volumeDelta: 0.08 },
+  angry: { rateFactor: 1.012, pitchDelta: 0.14, volumeDelta: 0.14 },
+  sad: { rateFactor: 0.985, pitchDelta: -0.14, volumeDelta: -0.10 },
+  afraid: { rateFactor: 0.992, pitchDelta: 0.08, volumeDelta: -0.08 },
+  disgusted: { rateFactor: 0.988, pitchDelta: -0.10, volumeDelta: 0.06 },
+  melancholic: { rateFactor: 0.982, pitchDelta: -0.15, volumeDelta: -0.12 },
+  surprised: { rateFactor: 1.006, pitchDelta: 0.16, volumeDelta: 0.08 },
+  calm: { rateFactor: 0.994, pitchDelta: -0.04, volumeDelta: -0.04 },
+};
+
+function emotionOverrideForPhrase(
+  text: string,
+  overrides: EdgeEmotionOverride[] | undefined,
+) {
+  if (!overrides?.length) return null;
+  const phrase = normalize(text);
+  if (!phrase) return null;
+
+  let best: EdgeEmotionOverride | null = null;
+  let bestScore = 0;
+
+  for (const override of overrides) {
+    const target = normalize(override.text);
+    if (!target) continue;
+    let score = 0;
+    if (target === phrase) score = 4;
+    else if (target.includes(phrase) && phrase.length >= 8) score = 3;
+    else if (phrase.includes(target) && target.length >= 8) score = 2.8;
+    else {
+      const phraseWords = new Set(phrase.split(" ").filter((word) => word.length >= 3));
+      const targetWords = target.split(" ").filter((word) => word.length >= 3);
+      let overlap = 0;
+      for (const word of targetWords) if (phraseWords.has(word)) overlap += 1;
+      score = overlap / Math.max(3, Math.min(phraseWords.size, targetWords.length));
+    }
+    if (score > bestScore) {
+      best = override;
+      bestScore = score;
+    }
+  }
+
+  return bestScore >= 0.46 ? best : null;
+}
+
+function emotionOverrideMicro(
+  text: string,
+  overrides: EdgeEmotionOverride[] | undefined,
+): MicroProsody | null {
+  const override = emotionOverrideForPhrase(text, overrides);
+  if (!override) return null;
+
+  // IndexTTS2.5's emo_alpha is 0..1. Mirror that interaction model while
+  // translating it into deliberately small Edge SSML movements so news speech
+  // stays natural and never becomes theatrical at ordinary 40-60% settings.
+  const intensity = clamp(override.intensity, 0, 1);
+  const target = INDEX_EMOTION_MICRO[override.emotion];
+  return {
+    rateFactor: 1 + (target.rateFactor - 1) * intensity,
+    pitchDelta: target.pitchDelta * intensity,
+    volumeDelta: target.volumeDelta * intensity,
+  };
+}
+
 function buildPhrases(
   text: string,
   plan?: EdgeDocumentPlan,
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
+  emotionOverrides?: EdgeEmotionOverride[],
 ) {
   const tokens = tokenize(text);
   const phrases: Phrase[] = [];
@@ -893,7 +975,9 @@ function buildPhrases(
     }
 
     const segment = segmentForFragment(token.value, plan);
-    const micro = combine(localMicro(token.value, kind, deliveryMode), documentMicro(segment, plan));
+    let micro = combine(localMicro(token.value, kind, deliveryMode), documentMicro(segment, plan));
+    const directedEmotion = emotionOverrideMicro(token.value, emotionOverrides);
+    if (directedEmotion) micro = combine(micro, directedEmotion);
     phrases.push({
       text: token.value,
       punctuation,
@@ -2105,7 +2189,7 @@ export function renderEdgeOmniInspiredMarkup(
         applyDirectQuoteContinuity(
           applyLogicalFocusContrast(
             bidirectionalSmooth(
-              annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode)),
+              annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode, settings.emotionOverrides)),
               settings.deliveryMode,
             ),
           ),
