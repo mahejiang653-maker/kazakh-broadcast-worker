@@ -247,7 +247,8 @@ const KEY_NUMBER_PATTERN =
   /(?:\d+(?:[.,]\d+)?|нөл|бір|екі|үш|төрт|бес|алты|жеті|сегіз|тоғыз|он|жиырма|отыз|қырық|елу|алпыс|жетпіс|сексен|тоқсан|жүз|мың|миллион|миллиард)\s*(?:пайыз|процент|адам|километр|метр|тонна|доллар|еуро|юань|теңге)?/iu;
 
 function splitLongSentence(sentence: string) {
-  if (sentence.length <= 190) return [sentence.trim()];
+  const targetLength = sentence.length > 260 ? 310 : 190;
+  if (sentence.length <= targetLength) return [sentence.trim()];
   const parts = sentence
     .split(/(?<=[,;:])\s+/u)
     .map((part) => part.trim())
@@ -259,7 +260,7 @@ function splitLongSentence(sentence: string) {
   let current = "";
   for (const part of parts) {
     const next = current ? `${current} ${part}` : part;
-    if (next.length > 185 && current) {
+    if (next.length > targetLength - 5 && current) {
       output.push(current);
       current = part;
     } else {
@@ -306,9 +307,9 @@ function splitM2BroadcastSegments(text: string): M2Segment[] {
     if (
       previous &&
       !previous.paragraphEnd &&
-      previous.text.length < 55 &&
-      item.text.length < 95 &&
-      previous.text.length + item.text.length < 150
+      previous.text.length < 72 &&
+      item.text.length < 125 &&
+      previous.text.length + item.text.length < 210
     ) {
       previous.text = `${previous.text} ${item.text}`;
       previous.paragraphEnd = item.paragraphEnd;
