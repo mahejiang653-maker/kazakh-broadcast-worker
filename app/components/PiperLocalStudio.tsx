@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-const MAX_CHARACTERS = 1200;
+const MAX_CHARACTERS = 15000;
+const MAX_M2_SEGMENTS = 320;
 const VOICE_ID = "kk_KZ-issai-high";
 const MODEL_BASE = "/api/piper-model/";
 const MODEL_URL =
@@ -317,7 +318,13 @@ function splitM2BroadcastSegments(text: string): M2Segment[] {
     }
   }
 
-  return compact.slice(0, 30);
+  if (compact.length > MAX_M2_SEGMENTS) {
+    throw new Error(
+      `稿件被拆成 ${compact.length} 个片段，超过本机长稿上限 ${MAX_M2_SEGMENTS}。请减少过短换行后重试。`,
+    );
+  }
+
+  return compact;
 }
 
 function tuningForSegment(
@@ -359,30 +366,31 @@ function tuningForSegment(
   };
 }
 
-function readPcm16Wav(buffer: ArrayBuffer) {
-  const view = new DataView(buffer);
-  if (view.byteLength < 44) throw new Error("M2 返回的 WAV 数据不完整。");
-  const sampleRate = view.getUint32(24, true);
-  const channels = view.getUint16(22, true);
-  const bits = view.getUint16(34, true);
+async function inspectM2Wav(blob: Blob) {
+  if (blob.size < 44) throw new Error("M2 返回的 WAV 数据不完整。");
+  const header = new DataView(await blob.slice(0, 44).arrayBuffer());
+  const sampleRate = header.getUint32(24, true);
+  const channels = header.getUint16(22, true);
+  const bits = header.getUint16(34, true);
+  const dataSize = header.getUint32(40, true);
+
   if (channels !== 1 || bits !== 16) {
-    throw new Error("M2 WAV 格式暂不支持本地拼接。");
+    throw new Error("M2 WAV 格式暂不支持长稿无损拼接。");
   }
-  const dataSize = view.getUint32(40, true);
-  const available = Math.min(dataSize, view.byteLength - 44);
-  const samples = new Int16Array(Math.floor(available / 2));
-  for (let index = 0; index < samples.length; index += 1) {
-    samples[index] = view.getInt16(44 + index * 2, true);
-  }
-  return { sampleRate, samples };
+
+  const available = Math.min(dataSize, Math.max(0, blob.size - 44));
+  return {
+    sampleRate,
+    pcmBytes: available,
+    pcm: blob.slice(44, 44 + available, "application/octet-stream"),
+  };
 }
 
-function buildWav(sampleRate: number, samples: Int16Array) {
-  const headerLength = 44;
-  const buffer = new ArrayBuffer(headerLength + samples.length * 2);
+function buildWavHeader(sampleRate: number, pcmBytes: number) {
+  const buffer = new ArrayBuffer(44);
   const view = new DataView(buffer);
   view.setUint32(0, 0x46464952, true);
-  view.setUint32(4, buffer.byteLength - 8, true);
+  view.setUint32(4, 36 + pcmBytes, true);
   view.setUint32(8, 0x45564157, true);
   view.setUint32(12, 0x20746d66, true);
   view.setUint32(16, 16, true);
@@ -393,51 +401,28 @@ function buildWav(sampleRate: number, samples: Int16Array) {
   view.setUint16(32, 2, true);
   view.setUint16(34, 16, true);
   view.setUint32(36, 0x61746164, true);
-  view.setUint32(40, samples.length * 2, true);
-  for (let index = 0; index < samples.length; index += 1) {
-    view.setInt16(44 + index * 2, samples[index], true);
-  }
-  return new Blob([buffer], { type: "audio/x-wav" });
+  view.setUint32(40, pcmBytes, true);
+  return buffer;
 }
 
-async function mergeM2Wavs(
-  blobs: Blob[],
-  segments: M2Segment[],
-  preset: M2Preset,
-) {
-  const decoded = await Promise.all(
-    blobs.map(async (blob) => readPcm16Wav(await blob.arrayBuffer())),
-  );
-  if (!decoded.length) throw new Error("没有可合并的 M2 音频。");
-
-  const sampleRate = decoded[0].sampleRate;
-  const basePause = M2_PRESETS[preset].pauseMs;
-  const pauseSamples = decoded.map((_, index) => {
-    if (index === decoded.length - 1) return 0;
-    const segment = segments[index];
-    const ms = segment.paragraphEnd ? basePause + 110 : basePause;
-    return Math.round((sampleRate * ms) / 1000);
+function silenceBlob(sampleRate: number, milliseconds: number) {
+  const samples = Math.max(0, Math.round((sampleRate * milliseconds) / 1000));
+  return new Blob([new Uint8Array(samples * 2)], {
+    type: "application/octet-stream",
   });
+}
 
-  const total = decoded.reduce(
-    (sum, item, index) => sum + item.samples.length + pauseSamples[index],
-    0,
-  );
-  const joined = new Int16Array(total);
-  let cursor = 0;
+function paragraphPauseMs(preset: M2Preset, paragraphEnd: boolean) {
+  const base = M2_PRESETS[preset].pauseMs;
+  return paragraphEnd ? base + 110 : base;
+}
 
-  decoded.forEach((item, index) => {
-    joined.set(item.samples, cursor);
-    cursor += item.samples.length;
-    cursor += pauseSamples[index];
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 0);
   });
-
-  return buildWav(sampleRate, joined);
 }
 
-function sampleUrl() {
-  return "/api/piper-sample?speaker=0";
-}
 
 export default function PiperLocalStudio({ sourceText }: { sourceText?: string }) {
   const [text, setText] = useState(
@@ -451,6 +436,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
     "尚未加载 · 首次使用会下载约 128 MB M2 哈萨克语模型",
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationDetail, setGenerationDetail] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState("");
   const [error, setError] = useState("");
@@ -460,6 +447,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
   const providerRef = useRef<PersistentFetchProvider | null>(null);
   const tunedProviderRef = useRef<M2TunedVoiceProvider | null>(null);
   const audioUrlRef = useRef<string | null>(null);
+  const cancelGenerationRef = useRef(false);
 
   const wordCount = useMemo(
     () => (text.trim() ? text.trim().split(/\s+/u).length : 0),
@@ -510,6 +498,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
     }
     setAudioUrl(null);
     setGeneratedAt("");
+    setGenerationProgress(0);
+    setGenerationDetail("");
   }
 
   async function ensureStorage() {
@@ -601,21 +591,70 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       const segments = splitM2BroadcastSegments(clean);
       if (!segments.length) throw new Error("没有可生成的有效句子。");
 
-      const blobs: Blob[] = [];
+      cancelGenerationRef.current = false;
+      setGenerationProgress(0);
+      setGenerationDetail(`共 ${segments.length} 个播音片段`);
+
+      const wavParts: BlobPart[] = [];
+      let sampleRate = 0;
+      let totalPcmBytes = 0;
+
       for (let index = 0; index < segments.length; index += 1) {
+        if (cancelGenerationRef.current) {
+          throw new Error("已停止 M2 长稿生成。");
+        }
+
         const segment = segments[index];
         const tuning = tuningForSegment(preset, speed, segment, index, segments.length);
         tunedProvider.setTuning(tuning);
+
+        const progressBefore = Math.round((index / segments.length) * 100);
+        setGenerationProgress(progressBefore);
+        setGenerationDetail(
+          `第 ${index + 1} / ${segments.length} 段 · ${M2_PRESETS[preset].label}`,
+        );
         setLoadMessage(
           `正在本机生成 M2 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`,
         );
+
         const response = await engine.generate(segment.text, VOICE_ID, M2_SPEAKER);
         if (!response.file?.size) throw new Error("M2 没有返回有效音频。");
-        blobs.push(response.file);
+
+        const inspected = await inspectM2Wav(response.file);
+        if (!sampleRate) sampleRate = inspected.sampleRate;
+        if (sampleRate !== inspected.sampleRate) {
+          throw new Error("M2 长稿片段采样率不一致，无法安全合并。");
+        }
+
+        wavParts.push(inspected.pcm);
+        totalPcmBytes += inspected.pcmBytes;
+
+        if (index < segments.length - 1) {
+          const pause = silenceBlob(
+            sampleRate,
+            paragraphPauseMs(preset, segment.paragraphEnd),
+          );
+          wavParts.push(pause);
+          totalPcmBytes += pause.size;
+        }
+
+        setGenerationProgress(
+          Math.max(progressBefore, Math.round(((index + 1) / segments.length) * 100)),
+        );
+
+        // Give Android/Chrome a chance to paint progress and release temporary
+        // inference buffers between batches instead of monopolizing the main thread.
+        if ((index + 1) % 4 === 0) await yieldToBrowser();
       }
 
-      setLoadMessage("正在合并 M2 新闻节奏与段落停顿");
-      const merged = await mergeM2Wavs(blobs, segments, preset);
+      if (!sampleRate || !totalPcmBytes) {
+        throw new Error("M2 没有生成可合并的长稿音频。");
+      }
+
+      setLoadMessage("正在封装 M2 长稿 WAV · 不再二次解码全部音频");
+      setGenerationDetail("正在完成最终 WAV");
+      const header = buildWavHeader(sampleRate, totalPcmBytes);
+      const merged = new Blob([header, ...wavParts], { type: "audio/x-wav" });
       const nextUrl = URL.createObjectURL(merged);
       audioUrlRef.current = nextUrl;
       setAudioUrl(nextUrl);
@@ -626,12 +665,15 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         }),
       );
       setLoadState("ready");
+      setGenerationProgress(100);
+      setGenerationDetail(`已完成 ${segments.length} 个播音片段`);
       setLoadMessage(
         `M2 生成完成 · ${segments.length} 个播音片段 · ${M2_PRESETS[preset].label}`,
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "M2 本地生成失败。");
     } finally {
+      cancelGenerationRef.current = false;
       setIsGenerating(false);
     }
   }
@@ -664,7 +706,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{loadMessage}</strong>
             <p>
-              M2 高质量模型首次约 128 MB。下载成功后优先使用浏览器本地缓存；生成过程和 WAV 合并均在本机完成。
+              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；长稿按句顺序生成，并使用低内存 Blob 拼接成一个 WAV。
             </p>
           </div>
         </div>
@@ -715,7 +757,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
               spellCheck={false}
             />
             <div className="textarea-footer">
-              <span>{wordCount ? `${wordCount} 个词 · M2 本地推理` : "等待输入"}</span>
+              <span>{wordCount ? `${wordCount} 个词 · M2 15,000 字长稿模式` : "等待输入"}</span>
               <span className={text.length > MAX_CHARACTERS * 0.9 ? "near-limit" : ""}>
                 {text.length.toLocaleString("zh-CN")} / {MAX_CHARACTERS}
               </span>
@@ -790,7 +832,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{modelCached ? "检测到本机 M2 模型缓存" : "首次使用需要下载 M2 高质量模型"}</strong>
             <p>
-              模型只在点击加载/生成时下载。生成时会自动按句切分、对数字句轻微放慢，并在段落间加入稳定广播停顿。
+              模型只在点击加载/生成时下载。15,000 字长稿会自动分句排队生成、显示实时进度，并在段落间加入稳定广播停顿。
             </p>
           </div>
         </div>
@@ -812,6 +854,32 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div className="error-message" role="alert">
             <span>!</span>
             {error}
+          </div>
+        ) : null}
+
+        {isGenerating || generationProgress > 0 ? (
+          <div className="m2-progress" aria-live="polite">
+            <div className="m2-progress-head">
+              <strong>M2 长稿生成进度</strong>
+              <span>{generationProgress}%</span>
+            </div>
+            <div className="m2-progress-track" aria-hidden="true">
+              <i style={{ width: `${generationProgress}%` }} />
+            </div>
+            <div className="m2-progress-detail">
+              <span>{generationDetail || "准备生成"}</span>
+              {isGenerating ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    cancelGenerationRef.current = true;
+                    setLoadMessage("将在当前片段结束后停止 M2 生成");
+                  }}
+                >
+                  停止生成
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
