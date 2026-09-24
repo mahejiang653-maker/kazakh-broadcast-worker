@@ -34,6 +34,10 @@ const ALLOWED_EDGE_VOICES = new Set([
   "kk-KZ-AigulNeural",
   "edge-unified-male",
   "edge-unified-female",
+  "edge-young-male",
+  "edge-mature-male",
+  "edge-young-female",
+  "edge-mature-female",
 ]);
 
 const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
@@ -41,6 +45,12 @@ const MULTILINGUAL_EDGE_VOICE_BY_KAZAKH: Record<string, string> = {
   "kk-KZ-AigulNeural": "zh-CN-XiaoxiaoMultilingualNeural",
   "edge-unified-male": "zh-CN-YunyiMultilingualNeural",
   "edge-unified-female": "zh-CN-XiaoxiaoMultilingualNeural",
+  // Age labels are perceptual UI groupings, not Microsoft-provided age metadata.
+  // These official multilingual voices support Kazakh through kk-KZ language runs.
+  "edge-young-male": "en-US-BrianMultilingualNeural",
+  "edge-mature-male": "en-US-AndrewMultilingualNeural",
+  "edge-young-female": "en-US-AvaMultilingualNeural",
+  "edge-mature-female": "en-US-EmmaMultilingualNeural",
 };
 
 const PRESETS = {
@@ -1556,11 +1566,11 @@ async function synthesizeWithEdge(
   settings: EdgeVoiceSettings,
 ) {
   const endpoint = await getEndpoint();
-  const isUnifiedProfile =
-    voice === "edge-unified-male" || voice === "edge-unified-female";
+  const isMultilingualProfile =
+    voice.startsWith("edge-") && voice in MULTILINGUAL_EDGE_VOICE_BY_KAZAKH;
   const articleHasHan = hasHanCharacters(text);
   const pronunciationPreparedText =
-    isUnifiedProfile || articleHasHan
+    isMultilingualProfile || articleHasHan
       ? text
       : prepareNativeKazakhEnglishPronunciation(text);
 
@@ -1577,7 +1587,7 @@ async function synthesizeWithEdge(
     300,
     420,
   );
-  const useMultilingual = isUnifiedProfile || articleHasHan;
+  const useMultilingual = isMultilingualProfile || articleHasHan;
   const resolvedEdgeVoice = useMultilingual
     ? (MULTILINGUAL_EDGE_VOICE_BY_KAZAKH[voice] ?? "zh-CN-YunyiMultilingualNeural")
     : voice;
