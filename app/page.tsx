@@ -33,6 +33,30 @@ const EDGE_VOICES = [
     meta: "中哈同音色 · 多语言",
     mark: "F",
   },
+  {
+    id: "edge-young-male",
+    name: "青年男声",
+    meta: "Brian · 较年轻听感 · 多语言",
+    mark: "B",
+  },
+  {
+    id: "edge-mature-male",
+    name: "成熟男声",
+    meta: "Andrew · 较成熟听感 · 多语言",
+    mark: "R",
+  },
+  {
+    id: "edge-young-female",
+    name: "青年女声",
+    meta: "Ava · 较年轻听感 · 多语言",
+    mark: "V",
+  },
+  {
+    id: "edge-mature-female",
+    name: "成熟女声",
+    meta: "Emma · 较成熟听感 · 多语言",
+    mark: "E",
+  },
 ] as const;
 
 const PRESETS = [
