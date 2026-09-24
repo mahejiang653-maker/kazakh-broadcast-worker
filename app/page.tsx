@@ -787,7 +787,7 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供四套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper，高质量模式为 ElevenLabs v3。Piper 完全不经过 Edge，并提供 ISSAI KazakhTTS 的 6 个说话人；Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。
+            现在提供四套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3。Piper M2 完全不经过 Edge，并作为单一青年感男声按新闻播音场景专门调校；Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / Piper / ElevenLabs</span>
@@ -1176,7 +1176,7 @@ export default function Home() {
                 <span className="voice-avatar">P</span>
                 <span className="voice-copy">
                   <strong>免费模式 3</strong>
-                  <small>Piper Local · 非 Edge · 6 个哈萨克语说话人 · 浏览器本地生成</small>
+                  <small>Piper Local · M2 青年感男声 · 专属新闻参数 · 浏览器本地生成</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -1510,8 +1510,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 24 }}>
                 <div className="broadcast-index">P</div>
                 <div>
-                  <strong>Piper Local · 免费模式 3 已选中</strong>
-                  <p>完全非 Edge 的浏览器本地模式，包含 ISSAI KazakhTTS 的 6 个说话人。可先试听官方样音，再决定是否下载本地模型。</p>
+                  <strong>Piper M2 · 免费模式 3 已选中</strong>
+                  <p>完全非 Edge 的浏览器本地模式，现在只保留 M2，并加入和 Дәулет 相同思路的新闻预设、长句保护、数字清晰度与段落节奏优化。</p>
                 </div>
               </div>
               <button
@@ -1523,8 +1523,8 @@ export default function Home() {
               >
                 <span className="button-icon" aria-hidden="true"><i className="play-triangle" /></span>
                 <span>
-                  <strong>进入 Piper Local 声线筛选区</strong>
-                  <small>6 个官方说话人 · 浏览器本地生成 · 不使用 Edge</small>
+                  <strong>进入 Piper M2 播音控制区</strong>
+                  <small>M2 单一主声线 · 五套播音预设 · 浏览器本地生成</small>
                 </span>
                 <span className="button-arrow" aria-hidden="true">→</span>
               </button>
