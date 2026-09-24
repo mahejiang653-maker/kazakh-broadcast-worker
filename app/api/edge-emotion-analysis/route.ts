@@ -3,6 +3,16 @@ import { analyzeEdgeEmotionPlan } from "../../lib/edge-emotion-director";
 import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
 
 const MAX_CHARACTERS = 15000;
+const STUDIO_DIRECTION_TAG_PATTERN =
+  /\[(?:开心|悲伤|惊讶|生气|害怕|厌恶|平静|耳语|短停顿|长停顿|叹气|轻笑|清嗓)\]/gu;
+
+function sanitizeStudioDirectionTags(text: string) {
+  return text
+    .replaceAll("[长停顿]", "\n\n")
+    .replaceAll("[短停顿]", "，")
+    .replace(STUDIO_DIRECTION_TAG_PATTERN, "")
+    .trim();
+}
 
 export async function POST(request: Request) {
   let payload: unknown;
@@ -28,7 +38,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const preparedText = prepareEdgeHumanText(text);
+    const preparedText = prepareEdgeHumanText(sanitizeStudioDirectionTags(text));
     if (!preparedText) {
       return Response.json({ status: "failed", error: "没有可分析的有效文本。" }, { status: 422 });
     }
