@@ -17,6 +17,12 @@ export type EdgeEmotionOverride = {
   intensity: number;
 };
 
+export type EdgeContinuityState = {
+  rateFactor: number;
+  pitchDelta: number;
+  volumeDelta: number;
+};
+
 export type EdgeOmniSettings = {
   speed: number;
   pitch: number;
@@ -41,6 +47,11 @@ export type EdgeOmniSettings = {
   continuityAfter?: string;
   continuityBoundaryBefore?: EdgeChunkBoundaryKind;
   continuityBoundaryAfter?: EdgeChunkBoundaryKind;
+  // VibeVoice-inspired explicit acoustic memory. Text context remains useful for
+  // semantics, while these vectors preserve the actual long-form delivery state
+  // across independent Edge REST requests.
+  continuityStateBefore?: EdgeContinuityState;
+  continuityStateAfter?: EdgeContinuityState;
 };
 
 type PunctuationKind =
@@ -1211,7 +1222,8 @@ function inertiaBlend(local: MicroProsody, carry: MicroProsody, weight: number):
  */
 function applyProsodyInertia(phrases: Phrase[], settings: EdgeOmniSettings) {
   if (!phrases.length) return phrases;
-  const beforeSeed = contextMicroSeed(settings.continuityBefore, settings.deliveryMode, true);
+  const textBeforeSeed = contextMicroSeed(settings.continuityBefore, settings.deliveryMode, true);
+  const beforeSeed = settings.continuityStateBefore ?? textBeforeSeed;
   let carry = beforeSeed ?? phrases[0].micro;
 
   const smoothed = phrases.map((phrase, index) => {
@@ -1228,7 +1240,8 @@ function applyProsodyInertia(phrases: Phrase[], settings: EdgeOmniSettings) {
     return { ...phrase, micro };
   });
 
-  const afterSeed = contextMicroSeed(settings.continuityAfter, settings.deliveryMode, false);
+  const textAfterSeed = contextMicroSeed(settings.continuityAfter, settings.deliveryMode, false);
+  const afterSeed = settings.continuityStateAfter ?? textAfterSeed;
   if (afterSeed && smoothed.length) {
     const lastIndex = smoothed.length - 1;
     const last = smoothed[lastIndex];
