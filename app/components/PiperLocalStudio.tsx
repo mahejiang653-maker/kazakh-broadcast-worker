@@ -7,14 +7,9 @@ const VOICE_ID = "kk_KZ-issai-high";
 const MODEL_BASE =
   "https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/";
 const MODEL_URL = MODEL_BASE + "kk_KZ-issai-high.onnx";
-const SAMPLE_BASE =
-  "https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/samples/";
-const MODULE_URL =
-  "https://cdn.jsdelivr.net/npm/piper-tts-web@1.1.2/dist/piper-tts-web.js";
-const ONNX_BASE =
-  "https://cdn.jsdelivr.net/npm/piper-tts-web@1.1.2/dist/onnx/";
-const PIPER_BASE =
-  "https://cdn.jsdelivr.net/npm/piper-tts-web@1.1.2/dist/piper/";
+const MODULE_URL = "/api/piper-runtime/piper-tts-web.js";
+const ONNX_BASE = "/api/piper-runtime/onnx/";
+const PIPER_BASE = "/api/piper-runtime/piper/";
 const CACHE_NAME = "qazaq-piper-local-v1";
 
 const SPEAKERS = [
@@ -117,7 +112,7 @@ class PersistentFetchProvider {
 }
 
 function sampleUrl(speaker: number) {
-  return `${SAMPLE_BASE}speaker_${speaker}.mp3`;
+  return `/api/piper-sample?speaker=${speaker}`;
 }
 
 export default function PiperLocalStudio({ sourceText }: { sourceText?: string }) {
@@ -214,6 +209,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       await ensureStorage();
 
       const moduleUrl = MODULE_URL;
+      setLoadMessage("正在通过本站加载 Piper 浏览器引擎");
       const mod = (await import(/* @vite-ignore */ moduleUrl)) as unknown as PiperModule;
       const provider = new PersistentFetchProvider(setLoadMessage);
       const voiceProvider = new mod.HuggingFaceVoiceProvider({ provider });
