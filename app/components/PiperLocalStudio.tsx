@@ -313,9 +313,9 @@ function splitM2BroadcastSegments(text: string, turbo = false): M2Segment[] {
     if (
       previous &&
       !previous.paragraphEnd &&
-      previous.text.length < (accelerationMode === "gpu" ? 110 : 72) &&
-      item.text.length < (accelerationMode === "gpu" ? 180 : 125) &&
-      previous.text.length + item.text.length < (accelerationMode === "gpu" ? 300 : 210)
+      previous.text.length < (turbo ? 110 : 72) &&
+      item.text.length < (turbo ? 180 : 125) &&
+      previous.text.length + item.text.length < (turbo ? 300 : 210)
     ) {
       previous.text = `${previous.text} ${item.text}`;
       previous.paragraphEnd = item.paragraphEnd;
@@ -555,7 +555,11 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
             basePath: ONNX_BASE,
           });
           const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
-            provider,
+            // The upstream worker sends constructor options through postMessage.
+            // PersistentFetchProvider contains a React status callback, so it
+            // cannot be structured-cloned. Let the worker use its native
+            // serializable FetchProvider instead; browser HTTP/Cache handles
+            // repeated resource requests efficiently.
             basePath: PIPER_BASE,
           });
           engine = new mod.PiperWebWorkerEngine({
@@ -571,7 +575,11 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
             numThreads: 1,
           });
           const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
-            provider,
+            // The upstream worker sends constructor options through postMessage.
+            // PersistentFetchProvider contains a React status callback, so it
+            // cannot be structured-cloned. Let the worker use its native
+            // serializable FetchProvider instead; browser HTTP/Cache handles
+            // repeated resource requests efficiently.
             basePath: PIPER_BASE,
           });
           engine = new mod.PiperWebWorkerEngine({
