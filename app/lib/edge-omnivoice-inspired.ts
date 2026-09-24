@@ -52,6 +52,9 @@ export type EdgeOmniSettings = {
   // across independent Edge REST requests.
   continuityStateBefore?: EdgeContinuityState;
   continuityStateAfter?: EdgeContinuityState;
+  // Small chunk-level correction toward the smoothed full-document trajectory.
+  // It is a delta, not a replacement, so local word/sentence dynamics survive.
+  longFormCorrection?: EdgeContinuityState;
 };
 
 type PunctuationKind =
@@ -2420,9 +2423,22 @@ function renderGroup(
 ) {
   const average = blendMicros(group.map((item) => ({ micro: item.micro, weight: 1 })));
   const timbre = humanTimbreMotion(group, settings, groupIndex, totalGroups);
-  const phraseSpeed = clamp(settings.speed * average.rateFactor * timbre.rateFactor, 0.6, 1.35);
-  const phrasePitch = clamp(settings.pitch + average.pitchDelta + timbre.pitchDelta, -18, 18);
-  const phraseVolume = clamp(settings.volume + average.volumeDelta + timbre.volumeDelta, -7, 7);
+  const longForm = settings.longFormCorrection ?? NEUTRAL;
+  const phraseSpeed = clamp(
+    settings.speed * average.rateFactor * timbre.rateFactor * longForm.rateFactor,
+    0.6,
+    1.35,
+  );
+  const phrasePitch = clamp(
+    settings.pitch + average.pitchDelta + timbre.pitchDelta + longForm.pitchDelta,
+    -18,
+    18,
+  );
+  const phraseVolume = clamp(
+    settings.volume + average.volumeDelta + timbre.volumeDelta + longForm.volumeDelta,
+    -7,
+    7,
+  );
   let body = "";
 
   for (const item of group) {
