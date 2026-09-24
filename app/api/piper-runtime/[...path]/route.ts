@@ -25,18 +25,22 @@ function safePath(parts: string[]) {
   return joined;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { path } = await context.params;
   const asset = safePath(path);
   if (!asset) {
     return new Response("Invalid Piper runtime asset.", { status: 400 });
   }
 
+  const requestHeaders = new Headers({
+    "User-Agent": "Qazaq-Radio-Voice/1.0",
+    Accept: "*/*",
+  });
+  const range = request.headers.get("range");
+  if (range) requestHeaders.set("Range", range);
+
   const upstream = await fetch(BASE + asset, {
-    headers: {
-      "User-Agent": "Qazaq-Radio-Voice/1.0",
-      Accept: "*/*",
-    },
+    headers: requestHeaders,
   });
 
   if (!upstream.ok || !upstream.body) {
@@ -59,11 +63,13 @@ export async function GET(_request: Request, context: RouteContext) {
   headers.set("Cache-Control", "public, max-age=604800, stale-while-revalidate=86400");
   headers.set("X-Content-Type-Options", "nosniff");
 
-  const length = upstream.headers.get("content-length");
-  if (length) headers.set("Content-Length", length);
+  for (const name of ["content-length", "content-range", "accept-ranges"]) {
+    const value = upstream.headers.get(name);
+    if (value) headers.set(name, value);
+  }
 
   return new Response(upstream.body, {
-    status: 200,
+    status: upstream.status,
     headers,
   });
 }
