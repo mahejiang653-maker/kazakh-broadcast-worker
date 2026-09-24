@@ -12,7 +12,7 @@ const EDGE_VOICES = [
   {
     id: "kk-KZ-DauletNeural",
     name: "Дәулет",
-    meta: "原版男声 · 去气泡音增强 · 纯哈萨克语推荐",
+    meta: "原版男声 · V2 动态去气泡音 · 纯哈萨克语推荐",
     mark: "D",
   },
   {
