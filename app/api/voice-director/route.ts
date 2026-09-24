@@ -201,7 +201,25 @@ export async function POST(request: Request) {
       return result;
     }, {});
 
-    const directedText = buildDirectedText(cleanText, decisions);
+    let directedText = buildDirectedText(cleanText, decisions);
+
+    // Keep the final directed draft inside the same 15k studio limit.
+    // If a very long article has almost no remaining character budget, remove
+    // the lowest-confidence optional tags first rather than truncating speech.
+    if (directedText.length > MAX_CHARACTERS) {
+      const removable = [...decisions]
+        .filter((item) => item.emotionTag || item.actionTag)
+        .sort((left, right) => left.confidence - right.confidence);
+
+      for (const item of removable) {
+        item.emotionTag = null;
+        item.actionTag = null;
+        item.applied = false;
+        directedText = buildDirectedText(cleanText, decisions);
+        if (directedText.length <= MAX_CHARACTERS) break;
+      }
+    }
+
     const taggedCount = decisions.filter((item) => item.emotionTag || item.actionTag).length;
 
     return Response.json({
