@@ -100,8 +100,12 @@ type PiperVoiceProvider = {
 
 type PiperModule = {
   PiperWebEngine: new (options?: Record<string, unknown>) => PiperEngine;
+  PiperWebWorkerEngine: new (options?: Record<string, unknown>) => PiperEngine;
   OnnxWebRuntime: new (options?: Record<string, unknown>) => unknown;
+  OnnxWebWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
+  OnnxWebGPUWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
   PhonemizeWebRuntime: new (options?: Record<string, unknown>) => unknown;
+  PhonemizeWebWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
   HuggingFaceVoiceProvider: new (options?: Record<string, unknown>) => PiperVoiceProvider;
 };
 
@@ -436,6 +440,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
   const [preset, setPreset] = useState<M2Preset>("news");
   const [speed, setSpeed] = useState(1);
   const [loadState, setLoadState] = useState<LoadState>("idle");
+  const [accelerationMode, setAccelerationMode] = useState<"gpu" | "wasm">("wasm");
   const [loadMessage, setLoadMessage] = useState(
     "尚未加载 · 首次使用会下载约 128 MB M2 哈萨克语模型",
   );
@@ -529,7 +534,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       await ensureStorage();
 
       const moduleUrl = MODULE_URL;
-      setLoadMessage("正在通过本站加载 Piper 浏览器引擎");
+      setLoadMessage("正在通过本站加载 M2 Turbo 浏览器引擎");
       const mod = (await import(/* @vite-ignore */ moduleUrl)) as unknown as PiperModule;
       const provider = new PersistentFetchProvider(setLoadMessage);
       const baseVoiceProvider = new mod.HuggingFaceVoiceProvider({
@@ -537,28 +542,72 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         baseUrl: MODEL_BASE,
       });
       const tunedVoiceProvider = new M2TunedVoiceProvider(baseVoiceProvider);
-      const onnxRuntime = new mod.OnnxWebRuntime({
-        basePath: ONNX_BASE,
-        numThreads: 1,
-      });
-      const phonemizeRuntime = new mod.PhonemizeWebRuntime({
-        provider,
-        basePath: PIPER_BASE,
-      });
-      const engine = new mod.PiperWebEngine({
-        onnxRuntime,
-        phonemizeRuntime,
-        voiceProvider: tunedVoiceProvider,
-      });
+
+      let engine: PiperEngine;
+      let selectedAcceleration: "gpu" | "wasm" = "wasm";
+
+      if ("gpu" in navigator && navigator.gpu) {
+        try {
+          setLoadMessage("正在启用 WebGPU Worker · M2 Turbo");
+          const onnxRuntime = new mod.OnnxWebGPUWorkerRuntime({
+            basePath: ONNX_BASE,
+          });
+          const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
+            provider,
+            basePath: PIPER_BASE,
+          });
+          engine = new mod.PiperWebWorkerEngine({
+            onnxRuntime,
+            phonemizeRuntime,
+            voiceProvider: tunedVoiceProvider,
+          });
+          selectedAcceleration = "gpu";
+        } catch {
+          setLoadMessage("WebGPU 初始化失败 · 自动切换 CPU Worker");
+          const onnxRuntime = new mod.OnnxWebWorkerRuntime({
+            basePath: ONNX_BASE,
+            numThreads: 1,
+          });
+          const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
+            provider,
+            basePath: PIPER_BASE,
+          });
+          engine = new mod.PiperWebWorkerEngine({
+            onnxRuntime,
+            phonemizeRuntime,
+            voiceProvider: tunedVoiceProvider,
+          });
+        }
+      } else {
+        setLoadMessage("设备不支持 WebGPU · 使用 CPU Worker");
+        const onnxRuntime = new mod.OnnxWebWorkerRuntime({
+          basePath: ONNX_BASE,
+          numThreads: 1,
+        });
+        const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
+          provider,
+          basePath: PIPER_BASE,
+        });
+        engine = new mod.PiperWebWorkerEngine({
+          onnxRuntime,
+          phonemizeRuntime,
+          voiceProvider: tunedVoiceProvider,
+        });
+      }
 
       await tunedVoiceProvider.fetch(VOICE_ID);
 
       providerRef.current = provider;
       tunedProviderRef.current = tunedVoiceProvider;
       engineRef.current = engine;
+      setAccelerationMode(selectedAcceleration);
       setLoadState("ready");
       setModelCached(true);
-      setLoadMessage("M2 本地引擎已就绪 · 专属新闻参数已启用");
+      setLoadMessage(
+        selectedAcceleration === "gpu"
+          ? "M2 Turbo 已就绪 · WebGPU Worker 加速"
+          : "M2 Turbo 已就绪 · CPU Worker 模式",
+      );
       return engine;
     } catch (caught) {
       setLoadState("error");
@@ -700,6 +749,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         <div className="feature-row" aria-label="M2 本地播音功能">
           <span>非 Edge 引擎</span>
           <span>M2 单一主声线</span>
+          <span>WebGPU Turbo</span>
           <span>模型级新闻参数</span>
           <span>数字清晰增强</span>
           <span>长句自动分段</span>
@@ -710,7 +760,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{loadMessage}</strong>
             <p>
-              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；长稿按句顺序生成，并使用低内存 Blob 拼接成一个 WAV。
+              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；设备支持时优先使用 WebGPU Worker 加速，不支持时自动回退 CPU Worker。
             </p>
           </div>
         </div>
@@ -761,7 +811,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
               spellCheck={false}
             />
             <div className="textarea-footer">
-              <span>{wordCount ? `${wordCount} 个词 · M2 15,000 字长稿模式` : "等待输入"}</span>
+              <span>{wordCount ? `${wordCount} 个词 · M2 Turbo · 15,000 字长稿模式` : "等待输入"}</span>
               <span className={text.length > MAX_CHARACTERS * 0.9 ? "near-limit" : ""}>
                 {text.length.toLocaleString("zh-CN")} / {MAX_CHARACTERS}
               </span>
@@ -902,7 +952,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
                 ? "正在生成 M2 新闻增强版"
                 : `用 M2 生成 · ${M2_PRESETS[preset].label}`}
             </strong>
-            <small>非 Edge · M2 专属参数 · {speed.toFixed(2)}× · 本机 WAV</small>
+            <small>非 Edge · M2 专属参数 · {speed.toFixed(2)}× · {accelerationMode === "gpu" ? "WebGPU Worker 加速" : "CPU Worker"} · 本机 WAV</small>
           </span>
           <span className="button-arrow" aria-hidden="true">→</span>
         </button>
