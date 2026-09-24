@@ -108,6 +108,7 @@ type EdgeVoiceSettings = {
   volume: number;
   directorOverrides: EdgeDirectorOverrideInput[];
   emotionOverrides?: EdgeEmotionOverride[];
+  fineGrainedFocus: boolean;
 };
 
 let tokenCache: {
@@ -1123,6 +1124,7 @@ function renderContinuousStoryBody(
         vocalFryBaseRate: baseSpeed,
         vocalFryBasePitch: basePitch,
         vocalFryBaseVolume: baseVolume,
+        fineGrainedFocus: settings.fineGrainedFocus,
       },
       documentPlan,
       renderLanguageAwareText,
@@ -1282,6 +1284,7 @@ function renderEmotionDirectedBody(
           vocalFryBaseRate: baseSpeed,
           vocalFryBasePitch: basePitch,
           vocalFryBaseVolume: baseVolume,
+          fineGrainedFocus: settings.fineGrainedFocus,
         },
         documentPlan,
         renderLanguageAwareText,
@@ -1939,6 +1942,7 @@ export async function POST(request: Request) {
     edgePitch,
     edgeVolume,
     edgeEmotionOverrides,
+    edgeFineFocus,
   } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
@@ -2049,12 +2053,17 @@ export async function POST(request: Request) {
   if (!selectedDirectorOverrides) {
     return jsonError("Edge 情绪导演参数无效。", 400);
   }
+  if (edgeFineFocus !== undefined && typeof edgeFineFocus !== "boolean") {
+    return jsonError("Edge 句内重点参数无效。", 400);
+  }
+  const selectedFineFocus = edgeFineFocus === undefined ? true : edgeFineFocus;
 
   const edgeSettings: EdgeVoiceSettings = {
     speed: selectedSpeed,
     pitch: selectedPitch,
     volume: selectedVolume,
     directorOverrides: selectedDirectorOverrides,
+    fineGrainedFocus: selectedFineFocus,
   };
 
   try {
