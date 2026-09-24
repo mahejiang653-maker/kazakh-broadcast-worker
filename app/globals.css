@@ -392,6 +392,54 @@ textarea::placeholder { color: rgba(7, 21, 17, 0.34); }
 .edge-index-panel .director-card-head {
   margin-bottom: 2px;
 }
+.fish-focus-card {
+  margin: 11px 0 4px;
+  padding: 10px;
+  border: 1px solid rgba(14, 123, 99, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.54);
+}
+
+.fish-focus-card > div:first-child {
+  min-width: 0;
+}
+
+.fish-focus-card strong,
+.fish-focus-card small {
+  display: block;
+}
+
+.fish-focus-card strong {
+  font-size: 10px;
+}
+
+.fish-focus-card small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.fish-focus-card > .director-toggle {
+  margin-top: 9px;
+}
+
+.fish-focus-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.fish-focus-tags span {
+  border-radius: 999px;
+  padding: 4px 6px;
+  background: rgba(67, 216, 174, 0.08);
+  color: var(--mint-dark);
+  font-size: 8px;
+  font-weight: 700;
+}
+
 
 .director-toggle {
   border: 1px solid rgba(7, 21, 17, 0.14);
