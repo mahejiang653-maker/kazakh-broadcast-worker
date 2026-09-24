@@ -8,23 +8,25 @@ const MAX_CHARACTERS = 15000;
 const STUDIO_DIRECTION_TAG_PATTERN =
   /\[(?:开心|悲伤|惊讶|生气|害怕|厌恶|平静|耳语|短停顿|长停顿|叹气|轻笑|清嗓)\]/gu;
 
-type IssaiEmotion =
-  | "neutral"
+type IndexEmotion =
   | "happy"
-  | "sad"
   | "angry"
-  | "fearful"
+  | "sad"
+  | "afraid"
+  | "disgusted"
+  | "melancholic"
   | "surprised"
-  | "disgusted";
+  | "calm";
 
-const EMOTION_META: Record<IssaiEmotion, { label: string; tag: string | null }> = {
-  neutral: { label: "平静", tag: null },
+const EMOTION_META: Record<IndexEmotion, { label: string; tag: string | null }> = {
   happy: { label: "开心", tag: "[开心]" },
-  sad: { label: "悲伤", tag: "[悲伤]" },
   angry: { label: "生气", tag: "[生气]" },
-  fearful: { label: "害怕", tag: "[害怕]" },
-  surprised: { label: "惊讶", tag: "[惊讶]" },
+  sad: { label: "悲伤", tag: "[悲伤]" },
+  afraid: { label: "害怕", tag: "[害怕]" },
   disgusted: { label: "厌恶", tag: "[厌恶]" },
+  melancholic: { label: "忧郁", tag: "[悲伤]" },
+  surprised: { label: "惊讶", tag: "[惊讶]" },
+  calm: { label: "平静", tag: null },
 };
 
 const ANGER = [
@@ -45,6 +47,11 @@ const SURPRISE = [
 const DISGUST = [
   "жиіркен", "жирен", "жек көр", "жексұрын", "лақсы",
   "厌恶", "恶心", "反感", "嫌恶", "令人作呕", "痛恨",
+];
+
+const MELANCHOLIC = [
+  "мұң", "өкініш", "өкінішті", "сағын", "қайғылы", "қимастық", "шер",
+  "忧郁", "惆怅", "遗憾", "怀念", "思念", "哀思", "感伤",
 ];
 
 function sanitizeStudioDirectionTags(text: string) {
@@ -72,7 +79,7 @@ function hasCue(value: string, cues: string[]) {
 }
 
 function classifyEmotion(sentence: EdgeEmotionSentence): {
-  emotion: IssaiEmotion;
+  emotion: IndexEmotion;
   confidence: number;
   reason: string;
 } {
@@ -83,12 +90,15 @@ function classifyEmotion(sentence: EdgeEmotionSentence): {
     return { emotion: "angry", confidence: Math.max(0.84, sentence.confidence), reason: "明确愤怒或喊话语义" };
   }
   if (hasCue(sentence.text, FEAR)) {
-    return { emotion: "fearful", confidence: Math.max(0.82, sentence.confidence), reason: "明确恐惧语义" };
+    return { emotion: "afraid", confidence: Math.max(0.82, sentence.confidence), reason: "明确恐惧语义" };
   }
   if (hasCue(sentence.text, SURPRISE)) {
     return { emotion: "surprised", confidence: Math.max(0.82, sentence.confidence), reason: "明确惊讶语义" };
   }
   if (sentence.speechAct === "lament" || sentence.mood === "sad") {
+    if (hasCue(sentence.text, MELANCHOLIC)) {
+      return { emotion: "melancholic", confidence: Math.max(0.78, sentence.confidence), reason: "低沉、遗憾或怀念语义" };
+    }
     return { emotion: "sad", confidence: Math.max(0.76, sentence.confidence), reason: "悲伤语义或哀叹语气" };
   }
   if (sentence.speechAct === "humor" || sentence.mood === "positive") {
@@ -98,14 +108,24 @@ function classifyEmotion(sentence: EdgeEmotionSentence): {
   // News-safe default: attacks, wars, sanctions and other serious subjects stay
   // neutral unless the actual sentence contains clear emotional evidence.
   return {
-    emotion: "neutral",
+    emotion: "calm",
     confidence: Math.max(0.62, Math.min(0.88, sentence.confidence + 0.08)),
     reason: "新闻稳健基线",
   };
 }
 
-function shouldApplyEmotion(emotion: IssaiEmotion, confidence: number) {
-  if (emotion === "neutral") return false;
+function recommendedIntensity(emotion: IndexEmotion, confidence: number) {
+  if (emotion === "calm") return 0.22;
+  const base = 0.28 + Math.max(0, confidence - 0.6) * 0.78;
+  const ceiling =
+    emotion === "angry" || emotion === "surprised" ? 0.56 :
+    emotion === "sad" || emotion === "melancholic" ? 0.54 :
+    0.52;
+  return Math.round(Math.min(ceiling, Math.max(0.3, base)) * 100) / 100;
+}
+
+function shouldApplyEmotion(emotion: IndexEmotion, confidence: number) {
+  if (emotion === "calm") return false;
   return confidence >= 0.72;
 }
 
@@ -187,6 +207,7 @@ export async function POST(request: Request) {
         emotion: classified.emotion,
         label: meta.label,
         confidence: Math.round(classified.confidence * 100) / 100,
+        intensity: recommendedIntensity(classified.emotion, classified.confidence),
         reason: classified.reason,
         mood: sentence.mood,
         speechAct: sentence.speechAct,
@@ -225,7 +246,7 @@ export async function POST(request: Request) {
     return Response.json({
       status: "completed",
       mode: "news-safe",
-      version: 1,
+      version: 2,
       sentenceCount: decisions.length,
       taggedCount,
       counts,
