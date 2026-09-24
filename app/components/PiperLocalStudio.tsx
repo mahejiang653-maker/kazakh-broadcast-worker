@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 const MAX_CHARACTERS = 800;
 const VOICE_ID = "kk_KZ-issai-high";
-const MODEL_BASE =
-  "https://huggingface.co/rhasspy/piper-voices/resolve/main/kk/kk_KZ/issai/high/";
-const MODEL_URL = MODEL_BASE + "kk_KZ-issai-high.onnx";
+const MODEL_BASE = "/api/piper-model/";
+const MODEL_URL =
+  MODEL_BASE + "kk/kk_KZ/issai/high/kk_KZ-issai-high.onnx";
 const MODULE_URL = "/api/piper-runtime/piper-tts-web.js";
 const ONNX_BASE = "/api/piper-runtime/onnx/";
 const PIPER_BASE = "/api/piper-runtime/piper/";
@@ -212,7 +212,10 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       setLoadMessage("正在通过本站加载 Piper 浏览器引擎");
       const mod = (await import(/* @vite-ignore */ moduleUrl)) as unknown as PiperModule;
       const provider = new PersistentFetchProvider(setLoadMessage);
-      const voiceProvider = new mod.HuggingFaceVoiceProvider({ provider });
+      const voiceProvider = new mod.HuggingFaceVoiceProvider({
+        provider,
+        baseUrl: MODEL_BASE,
+      });
       const onnxRuntime = new mod.OnnxWebRuntime({
         basePath: ONNX_BASE,
         // Single-threaded WASM works on normal mobile pages without requiring
@@ -416,7 +419,13 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
             <p style={{ marginBottom: 8 }}>
               这一步不下载 128 MB 模型。听完六个样音后，你可以直接告诉我哪个最年轻，我再把它固定成“青年推荐声线”。
             </p>
-            <audio controls src={sampleUrl(speaker)} preload="none" style={{ width: "100%" }}>
+            <audio
+              key={speaker}
+              controls
+              src={sampleUrl(speaker)}
+              preload="metadata"
+              style={{ width: "100%" }}
+            >
               您的浏览器不支持音频播放。
             </audio>
           </div>
