@@ -40,3 +40,27 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Live Edge TTS smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://kazakh-broadcast-worker.mahejiang653.workers.dev/api/synthesize"
+          PAYLOAD='{"text":"Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық.","engine":"edge","voice":"kk-KZ-DauletNeural","preset":"news","speed":1,"edgePitch":0,"edgeVolume":0,"stability":0.5,"similarityBoost":0.75,"style":0,"speakerBoost":true}'
+          for attempt in 1 2 3; do
+            rm -f /tmp/edge-smoke.bin /tmp/edge-smoke.headers
+            status="$(curl --silent --show-error --location --max-time 90               --output /tmp/edge-smoke.bin               --dump-header /tmp/edge-smoke.headers               --write-out '%{http_code}'               --request POST "$URL"               --header 'Content-Type: application/json'               --data "$PAYLOAD" || true)"
+            content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/edge-smoke.headers | tail -1)"
+            size="$(wc -c < /tmp/edge-smoke.bin 2>/dev/null || echo 0)"
+            echo "Attempt $attempt: HTTP $status · Content-Type $content_type · $size bytes"
+            if [[ "$status" == "200" && "$content_type" == audio/mpeg* && "$size" -gt 1000 ]]; then
+              echo "Live Edge TTS smoke test passed."
+              exit 0
+            fi
+            echo "Response preview:"
+            head -c 600 /tmp/edge-smoke.bin || true
+            echo
+            sleep 6
+          done
+          echo "Live Edge TTS smoke test failed after 3 attempts."
+          exit 1
