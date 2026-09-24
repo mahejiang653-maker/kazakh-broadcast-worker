@@ -64,3 +64,22 @@ jobs:
           done
           echo "Live Edge TTS smoke test failed after 3 attempts."
           exit 1
+
+      - name: Live Daulet V2 anti-fry smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL="https://kazakh-broadcast-worker.mahejiang653.workers.dev/api/synthesize"
+          PAYLOAD='{"text":"Бүгінгі хабарлар осымен аяқталды. Бұл оқиғаға қатысты қосымша мәлімет кейін жарияланады.","engine":"edge","voice":"kk-KZ-DauletNeural","preset":"calm","speed":0.9,"edgePitch":0,"edgeVolume":0,"edgeEmotionOverrides":[{"index":1,"emotion":"sad","intensity":0.55}],"stability":0.5,"similarityBoost":0.75,"style":0,"speakerBoost":true}'
+          rm -f /tmp/daulet-v2.bin /tmp/daulet-v2.headers
+          status="$(curl --silent --show-error --location --max-time 90             --output /tmp/daulet-v2.bin             --dump-header /tmp/daulet-v2.headers             --write-out '%{http_code}'             --request POST "$URL"             --header 'Content-Type: application/json'             --data "$PAYLOAD" || true)"
+          content_type="$(awk 'BEGIN{IGNORECASE=1} /^content-type:/ {gsub("\r",""); print $2}' /tmp/daulet-v2.headers | tail -1)"
+          size="$(wc -c < /tmp/daulet-v2.bin 2>/dev/null || echo 0)"
+          echo "Daulet V2: HTTP $status · Content-Type $content_type · $size bytes"
+          if [[ "$status" != "200" || "$content_type" != audio/mpeg* || "$size" -le 1000 ]]; then
+            echo "Daulet V2 anti-fry smoke test failed."
+            head -c 600 /tmp/daulet-v2.bin || true
+            echo
+            exit 1
+          fi
+          echo "Daulet V2 anti-fry smoke test passed."
