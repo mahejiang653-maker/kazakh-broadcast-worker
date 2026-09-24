@@ -2089,14 +2089,37 @@ const KAZAKH_NUMBER_WORDS =
   "(?:нөл|бір|екі|үш|төрт|бес|алты|жеті|сегіз|тоғыз|он|жиырма|отыз|қырық|елу|алпыс|жетпіс|сексен|тоқсан|жүз|мың|миллион|миллиард|триллион)";
 const NEWS_UNIT_WORDS =
   "(?:пайыз|процент|адам|километр|метр|тонна|килограмм|гектар|градус|мегаватт|гигаватт|киловатт|гигабайт|терабайт|герц|доллар|еуро|юань|теңге)";
-const NEWS_ENTITY_WORD_PATTERN =
-  /\b(?:Ресей|Украина|Қытай|АҚШ|Иран|Израиль|Палестина|Сирия|Ливан|Түркия|Катар|Үндістан|Пәкістан|Ауғанстан|Жапония|Молдова|Беларусь|Армения|Әзербайжан|Грузия|Қазақстан|Өзбекстан|Қырғызстан|Тәжікстан|Түрікменстан|НАТО|Еуропа Одағы)\b/gu;
-const INLINE_TURN_PATTERN =
-  /\b(?:бірақ|алайда|дегенмен|сондықтан|сол себепті|нәтижесінде|осылайша|демек|керісінше|ең бастысы|маңыздысы|әсіресе|атап айтқанда)\b/giu;
-const INLINE_CRITICAL_PATTERN =
-  /\b(?:қаза тапты|жараланды|расталды|мәлімдеді|хабарлады|растады|жариялады|қол қойды|іске қосты|бастады|тоқтатты|жіберді|аттандырды|жетті)\b/giu;
-const INLINE_NEGATION_PATTERN =
-  /\b(?:емес|жоқ|расталған жоқ|анықталған жоқ|орын алған жоқ)\b/giu;
+const NEWS_ENTITY_ROOTS =
+  "(?:Ресей|Украина|Қытай|АҚШ|Иран|Израиль|Палестина|Сирия|Ливан|Түркия|Катар|Үндістан|Пәкістан|Ауғанстан|Жапония|Молдова|Беларусь|Армения|Әзербайжан|Грузия|Қазақстан|Өзбекстан|Қырғызстан|Тәжікстан|Түрікменстан|НАТО|Еуропа Одағы)";
+const INLINE_TURN_ROOTS =
+  "(?:бірақ|алайда|дегенмен|сондықтан|сол себепті|нәтижесінде|осылайша|демек|керісінше|ең бастысы|маңыздысы|әсіресе|атап айтқанда)";
+const INLINE_CRITICAL_ROOTS =
+  "(?:қаза тапты|жараланды|расталды|мәлімдеді|хабарлады|растады|жариялады|қол қойды|іске қосты|бастады|тоқтатты|жіберді|аттандырды|жетті)";
+const INLINE_NEGATION_ROOTS =
+  "(?:емес|жоқ|расталған жоқ|анықталған жоқ|орын алған жоқ)";
+
+function unicodeCapturedPattern(root: string, flags = "giu") {
+  return new RegExp(
+    `(^|[^\\p{L}\\p{N}])(${root})(?=$|[^\\p{L}\\p{N}])`,
+    flags,
+  );
+}
+
+function pushCapturedMatches(
+  text: string,
+  regex: RegExp,
+  spans: FineFocusSpan[],
+  kind: FineFocusKind,
+  priority: number,
+) {
+  for (const match of text.matchAll(regex)) {
+    const prefix = match[1] ?? "";
+    const target = match[2] ?? "";
+    if (!target) continue;
+    const start = (match.index ?? 0) + prefix.length;
+    pushFineFocusSpan(spans, start, start + target.length, kind, priority);
+  }
+}
 
 function pushFineFocusSpan(
   spans: FineFocusSpan[],
@@ -2113,44 +2136,59 @@ function collectFishInlineFocusSpans(text: string, phrase: Phrase) {
   if (text.trim().length < 5) return [] as FineFocusSpan[];
   const spans: FineFocusSpan[] = [];
 
-  const numberUnitPattern = new RegExp(
-    `(?:\\b\\d+(?:[.,]\\d+)?|\\b${KAZAKH_NUMBER_WORDS}(?:\\s+${KAZAKH_NUMBER_WORDS}){0,5})\\s+${NEWS_UNIT_WORDS}\\b`,
-    "giu",
+  const numberUnitRoot =
+    `(?:\\d+(?:[.,]\\d+)?|${KAZAKH_NUMBER_WORDS}(?:\\s+${KAZAKH_NUMBER_WORDS}){0,5})\\s+${NEWS_UNIT_WORDS}`;
+  pushCapturedMatches(
+    text,
+    unicodeCapturedPattern(numberUnitRoot),
+    spans,
+    "number",
+    1,
   );
-  for (const match of text.matchAll(numberUnitPattern)) {
-    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "number", 1);
-  }
 
-  for (const match of text.matchAll(NEWS_ENTITY_WORD_PATTERN)) {
-    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "entity", 0.82);
-  }
+  // Capture the entity root plus ordinary Kazakh suffix letters so "Ресейдің"
+  // or "Иранға" receives one contour instead of lifting only the stem.
+  const entityWithSuffix = `${NEWS_ENTITY_ROOTS}[\\p{L}'’.-]*`;
+  pushCapturedMatches(
+    text,
+    unicodeCapturedPattern(entityWithSuffix, "gu"),
+    spans,
+    "entity",
+    0.82,
+  );
 
-  // Multi-word proper names and organization names are safer than a single
-  // capitalized sentence-initial word, which is often just normal grammar.
-  const multiWordEntity = /\b[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}(?:\s+[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}){1,3}\b/gu;
-  for (const match of text.matchAll(multiWordEntity)) {
-    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "entity", 0.76);
-  }
+  const multiWordEntity =
+    /(^|[^\p{L}\p{N}])([A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}(?:\s+[A-ZА-ЯӘҒҚҢӨҰҮҺІ][\p{L}'’.-]{2,}){1,3})(?=$|[^\p{L}\p{N}])/gu;
+  pushCapturedMatches(text, multiWordEntity, spans, "entity", 0.76);
 
-  for (const match of text.matchAll(INLINE_TURN_PATTERN)) {
-    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "turn", 0.73);
-  }
+  pushCapturedMatches(
+    text,
+    unicodeCapturedPattern(INLINE_TURN_ROOTS),
+    spans,
+    "turn",
+    0.73,
+  );
 
-  // Casualty and confirmation verbs receive word-level focus only when the
-  // phrase is already important in the document model. This prevents every
-  // ordinary reporting verb from becoming "announcer emphasis".
   if (
     ["lead", "key_number", "climax"].includes(phrase.segment?.role ?? "") ||
     /(?:қаза тапты|жараланды)/iu.test(text)
   ) {
-    for (const match of text.matchAll(INLINE_CRITICAL_PATTERN)) {
-      pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "critical", 0.7);
-    }
+    pushCapturedMatches(
+      text,
+      unicodeCapturedPattern(INLINE_CRITICAL_ROOTS),
+      spans,
+      "critical",
+      0.7,
+    );
   }
 
-  for (const match of text.matchAll(INLINE_NEGATION_PATTERN)) {
-    pushFineFocusSpan(spans, match.index ?? -1, (match.index ?? 0) + match[0].length, "negation", 0.68);
-  }
+  pushCapturedMatches(
+    text,
+    unicodeCapturedPattern(INLINE_NEGATION_ROOTS),
+    spans,
+    "negation",
+    0.68,
+  );
 
   const maxSpans = text.length >= 150 ? 3 : 2;
   const selected: FineFocusSpan[] = [];
