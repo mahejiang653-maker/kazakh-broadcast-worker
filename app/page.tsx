@@ -116,6 +116,7 @@ const ELEVEN_V3_DIRECTION_TAGS = [
   { token: "[惊讶]", label: "惊讶", note: "抬高语气" },
   { token: "[生气]", label: "生气", note: "增强力度" },
   { token: "[害怕]", label: "紧张", note: "更谨慎" },
+  { token: "[厌恶]", label: "厌恶", note: "明显排斥" },
   { token: "[平静]", label: "平静", note: "克制稳定" },
   { token: "[耳语]", label: "耳语", note: "压低声线" },
   { token: "[叹气]", label: "叹气", note: "自然呼吸" },
