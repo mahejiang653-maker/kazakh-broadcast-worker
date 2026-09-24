@@ -304,6 +304,7 @@ export default function Home() {
   const [voiceDirectorUndoText, setVoiceDirectorUndoText] = useState<string | null>(null);
   const [edgeDirectorEnabled, setEdgeDirectorEnabled] = useState(true);
   const [edgeFineFocusEnabled, setEdgeFineFocusEnabled] = useState(true);
+  const [edgeLongFormEnabled, setEdgeLongFormEnabled] = useState(true);
   const audioUrlRef = useRef<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -612,6 +613,7 @@ export default function Home() {
           style,
           speakerBoost,
           edgeFineFocus: engine === "edge" ? edgeFineFocusEnabled : false,
+          edgeLongFormContinuity: engine === "edge" ? edgeLongFormEnabled : false,
           edgeEmotionOverrides:
             engine === "edge" && edgeDirectorEnabled && voiceDirectorStatus === "completed" && voiceDirectorResult
               ? voiceDirectorResult.decisions.map((item) => ({
@@ -789,6 +791,7 @@ export default function Home() {
             <span>ISSAI 式表达标签</span>
             <span>Index 2.5 式情绪强度</span>
             <span>Fish S2 式句内重点</span>
+            <span>VibeVoice 式长稿连续</span>
             <span>Edge 音调 / 音量</span>
             <span>MP3 下载</span>
           </div>
@@ -859,29 +862,6 @@ export default function Home() {
                       >
                         {voiceDirectorStatus === "analyzing" ? "分析中…" : "分析整篇"}
                       </button>
-                    </div>
-
-                    <div className="fish-focus-card">
-                      <div>
-                        <strong>Fish S2 式句内重点</strong>
-                        <small>自动给数字、伤亡数字、国家/机构名、转折与关键结论做轻量词级强调，不修改正文。</small>
-                      </div>
-                      <button
-                        className={edgeFineFocusEnabled ? "director-toggle enabled" : "director-toggle"}
-                        type="button"
-                        onClick={() => {
-                          setEdgeFineFocusEnabled((current) => !current);
-                          markAudioSettingsDirty();
-                        }}
-                      >
-                        句内重点：{edgeFineFocusEnabled ? "开启" : "关闭"}
-                      </button>
-                      <div className="fish-focus-tags" aria-label="自动句内重点类型">
-                        <span>数字 / 单位</span>
-                        <span>伤亡信息</span>
-                        <span>国家 / 机构</span>
-                        <span>转折 / 结论</span>
-                      </div>
                     </div>
 
                     {voiceDirectorStatus === "completed" && voiceDirectorResult ? (
@@ -1006,6 +986,51 @@ export default function Home() {
                       </button>
                     </div>
 
+                    <div className="vibe-continuity-card">
+                      <div>
+                        <strong>VibeVoice 式长稿连续性</strong>
+                        <small>跨分块继承语速、音高与能量状态，减少长稿中途“重新开口”的感觉；正文和声线不会被改写。</small>
+                      </div>
+                      <button
+                        className={edgeLongFormEnabled ? "director-toggle enabled" : "director-toggle"}
+                        type="button"
+                        onClick={() => {
+                          setEdgeLongFormEnabled((current) => !current);
+                          markAudioSettingsDirty();
+                        }}
+                      >
+                        长稿连续：{edgeLongFormEnabled ? "开启" : "关闭"}
+                      </button>
+                      <div className="fish-focus-tags" aria-label="长稿连续性能力">
+                        <span>跨块声学记忆</span>
+                        <span>前后文双向平滑</span>
+                        <span>主播状态继承</span>
+                      </div>
+                    </div>
+
+                    <div className="fish-focus-card">
+                      <div>
+                        <strong>Fish S2 式句内重点</strong>
+                        <small>自动给数字、伤亡数字、国家/机构名、转折与关键结论做轻量词级强调，不修改正文。</small>
+                      </div>
+                      <button
+                        className={edgeFineFocusEnabled ? "director-toggle enabled" : "director-toggle"}
+                        type="button"
+                        onClick={() => {
+                          setEdgeFineFocusEnabled((current) => !current);
+                          markAudioSettingsDirty();
+                        }}
+                      >
+                        句内重点：{edgeFineFocusEnabled ? "开启" : "关闭"}
+                      </button>
+                      <div className="fish-focus-tags" aria-label="自动句内重点类型">
+                        <span>数字 / 单位</span>
+                        <span>伤亡信息</span>
+                        <span>国家 / 机构</span>
+                        <span>转折 / 结论</span>
+                      </div>
+                    </div>
+
                     {voiceDirectorStatus === "completed" && voiceDirectorResult ? (
                       <>
                         <div className="director-summary">
@@ -1098,7 +1123,7 @@ export default function Home() {
                 <span className="voice-avatar">F</span>
                 <span className="voice-copy">
                   <strong>免费模式</strong>
-                  <small>Edge TTS · 句内重点 / 情绪强度 / 声线 / 倍速 / 音调 / 音量 / 中哈同音色混读</small>
+                  <small>Edge TTS · 长稿连续 / 句内重点 / 情绪强度 / 声线 / 倍速 / 音调 / 音量 / 中哈同音色混读</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
