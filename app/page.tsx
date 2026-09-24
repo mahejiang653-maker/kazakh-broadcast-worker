@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
+import PiperLocalStudio from "./components/PiperLocalStudio";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -125,7 +126,7 @@ const ELEVEN_V3_DIRECTION_TAGS = [
 ] as const;
 
 
-type Engine = "edge" | "eleven" | "omnivoice";
+type Engine = "edge" | "eleven" | "omnivoice" | "piper";
 type PresetId = (typeof PRESETS)[number]["id"];
 type EmotionAnalysisStatus = "idle" | "analyzing" | "completed" | "failed";
 type VoiceDirectorStatus = "idle" | "analyzing" | "completed" | "failed";
@@ -553,12 +554,14 @@ export default function Home() {
       void loadElevenVoices();
     }
 
-    if (nextEngine === "omnivoice") {
+    if (nextEngine === "omnivoice" || nextEngine === "piper") {
       window.setTimeout(() => {
-        document.getElementById("omnivoice")?.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
+        document
+          .getElementById(nextEngine === "omnivoice" ? "omnivoice" : "piper-local")
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
       }, 100);
     }
   }
@@ -765,7 +768,9 @@ export default function Home() {
             ? "免费模式 1 · Edge TTS 增强"
             : engine === "eleven"
               ? "高质量模式 · ElevenLabs v3"
-              : "免费模式 2 · KazakhTTS-OmniVoice"}
+              : engine === "omnivoice"
+                ? "免费模式 2 · KazakhTTS-OmniVoice"
+                : "免费模式 3 · Piper Local"}
         </div>
       </header>
 
@@ -782,10 +787,10 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供三种播音模式：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，高质量模式为 ElevenLabs v3。三种模式均面向哈萨克语播音，并提供各自适配的声线、倍速与表现力控制。Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。Edge 现在同时提供原版 Дәулет / Айгүл 与统一多语男声 / 女声。原版声线适合纯哈萨克语；统一声线可让中哈混合稿从头到尾保持同一音色。
+            现在提供四套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper，高质量模式为 ElevenLabs v3。Piper 完全不经过 Edge，并提供 ISSAI KazakhTTS 的 6 个说话人；Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。
           </p>
           <div className="feature-row" aria-label="功能特点">
-            <span>Edge / OmniVoice / ElevenLabs</span>
+            <span>Edge / OmniVoice / Piper / ElevenLabs</span>
             <span>Edge / v3 中哈自动混读</span>
             <span>三种模式均可调倍速</span>
             <span>ISSAI 式表达标签</span>
@@ -1156,6 +1161,22 @@ export default function Home() {
                 <span className="voice-copy">
                   <strong>免费模式 2</strong>
                   <small>KazakhTTS-OmniVoice · 声线设计 / 倍速 / 质量</small>
+                </span>
+                <span className="radio-mark" aria-hidden="true" />
+              </label>
+
+              <label className={`voice-option ${engine === "piper" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="engine"
+                  value="piper"
+                  checked={engine === "piper"}
+                  onChange={() => selectEngine("piper")}
+                />
+                <span className="voice-avatar">P</span>
+                <span className="voice-copy">
+                  <strong>免费模式 3</strong>
+                  <small>Piper Local · 非 Edge · 6 个哈萨克语说话人 · 浏览器本地生成</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
