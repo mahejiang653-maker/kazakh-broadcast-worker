@@ -128,6 +128,26 @@ const ELEVEN_V3_DIRECTION_TAGS = [
 type Engine = "edge" | "eleven" | "omnivoice";
 type PresetId = (typeof PRESETS)[number]["id"];
 type EmotionAnalysisStatus = "idle" | "analyzing" | "completed" | "failed";
+type VoiceDirectorStatus = "idle" | "analyzing" | "completed" | "failed";
+type VoiceDirectorDecision = {
+  index: number;
+  text: string;
+  emotion: string;
+  label: string;
+  confidence: number;
+  reason: string;
+  applied: boolean;
+  actionTag?: string | null;
+};
+type VoiceDirectorResult = {
+  status: "completed";
+  mode: "news-safe";
+  sentenceCount: number;
+  taggedCount: number;
+  counts: Record<string, number>;
+  decisions: VoiceDirectorDecision[];
+  directedText: string;
+};
 type ElevenVoice = {
   id: string;
   name: string;
@@ -165,6 +185,16 @@ function signed(value: number, suffix = "%") {
   const rounded = Math.round(value * 10) / 10;
   return `${rounded > 0 ? "+" : ""}${rounded}${suffix}`;
 }
+
+const DIRECTOR_EMOTION_LABELS: Record<string, string> = {
+  neutral: "平静",
+  happy: "开心",
+  sad: "悲伤",
+  angry: "生气",
+  fearful: "害怕",
+  surprised: "惊讶",
+  disgusted: "厌恶",
+};
 
 
 type SafeRangeProps = {
@@ -255,6 +285,10 @@ export default function Home() {
   const [audioSettingsDirty, setAudioSettingsDirty] = useState(false);
   const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
   const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
+  const [voiceDirectorStatus, setVoiceDirectorStatus] = useState<VoiceDirectorStatus>("idle");
+  const [voiceDirectorResult, setVoiceDirectorResult] = useState<VoiceDirectorResult | null>(null);
+  const [voiceDirectorError, setVoiceDirectorError] = useState("");
+  const [voiceDirectorUndoText, setVoiceDirectorUndoText] = useState<string | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -360,6 +394,65 @@ export default function Home() {
   function resetEmotionAnalysis() {
     setEmotionAnalysisStatus("idle");
     setEmotionSentenceCount(0);
+  }
+
+  function resetVoiceDirector() {
+    setVoiceDirectorStatus("idle");
+    setVoiceDirectorResult(null);
+    setVoiceDirectorError("");
+  }
+
+  async function runVoiceDirector() {
+    const cleanText = text.trim();
+    if (!cleanText) {
+      setVoiceDirectorError("请先输入稿件。");
+      setVoiceDirectorStatus("failed");
+      return;
+    }
+
+    setVoiceDirectorStatus("analyzing");
+    setVoiceDirectorError("");
+
+    try {
+      const response = await fetch("/api/voice-director", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: cleanText }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (VoiceDirectorResult & { error?: string })
+        | { status?: string; error?: string }
+        | null;
+
+      if (!response.ok || payload?.status !== "completed" || !("directedText" in payload)) {
+        throw new Error(payload?.error || "AI 导演分析失败。");
+      }
+
+      setVoiceDirectorResult(payload as VoiceDirectorResult);
+      setVoiceDirectorStatus("completed");
+    } catch (caught) {
+      setVoiceDirectorResult(null);
+      setVoiceDirectorStatus("failed");
+      setVoiceDirectorError(caught instanceof Error ? caught.message : "AI 导演分析失败。");
+    }
+  }
+
+  function applyVoiceDirector() {
+    if (!voiceDirectorResult?.directedText) return;
+    setVoiceDirectorUndoText(text);
+    setText(voiceDirectorResult.directedText);
+    setError("");
+    resetEmotionAnalysis();
+    resetAudio();
+  }
+
+  function undoVoiceDirector() {
+    if (voiceDirectorUndoText === null) return;
+    setText(voiceDirectorUndoText);
+    setVoiceDirectorUndoText(null);
+    resetVoiceDirector();
+    resetEmotionAnalysis();
+    resetAudio();
   }
 
   async function loadElevenVoices() {
@@ -539,6 +632,8 @@ export default function Home() {
     setText("");
     setError("");
     resetEmotionAnalysis();
+    resetVoiceDirector();
+    setVoiceDirectorUndoText(null);
     resetAudio();
   }
 
@@ -701,6 +796,8 @@ export default function Home() {
                 onChange={(event) => {
                   setText(event.target.value);
                   resetEmotionAnalysis();
+                  resetVoiceDirector();
+                  setVoiceDirectorUndoText(null);
                   if (error) setError("");
                 }}
                 placeholder="Осы жерге қазақша мәтінді енгізіңіз…"
@@ -716,6 +813,69 @@ export default function Home() {
                     </div>
                     <span>v3</span>
                   </div>
+
+                  <div className="director-card" aria-live="polite">
+                    <div className="director-card-head">
+                      <div>
+                        <strong>AI 导演 · 新闻稳健</strong>
+                        <small>逐句判断 ISSAI 七类情绪；战争、袭击等严肃内容默认保持中性，不自动表演化</small>
+                      </div>
+                      <button
+                        className="director-run"
+                        type="button"
+                        onClick={() => void runVoiceDirector()}
+                        disabled={voiceDirectorStatus === "analyzing" || !text.trim()}
+                      >
+                        {voiceDirectorStatus === "analyzing" ? "分析中…" : "分析整篇"}
+                      </button>
+                    </div>
+
+                    {voiceDirectorStatus === "completed" && voiceDirectorResult ? (
+                      <>
+                        <div className="director-summary">
+                          <span>已判断 {voiceDirectorResult.sentenceCount} 句</span>
+                          <span>建议控制 {voiceDirectorResult.taggedCount} 句</span>
+                          {Object.entries(voiceDirectorResult.counts)
+                            .filter(([, count]) => count > 0)
+                            .map(([emotion, count]) => (
+                              <span key={emotion}>{DIRECTOR_EMOTION_LABELS[emotion] ?? emotion} {count}</span>
+                            ))}
+                        </div>
+                        <div className="director-actions">
+                          <button className="preset selected" type="button" onClick={applyVoiceDirector}>
+                            <strong>应用到稿件</strong>
+                            <small>只写入高置信度情绪标签</small>
+                          </button>
+                          {voiceDirectorUndoText !== null ? (
+                            <button className="preset" type="button" onClick={undoVoiceDirector}>
+                              <strong>撤销导演</strong>
+                              <small>恢复应用前稿件</small>
+                            </button>
+                          ) : null}
+                        </div>
+                        <details className="director-details">
+                          <summary>查看逐句导演判断</summary>
+                          <div className="director-decision-list">
+                            {voiceDirectorResult.decisions.map((item) => (
+                              <div className="director-decision" key={item.index}>
+                                <div>
+                                  <strong>{item.index + 1}. {item.label}</strong>
+                                  <span>{Math.round(item.confidence * 100)}%</span>
+                                </div>
+                                <p>{item.text}</p>
+                                <small>{item.reason}{item.applied ? " · 将写入标签" : " · 保持自然基线"}</small>
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </>
+                    ) : voiceDirectorStatus === "failed" ? (
+                      <div className="director-error">{voiceDirectorError || "AI 导演分析失败，请重试。"}</div>
+                    ) : (
+                      <div className="director-hint">先分析，不会自动改稿；确认后再点“应用到稿件”。</div>
+                    )}
+                  </div>
+
                   <div className="direction-grid">
                     {ELEVEN_V3_DIRECTION_TAGS.map((item) => (
                       <button
