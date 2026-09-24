@@ -438,6 +438,76 @@ textarea::placeholder { color: rgba(7, 21, 17, 0.34); }
   gap: 5px;
 }
 
+.m2-progress {
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid rgba(14, 123, 99, 0.18);
+  border-radius: 6px;
+  background: rgba(67, 216, 174, 0.05);
+}
+
+.m2-progress-head,
+.m2-progress-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.m2-progress-head strong,
+.m2-progress-head span,
+.m2-progress-detail span {
+  font-size: 9px;
+}
+
+.m2-progress-head strong {
+  color: var(--ink);
+}
+
+.m2-progress-head span,
+.m2-progress-detail span {
+  color: var(--muted);
+}
+
+.m2-progress-track {
+  display: block;
+  width: 100%;
+  height: 7px;
+  margin: 9px 0;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(7, 21, 17, 0.08);
+}
+
+.m2-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--mint);
+  transition: width 180ms ease;
+}
+
+.m2-progress-detail {
+  align-items: flex-start;
+}
+
+.m2-progress-detail span {
+  min-width: 0;
+  line-height: 1.45;
+}
+
+.m2-progress-detail button {
+  flex: 0 0 auto;
+  border: 1px solid rgba(180, 35, 24, 0.22);
+  border-radius: 999px;
+  padding: 5px 8px;
+  background: rgba(180, 35, 24, 0.06);
+  color: #b42318;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 800;
+}
+
 .fish-focus-tags span {
   border-radius: 999px;
   padding: 4px 6px;
