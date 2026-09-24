@@ -334,6 +334,109 @@ textarea {
 }
 textarea::placeholder { color: rgba(7, 21, 17, 0.34); }
 
+.direction-panel {
+  border-top: 1px solid var(--line);
+  padding: 14px 14px 12px;
+  background: rgba(67, 216, 174, 0.045);
+}
+
+.direction-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 11px;
+}
+
+.direction-panel-head strong,
+.direction-panel-head small {
+  display: block;
+}
+
+.direction-panel-head strong {
+  font-size: 12px;
+  letter-spacing: 0.03em;
+}
+
+.direction-panel-head small {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.direction-panel-head > span {
+  flex: 0 0 auto;
+  border: 1px solid rgba(14, 123, 99, 0.18);
+  border-radius: 999px;
+  padding: 3px 7px;
+  color: var(--mint-dark);
+  font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.08em;
+}
+
+.direction-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.direction-chip {
+  min-width: 0;
+  border: 1px solid rgba(7, 21, 17, 0.14);
+  border-radius: 5px;
+  padding: 9px 8px 8px;
+  background: rgba(255, 255, 255, 0.68);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.direction-chip:hover {
+  border-color: rgba(14, 123, 99, 0.42);
+  background: rgba(67, 216, 174, 0.09);
+}
+
+.direction-chip:active {
+  transform: translateY(1px);
+}
+
+.direction-chip strong,
+.direction-chip small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.direction-chip strong {
+  font-size: 11px;
+}
+
+.direction-chip small {
+  margin-top: 3px;
+  color: var(--muted);
+  font: 500 8px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.direction-panel-foot {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+@media (max-width: 680px) {
+  .direction-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .direction-panel-foot { display: block; }
+  .direction-panel-foot span { display: block; }
+  .direction-panel-foot span + span { margin-top: 3px; }
+}
+
 .textarea-footer {
   min-height: 34px;
   padding: 8px 13px;
