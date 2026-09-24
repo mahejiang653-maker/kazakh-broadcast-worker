@@ -26,6 +26,9 @@ export type EdgeOmniSettings = {
   // combine slower rate, lower pitch and lower energy. This guard is voice-specific
   // and only softens those risky closures; it does not brighten the whole voice.
   vocalFryGuard?: number;
+  vocalFryBaseRate?: number;
+  vocalFryBasePitch?: number;
+  vocalFryBaseVolume?: number;
   deliveryMode?: "neutral" | "broadcast" | "story";
   // V17: keep the same fluent sentence-closure mechanism across all four news
   // presets while preserving each presenter's own pause density.
@@ -81,6 +84,12 @@ type Phrase = {
   reportingLead?: boolean;
   newsItemClose?: boolean;
   boundaryStrength?: number;
+  vocalFryCompensation?: {
+    risk: number;
+    rateLift: number;
+    pitchLift: number;
+    volumeLift: number;
+  };
 };
 
 type EdgeMarkupRenderer = (text: string) => string;
@@ -1538,65 +1547,81 @@ function semanticBoundaryStrength(
   return clamp(strength, 0.04, 0.96);
 }
 
-function applyVocalFryGuard(
+function applyVocalFryGuardV2(
   phrases: Phrase[],
-  strength = 0,
+  settings: EdgeOmniSettings,
 ) {
-  const amount = clamp(strength, 0, 1);
+  const amount = clamp(settings.vocalFryGuard ?? 0, 0, 1.15);
   if (amount <= 0) return phrases;
 
-  const terminalKinds = new Set<PunctuationKind>([
-    "period",
-    "ellipsis",
-    "question",
-    "exclamation",
-    "mixed",
-  ]);
-
   return phrases.map((phrase) => {
-    const structuralEnding = phrase.layoutBoundary === "paragraph";
-    const sentenceEnding = terminalKinds.has(phrase.punctuationKind);
+    const kind = phrase.layoutBoundary ?? phrase.punctuationKind;
+    const boundary = phrase.boundaryStrength ?? baseBoundaryStrength(kind);
     const endingRole = phrase.segment?.role === "ending";
     const backgroundRole = phrase.segment?.role === "background";
 
-    // Fry is most audible when a phrase closes while rate, pitch and energy all
-    // move downward together. Keep body speech almost untouched and concentrate
-    // the guard at genuine closures.
-    const risk =
-      structuralEnding ? 1 :
-      endingRole ? 0.92 :
-      sentenceEnding ? 0.82 :
-      backgroundRole ? 0.28 :
-      0.08;
-    const guard = amount * risk;
-    if (guard <= 0.02) return phrase;
+    const closureRisk =
+      kind === "paragraph" ? 1 :
+      kind === "ellipsis" ? 0.96 :
+      kind === "period" ? 0.84 :
+      endingRole ? 0.9 :
+      kind === "question" ? 0.46 :
+      kind === "mixed" ? 0.44 :
+      kind === "exclamation" ? 0.34 :
+      phrase.newsItemClose ? 0.7 :
+      backgroundRole ? 0.22 :
+      0.05;
 
-    let rateFactor = phrase.micro.rateFactor;
-    let pitchDelta = phrase.micro.pitchDelta;
-    let volumeDelta = phrase.micro.volumeDelta;
+    const baseRate = settings.vocalFryBaseRate ?? 1;
+    const basePitch = settings.vocalFryBasePitch ?? 0;
+    const baseVolume = settings.vocalFryBaseVolume ?? 0;
+    const effectiveRate = baseRate * settings.speed * phrase.micro.rateFactor;
+    const effectivePitch = basePitch + settings.pitch + phrase.micro.pitchDelta;
+    const effectiveVolume = baseVolume + settings.volume + phrase.micro.volumeDelta;
 
-    if (rateFactor < 1) {
-      rateFactor = 1 + (rateFactor - 1) * (1 - 0.5 * guard);
-    }
-    if (pitchDelta < 0) {
-      pitchDelta *= 1 - 0.72 * guard;
-    }
-    if (volumeDelta < 0) {
-      volumeDelta *= 1 - 0.46 * guard;
+    const slowRisk = clamp((1.01 - effectiveRate) / 0.07, 0, 1);
+    const lowPitchRisk = clamp((0.72 - effectivePitch) / 1.15, 0, 1);
+    const lowEnergyRisk = clamp((0.05 - effectiveVolume) / 0.55, 0, 1);
+    const collapseRisk =
+      slowRisk * 0.42 +
+      lowPitchRisk * 0.38 +
+      lowEnergyRisk * 0.2;
+
+    // V2 reacts only when the final realized state is risky. A normal deep
+    // sentence remains deep; a closure that is simultaneously low, slow and
+    // quiet receives a narrowly targeted lift around its final phrase.
+    let risk = amount * clamp(
+      closureRisk * 0.5 +
+      collapseRisk * 0.34 +
+      boundary * 0.1 +
+      (endingRole ? 0.08 : 0),
+      0,
+      1,
+    );
+
+    // Question/exclamation contours are naturally protected by their upward
+    // movement. Avoid flattening them unless they are unusually slow/low.
+    if (
+      ["question", "exclamation", "mixed"].includes(kind) &&
+      collapseRisk < 0.55
+    ) {
+      risk *= 0.58;
     }
 
-    // A tiny closure lift keeps the synthetic glottal pulse from collapsing into
-    // the lowest part of the model's range. Values are deliberately much smaller
-    // than a normal user-facing pitch adjustment.
-    pitchDelta += 0.014 * guard;
-    volumeDelta += 0.006 * guard;
+    if (risk < 0.44) return phrase;
+
+    const intervention = clamp((risk - 0.44) / 0.56, 0, 1);
+    const rateLift = 0.12 + intervention * 0.52;
+    const pitchLift = 0.2 + intervention * 0.62;
+    const volumeLift = 0.04 + intervention * 0.18;
 
     return {
       ...phrase,
-      micro: {
-        rateFactor: clamp(rateFactor, 0.958, 1.03),
-        pitchDelta: clamp(pitchDelta, -0.14, 0.18),
-        volumeDelta: clamp(volumeDelta, -0.09, 0.2),
+      vocalFryCompensation: {
+        risk: Math.round(risk * 1000) / 1000,
+        rateLift,
+        pitchLift,
+        volumeLift,
       },
     };
   });
@@ -2223,9 +2248,19 @@ function renderGroup(
   let body = "";
 
   for (const item of group) {
-    body += naturalTextMarkup(item.text, renderText, settings.deliveryMode);
+    let spoken = naturalTextMarkup(item.text, renderText, settings.deliveryMode);
     const renderedPunctuation = acousticPunctuation(item, settings.deliveryMode);
-    if (renderedPunctuation) body += escapeXml(renderedPunctuation);
+    if (renderedPunctuation) spoken += escapeXml(renderedPunctuation);
+
+    const fry = item.vocalFryCompensation;
+    if (fry) {
+      // Keep the punctuation inside the local prosody wrapper so Edge realizes
+      // the protected closure contour itself, instead of lifting the words and
+      // then dropping back into fry on the final period.
+      spoken = `<prosody rate="${signedPercent(fry.rateLift)}" pitch="${signedPercent(fry.pitchLift)}" volume="${signedPercent(fry.volumeLift)}">${spoken}</prosody>`;
+    }
+
+    body += spoken;
     const pause = semanticBreak(
       item,
       Boolean(renderedPunctuation),
@@ -2251,10 +2286,10 @@ export function renderEdgeOmniInspiredMarkup(
   plan?: EdgeDocumentPlan,
   renderText: EdgeMarkupRenderer = escapeXml,
 ) {
-  const phrases = applyProsodyInertia(
-    annotateSemanticBoundaries(
-      annotateBroadcastCadence(
-        applyVocalFryGuard(
+  const phrases = applyVocalFryGuardV2(
+    applyProsodyInertia(
+      annotateSemanticBoundaries(
+        annotateBroadcastCadence(
           applyDirectQuoteContinuity(
             applyLogicalFocusContrast(
               bidirectionalSmooth(
@@ -2263,11 +2298,11 @@ export function renderEdgeOmniInspiredMarkup(
               ),
             ),
           ),
-          settings.vocalFryGuard,
+          settings.deliveryMode,
         ),
         settings.deliveryMode,
       ),
-      settings.deliveryMode,
+      settings,
     ),
     settings,
   );
