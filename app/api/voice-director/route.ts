@@ -3,7 +3,6 @@ import {
   analyzeEdgeEmotionPlan,
   type EdgeEmotionSentence,
 } from "../../lib/edge-emotion-director";
-import { prepareEdgeHumanText } from "../../lib/edge-humanizer";
 
 const MAX_CHARACTERS = 15000;
 const STUDIO_DIRECTION_TAG_PATTERN =
@@ -161,13 +160,14 @@ export async function POST(request: Request) {
 
   try {
     const cleanText = sanitizeStudioDirectionTags(text);
-    const preparedText = prepareEdgeHumanText(cleanText);
-    if (!preparedText) {
+    if (!cleanText) {
       return Response.json({ status: "failed", error: "没有可分析的有效文本。" }, { status: 422 });
     }
 
-    const documentPlan = analyzeEdgeDocument(preparedText);
-    const emotionPlan = analyzeEdgeEmotionPlan(preparedText, documentPlan);
+    // Analyze the original studio wording so every sentence remains an exact
+    // substring of the user's draft and can be safely annotated in place.
+    const documentPlan = analyzeEdgeDocument(cleanText);
+    const emotionPlan = analyzeEdgeEmotionPlan(cleanText, documentPlan);
     if (!emotionPlan.sentences.length) {
       return Response.json({ status: "failed", error: "未识别到可分析的句子。" }, { status: 422 });
     }
