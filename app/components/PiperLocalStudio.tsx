@@ -250,8 +250,10 @@ function normalizeM2BroadcastText(input: string) {
 const KEY_NUMBER_PATTERN =
   /(?:\d+(?:[.,]\d+)?|нөл|бір|екі|үш|төрт|бес|алты|жеті|сегіз|тоғыз|он|жиырма|отыз|қырық|елу|алпыс|жетпіс|сексен|тоқсан|жүз|мың|миллион|миллиард)\s*(?:пайыз|процент|адам|километр|метр|тонна|доллар|еуро|юань|теңге)?/iu;
 
-function splitLongSentence(sentence: string) {
-  const targetLength = sentence.length > 260 ? 310 : 190;
+function splitLongSentence(sentence: string, turbo = false) {
+  const targetLength = turbo
+    ? sentence.length > 260 ? 480 : 260
+    : sentence.length > 260 ? 310 : 190;
   if (sentence.length <= targetLength) return [sentence.trim()];
   const parts = sentence
     .split(/(?<=[,;:])\s+/u)
@@ -275,7 +277,7 @@ function splitLongSentence(sentence: string) {
   return output;
 }
 
-function splitM2BroadcastSegments(text: string): M2Segment[] {
+function splitM2BroadcastSegments(text: string, turbo = false): M2Segment[] {
   const normalized = normalizeM2BroadcastText(text);
   if (!normalized) return [];
 
@@ -290,7 +292,7 @@ function splitM2BroadcastSegments(text: string): M2Segment[] {
       paragraph.match(/[^.!?…]+(?:[.!?…]+|$)/gu)?.map((item) => item.trim()).filter(Boolean) ??
       [paragraph];
 
-    const expanded = sentences.flatMap(splitLongSentence);
+    const expanded = sentences.flatMap((sentence) => splitLongSentence(sentence, turbo));
 
     expanded.forEach((segment, index) => {
       if (!segment) return;
@@ -311,9 +313,9 @@ function splitM2BroadcastSegments(text: string): M2Segment[] {
     if (
       previous &&
       !previous.paragraphEnd &&
-      previous.text.length < 72 &&
-      item.text.length < 125 &&
-      previous.text.length + item.text.length < 210
+      previous.text.length < (accelerationMode === "gpu" ? 110 : 72) &&
+      item.text.length < (accelerationMode === "gpu" ? 180 : 125) &&
+      previous.text.length + item.text.length < (accelerationMode === "gpu" ? 300 : 210)
     ) {
       previous.text = `${previous.text} ${item.text}`;
       previous.paragraphEnd = item.paragraphEnd;
@@ -641,7 +643,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       const tunedProvider = tunedProviderRef.current;
       if (!tunedProvider) throw new Error("M2 专属参数模块尚未就绪。");
 
-      const segments = splitM2BroadcastSegments(clean);
+      const segments = splitM2BroadcastSegments(clean, accelerationMode === "gpu");
       if (!segments.length) throw new Error("没有可生成的有效句子。");
 
       cancelGenerationRef.current = false;
