@@ -22,6 +22,10 @@ export type EdgeOmniSettings = {
   pitch: number;
   volume: number;
   emotionOverrides?: EdgeEmotionOverride[];
+  // Native male voices can develop audible vocal-fry/creak when sentence tails
+  // combine slower rate, lower pitch and lower energy. This guard is voice-specific
+  // and only softens those risky closures; it does not brighten the whole voice.
+  vocalFryGuard?: number;
   deliveryMode?: "neutral" | "broadcast" | "story";
   // V17: keep the same fluent sentence-closure mechanism across all four news
   // presets while preserving each presenter's own pause density.
@@ -1534,6 +1538,70 @@ function semanticBoundaryStrength(
   return clamp(strength, 0.04, 0.96);
 }
 
+function applyVocalFryGuard(
+  phrases: Phrase[],
+  strength = 0,
+) {
+  const amount = clamp(strength, 0, 1);
+  if (amount <= 0) return phrases;
+
+  const terminalKinds = new Set<PunctuationKind>([
+    "period",
+    "ellipsis",
+    "question",
+    "exclamation",
+    "mixed",
+  ]);
+
+  return phrases.map((phrase) => {
+    const structuralEnding = phrase.layoutBoundary === "paragraph";
+    const sentenceEnding = terminalKinds.has(phrase.punctuationKind);
+    const endingRole = phrase.segment?.role === "ending";
+    const backgroundRole = phrase.segment?.role === "background";
+
+    // Fry is most audible when a phrase closes while rate, pitch and energy all
+    // move downward together. Keep body speech almost untouched and concentrate
+    // the guard at genuine closures.
+    const risk =
+      structuralEnding ? 1 :
+      endingRole ? 0.92 :
+      sentenceEnding ? 0.82 :
+      backgroundRole ? 0.28 :
+      0.08;
+    const guard = amount * risk;
+    if (guard <= 0.02) return phrase;
+
+    let rateFactor = phrase.micro.rateFactor;
+    let pitchDelta = phrase.micro.pitchDelta;
+    let volumeDelta = phrase.micro.volumeDelta;
+
+    if (rateFactor < 1) {
+      rateFactor = 1 + (rateFactor - 1) * (1 - 0.5 * guard);
+    }
+    if (pitchDelta < 0) {
+      pitchDelta *= 1 - 0.72 * guard;
+    }
+    if (volumeDelta < 0) {
+      volumeDelta *= 1 - 0.46 * guard;
+    }
+
+    // A tiny closure lift keeps the synthetic glottal pulse from collapsing into
+    // the lowest part of the model's range. Values are deliberately much smaller
+    // than a normal user-facing pitch adjustment.
+    pitchDelta += 0.014 * guard;
+    volumeDelta += 0.006 * guard;
+
+    return {
+      ...phrase,
+      micro: {
+        rateFactor: clamp(rateFactor, 0.958, 1.03),
+        pitchDelta: clamp(pitchDelta, -0.14, 0.18),
+        volumeDelta: clamp(volumeDelta, -0.09, 0.2),
+      },
+    };
+  });
+}
+
 function annotateBroadcastCadence(
   phrases: Phrase[],
   deliveryMode: EdgeOmniSettings["deliveryMode"] = "neutral",
@@ -2186,13 +2254,16 @@ export function renderEdgeOmniInspiredMarkup(
   const phrases = applyProsodyInertia(
     annotateSemanticBoundaries(
       annotateBroadcastCadence(
-        applyDirectQuoteContinuity(
-          applyLogicalFocusContrast(
-            bidirectionalSmooth(
-              annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode, settings.emotionOverrides)),
-              settings.deliveryMode,
+        applyVocalFryGuard(
+          applyDirectQuoteContinuity(
+            applyLogicalFocusContrast(
+              bidirectionalSmooth(
+                annotateQuoteContinuity(buildPhrases(text, plan, settings.deliveryMode, settings.emotionOverrides)),
+                settings.deliveryMode,
+              ),
             ),
           ),
+          settings.vocalFryGuard,
         ),
         settings.deliveryMode,
       ),
