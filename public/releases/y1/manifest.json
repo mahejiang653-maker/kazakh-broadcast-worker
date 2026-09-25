@@ -1,0 +1,186 @@
+{
+  "release": "Y1",
+  "baseline": "V52",
+  "sourceCommit": "67989993c80fe2484af66d6e271c5c7481194451",
+  "entry": {
+    "path": "/news-globe-y1.html",
+    "sha256": "8a877ee2e81dca2a0a642228179dea75ec892d2f3def233aaf4ba6f86773384b"
+  },
+  "assets": [
+    {
+      "path": "/releases/y1/news-globe-v14-v52-screen-space.css",
+      "sha256": "e47e0ce89d7f7d9a70eb95fd6c2d8fe5d1c268c5cbfed3d1491ceb82371a426c",
+      "bytes": 3462
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-core.js",
+      "sha256": "5ab00aec9bf4bb378b5ec7e8ad89de1bd449bfcfa778f3c07bbe8f9cf2baac02",
+      "bytes": 9318
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-highlight.js",
+      "sha256": "f1e79fd2569070afd5129b8d2b384a775b08ca8a140561a78e071485ccbbdab5",
+      "bytes": 12909
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-ui.js",
+      "sha256": "59f9898bdb579bc0836a586d0dee316f9628327f40c8e2a3892ee57876d60f1a",
+      "bytes": 12469
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-small-country.js",
+      "sha256": "095130e30817fdf31f3987d7fca8f12208e747695ccaa81596033ba8f7d63168",
+      "bytes": 2818
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-fixes-v26.js",
+      "sha256": "fadbe7806e0893ae54719e5fcb0add28d1692bdd0c01a959c57114aa384c6da1",
+      "bytes": 3612
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-strategy-v27.js",
+      "sha256": "aee0b3251a5b377ca6c4ff5fda84dfcf79363a0941ea533a712c39c43b7d79d0",
+      "bytes": 12830
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v28-patch.js",
+      "sha256": "e4da04e238a31a4398f9ef4cf2572175c774c222864e134a0da7410a8741dd09",
+      "bytes": 3183
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v29-war-patch.js",
+      "sha256": "56fb7a835d7d18f2ca58e5ba3093d14073760079a98ac225da8c8e5048d8c179",
+      "bytes": 12480
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v30-polish-patch.js",
+      "sha256": "67667c6bde64544c60ab3af3223512fc687bec27967075906a453c49ad939e49",
+      "bytes": 12372
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v31-geosemantic-patch.js",
+      "sha256": "56667442796e4277c45c3d88aca275c5e59feb942babb520a3e34a5ea00f4234",
+      "bytes": 20011
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v32-complete-fix.js",
+      "sha256": "609bc9486ee240d5528b7236c01d73f622eaced30c67d6cb5c96866732697d06",
+      "bytes": 19189
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v33-visual-geometry-fix.js",
+      "sha256": "d2e7638319c6860a938dc66eeb5c1aab16b31cc3bf9f76bbc17eca2127ae8307",
+      "bytes": 21368
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v34-final-polish.js",
+      "sha256": "c06da940b3d8032cf46fc62359ac7765732a1259ecf849fbeb5431b8cabd1f06",
+      "bytes": 22868
+    },
+    {
+      "path": "/releases/y1/news-globe-data-20260907-v47.js",
+      "sha256": "b8b068816187303dba08fd148bf2d8446bc6462dfe4b0c056966b422b4b9985b",
+      "bytes": 10114
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v48-data-fix.js",
+      "sha256": "e4f8dae4546534ae6b84fea3537a25f04911cf461eca41911c0b356251ba59c2",
+      "bytes": 751
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v50-data-fix.js",
+      "sha256": "8d7063b5a16135cee006056a9f170ff012a6dea0b676ccb4a4e2cb949f5caa9e",
+      "bytes": 1640
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v51-data-fix.js",
+      "sha256": "a10f593154eda2414306d73345c658861d61bb867694f9c087d1802cd1a258c8",
+      "bytes": 3316
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v35-ellipse-hotfix.js",
+      "sha256": "e1f8c768a70b7f07668cc6271fb4cc0a9936b2d5af7484de9d91f680f2438f14",
+      "bytes": 1602
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v37-targeted-fix.js",
+      "sha256": "3df9224769a12a1cbba0126943c89ad2118c44d0bb175ea230e74783f80431a3",
+      "bytes": 13575
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v38-hierarchy-precision.js",
+      "sha256": "66d355864c3a2b561af10853755c56d4a6e3e1aa21489d73ae7fe31dc8614b8b",
+      "bytes": 11456
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v44-regression-guard.js",
+      "sha256": "0cbb30ce955888da1408029434ae4225ce410308fb73e3134033f7e742bd3c24",
+      "bytes": 6944
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v45b-semantic-fix.js",
+      "sha256": "7a7cb0f213300c5503b5f3dec2a12e76928a26c735e4d85fb62860608a4cbbae",
+      "bytes": 11288
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v47-sceneplan-engine.js",
+      "sha256": "6c23804b0bc761b46c8a2cec1ddabe0bbe67e5401a9e51032b4c4766c020d50f",
+      "bytes": 23625
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v48-clarity-rules.js",
+      "sha256": "352c5e8efd170c27762fdc714d18a7aa1e3cfd9e4fca883222ebfa0f5fbd0736",
+      "bytes": 18448
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v49-render-discipline.js",
+      "sha256": "a3cc80a08d67268635844e8482c218c1abeee759ada14a0a37efbd1f1b92394b",
+      "bytes": 21195
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v50-render-rules.js",
+      "sha256": "b689d722e9358635837810c57440a48a185a8765024acc09348433a0c7424dc1",
+      "bytes": 21187
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v51-scene-engine.js",
+      "sha256": "f7537db55601d716fa66decc4a67cbcf08a1e7b75c574d4bd812a75e249281a7",
+      "bytes": 21054
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-camera-breathing-room.js",
+      "sha256": "d7566e38998a5bb070760356bed376d9376aea38f61615ff691eaddcded08d90",
+      "bytes": 16475
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-event-geometry.js",
+      "sha256": "397b4da536f04952239d52d1138bc185e9342eb28c33d02b56e99d044a33b14e",
+      "bytes": 4485
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-event-model.js",
+      "sha256": "86f9b2d4bda19d2cb55961e3def62169570b237f17e6fc2c11c5b6bc91f1ec33",
+      "bytes": 5348
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-event-effects.js",
+      "sha256": "c8e041cc65c1bfeb95e17e79ead62325c232f76ab84ffb0edbd0cc85cebf681e",
+      "bytes": 17085
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-screen-layout.js",
+      "sha256": "e2f68e49622876037d9343e8bbfba849235c2635ecb6499adfd2d5ddc9002897",
+      "bytes": 3262
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-v52-screen-space.js",
+      "sha256": "4cc43648a81fd75630fbe85ed28e24a6079d5b509b0933385c8e0f20ad43359e",
+      "bytes": 13731
+    },
+    {
+      "path": "/releases/y1/news-globe-v14-main.js",
+      "sha256": "d47aed7071ecb56f687694bc61b700319bdce15069e9c7572a59ab682adfb285",
+      "bytes": 548
+    }
+  ]
+}

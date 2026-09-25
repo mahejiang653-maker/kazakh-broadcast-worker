@@ -1,0 +1,75 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> kazakh-broadcast-worker@0.1.0 test:y1
+> node --test tests/y1-camera.test.mjs tests/y1-effects.test.mjs tests/y1-screen-space.test.mjs
+
+✔ 8 event coordinates, all flight frames stay inside 344×193.5 (69.098056ms)
+✔ 8 event coordinates, all flight frames stay inside 374×210.375 (41.325366ms)
+✔ 8 event coordinates, all flight frames stay inside 550×309.375 (17.985474ms)
+✔ 8 event coordinates, all flight frames stay inside 1280×720 (19.362961ms)
+✔ fractional 16:9 CSS size determines aspect despite rounded canvas client dimensions (2.662543ms)
+✔ date line follows the short arc, with stable exact-pole and antipodal flights (12.875211ms)
+✔ rapid prev/next cancels each earlier camera once and rejects late stale requests (5.391511ms)
+✔ resize during flight retains its destination and updates frustum, DPR and safe scale (4.002127ms)
+✔ bounding-sphere and direct setView paths preserve callbacks and avoid partial globe (3.384863ms)
+✔ only the V52 viewer is intercepted; destroy restores methods and input settings (2.56976ms)
+✔ existing V51 POINT scenes create their markers at the safe centre for all 8 locations (33.660719ms)
+✔ existing V51 sequence cancellation cannot move the next story camera (11.39166ms)
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+[News Globe] V34 final polish loaded
+✔ 测试：单国家普通事件 (41.120985ms)
+✔ 测试：欧洲双国家普通事件 (35.363971ms)
+✔ 测试：跨洲双国家普通事件 (12.637036ms)
+✔ 测试：跨洲导弹方向 (24.251733ms)
+✔ 测试：跨日界线导弹方向 (16.877127ms)
+✔ 测试：区域无人机方向 (19.579685ms)
+✔ 测试：反向跨日界线无人机 (21.925837ms)
+✔ 测试：边境局部冲突范围 (24.879626ms)
+✔ 测试：无边境线时的局部冲突 (16.441984ms)
+✔ short spherical routes handle date line, high latitudes, continents and antipodes (11.662226ms)
+✔ missile and drone retain distinct artwork, duration, altitude, trail and motion (19.998397ms)
+✔ rapid switching cancels particles, trajectories, timers, RAF and late continuations (65.631698ms)
+✔ current prev/next navigation arc survives initial cleanup, previous arc is removed (4.372789ms)
+✔ late legacy attack entry and stale sequence cannot restart the current effect (14.603493ms)
+✔ clearing one effect cannot let its continuation delete its replacement (19.398837ms)
+✔ potential attacks remain illustrative and never create impacts or aircraft (13.400968ms)
+✔ canonical roles, missing locations and special V52 scenes normalize compatibly (2.374466ms)
+✔ the current 13 V52 records retain data and special-scene dispatch (85.396292ms)
+✔ final stability: full event chain, previous/next, rapid input and viewport changes share one session (137.273469ms)
+✔ four screen corners flip labels inward without moving the anchors (16.988144ms)
+✔ left and right points prefer opening toward the visual interior (0.44451ms)
+✔ all four candidate directions are usable when the other sides are blocked (0.79748ms)
+✔ nearby red, blue and yellow markers all reserve space (1.087632ms)
+✔ news body and top/bottom controls are treated as measured obstacles (1.915148ms)
+✔ crowded labels yield by priority instead of overlapping markers or text (7.774002ms)
+✔ a previously valid direction remains stable during small marker movement (0.470148ms)
+✔ safe area combines visual viewport, scroll position and all device insets (0.326069ms)
+✔ portrait, landscape and address-bar height changes keep labels within visible space (1.704084ms)
+✔ oversized labels and invisible viewports never overflow as a fallback (0.382965ms)
+✔ forty successive layouts contain only the current label IDs (3.318469ms)
+✔ visibility ownership preserves callbacks, external replacements and restores cleanly (450.399152ms)
+ℹ tests 43
+ℹ suites 0
+ℹ pass 43
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1187.301692

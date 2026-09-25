@@ -1,6 +1,6 @@
 export const metadata = {
-  title: "2026-09-15 全球新闻 · 十三条新闻地球仪 V52",
-  description: "2026年9月15日每日十三条新闻三维地球仪 V52",
+  title: "全球新闻地球仪 Y1",
+  description: "基于 V52 稳定化版本的全球新闻地球仪 Y1",
 };
 
 export default function GlobePage() {
@@ -13,14 +13,14 @@ export default function GlobePage() {
         height: "100%",
         margin: 0,
         padding: 0,
-        overflow: "hidden",
+        overflow: "auto",
         background: "#020711",
         zIndex: 9999,
       }}
     >
       <iframe
-        src="/news-globe-run-20260915-v52-r1.html?v=20260915-52r1"
-        title="2026年9月15日全球新闻十三条新闻地球仪 V52"
+        src="/news-globe-y1.html?v=Y1"
+        title="全球新闻地球仪 Y1"
         style={{
           display: "block",
           width: "100%",

@@ -1,0 +1,67 @@
+(function(G){
+if(!G||!Array.isArray(G.news))return;
+for(const n of G.news){
+  const id=Number(n.id);
+  n.scenePlan={...(n.scenePlan||{})};
+  if(id===1){
+    n.sceneMode='ATTACK';
+    Object.assign(n.scenePlan,{attackerIso3:'USA',victimIso3:'IRN',sourcePrecision:'platform',sourceType:'carrier',sourceLabel:'美军海上平台',targetLabel:'伊朗油轮',areaLabel:'霍尔木兹海峡',finalLocation:true});
+    n.sourceLon=57.10;n.sourceLat=24.80;n.targetLon=56.35;n.targetLat=26.55;n.focusLabel='伊朗油轮';
+  }
+  if(id===2){
+    n.sceneMode='ATTACK';
+    Object.assign(n.scenePlan,{attackerIso3:'ISR',victimIso3:'LBN',sourcePrecision:'directional',sourceType:'airstrike',sourceDirectionLabel:'以色列方向',targetLabel:'黎巴嫩南部空袭区',finalLocation:true});
+    n.focusLabel='黎巴嫩南部空袭区';
+  }
+  if(id===3){
+    n.sceneMode='ATTACK';
+    Object.assign(n.scenePlan,{attackerIso3:'UKR',victimIso3:'RUS',sourcePrecision:'directional',sourceType:'drone',sourceDirectionLabel:'乌克兰方向',targetLabel:'梁赞炼油厂',targetAdminChain:[{location:'梁赞州',focusLabel:'梁赞州',placeType:'州',lon:40.0,lat:54.4}],finalLocation:true});
+    n.focusLabel='梁赞炼油厂';
+  }
+  if(id===4){
+    n.sceneMode='POINT';
+    Object.assign(n.scenePlan,{primaryIso3:'UKR',contextCountries:['USA','UKR'],finalLocation:true,finalType:'city'});
+    n.focusLabel='基辅';
+  }
+  if(id===5){
+    n.sceneMode='DIPLOMACY_2';
+    Object.assign(n.scenePlan,{participants:['DEU','RUS'],primaryIso3:'RUS',finalLocation:false});
+  }
+  if(id===6){
+    n.sceneMode='CARRIER_PORT';
+    Object.assign(n.scenePlan,{primaryIso3:'THA',contextCountries:['USA','THA'],platform:'carrier',platformCountryIso3:'USA',platformLabel:'亚伯拉罕·林肯号',approachLon:100.70,approachLat:13.00,dockLon:100.865,dockLat:13.075,finalType:'port',finalLocation:true,carrierDocking:true});
+    n.focusLabel='林查班港';
+  }
+  if(id===7){
+    n.sceneMode='ORGANIZATION';
+    Object.assign(n.scenePlan,{organization:'OPEC+',keyCountries:['IRN'],coreCountries:['SAU','RUS'],finalLocationRelevant:false,finalFocus:'keyCountry'});
+    n.countryIso3='';n.country='OPEC+';n.location='OPEC+';n.region='OPEC+成员国与本条关键国家';n.focusLabel='OPEC+';n.displayCountriesLabel='OPEC+ · 伊朗';
+  }
+  if(id===8){
+    n.sceneMode='DIPLOMACY_MULTI';
+    Object.assign(n.scenePlan,{participants:['CHN','USA','RUS'],primaryIso3:'CHN',finalLocation:true,finalType:'city'});
+    n.focusLabel='深圳';
+  }
+  if(id===10){
+    n.sceneMode='POINT';
+    Object.assign(n.scenePlan,{primaryIso3:'EGY',contextCountries:['CHN','EGY'],finalLocation:true,finalType:'airport'});
+    n.focusLabel='阿拉曼国际机场';
+  }
+  if(id===11){
+    n.sceneMode='POINT';
+    Object.assign(n.scenePlan,{primaryIso3:'CHN',contextCountries:['SGP','CHN'],finalLocation:true,finalType:'city'});
+    n.focusLabel='湛江市';
+  }
+  if(id===12){
+    n.sceneMode='POINT';
+    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'city'});
+    n.focusLabel='北屯市';
+  }
+  if(id===13){
+    n.sceneMode='POINT';
+    Object.assign(n.scenePlan,{primaryIso3:'CHN',finalLocation:true,finalType:'venue'});
+    n.focusLabel='新疆迎宾馆';
+  }
+}
+if(G.payload&&Array.isArray(G.payload.news))G.payload.news=G.news;
+})(window.NG14);

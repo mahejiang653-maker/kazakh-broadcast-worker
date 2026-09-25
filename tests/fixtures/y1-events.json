@@ -1,0 +1,11 @@
+[
+  {"id":1,"title":"测试：单国家普通事件","type":"domestic","primaryCountry":"CAN","countryIso3":"CAN","lon":-79.38,"lat":43.65,"location":"多伦多测试点","locationPrecision":"city","sceneMode":"POINT"},
+  {"id":2,"title":"测试：欧洲双国家普通事件","type":"interstate","primaryCountry":"FRA","secondaryCountry":"DEU","countryIso3":"FRA","lon":7.75,"lat":48.58,"location":"斯特拉斯堡测试点","secondaryLocation":{"lon":8.4,"lat":49.01}},
+  {"id":3,"title":"测试：跨洲双国家普通事件","type":"interstate","primaryCountry":"USA","secondaryCountry":"JPN","countryIso3":"USA","lon":-122.33,"lat":47.61,"location":"西雅图测试点","secondaryLocation":{"lon":139.69,"lat":35.68}},
+  {"id":4,"title":"测试：跨洲导弹方向","type":"missile_attack","primaryCountry":"IRN","secondaryCountry":"USA","countryIso3":"IRN","origin":{"lon":-122.4,"lat":37.8,"country":"USA","locationPrecision":"region"},"target":{"lon":51.73,"lat":33.72,"country":"IRN"},"lon":51.73,"lat":33.72,"location":"中东测试目标"},
+  {"id":5,"title":"测试：跨日界线导弹方向","type":"missile_attack","primaryCountry":"RUS","secondaryCountry":"USA","countryIso3":"USA","origin":{"lon":179.8,"lat":66,"country":"RUS"},"target":{"lon":-166,"lat":66,"country":"USA"},"lon":-166,"lat":66,"location":"日界线东侧测试目标"},
+  {"id":6,"title":"测试：区域无人机方向","type":"drone_attack","primaryCountry":"UKR","secondaryCountry":"RUS","countryIso3":"UKR","origin":{"lon":36.6,"lat":50.6,"country":"RUS"},"target":{"lon":30.52,"lat":50.45,"country":"UKR"},"lon":30.52,"lat":50.45,"location":"基辅测试目标"},
+  {"id":7,"title":"测试：反向跨日界线无人机","type":"drone_attack","primaryCountry":"RUS","secondaryCountry":"USA","countryIso3":"RUS","origin":{"lon":-166,"lat":66,"country":"USA"},"target":{"lon":179.8,"lat":66,"country":"RUS"},"lon":179.8,"lat":66,"location":"日界线西侧测试目标"},
+  {"id":8,"title":"测试：边境局部冲突范围","type":"border_conflict","primaryCountry":"THA","secondaryCountry":"KHM","countryIso3":"THA","lon":102.55,"lat":14.42,"location":"边境测试区域一","borderRadiusKm":12,"borderLine":[[102.55,10],[102.55,14.32],[102.55,14.42],[102.55,14.52],[102.55,18]]},
+  {"id":9,"title":"测试：无边境线时的局部冲突","type":"border_conflict","primaryCountry":"RUS","secondaryCountry":"UKR","countryIso3":"RUS","lon":37.5,"lat":49.9,"location":"边境测试区域二","borderRadiusKm":8}
+]

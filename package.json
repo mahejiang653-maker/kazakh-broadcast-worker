@@ -11,7 +11,8 @@
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
     "types": "wrangler types",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/y1-package.test.mjs",
+    "test:y1": "node --test tests/y1-camera.test.mjs tests/y1-effects.test.mjs tests/y1-screen-space.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next"
   },
   "dependencies": {
