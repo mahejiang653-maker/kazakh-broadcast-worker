@@ -79,6 +79,21 @@ type PiperEngine = {
   destroy: () => void;
 };
 
+type PhonemizeRuntime = {
+  phonemize: (text: string, voiceData: PiperVoiceData) => Promise<unknown>;
+  destroy: () => void;
+};
+
+type OnnxRuntime = {
+  generate: (
+    phonemeData: unknown,
+    voiceData: PiperVoiceData,
+    speaker?: number,
+  ) => Promise<PiperResponse>;
+  loadSession?: (voiceData: PiperVoiceData) => Promise<unknown>;
+  destroy: () => void;
+};
+
 type VoiceConfig = {
   inference?: {
     noise_scale?: number;
@@ -101,11 +116,11 @@ type PiperVoiceProvider = {
 type PiperModule = {
   PiperWebEngine: new (options?: Record<string, unknown>) => PiperEngine;
   PiperWebWorkerEngine: new (options?: Record<string, unknown>) => PiperEngine;
-  OnnxWebRuntime: new (options?: Record<string, unknown>) => unknown;
-  OnnxWebWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
-  OnnxWebGPUWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
-  PhonemizeWebRuntime: new (options?: Record<string, unknown>) => unknown;
-  PhonemizeWebWorkerRuntime: new (options?: Record<string, unknown>) => unknown;
+  OnnxWebRuntime: new (options?: Record<string, unknown>) => OnnxRuntime;
+  OnnxWebWorkerRuntime: new (options?: Record<string, unknown>) => OnnxRuntime;
+  OnnxWebGPUWorkerRuntime: new (options?: Record<string, unknown>) => OnnxRuntime;
+  PhonemizeWebRuntime: new (options?: Record<string, unknown>) => PhonemizeRuntime;
+  PhonemizeWebWorkerRuntime: new (options?: Record<string, unknown>) => PhonemizeRuntime;
   HuggingFaceVoiceProvider: new (options?: Record<string, unknown>) => PiperVoiceProvider;
 };
 
@@ -457,6 +472,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
   const engineRef = useRef<PiperEngine | null>(null);
   const providerRef = useRef<PersistentFetchProvider | null>(null);
   const tunedProviderRef = useRef<M2TunedVoiceProvider | null>(null);
+  const onnxRuntimeRef = useRef<OnnxRuntime | null>(null);
+  const phonemizeRuntimeRef = useRef<PhonemizeRuntime | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const cancelGenerationRef = useRef(false);
 
@@ -547,6 +564,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
 
       let engine: PiperEngine;
       let selectedAcceleration: "gpu" | "wasm" = "wasm";
+      let selectedOnnxRuntime: OnnxRuntime | null = null;
+      let selectedPhonemizeRuntime: PhonemizeRuntime | null = null;
 
       if ("gpu" in navigator && navigator.gpu) {
         try {
@@ -554,14 +573,11 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           const onnxRuntime = new mod.OnnxWebGPUWorkerRuntime({
             basePath: ONNX_BASE,
           });
+          selectedOnnxRuntime = onnxRuntime;
           const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
-            // The upstream worker sends constructor options through postMessage.
-            // PersistentFetchProvider contains a React status callback, so it
-            // cannot be structured-cloned. Let the worker use its native
-            // serializable FetchProvider instead; browser HTTP/Cache handles
-            // repeated resource requests efficiently.
             basePath: PIPER_BASE,
           });
+          selectedPhonemizeRuntime = phonemizeRuntime;
           engine = new mod.PiperWebWorkerEngine({
             onnxRuntime,
             phonemizeRuntime,
@@ -574,14 +590,11 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
             basePath: ONNX_BASE,
             numThreads: 1,
           });
+          selectedOnnxRuntime = onnxRuntime;
           const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
-            // The upstream worker sends constructor options through postMessage.
-            // PersistentFetchProvider contains a React status callback, so it
-            // cannot be structured-cloned. Let the worker use its native
-            // serializable FetchProvider instead; browser HTTP/Cache handles
-            // repeated resource requests efficiently.
             basePath: PIPER_BASE,
           });
+          selectedPhonemizeRuntime = phonemizeRuntime;
           engine = new mod.PiperWebWorkerEngine({
             onnxRuntime,
             phonemizeRuntime,
@@ -594,10 +607,11 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           basePath: ONNX_BASE,
           numThreads: 1,
         });
+        selectedOnnxRuntime = onnxRuntime;
         const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
-          provider,
           basePath: PIPER_BASE,
         });
+        selectedPhonemizeRuntime = phonemizeRuntime;
         engine = new mod.PiperWebWorkerEngine({
           onnxRuntime,
           phonemizeRuntime,
@@ -609,6 +623,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
 
       providerRef.current = provider;
       tunedProviderRef.current = tunedVoiceProvider;
+      onnxRuntimeRef.current = selectedOnnxRuntime;
+      phonemizeRuntimeRef.current = selectedPhonemizeRuntime;
       engineRef.current = engine;
       setAccelerationMode(selectedAcceleration);
       setLoadState("ready");
@@ -654,6 +670,25 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       const segments = splitM2BroadcastSegments(clean, accelerationMode === "gpu");
       if (!segments.length) throw new Error("没有可生成的有效句子。");
 
+      const onnxRuntime = onnxRuntimeRef.current;
+      const phonemizeRuntime = phonemizeRuntimeRef.current;
+      const pipelineReady = Boolean(onnxRuntime && phonemizeRuntime);
+
+      type PreparedSegment = {
+        voiceData: PiperVoiceData;
+        phonemeData: unknown;
+      };
+
+      async function prepareSegment(index: number): Promise<PreparedSegment> {
+        const segment = segments[index];
+        const tuning = tuningForSegment(preset, speed, segment, index, segments.length);
+        tunedProvider.setTuning(tuning);
+        const voiceData = await tunedProvider.fetch(VOICE_ID);
+        if (!phonemizeRuntime) throw new Error("M2 音素流水线尚未就绪。");
+        const phonemeData = await phonemizeRuntime.phonemize(segment.text, voiceData);
+        return { voiceData, phonemeData };
+      }
+
       cancelGenerationRef.current = false;
       setGenerationProgress(0);
       setGenerationDetail(`共 ${segments.length} 个播音片段`);
@@ -661,6 +696,8 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       const wavParts: BlobPart[] = [];
       let sampleRate = 0;
       let totalPcmBytes = 0;
+      let preparedPromise: Promise<PreparedSegment> | null =
+        pipelineReady ? prepareSegment(0) : null;
 
       for (let index = 0; index < segments.length; index += 1) {
         if (cancelGenerationRef.current) {
@@ -668,8 +705,6 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         }
 
         const segment = segments[index];
-        const tuning = tuningForSegment(preset, speed, segment, index, segments.length);
-        tunedProvider.setTuning(tuning);
 
         const progressBefore = Math.round((index / segments.length) * 100);
         setGenerationProgress(progressBefore);
@@ -677,10 +712,30 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           `第 ${index + 1} / ${segments.length} 段 · ${M2_PRESETS[preset].label}`,
         );
         setLoadMessage(
-          `正在本机生成 M2 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`,
+          pipelineReady
+            ? `M2 Turbo V3 双流水线 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`
+            : `正在本机生成 M2 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`,
         );
 
-        const response = await engine.generate(segment.text, VOICE_ID, M2_SPEAKER);
+        let response: PiperResponse;
+        if (pipelineReady && preparedPromise && onnxRuntime) {
+          const prepared = await preparedPromise;
+          const nextPrepared =
+            index + 1 < segments.length ? prepareSegment(index + 1) : null;
+
+          // ONNX/WebGPU synthesizes the current segment while the independent
+          // phonemize worker prepares the next segment. One model session only.
+          response = await onnxRuntime.generate(
+            prepared.phonemeData,
+            prepared.voiceData,
+            M2_SPEAKER,
+          );
+          preparedPromise = nextPrepared;
+        } else {
+          const tuning = tuningForSegment(preset, speed, segment, index, segments.length);
+          tunedProvider.setTuning(tuning);
+          response = await engine.generate(segment.text, VOICE_ID, M2_SPEAKER);
+        }
         if (!response.file?.size) throw new Error("M2 没有返回有效音频。");
 
         const inspected = await inspectM2Wav(response.file);
@@ -759,7 +814,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         <div className="feature-row" aria-label="M2 本地播音功能">
           <span>非 Edge 引擎</span>
           <span>M2 单一主声线</span>
-          <span>WebGPU Turbo</span>
+          <span>WebGPU Turbo V3</span>
           <span>模型级新闻参数</span>
           <span>数字清晰增强</span>
           <span>长句自动分段</span>
@@ -770,7 +825,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{loadMessage}</strong>
             <p>
-              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；设备支持时优先使用 WebGPU Worker 加速，不支持时自动回退 CPU Worker。
+              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；Turbo V3 会让下一段音素化与当前段声学推理重叠执行，设备支持时优先使用 WebGPU Worker，不支持时自动回退 CPU Worker。
             </p>
           </div>
         </div>
