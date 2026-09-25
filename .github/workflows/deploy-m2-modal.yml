@@ -1,0 +1,27 @@
+name: Deploy M2 Cloud Turbo
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "modal/**"
+      - ".github/workflows/deploy-m2-modal.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Modal
+        run: pip install modal
+      - name: Deploy M2 GPU endpoint
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: modal deploy modal/m2_cloud.py
