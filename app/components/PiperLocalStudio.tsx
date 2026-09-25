@@ -12,6 +12,7 @@ const MODULE_URL = "/api/piper-runtime/piper-tts-web.js";
 const ONNX_BASE = "/api/piper-runtime/onnx/";
 const PIPER_BASE = "/api/piper-runtime/piper/";
 const CACHE_NAME = "qazaq-piper-local-v1";
+const STREAM_PREVIEW_SEGMENTS = 1;
 const M2_SPEAKER = 0;
 
 type M2Preset = "news" | "calm" | "bulletin" | "expressive" | "story";
@@ -466,6 +467,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
   const [generationDetail, setGenerationDetail] = useState("");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [generatedAt, setGeneratedAt] = useState("");
+  const [previewReady, setPreviewReady] = useState(false);
   const [error, setError] = useState("");
   const [modelCached, setModelCached] = useState(false);
 
@@ -528,6 +530,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
     setGeneratedAt("");
     setGenerationProgress(0);
     setGenerationDetail("");
+    setPreviewReady(false);
   }
 
   async function ensureStorage() {
@@ -713,7 +716,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         );
         setLoadMessage(
           pipelineReady
-            ? `M2 Turbo V3 双流水线 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`
+            ? `M2 Turbo V4 流式双流水线 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`
             : `正在本机生成 M2 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`,
         );
 
@@ -747,6 +750,20 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         wavParts.push(inspected.pcm);
         totalPcmBytes += inspected.pcmBytes;
 
+        // Turbo V4: expose the first segment immediately while the rest keeps generating.
+        if (index + 1 === STREAM_PREVIEW_SEGMENTS && segments.length > STREAM_PREVIEW_SEGMENTS) {
+          const previewHeader = buildWavHeader(sampleRate, totalPcmBytes);
+          const previewBlob = new Blob([previewHeader, ...wavParts], { type: "audio/x-wav" });
+          if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+          const previewUrl = URL.createObjectURL(previewBlob);
+          audioUrlRef.current = previewUrl;
+          setAudioUrl(previewUrl);
+          setPreviewReady(true);
+          setGenerationDetail("首段已可试听 · 后台继续生成 " + (index + 1) + "/" + segments.length);
+          setLoadMessage("M2 Turbo V4 · 首段已就绪，剩余内容后台生成");
+          await yieldToBrowser();
+        }
+
         if (index < segments.length - 1) {
           const pause = silenceBlob(
             sampleRate,
@@ -774,8 +791,10 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       const header = buildWavHeader(sampleRate, totalPcmBytes);
       const merged = new Blob([header, ...wavParts], { type: "audio/x-wav" });
       const nextUrl = URL.createObjectURL(merged);
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = nextUrl;
       setAudioUrl(nextUrl);
+      setPreviewReady(false);
       setGeneratedAt(
         new Date().toLocaleTimeString("zh-CN", {
           hour: "2-digit",
@@ -814,7 +833,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         <div className="feature-row" aria-label="M2 本地播音功能">
           <span>非 Edge 引擎</span>
           <span>M2 单一主声线</span>
-          <span>WebGPU Turbo V3</span>
+          <span>WebGPU Turbo V4</span>
           <span>模型级新闻参数</span>
           <span>数字清晰增强</span>
           <span>长句自动分段</span>
@@ -825,7 +844,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{loadMessage}</strong>
             <p>
-              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；Turbo V3 会让下一段音素化与当前段声学推理重叠执行，设备支持时优先使用 WebGPU Worker，不支持时自动回退 CPU Worker。
+              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；Turbo V4 会让下一段音素化与当前段声学推理重叠执行，设备支持时优先使用 WebGPU Worker，不支持时自动回退 CPU Worker。
             </p>
           </div>
         </div>
@@ -1026,7 +1045,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div className="result-topline">
             <div>
               <span className="result-dot" />
-              <strong>{audioUrl ? "M2 新闻增强版已生成" : "M2 本地播放器"}</strong>
+              <strong>{audioUrl ? (previewReady ? "M2 首段已可试听 · 后台继续生成" : "M2 新闻增强版已生成") : "M2 本地播放器"}</strong>
             </div>
             {generatedAt ? <time>{generatedAt}</time> : <span>{loadState === "ready" ? "引擎已就绪" : "等待加载"}</span>}
           </div>
@@ -1051,7 +1070,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
                   (height, index) => <i style={{ height }} key={`${height}-${index}`} />,
                 )}
               </div>
-              <p>M2 会按新闻句法分段本地生成，再合并成一个连续 WAV。</p>
+              <p>M2 Turbo V4 会优先生成首段供立即试听，同时在后台继续完成整篇 WAV。</p>
             </div>
           )}
         </div>
