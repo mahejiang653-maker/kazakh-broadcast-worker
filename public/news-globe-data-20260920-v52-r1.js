@@ -11,5 +11,5 @@
 {id:10,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'杭州数贸会集中展示AI、量子计算和智能终端等新技术。',location:'中国杭州',lon:120.1551,lat:30.2741,countryIso3:'CHN',focusLabel:'杭州'},
 {id:11,sceneMode:'POINT',scenePlan:{primaryIso3:'PRT',finalLocation:true},title:'NASA发布仙女座星系处理前后图像，展示天文摄影去伪影过程。',location:'葡萄牙',lon:-8.2245,lat:39.3999,countryIso3:'PRT',focusLabel:'葡萄牙观测地'},
 {id:12,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'新疆和田团城中秋活动吸引游客体验月饼制作等传统文化。',location:'新疆和田市',lon:79.9135,lat:37.1122,countryIso3:'CHN',focusLabel:'和田'},
-{id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'新疆秋季文旅升温，喀纳斯、天山天池等景区迎来游客。',location:'新疆阿勒泰地区布尔津县喀纳斯景区',lon:87.04,lat:48.71,countryIso3:'CHN',focusLabel:'喀纳斯'}
+{id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'新疆秋季文旅升温，喀纳斯、天山天池等景区迎来游客。',location:'新疆昌吉回族自治州阜康市天山天池',lon:88.132389,lat:43.886028,countryIso3:'CHN',focusLabel:'天山天池'}
 ];G.DAILY_LOCK='20260927-LOCK13-A';})(window.NG14=window.NG14||{});
