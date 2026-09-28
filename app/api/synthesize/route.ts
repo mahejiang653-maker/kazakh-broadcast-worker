@@ -20,6 +20,8 @@ import {
   type EdgeEmotionOverride,
 } from "../../lib/edge-omnivoice-inspired";
 import { probeEdgeBoundaries } from "../../lib/edge-readaloud-boundary";
+import { DAULET_NEWS_VERSION, prepareDauletNewsText, planDauletNewsChunks, dauletNewsSsml, type NewsChunk } from "../../lib/daulet-news";
+import { DAULET_STREAM_TYPE, streamDauletChunks } from "../../lib/daulet-stream";
 
 const TOKEN_ENDPOINT = "https://dev.microsofttranslator.com/apps/endpoint?api-version=1.0";
 const SIGNATURE_KEY =
@@ -2051,6 +2053,62 @@ function audioResponse(chunks: ArrayBuffer[], engine: EngineName) {
   });
 }
 
+async function dauletNewsResponse(text: string, preset: PresetName, settings: EdgeVoiceSettings, signal: AbortSignal) {
+  const prepared = prepareDauletNewsText(text);
+  const chunks = planDauletNewsChunks(prepared, settings.speed * PRESETS[preset].rateFactor * 1.003, settings.longFormContinuity, settings.fineGrainedFocus);
+  if (!chunks.length) return jsonError("请先输入哈萨克语文本。", 400);
+  const endpoint = await getEndpoint();
+  // Explicit user direction remains available. Automatic news delivery uses one
+  // native prosody span instead of layering phrase, focus and fry wrappers.
+  const documentPlan = settings.directorOverrides.length ? analyzeEdgeDocument(prepared) : undefined;
+  const emotionPlan = documentPlan ? analyzeEdgeEmotionPlan(prepared, documentPlan) : null;
+  const directedSettings = emotionPlan ? {...settings, emotionOverrides: materializeEdgeEmotionOverrides(emotionPlan, settings.directorOverrides)} : settings;
+  let retriesRemaining = 4;
+  const synthesize = async (chunk: NewsChunk, requestSignal: AbortSignal) => {
+    const ssml = emotionPlan
+      ? buildEdgeSsml(chunk.text, "kk-KZ-DauletNeural", preset, directedSettings, documentPlan, false, emotionPlan)
+      : dauletNewsSsml(chunk, clamp(settings.pitch + PRESETS[preset].pitch + 0.82, -18, 18), clamp(settings.volume + PRESETS[preset].volume, -7, 7));
+    for (let attempt = 0; attempt < 2; attempt++) {
+      let retryable = true;
+      try {
+        const response = await fetch(`https://${endpoint.r}.tts.speech.microsoft.com/cognitiveservices/v1`, {
+          method: "POST",
+          headers: {Authorization: endpoint.t, "Content-Type": "application/ssml+xml", "User-Agent": "okhttp/4.5.0", "X-Microsoft-OutputFormat": "raw-24khz-16bit-mono-pcm"},
+          body: ssml,
+          signal: AbortSignal.any([requestSignal, AbortSignal.timeout(60000)]),
+        });
+        if (response.ok) {
+          const pcm = await response.arrayBuffer();
+          if (!pcm.byteLength || pcm.byteLength % 2) throw new Error("speech:incomplete-pcm");
+          return pcm;
+        }
+        retryable = [429, 500, 502, 503, 504].includes(response.status);
+        await response.body?.cancel();
+        throw new Error(`speech:${response.status}`);
+      } catch (error) {
+        if (requestSignal.aborted || attempt || retriesRemaining <= 0 || !retryable) throw error;
+      }
+      retriesRemaining--;
+      // One bounded retry; do not fan out more jobs on a throttled service.
+      await new Promise<void>((resolve, reject) => {
+        if (requestSignal.aborted) { reject(new Error("aborted")); return; }
+        const abort = () => { clearTimeout(timer); reject(new Error("aborted")); };
+        const timer = setTimeout(() => { requestSignal.removeEventListener("abort", abort); resolve(); }, 600);
+        requestSignal.addEventListener("abort", abort, {once: true});
+      });
+    }
+    throw new Error("speech:failed");
+  };
+  return new Response(streamDauletChunks(chunks, synthesize, signal), {headers: {
+    "Content-Type": DAULET_STREAM_TYPE,
+    "Cache-Control": "no-store",
+    "X-Content-Type-Options": "nosniff",
+    "X-TTS-Engine": "edge",
+    "X-Daulet-Preset": DAULET_NEWS_VERSION,
+    "X-Daulet-Chunks": String(chunks.length),
+  }});
+}
+
 function readUnitInterval(value: unknown, fallback: number) {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
   return value;
@@ -2129,6 +2187,7 @@ export async function POST(request: Request) {
     edgeEmotionOverrides,
     edgeFineFocus,
     edgeLongFormContinuity,
+    edgeNewsAudio,
   } = payload as Record<string, unknown>;
 
   if (typeof text !== "string" || !text.trim()) {
@@ -2258,7 +2317,12 @@ export async function POST(request: Request) {
     longFormContinuity: selectedLongFormContinuity,
   };
 
+  if (edgeNewsAudio !== undefined && edgeNewsAudio !== "pcm-stream-v1") return jsonError("Edge 音频格式无效。", 400);
+
   try {
+    if (edgeNewsAudio === "pcm-stream-v1" && voice === "kk-KZ-DauletNeural" && preset !== "story" && !hasHanCharacters(directedText)) {
+      return await dauletNewsResponse(directedText, preset as PresetName, edgeSettings, request.signal);
+    }
     const audioChunks = await synthesizeWithEdge(
       directedText,
       voice,
@@ -2267,6 +2331,7 @@ export async function POST(request: Request) {
     );
     return audioResponse(audioChunks, "edge");
   } catch (error) {
+    if (error instanceof Error && error.message === "daulet:sentence-too-long") return jsonError("有一处超长句缺少标点，请在自然语义边界添加句号或分号后重试。", 400);
     console.error("Edge Kazakh speech synthesis failed", error);
     return jsonError("免费语音服务暂时繁忙，请稍后重新生成。", 502);
   }

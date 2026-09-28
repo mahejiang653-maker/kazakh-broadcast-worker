@@ -13,7 +13,7 @@ const EDGE_VOICES = [
   {
     id: "kk-KZ-DauletNeural",
     name: "Дәулет",
-    meta: "原版男声 · V2 动态去气泡音 · 纯哈萨克语推荐",
+    meta: "原版男声 · 真人新闻播报优化 · 纯哈萨克语推荐",
     mark: "D",
   },
   {
@@ -293,6 +293,8 @@ export default function Home() {
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [audioProgress, setAudioProgress] = useState("");
+  const generationController = useRef<AbortController | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
@@ -336,6 +338,8 @@ export default function Home() {
 
   useEffect(() => {
     return () => {
+      generationController.current?.abort();
+      generationController.current = null;
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, []);
@@ -395,6 +399,12 @@ export default function Home() {
   }, [text, engine, preset]);
 
   function resetAudio() {
+    if (generationController.current) {
+      generationController.current.abort();
+      generationController.current = null;
+      setIsGenerating(false);
+      setAudioProgress("");
+    }
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
@@ -591,19 +601,19 @@ export default function Home() {
     }
 
     setIsGenerating(true);
+    setAudioProgress("正在生成免费增强播音…");
     setError("");
+    generationController.current?.abort();
+    const controller = new AbortController();
+    generationController.current = controller;
 
     try {
       // Emotion preflight is best-effort UI feedback only. Never block TTS on it:
       // the synthesis route runs the real full emotion/prosody plan itself.
       if (engine !== "edge") resetEmotionAnalysis();
 
-      const response = await fetch("/api/synthesize", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
+      const isDauletNews = engine === "edge" && voice === "kk-KZ-DauletNeural" && preset !== "story" && !/\p{Script=Han}/u.test(cleanText);
+      const payload = {
           text: cleanText,
           engine,
           voice,
@@ -617,6 +627,7 @@ export default function Home() {
           speakerBoost,
           edgeFineFocus: engine === "edge" ? edgeFineFocusEnabled : false,
           edgeLongFormContinuity: engine === "edge" ? edgeLongFormEnabled : false,
+          edgeNewsAudio: isDauletNews ? "pcm-stream-v1" : undefined,
           edgeEmotionOverrides:
             engine === "edge" && edgeDirectorEnabled && voiceDirectorStatus === "completed" && voiceDirectorResult
               ? voiceDirectorResult.decisions.map((item) => ({
@@ -625,17 +636,32 @@ export default function Home() {
                   intensity: Math.max(0, Math.min(1, item.intensity)),
                 }))
               : [],
-        }),
-      });
+      };
+      const audioTools = isDauletNews ? await import("./lib/daulet-audio-client") : null;
+      const cacheKey = audioTools ? await audioTools.dauletAudioCacheKey(payload) : null;
+      let audioBlob = audioTools ? await audioTools.readDauletCache(cacheKey) : null;
+      if (!audioBlob) {
+        const response = await fetch("/api/synthesize", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as
+        if (!response.ok) {
+          const failure = (await response.json().catch(() => null)) as
           | { error?: string }
           | null;
-        throw new Error(payload?.error || "语音生成失败，请稍后再试。");
-      }
+          throw new Error(failure?.error || "语音生成失败，请稍后再试。");
+        }
 
-      const audioBlob = await response.blob();
+        const optimizedStream = audioTools && response.headers.get("Content-Type")?.includes("application/x-daulet-pcm");
+        audioBlob = optimizedStream
+          ? await audioTools.processDauletResponse(response, controller.signal, setAudioProgress)
+          : await response.blob();
+        if (optimizedStream && audioBlob.size && !controller.signal.aborted) void audioTools.writeDauletCache(cacheKey,audioBlob);
+      }
+      if (controller.signal.aborted) return;
       if (!audioBlob.size) throw new Error("没有收到音频，请重新生成。");
 
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
@@ -650,6 +676,7 @@ export default function Home() {
         }),
       );
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setError(
         caught instanceof Error
           ? caught.message
@@ -658,7 +685,11 @@ export default function Home() {
             : "免费语音服务暂时繁忙，请稍后重试。",
       );
     } finally {
-      setIsGenerating(false);
+      if (generationController.current === controller) {
+        generationController.current = null;
+        setIsGenerating(false);
+        setAudioProgress("");
+      }
     }
   }
 
@@ -1558,7 +1589,7 @@ export default function Home() {
                 {isGenerating
                   ? engine === "eleven"
                     ? "正在生成高质量播音…"
-                    : "正在生成免费增强播音…"
+                    : audioProgress || "正在生成免费增强播音…"
                   : engine === "eleven"
                     ? voice
                       ? `生成 ElevenLabs v3 · ${speed.toFixed(2)}×`
