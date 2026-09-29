@@ -1,4 +1,4 @@
-(function(G){G.DATA_KEY='ng-20260929-v52-a1-r6-lock13b';G.meta={date:'2026-09-29',version:'V52-A1-R6-daily13'};G.demo=[
+(function(G){G.DATA_KEY='ng-20260929-v52-a1-r6-lock13c';G.meta={date:'2026-09-29',version:'V52-A1-R6-daily13'};G.demo=[
 {id:1,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'我国部署建设更高水平平安中国，强化法治、科技和公共安全治理。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',focusLabel:'北京'},
 {id:2,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'国务院部署加强宏观政策逆周期调节，加快重大工程和有效投资落地。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',focusLabel:'北京'},
 {id:3,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'我国发布新型电池“十五五”规划，推动全固态电池规模化应用。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',focusLabel:'北京'},
@@ -11,5 +11,5 @@
 {id:10,sceneMode:'POINT',scenePlan:{primaryIso3:'OMN',contextCountries:['IRN'],finalLocation:true},title:'霍尔木兹风险继续影响油价，Brent盘中一度升至106.77美元一桶。',location:'霍尔木兹海峡',lon:56.25,lat:26.57,countryIso3:'OMN',secondaryCountryIso3:'IRN',focusLabel:'霍尔木兹海峡'},
 {id:11,sceneMode:'POINT',scenePlan:{primaryIso3:'USA',finalLocation:true},title:'Anthropic上市文件警告高级人工智能可能带来严重自主行为风险。',location:'美国旧金山',lon:-122.4194,lat:37.7749,countryIso3:'USA',focusLabel:'旧金山'},
 {id:12,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'新疆加快建设中心云药房，基层群众和慢性病患者取药更加便利。',location:'新疆拜城县',lon:81.8742,lat:41.7959,countryIso3:'CHN',focusLabel:'拜城'},
-{id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'乌鲁木齐米东区万亩水稻成熟，当地进入机械化秋收高峰。',location:'新疆乌鲁木齐市米东区羊毛工镇羊毛工村',lon:87.75,lat:44.10,countryIso3:'CHN',focusLabel:'米东区'}
-];G.DAILY_LOCK='20260929-LOCK13-B';})(window.NG14=window.NG14||{});
+{id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'乌鲁木齐米东区万亩水稻成熟，当地进入机械化秋收高峰。',location:'新疆乌鲁木齐市米东区羊毛工镇羊毛工村',lon:87.5864360,lat:43.8108238,countryIso3:'CHN',focusLabel:'米东区'}
+];G.DAILY_LOCK='20260929-LOCK13-C';})(window.NG14=window.NG14||{});
