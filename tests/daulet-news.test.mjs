@@ -170,13 +170,15 @@ test("low-pulse control rejects normal male periods and only attenuates slower v
     const out=normal.finish();
     assert.equal(out.metrics.lowPulseFrames,0);
     assert.equal(out.metrics.maxLowPulseCutDb,0);
+    assert.equal(out.metrics.maxPulseHarmonicCutDb,0);
+    assert.equal(out.metrics.confirmedPulseFrames,0);
     assert.ok(out.metrics.maxResonanceCutDb<=3.001);
   }
   const slow=new DauletNewsProcessor();slow.addPcm(tone(68,2,0.25),"end");
   const out=slow.finish();
   assert.ok(out.metrics.lowPulseFrames>50);
   assert.ok(out.metrics.maxLowPulseCutDb>1.5);
-  assert.ok(out.metrics.maxDynamicCutDb<=3.601);
+  assert.ok(out.metrics.maxDynamicCutDb<=6.001);
   assert.equal(out.metrics.durationSeconds,2);
   assert.ok(out.pieces.every(piece=>piece.every(Number.isFinite)));
   // Quiet ending-like energy must still engage the probe below the resonance gate.
@@ -184,8 +186,30 @@ test("low-pulse control rejects normal male periods and only attenuates slower v
   assert.ok(quiet.finish().metrics.maxLowPulseCutDb>0.5);
   const overlapping=new DauletNewsProcessor();overlapping.addPcm(mixedTone([68,136,204],2),"end");
   const overlappingOut=overlapping.finish();
-  assert.ok(overlappingOut.metrics.maxDynamicCutDb<=4.801);
+  assert.ok(overlappingOut.metrics.maxDynamicCutDb<=6.001);
   assert.ok(overlappingOut.metrics.maxResonanceCutDb<=3.001);
+  assert.ok(overlappingOut.metrics.maxPulseHarmonicCutDb>0.2);
+  assert.ok(overlappingOut.metrics.maxPulseHarmonicCutDb<=1.201);
+  assert.ok(overlappingOut.metrics.confirmedPulseFrames>50);
+});
+test("pulse and overtone branches preserve unvoiced noise and low-level tails",()=>{
+  let seed=93437;
+  const noise=new Int16Array(48000);
+  for(let i=0;i<noise.length;i++) {
+    seed=(Math.imul(seed,1664525)+1013904223)>>>0;
+    noise[i]=Math.round((seed/2**32*2-1)*0.1*32767);
+  }
+  const unvoiced=new DauletNewsProcessor();unvoiced.addPcm(noise.buffer,"end");
+  const noiseOut=unvoiced.finish();
+  assert.equal(noiseOut.metrics.maxLowPulseCutDb,0);
+  assert.equal(noiseOut.metrics.maxPulseHarmonicCutDb,0);
+  assert.equal(noiseOut.metrics.confirmedPulseFrames,0);
+  const tail=new DauletNewsProcessor();tail.addPcm(mixedTone([68,136,204],1,0.015),"end");
+  const tailOut=tail.finish();
+  assert.ok(tailOut.metrics.confirmedPulseFrames>10);
+  assert.ok(tailOut.metrics.maxPulseHarmonicCutDb>0.1);
+  assert.equal(tailOut.metrics.durationSeconds,1);
+  assert.ok(tailOut.pieces.every(piece=>piece.every(Number.isFinite)));
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));

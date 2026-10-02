@@ -36,8 +36,8 @@ class Biquad {
   }
 }
 
-/** Low-period heuristic, not a trained creak classifier. Only controls a narrow
- * dynamic band; the audio itself is never decimated, retimed or resynthesised.
+/** Low-period heuristic, not a trained creak classifier. Controls two limited
+ * dynamic bands; the audio itself is never decimated, retimed or resynthesised.
  */
 class LowPulseProbe {
   private prefilter = Biquad.make("lowpass", 400, Math.SQRT1_2);
@@ -52,6 +52,8 @@ class LowPulseProbe {
   private score = 0;
   speechFrames = 0;
   lowPulseFrames = 0;
+  pitch = 0;
+  confidence = 0;
 
   tick(x: number) {
     const sample = this.antialias.tick(this.prefilter.tick(x));
@@ -68,7 +70,7 @@ class LowPulseProbe {
     mean /= 120;
     for (let i=0; i<120; i++) { this.frame[i] -= mean; energy += this.frame[i]**2; }
     const level = db(Math.sqrt(energy/120));
-    if (level < -50) { this.score = 0; return 0; }
+    if (level < -50) { this.score = 0; this.pitch = 0; this.confidence = 0; return 0; }
     this.speechFrames++;
     for (let lag=7; lag<=34; lag++) {
       let cross = 0, left = 0, right = 0;
@@ -86,14 +88,58 @@ class LowPulseProbe {
     // Choose the first credible period, not a doubled/tripled period that would
     // misclassify a regular 100–160 Hz male fundamental as a low pulse.
     let period = 0;
-    if (best >= 0.65) for (let lag=8; lag<34; lag++) {
+    if (best >= 0.48) for (let lag=8; lag<34; lag++) {
       const c = this.correlation[lag];
-      if (c>=Math.max(0.65,best*0.85) && c>=this.correlation[lag-1] && c>this.correlation[lag+1]) { period = lag; break; }
+      if (c>=Math.max(0.48,best*0.85) && c>=this.correlation[lag-1] && c>this.correlation[lag+1]) { period = lag; break; }
     }
     const pitch = period ? 1500/period : 0;
-    this.score = pitch ? clamp((92-pitch)/24,0,1)*clamp((best-0.60)/0.22,0,1)*clamp((level+50)/10,0,1) : 0;
+    this.pitch = pitch; this.confidence = best;
+    this.score = pitch ? clamp((92-pitch)/24,0,1)*clamp((best-0.48)/0.30,0,1)*clamp((level+50)/10,0,1) : 0;
     if (this.score > 0.25) this.lowPulseFrames++;
     return this.score;
+  }
+}
+
+/** Borrow the multi-frame context / bounded processing principles investigated
+ * with DeepFilterNet 0.5.6; this is a speech-specific DSP, not neural inference.
+ * A response already contains its entire PCM, so 60 ms lookahead needs no extra
+ * network wait. Processing still happens per chunk while Edge generates more.
+ */
+class PulseTimeline {
+  private hp = Biquad.make("highpass",55,Math.SQRT1_2);
+  private eq = Biquad.make("peaking",210,0.8,-0.6);
+  private sample = 0;
+  private previous = 0;
+  private beforePrevious = 0;
+  private supported = 0;
+  confirmedFrames = 0;
+  constructor(private probe: LowPulseProbe) {}
+
+  analyze(piece: Float32Array) {
+    const offset=Math.floor(this.sample/480)*480;
+    const values=new Float32Array(Math.ceil((this.sample+piece.length-offset)/480)+2);
+    values.fill(this.supported);
+    let lastWritten=-1;
+    for (const x of piece) {
+      const raw=this.probe.tick(this.eq.tick(this.hp.tick(x)));
+      if (++this.sample % 480) continue;
+      const current=this.sample>=1920 ? raw : 0;
+      const a=this.beforePrevious,b=this.previous,c=current;
+      // A frame at t describes t-80..t. The median of three adjacent frames
+      // confirms its centre with 60 ms lookahead, rejecting isolated scores.
+      this.supported=a+b+c-Math.min(a,b,c)-Math.max(a,b,c);
+      this.beforePrevious=b; this.previous=c;
+      const index=(this.sample-3*480-offset)/480;
+      if (index>=0 && index<values.length) {
+        values[index]=this.supported; lastWritten=index;
+        if (this.supported>0.25) this.confirmedFrames++;
+      }
+    }
+    // Natural chunks retain >=100 ms release at their ends. Hold the last
+    // supported value for the final incomplete analysis windows; don't create
+    // an artificial gain step. All analysis/filter state survives the seam.
+    values.fill(this.supported,lastWritten+1);
+    return {values,offset};
   }
 }
 
@@ -145,6 +191,8 @@ export type DauletDspMetrics = {
   durationSeconds: number; inputLufs: number; processedLufs: number; gainDb: number;
   samplePeakDb: number; maxDynamicCutDb: number;
   maxLowPulseCutDb: number; maxResonanceCutDb: number;
+  maxPulseHarmonicCutDb: number;
+  confirmedPulseFrames: number;
   analyzedSpeechFrames: number; lowPulseFrames: number;
   seams: {kind: NewsBoundary; silenceMs: number; addedMs: number}[];
 };
@@ -154,7 +202,9 @@ export class DauletNewsProcessor {
   private hp = Biquad.make("highpass", 55, Math.SQRT1_2);
   private eq = Biquad.make("peaking", 210, 0.8, -0.6);
   private lowPulse = new LowPulseProbe();
+  private pulseTimeline = new PulseTimeline(this.lowPulse);
   private pulseBand = Biquad.make("bandpass", 85, 1.1);
+  private pulseHarmonic = Biquad.make("bandpass",245,2.0);
   // Three overlapping detectors target the characteristic Daulet low/low-mid
   // resonance without shaving the whole voice. They only engage on sustained
   // voiced energy, so consonants, breaths and ordinary bass remain intact.
@@ -171,6 +221,10 @@ export class DauletNewsProcessor {
   private throatReduction = 0;
   private upperThroatReduction = 0;
   private pulseReduction = 0;
+  private harmonicReduction = 0;
+  private maxHarmonicCut = 0;
+  private harmonicEnvelope = 0;
+  private sampleCursor = 0;
   private maxPulseCut = 0;
   private maxResonanceCut = 0;
   private maxCut = 0;
@@ -183,14 +237,18 @@ export class DauletNewsProcessor {
   private finished = false;
 
   private process(piece: Float32Array) {
+    const {values:timeline,offset}=this.pulseTimeline.analyze(piece);
     const envelope = Math.exp(-1/(0.025*SR));
     const lowAttack = Math.exp(-1/(0.045*SR)), lowRelease = Math.exp(-1/(0.230*SR));
     const throatAttack = Math.exp(-1/(0.035*SR)), throatRelease = Math.exp(-1/(0.180*SR));
     const pulseAttack = Math.exp(-1/(0.020*SR)), pulseRelease = Math.exp(-1/(0.100*SR));
     for (let i=0; i<piece.length; i++) {
       let x = this.eq.tick(this.hp.tick(piece[i]));
-      const pulseTarget = this.lowPulse.tick(x)*3.6;
+      const position=(this.sampleCursor++-offset)/480, index=Math.floor(position), mix=position-index;
+      const confidence=(timeline[index]||0)*(1-mix)+(timeline[index+1]||0)*mix;
+      const pulseTarget = confidence*4.2;
       const pulseBand = this.pulseBand.tick(x);
+      const harmonicBand = this.pulseHarmonic.tick(x);
       const lowBand = this.lowResonance.tick(x);
       const throatBand = this.throatResonance.tick(x);
       const upperThroatBand = this.upperThroatResonance.tick(x);
@@ -198,11 +256,13 @@ export class DauletNewsProcessor {
       this.lowEnvelope = envelope*this.lowEnvelope + (1-envelope)*lowBand*lowBand;
       this.throatEnvelope = envelope*this.throatEnvelope + (1-envelope)*throatBand*throatBand;
       this.upperThroatEnvelope = envelope*this.upperThroatEnvelope + (1-envelope)*upperThroatBand*upperThroatBand;
+      this.harmonicEnvelope = envelope*this.harmonicEnvelope + (1-envelope)*harmonicBand*harmonicBand;
 
       const energy = Math.max(this.wideEnvelope, 1e-12);
       const lowRatio = Math.sqrt(this.lowEnvelope / energy);
       const throatRatio = Math.sqrt(this.throatEnvelope / energy);
       const upperThroatRatio = Math.sqrt(this.upperThroatEnvelope / energy);
+      const harmonicRatio = Math.sqrt(this.harmonicEnvelope / energy);
       const voiced = this.wideEnvelope > gain(-40)**2;
 
       // Stage 1 catches chesty/bubbly fundamentals; stage 2 catches the main
@@ -220,23 +280,34 @@ export class DauletNewsProcessor {
       this.upperThroatReduction = upperSmooth*this.upperThroatReduction+(1-upperSmooth)*upperThroatTarget;
       const pulseSmooth = pulseTarget > this.pulseReduction ? pulseAttack : pulseRelease;
       this.pulseReduction = pulseSmooth*this.pulseReduction+(1-pulseSmooth)*pulseTarget;
+      // Only confirmed low-period frames can engage this small overtone branch.
+      // <=1.2 dB at its centre leaves >=87% dry amplitude there; no high bands
+      // are denoised or boosted, preserving consonants and the speaker identity.
+      const harmonicTarget=confidence*clamp((harmonicRatio-0.18)/0.24,0,1)*1.2;
+      const harmonicSmooth=harmonicTarget>this.harmonicReduction ? throatAttack : pulseRelease;
+      this.harmonicReduction=harmonicSmooth*this.harmonicReduction+(1-harmonicSmooth)*harmonicTarget;
 
       // Preserve the existing 3 dB resonance correction instead of weakening it
       // when a pulse is detected. Only low pulses can use the additional budget;
-      // the sum of all four controls stays within 4.8 dB. This sum is a control
+      // the sum of all five controls stays within 6 dB. This sum is a control
       // bound, not a claim about the composite filter's frequency response.
       const requested = this.lowReduction + this.throatReduction + this.upperThroatReduction;
       const scale = requested > 3.0 ? 3.0/requested : 1;
       const lowCut = this.lowReduction*scale, throatCut = this.throatReduction*scale, upperThroatCut = this.upperThroatReduction*scale;
       const resonanceCut = lowCut+throatCut+upperThroatCut;
-      const pulseCut = Math.min(this.pulseReduction, Math.max(0,4.8-resonanceCut));
+      const available=Math.max(0,6.0-resonanceCut);
+      const requestedPulse=this.pulseReduction+this.harmonicReduction;
+      const pulseScale=requestedPulse>available ? available/requestedPulse : 1;
+      const pulseCut=this.pulseReduction*pulseScale, harmonicCut=this.harmonicReduction*pulseScale;
       x -= pulseBand * (1-gain(-pulseCut));
+      x -= harmonicBand*(1-gain(-harmonicCut));
       x -= lowBand * (1-gain(-lowCut));
       x -= throatBand * (1-gain(-throatCut));
       x -= upperThroatBand * (1-gain(-upperThroatCut));
       this.maxPulseCut = Math.max(this.maxPulseCut, pulseCut);
+      this.maxHarmonicCut = Math.max(this.maxHarmonicCut,harmonicCut);
       this.maxResonanceCut = Math.max(this.maxResonanceCut, resonanceCut);
-      this.maxCut = Math.max(this.maxCut, pulseCut+resonanceCut);
+      this.maxCut = Math.max(this.maxCut, pulseCut+harmonicCut+resonanceCut);
 
       this.peak = Math.max(this.peak, Math.abs(x));
       this.outputMeter.push(x);
@@ -283,6 +354,8 @@ export class DauletNewsProcessor {
       durationSeconds:this.length/SR, inputLufs:this.inputMeter.value(), processedLufs:before+gainDb,
       gainDb, samplePeakDb:db(this.peak)+gainDb, maxDynamicCutDb:this.maxCut, seams:this.seams,
       maxLowPulseCutDb:this.maxPulseCut, maxResonanceCutDb:this.maxResonanceCut,
+      maxPulseHarmonicCutDb:this.maxHarmonicCut,
+      confirmedPulseFrames:this.pulseTimeline.confirmedFrames,
       analyzedSpeechFrames:this.lowPulse.speechFrames, lowPulseFrames:this.lowPulse.lowPulseFrames,
     };
     return {pieces:this.pieces, gain:gain(gainDb), metrics};
