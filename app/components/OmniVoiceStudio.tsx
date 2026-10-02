@@ -6,7 +6,7 @@ const MAX_CHARACTERS = 1200;
 const DEFAULT_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
 
-const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
+const SPEED_PRESETS = [0.7, 0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.2] as const;
 
 const QUALITY_PRESETS = [
   { id: "fast", label: "极速模式", note: "推荐 · 最快出结果", steps: 8, guidance: 1.3 },
@@ -517,7 +517,7 @@ export default function OmniVoiceStudio({ sourceText }: { sourceText?: string })
                   key={item}
                   onClick={() => changeSetting(() => setSpeed(item))}
                 >
-                  <strong>{item.toFixed(1)}×</strong>
+                  <strong>{item.toFixed(item === 0.95 || item === 1.05 ? 2 : 1)}×</strong>
                   <small>{item < 1 ? "更慢" : item > 1 ? "更快" : "原速"}</small>
                 </button>
               ))}

@@ -68,7 +68,7 @@ const PRESETS = [
   { id: "story", label: "故事版", note: "逐词情绪分析 · 自然句间呼吸 · 段落停留", rateFactor: 1 },
 ] as const;
 
-const SPEED_PRESETS = [0.7, 0.8, 0.9, 1, 1.1, 1.2] as const;
+const SPEED_PRESETS = [0.7, 0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.2] as const;
 
 const TONE_PRESETS = [
   {
@@ -760,7 +760,7 @@ export default function Home() {
               }}
               aria-pressed={Math.abs(speed - item) < 0.001}
             >
-              <strong>{item.toFixed(1)}×</strong>
+              <strong>{item.toFixed(item === 0.95 || item === 1.05 ? 2 : 1)}×</strong>
               <small>{item < 1 ? "更慢" : item > 1 ? "更快" : "原速"}</small>
             </button>
           ))}
