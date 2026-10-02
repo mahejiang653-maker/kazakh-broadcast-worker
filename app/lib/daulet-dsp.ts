@@ -93,13 +93,16 @@ export class DauletNewsProcessor {
   // voiced energy, so consonants, breaths and ordinary bass remain intact.
   private lowResonance = Biquad.make("bandpass", 145, 1.25);
   private throatResonance = Biquad.make("bandpass", 285, 1.10);
+  private upperThroatResonance = Biquad.make("bandpass", 410, 1.35);
   private inputMeter = new LoudnessMeter();
   private outputMeter = new LoudnessMeter();
   private wideEnvelope = 0;
   private lowEnvelope = 0;
   private throatEnvelope = 0;
+  private upperThroatEnvelope = 0;
   private lowReduction = 0;
   private throatReduction = 0;
+  private upperThroatReduction = 0;
   private maxCut = 0;
   private peak = 0;
   private length = 0;
@@ -117,32 +120,41 @@ export class DauletNewsProcessor {
       let x = this.eq.tick(this.hp.tick(piece[i]));
       const lowBand = this.lowResonance.tick(x);
       const throatBand = this.throatResonance.tick(x);
+      const upperThroatBand = this.upperThroatResonance.tick(x);
       this.wideEnvelope = envelope*this.wideEnvelope + (1-envelope)*x*x;
       this.lowEnvelope = envelope*this.lowEnvelope + (1-envelope)*lowBand*lowBand;
       this.throatEnvelope = envelope*this.throatEnvelope + (1-envelope)*throatBand*throatBand;
+      this.upperThroatEnvelope = envelope*this.upperThroatEnvelope + (1-envelope)*upperThroatBand*upperThroatBand;
 
       const energy = Math.max(this.wideEnvelope, 1e-12);
       const lowRatio = Math.sqrt(this.lowEnvelope / energy);
       const throatRatio = Math.sqrt(this.throatEnvelope / energy);
+      const upperThroatRatio = Math.sqrt(this.upperThroatEnvelope / energy);
       const voiced = this.wideEnvelope > gain(-40)**2;
 
-      // Stage 1 catches chesty/bubbly fundamentals; stage 2 catches the
-      // low-mid "gurgle" overtone. Both are ratio-gated and capped.
+      // Stage 1 catches chesty/bubbly fundamentals; stage 2 catches the main
+      // low-mid "gurgle" overtone. Stage 3 is deliberately conditional: the
+      // 410 Hz band only engages when a lower resonance is present too.
       const lowTarget = voiced ? clamp((lowRatio-0.56)/0.24,0,1)*2.4 : 0;
       const throatTarget = voiced ? clamp((throatRatio-0.42)/0.24,0,1)*1.8 : 0;
+      const resonanceSignature = lowRatio > 0.56 || throatRatio > 0.44;
+      const upperThroatTarget = voiced && resonanceSignature ? clamp((upperThroatRatio-0.34)/0.22,0,1)*0.75 : 0;
       const lowSmooth = lowTarget > this.lowReduction ? lowAttack : lowRelease;
       const throatSmooth = throatTarget > this.throatReduction ? throatAttack : throatRelease;
+      const upperSmooth = upperThroatTarget > this.upperThroatReduction ? throatAttack : throatRelease;
       this.lowReduction = lowSmooth*this.lowReduction+(1-lowSmooth)*lowTarget;
       this.throatReduction = throatSmooth*this.throatReduction+(1-throatSmooth)*throatTarget;
+      this.upperThroatReduction = upperSmooth*this.upperThroatReduction+(1-upperSmooth)*upperThroatTarget;
 
       // Keep the combined correction conservative enough to preserve Daulet's
       // mature weight. The filters never become a broadband bass cut.
-      const requested = this.lowReduction + this.throatReduction;
+      const requested = this.lowReduction + this.throatReduction + this.upperThroatReduction;
       const scale = requested > 3.0 ? 3.0/requested : 1;
-      const lowCut = this.lowReduction*scale, throatCut = this.throatReduction*scale;
+      const lowCut = this.lowReduction*scale, throatCut = this.throatReduction*scale, upperThroatCut = this.upperThroatReduction*scale;
       x -= lowBand * (1-gain(-lowCut));
       x -= throatBand * (1-gain(-throatCut));
-      this.maxCut = Math.max(this.maxCut, lowCut+throatCut);
+      x -= upperThroatBand * (1-gain(-upperThroatCut));
+      this.maxCut = Math.max(this.maxCut, lowCut+throatCut+upperThroatCut);
 
       this.peak = Math.max(this.peak, Math.abs(x));
       this.outputMeter.push(x);
@@ -158,9 +170,11 @@ export class DauletNewsProcessor {
     for (let i=0; i<x.length; i++) { x[i] = view.getInt16(i*2,true)/32768; this.inputMeter.push(x[i]); }
     const {first, last} = speechExtent(x);
     if (!last) throw new Error("语音服务返回了空白音频，请重试。");
-    // Bound trimming and retain 40 ms attack / 100–160 ms release room.
+    // Bound trimming retains a little more release on sentence/paragraph endings.
+    // This preserves weak final consonants and lets the short SSML release decay.
     const start = Math.min(Math.max(0, first - SR*0.040), SR*1.2);
-    const end = Math.max(Math.min(x.length, last + SR*(boundary === "end" ? 0.160 : 0.100)), x.length-SR*1.2);
+    const releaseRoom = boundary === "end" ? 0.200 : boundary === "paragraph" ? 0.140 : boundary === "sentence" ? 0.125 : 0.100;
+    const end = Math.max(Math.min(x.length, last + SR*releaseRoom), x.length-SR*1.2);
     const leading = Math.max(0, first-start), trailing = Math.max(0, end-last);
     if (this.pieces.length) {
       const target = this.previousBoundary === "paragraph" ? 0.420 : this.previousBoundary === "clause" ? 0.160 : 0.280;
@@ -169,8 +183,8 @@ export class DauletNewsProcessor {
       if (added) this.process(new Float32Array(added));
       this.seams.push({kind:this.previousBoundary, silenceMs:(existing+added/SR)*1000, addedMs:added/SR*1000});
     }
-    const cut = x.slice(start,end), fade = Math.min(Math.round(SR*0.003), Math.floor(cut.length/2));
-    // Fade only the outer 3 ms at quiet edges. Never crossfade spoken phonemes.
+    const cut = x.slice(start,end), fade = Math.min(Math.round(SR*0.005), Math.floor(cut.length/2));
+    // Fade only the outer 5 ms at quiet edges. Never crossfade spoken phonemes.
     for (let i=0;i<fade;i++) { cut[i] *= i/fade; cut[cut.length-1-i] *= i/fade; }
     this.process(cut);
     this.previousBoundary = boundary; this.trailingSilence = trailing;
