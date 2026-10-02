@@ -1,9 +1,9 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.4";
+export const DAULET_NEWS_VERSION = "daulet-news-v3.5";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
-export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number };
+export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
 const MONTH_NAMES = ["қаңтар", "ақпан", "наурыз", "сәуір", "мамыр", "маусым", "шілде", "тамыз", "қыркүйек", "қазан", "қараша", "желтоқсан"];
 const NEWS_CUES = "Бірінші|Екінші|Үшінші|Төртінші|Бесінші|Алтыншы|Жетінші|Сегізінші|Тоғызыншы|Оныншы|Он бірінші|Он екінші|Он үшінші";
@@ -126,16 +126,52 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
   }
   let previous = speed;
   return chunks.map((chunk, index) => {
-    // A restrained, meaningful data-load adjustment, never random pitch motion.
-    // Very long news groups settle a little instead of racing through dense facts.
+    // Deterministic presenter direction: semantic cues produce tiny, bounded
+    // delivery changes. Nothing is randomized, and each request still uses one
+    // prosody span so the Edge voice keeps a stable acoustic identity.
     const wordCount = chunk.text.split(/\s+/u).length;
-    const load = /(?:жылғы|пайыз|миллион|миллиард|сағат)/iu.test(chunk.text);
+    const lead = new RegExp(`^(?:${NEWS_CUES})[.:]\\s`, "iu").test(chunk.text);
+    const load = /(?:жылғы|пайыз|миллион|миллиард|триллион|сағат|километр|доллар|еуро)/iu.test(chunk.text);
+    const transition = /(?:алайда|дегенмен|сонымен қатар|сонімен қатар|бұдан бөлек|осы ретте|соған қарамастан|сонымен бірге|сонімен бірге)/iu.test(chunk.text);
+    const settle = /(?:нәтижесінде|осылайша|соңында|аяқталды|қорытындысында|деп хабарлады|деп мәлімдеді|білдірді)/iu.test(chunk.text);
+
     const density = wordCount > 70 ? 0.992 : wordCount > 45 ? 0.996 : 1;
-    const paragraphSettle = chunk.boundary === "paragraph" ? 0.998 : 1;
-    const target = speed * (focus ? Math.min(load ? 0.995 : 1, density) * paragraphSettle : 1);
+    let delivery: NonNullable<NewsChunk["delivery"]> = "neutral";
+    let roleRate = 1, pitchDelta = 0, volumeDelta = 0;
+
+    if (lead) {
+      delivery = "lead";
+      roleRate *= 0.997;
+      pitchDelta += 0.14;
+      volumeDelta += 0.10;
+    } else if (settle) {
+      delivery = "settle";
+      roleRate *= 0.996;
+      pitchDelta -= 0.16;
+      volumeDelta -= 0.04;
+    } else if (transition) {
+      delivery = "transition";
+      roleRate *= 1.002;
+      pitchDelta += 0.08;
+      volumeDelta += 0.04;
+    } else if (load) {
+      delivery = "data";
+      roleRate *= 0.995;
+      pitchDelta -= 0.05;
+      volumeDelta += 0.03;
+    }
+
+    const target = speed * (focus ? Math.min(load ? 0.995 : 1, density) * roleRate : 1);
     const rate = continuous ? CLAMP(target, previous - 0.005, previous + 0.005) : target;
     previous = rate;
-    return {...chunk, rate, boundary: index === chunks.length - 1 ? "end" : chunk.boundary};
+    return {
+      ...chunk,
+      rate,
+      pitchDelta: focus ? CLAMP(pitchDelta, -0.20, 0.20) : 0,
+      volumeDelta: focus ? CLAMP(volumeDelta, -0.08, 0.12) : 0,
+      delivery,
+      boundary: index === chunks.length - 1 ? "end" : chunk.boundary,
+    };
   });
 }
 
@@ -179,5 +215,7 @@ export function dauletNewsSsml(chunk: NewsChunk, pitch: number, volume: number) 
   // A tiny boundary release prevents the final phoneme from feeling hard-cut.
   // DSP seam logic counts this existing silence, so it does not stack pauses.
   const release = chunk.boundary === "clause" ? 55 : chunk.boundary === "sentence" ? 85 : chunk.boundary === "paragraph" ? 100 : 140;
-  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(pitch)}" volume="${percent(volume)}">${body}<break time="${release}ms"/></prosody></voice></speak>`;
+  const directedPitch = CLAMP(pitch + (chunk.pitchDelta ?? 0), -18, 18);
+  const directedVolume = CLAMP(volume + (chunk.volumeDelta ?? 0), -7, 7);
+  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(directedPitch)}" volume="${percent(directedVolume)}">${body}<break time="${release}ms"/></prosody></voice></speak>`;
 }
