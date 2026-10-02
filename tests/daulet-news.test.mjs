@@ -101,6 +101,34 @@ test("long dense news gets sparse punctuation breaths and a slightly calmer rate
   assert.equal((ssml.match(/<break time="140ms"\/>/g)||[]).length,1);
 });
 
+test("semantic presenter direction is small, deterministic and single-span",()=>{
+  const text=[
+    "Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды.",
+    "Көрсеткіш он бес пайыз деңгейінде қалыптасты.",
+    "Алайда тараптар келіссөзді жалғастыратынын айтты.",
+    "Нәтижесінде мәжіліс аяқталды."
+  ].join("\n\n");
+  const chunks=planDauletNewsChunks(text,1,true,true);
+  assert.equal(chunks.length,4);
+  assert.equal(chunks[0].delivery,"lead");
+  assert.ok(chunks[0].pitchDelta>0);
+  assert.ok(chunks[0].volumeDelta>0);
+  assert.equal(chunks[1].delivery,"data");
+  assert.ok(chunks[1].pitchDelta<0);
+  assert.equal(chunks[2].delivery,"transition");
+  assert.ok(chunks[2].pitchDelta>0);
+  assert.equal(chunks[3].delivery,"settle");
+  assert.ok(chunks[3].pitchDelta<0);
+  assert.ok(chunks[3].volumeDelta<0);
+
+  const leadSsml=dauletNewsSsml(chunks[0],0.82,0);
+  assert.equal((leadSsml.match(/<prosody/g)||[]).length,1);
+  assert.match(leadSsml,/pitch="\+0\.96%" volume="\+0\.10%"/);
+
+  const plain=planDauletNewsChunks(text,1,true,false);
+  assert.ok(plain.every(chunk=>chunk.pitchDelta===0 && chunk.volumeDelta===0));
+});
+
 function tone(freq=180,seconds=1,amplitude=0.25) {
   const out=new Int16Array(24000*seconds);
   for(let i=0;i<out.length;i++)out[i]=Math.round(Math.sin(2*Math.PI*freq*i/24000)*amplitude*32767);
