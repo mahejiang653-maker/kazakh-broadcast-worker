@@ -164,6 +164,29 @@ test("de-gurgle reacts to low resonance and leaves clear midrange essentially al
   assert.ok(layeredOut.metrics.maxDynamicCutDb<=3.001);
   assert.ok(cleanOut.metrics.maxDynamicCutDb<0.5);
 });
+test("low-pulse control rejects normal male periods and only attenuates slower voiced pulses",()=>{
+  for (const frequency of [100,120,160]) {
+    const normal=new DauletNewsProcessor();normal.addPcm(mixedTone([frequency,frequency*2,frequency*3]),"end");
+    const out=normal.finish();
+    assert.equal(out.metrics.lowPulseFrames,0);
+    assert.equal(out.metrics.maxLowPulseCutDb,0);
+    assert.ok(out.metrics.maxResonanceCutDb<=3.001);
+  }
+  const slow=new DauletNewsProcessor();slow.addPcm(tone(68,2,0.25),"end");
+  const out=slow.finish();
+  assert.ok(out.metrics.lowPulseFrames>50);
+  assert.ok(out.metrics.maxLowPulseCutDb>1.5);
+  assert.ok(out.metrics.maxDynamicCutDb<=3.601);
+  assert.equal(out.metrics.durationSeconds,2);
+  assert.ok(out.pieces.every(piece=>piece.every(Number.isFinite)));
+  // Quiet ending-like energy must still engage the probe below the resonance gate.
+  const quiet=new DauletNewsProcessor();quiet.addPcm(tone(68,1,0.015),"end");
+  assert.ok(quiet.finish().metrics.maxLowPulseCutDb>0.5);
+  const overlapping=new DauletNewsProcessor();overlapping.addPcm(mixedTone([68,136,204],2),"end");
+  const overlappingOut=overlapping.finish();
+  assert.ok(overlappingOut.metrics.maxDynamicCutDb<=4.801);
+  assert.ok(overlappingOut.metrics.maxResonanceCutDb<=3.001);
+});
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));
   let active=0,max=0;

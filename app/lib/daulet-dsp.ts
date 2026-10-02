@@ -16,11 +16,13 @@ class Biquad {
     this.z2 = this.b2 * x - this.a2 * y;
     return y;
   }
-  static make(kind: "highpass" | "bandpass" | "peaking" | "highshelf", frequency: number, q: number, amount = 0) {
+  static make(kind: "highpass" | "lowpass" | "bandpass" | "peaking" | "highshelf", frequency: number, q: number, amount = 0) {
     const w = 2 * Math.PI * frequency / SR, c = Math.cos(w), s = Math.sin(w), a = s / (2 * q), A = 10 ** (amount / 40);
     let b0: number, b1: number, b2: number, a0: number, a1: number, a2: number;
     if (kind === "highpass") {
       b0 = (1 + c) / 2; b1 = -(1 + c); b2 = b0; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a;
+    } else if (kind === "lowpass") {
+      b0 = (1 - c) / 2; b1 = 1 - c; b2 = b0; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a;
     } else if (kind === "bandpass") {
       b0 = a; b1 = 0; b2 = -a; a0 = 1 + a; a1 = -2 * c; a2 = 1 - a;
     } else if (kind === "peaking") {
@@ -31,6 +33,67 @@ class Biquad {
       a0 = (A + 1) - (A - 1) * c + t; a1 = 2 * ((A - 1) - (A + 1) * c); a2 = (A + 1) - (A - 1) * c - t;
     }
     return new Biquad(b0/a0, b1/a0, b2/a0, a1/a0, a2/a0);
+  }
+}
+
+/** Low-period heuristic, not a trained creak classifier. Only controls a narrow
+ * dynamic band; the audio itself is never decimated, retimed or resynthesised.
+ */
+class LowPulseProbe {
+  private prefilter = Biquad.make("lowpass", 400, Math.SQRT1_2);
+  private antialias = Biquad.make("lowpass", 400, Math.SQRT1_2);
+  private ring = new Float64Array(120);
+  private frame = new Float64Array(120);
+  private correlation = new Float64Array(35);
+  private cursor = 0;
+  private count = 0;
+  private decimation = 0;
+  private hop = 0;
+  private score = 0;
+  speechFrames = 0;
+  lowPulseFrames = 0;
+
+  tick(x: number) {
+    const sample = this.antialias.tick(this.prefilter.tick(x));
+    if (++this.decimation < 16) return this.score;
+    this.decimation = 0;
+    this.ring[this.cursor] = sample;
+    this.cursor = (this.cursor + 1) % this.ring.length;
+    this.count = Math.min(this.count + 1, this.ring.length);
+    // 80 ms window / 20 ms hop at 1.5 kHz; no extra output buffering.
+    if (++this.hop < 30 || this.count < this.ring.length) return this.score;
+    this.hop = 0;
+    let mean = 0, energy = 0;
+    for (let i=0; i<120; i++) { this.frame[i] = this.ring[(this.cursor+i)%120]; mean += this.frame[i]; }
+    mean /= 120;
+    for (let i=0; i<120; i++) { this.frame[i] -= mean; energy += this.frame[i]**2; }
+    const level = db(Math.sqrt(energy/120));
+    if (level < -50) { this.score = 0; return 0; }
+    this.speechFrames++;
+    for (let lag=7; lag<=34; lag++) {
+      let cross = 0, left = 0, right = 0;
+      for (let i=0; i<120-lag; i++) {
+        const a = this.frame[i], b = this.frame[i+lag];
+        cross += a*b; left += a*a; right += b*b;
+      }
+      this.correlation[lag] = cross / Math.sqrt(Math.max(left*right,1e-20));
+    }
+    let best = 0;
+    for (let lag=8; lag<34; lag++) {
+      const c = this.correlation[lag];
+      if (c>=this.correlation[lag-1] && c>this.correlation[lag+1]) best = Math.max(best,c);
+    }
+    // Choose the first credible period, not a doubled/tripled period that would
+    // misclassify a regular 100–160 Hz male fundamental as a low pulse.
+    let period = 0;
+    if (best >= 0.65) for (let lag=8; lag<34; lag++) {
+      const c = this.correlation[lag];
+      if (c>=Math.max(0.65,best*0.85) && c>=this.correlation[lag-1] && c>this.correlation[lag+1]) { period = lag; break; }
+    }
+    const pitch = period ? 1500/period : 0;
+    this.score = pitch ? clamp((92-pitch)/24,0,1)*clamp((best-0.60)/0.22,0,1)*clamp((level+50)/10,0,1) : 0;
+    if (this.score > 0.25) this.lowPulseFrames++;
+    return this.score;
   }
 }
 
@@ -81,6 +144,8 @@ function speechExtent(x: Float32Array) {
 export type DauletDspMetrics = {
   durationSeconds: number; inputLufs: number; processedLufs: number; gainDb: number;
   samplePeakDb: number; maxDynamicCutDb: number;
+  maxLowPulseCutDb: number; maxResonanceCutDb: number;
+  analyzedSpeechFrames: number; lowPulseFrames: number;
   seams: {kind: NewsBoundary; silenceMs: number; addedMs: number}[];
 };
 
@@ -88,7 +153,9 @@ export type DauletDspMetrics = {
 export class DauletNewsProcessor {
   private hp = Biquad.make("highpass", 55, Math.SQRT1_2);
   private eq = Biquad.make("peaking", 210, 0.8, -0.6);
-  // Two overlapping detectors target the characteristic Daulet low/low-mid
+  private lowPulse = new LowPulseProbe();
+  private pulseBand = Biquad.make("bandpass", 85, 1.1);
+  // Three overlapping detectors target the characteristic Daulet low/low-mid
   // resonance without shaving the whole voice. They only engage on sustained
   // voiced energy, so consonants, breaths and ordinary bass remain intact.
   private lowResonance = Biquad.make("bandpass", 145, 1.25);
@@ -103,6 +170,9 @@ export class DauletNewsProcessor {
   private lowReduction = 0;
   private throatReduction = 0;
   private upperThroatReduction = 0;
+  private pulseReduction = 0;
+  private maxPulseCut = 0;
+  private maxResonanceCut = 0;
   private maxCut = 0;
   private peak = 0;
   private length = 0;
@@ -116,8 +186,11 @@ export class DauletNewsProcessor {
     const envelope = Math.exp(-1/(0.025*SR));
     const lowAttack = Math.exp(-1/(0.045*SR)), lowRelease = Math.exp(-1/(0.230*SR));
     const throatAttack = Math.exp(-1/(0.035*SR)), throatRelease = Math.exp(-1/(0.180*SR));
+    const pulseAttack = Math.exp(-1/(0.020*SR)), pulseRelease = Math.exp(-1/(0.100*SR));
     for (let i=0; i<piece.length; i++) {
       let x = this.eq.tick(this.hp.tick(piece[i]));
+      const pulseTarget = this.lowPulse.tick(x)*3.6;
+      const pulseBand = this.pulseBand.tick(x);
       const lowBand = this.lowResonance.tick(x);
       const throatBand = this.throatResonance.tick(x);
       const upperThroatBand = this.upperThroatResonance.tick(x);
@@ -145,16 +218,25 @@ export class DauletNewsProcessor {
       this.lowReduction = lowSmooth*this.lowReduction+(1-lowSmooth)*lowTarget;
       this.throatReduction = throatSmooth*this.throatReduction+(1-throatSmooth)*throatTarget;
       this.upperThroatReduction = upperSmooth*this.upperThroatReduction+(1-upperSmooth)*upperThroatTarget;
+      const pulseSmooth = pulseTarget > this.pulseReduction ? pulseAttack : pulseRelease;
+      this.pulseReduction = pulseSmooth*this.pulseReduction+(1-pulseSmooth)*pulseTarget;
 
-      // Keep the combined correction conservative enough to preserve Daulet's
-      // mature weight. The filters never become a broadband bass cut.
+      // Preserve the existing 3 dB resonance correction instead of weakening it
+      // when a pulse is detected. Only low pulses can use the additional budget;
+      // the sum of all four controls stays within 4.8 dB. This sum is a control
+      // bound, not a claim about the composite filter's frequency response.
       const requested = this.lowReduction + this.throatReduction + this.upperThroatReduction;
       const scale = requested > 3.0 ? 3.0/requested : 1;
       const lowCut = this.lowReduction*scale, throatCut = this.throatReduction*scale, upperThroatCut = this.upperThroatReduction*scale;
+      const resonanceCut = lowCut+throatCut+upperThroatCut;
+      const pulseCut = Math.min(this.pulseReduction, Math.max(0,4.8-resonanceCut));
+      x -= pulseBand * (1-gain(-pulseCut));
       x -= lowBand * (1-gain(-lowCut));
       x -= throatBand * (1-gain(-throatCut));
       x -= upperThroatBand * (1-gain(-upperThroatCut));
-      this.maxCut = Math.max(this.maxCut, lowCut+throatCut+upperThroatCut);
+      this.maxPulseCut = Math.max(this.maxPulseCut, pulseCut);
+      this.maxResonanceCut = Math.max(this.maxResonanceCut, resonanceCut);
+      this.maxCut = Math.max(this.maxCut, pulseCut+resonanceCut);
 
       this.peak = Math.max(this.peak, Math.abs(x));
       this.outputMeter.push(x);
@@ -200,6 +282,8 @@ export class DauletNewsProcessor {
     const metrics: DauletDspMetrics = {
       durationSeconds:this.length/SR, inputLufs:this.inputMeter.value(), processedLufs:before+gainDb,
       gainDb, samplePeakDb:db(this.peak)+gainDb, maxDynamicCutDb:this.maxCut, seams:this.seams,
+      maxLowPulseCutDb:this.maxPulseCut, maxResonanceCutDb:this.maxResonanceCut,
+      analyzedSpeechFrames:this.lowPulse.speechFrames, lowPulseFrames:this.lowPulse.lowPulseFrames,
     };
     return {pieces:this.pieces, gain:gain(gainDb), metrics};
   }
