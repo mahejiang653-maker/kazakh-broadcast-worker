@@ -52,12 +52,14 @@ test("15000-character manuscript keeps every sentence and has bounded natural gr
   for(const c of chunks)assert.ok(splitNewsSentences(c.text).length<=6);
   assert.throws(()=>planDauletNewsChunks("Қазақша ".repeat(1500)),/sentence-too-long/);
 });
-test("one escaped prosody span; no invented breaths, nested pitch or spoken SSML",()=>{
+test("one escaped prosody span; short text gets only a boundary release",()=>{
   const ssml=dauletNewsSsml({text:'А & Б <тест>.',rate:1.01303,boundary:"end"},0.82,0);
   assert.equal((ssml.match(/<prosody/g)||[]).length,1);
   assert.match(ssml,/rate="\+1.30%" pitch="\+0.82%" volume="\+0.00%"/);
   assert.match(ssml,/А &amp; Б &lt;тест&gt;/u);
-  assert.doesNotMatch(ssml,/<break|range=/);
+  assert.equal((ssml.match(/<break/g)||[]).length,1);
+  assert.match(ssml,/<break time="140ms"\/>/);
+  assert.doesNotMatch(ssml,/<break time="(?:45|75)ms"\/>|range=/);
 });
 test("all thirteen news labels pause inside their original request, including merged paragraphs",()=>{
   const labels=["Бірінші","Екінші","Үшінші","Төртінші","Бесінші","Алтыншы","Жетінші","Сегізінші","Тоғызыншы","Оныншы","Он бірінші","Он екінші","Он үшінші"];
@@ -68,20 +70,46 @@ test("all thirteen news labels pause inside their original request, including me
     assert.equal(chunks[0].text,text);
     const ssml=dauletNewsSsml(chunks[0],0.82,0);
     assert.ok(ssml.includes(`${label}<break time="320ms"/> Қазақстан`));
-    assert.equal((ssml.match(/<break/g)||[]).length,1);
+    assert.equal((ssml.match(/<break/g)||[]).length,2);
+    assert.match(ssml,/<break time="140ms"\/>/);
     assert.equal((ssml.match(/<prosody/g)||[]).length,1);
   }
   const spoken=prepareDauletNewsText("1. Алғашқы хабар.\n\n2. Келесі хабар. Он үшінші: Соңғы хабар.");
   const ssml=dauletNewsSsml({text:spoken,rate:1,boundary:"end"},0.82,0);
   assert.equal((ssml.match(/<break time="320ms"\/>/g)||[]).length,3);
+  assert.equal((ssml.match(/<break time="140ms"\/>/g)||[]).length,1);
   const ordinary=dauletNewsSsml({text:'Бірінші кезекте мәселе қаралды. Екінші тарап келісті. <break time="900ms"/>',rate:1,boundary:"end"},0.82,0);
-  assert.doesNotMatch(ordinary,/<break/);
+  assert.equal((ordinary.match(/<break/g)||[]).length,1);
+  assert.match(ordinary,/<break time="140ms"\/>/);
   assert.match(ordinary,/&lt;break time=&quot;900ms&quot;\/&gt;/);
+});
+
+test("long dense news gets sparse punctuation breaths and a slightly calmer rate",()=>{
+  const sentence=[
+    "Қазақстан өкілдері халықаралық мәжілісте жаңа бастамаларды таныстырып",
+    "экономикалық байланыс пен көлік дәліздерінің жағдайын егжей-тегжейлі түсіндірді",
+    "сонымен бірге тараптар аймақтық қауіпсіздік пен сауда көрсеткіштерін талқылап",
+    "келесі кезеңдегі бірлескен жұмыстың негізгі бағыттарын белгіледі"
+  ].join(", ") + ".";
+  const chunks=planDauletNewsChunks(sentence,1,true,true);
+  assert.equal(chunks.length,1);
+  assert.ok(chunks[0].rate<1);
+  const ssml=dauletNewsSsml(chunks[0],0.82,0);
+  assert.ok((ssml.match(/<break time="45ms"\/>/g)||[]).length>=1);
+  assert.equal((ssml.match(/<break time="140ms"\/>/g)||[]).length,1);
 });
 
 function tone(freq=180,seconds=1,amplitude=0.25) {
   const out=new Int16Array(24000*seconds);
   for(let i=0;i<out.length;i++)out[i]=Math.round(Math.sin(2*Math.PI*freq*i/24000)*amplitude*32767);
+  return out.buffer;
+}
+function mixedTone(frequencies=[180,410],seconds=1,amplitude=0.18) {
+  const out=new Int16Array(24000*seconds);
+  for(let i=0;i<out.length;i++) {
+    const sample=frequencies.reduce((sum,f)=>sum+Math.sin(2*Math.PI*f*i/24000),0)/frequencies.length;
+    out[i]=Math.round(sample*amplitude*32767);
+  }
   return out.buffer;
 }
 test("DSP stays finite, caps de-gurgle correction and retains full voiced samples",()=>{
@@ -97,10 +125,13 @@ test("DSP stays finite, caps de-gurgle correction and retains full voiced sample
 });
 test("de-gurgle reacts to low resonance and leaves clear midrange essentially alone",()=>{
   const resonant=new DauletNewsProcessor();resonant.addPcm(tone(180,1,0.25),"end");
+  const layered=new DauletNewsProcessor();layered.addPcm(mixedTone(),"end");
   const clean=new DauletNewsProcessor();clean.addPcm(tone(1000,1,0.25),"end");
-  const resonantOut=resonant.finish(), cleanOut=clean.finish();
+  const resonantOut=resonant.finish(), layeredOut=layered.finish(), cleanOut=clean.finish();
   assert.ok(resonantOut.metrics.maxDynamicCutDb>1.0);
+  assert.ok(layeredOut.metrics.maxDynamicCutDb>0.5);
   assert.ok(resonantOut.metrics.maxDynamicCutDb<=3.001);
+  assert.ok(layeredOut.metrics.maxDynamicCutDb<=3.001);
   assert.ok(cleanOut.metrics.maxDynamicCutDb<0.5);
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
