@@ -1,12 +1,14 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.1";
+export const DAULET_NEWS_VERSION = "daulet-news-v3.2";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
 const MONTH_NAMES = ["қаңтар", "ақпан", "наурыз", "сәуір", "мамыр", "маусым", "шілде", "тамыз", "қыркүйек", "қазан", "қараша", "желтоқсан"];
-const CUE = /^(?:Бірінші|Екінші|Үшінші|Төртінші|Бесінші|Алтыншы|Жетінші|Сегізінші|Тоғызыншы|Оныншы|Он бірінші|Он екінші|Он үшінші)[.:]?$/iu;
+const NEWS_CUES = "Бірінші|Екінші|Үшінші|Төртінші|Бесінші|Алтыншы|Жетінші|Сегізінші|Тоғызыншы|Оныншы|Он бірінші|Он екінші|Он үшінші";
+const CUE = new RegExp(`^(?:${NEWS_CUES})[.:]?$`, "iu");
+const CUE_PAUSE = new RegExp(`(^|[.!?…。！？]\\s+|\\n\\s*\\n)(${NEWS_CUES})[.:](?=\\s+\\S)`, "giu");
 const END = /[.!?…。！？][»”’"')\]]*$/u;
 const CLAMP = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
 
@@ -137,6 +139,10 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
 export function dauletNewsSsml(chunk: NewsChunk, pitch: number, volume: number) {
   const escape = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const percent = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-  // One continuous prosody span, punctuation owned by the native Kazakh voice.
-  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(pitch)}" volume="${percent(volume)}">${escape(chunk.text)}</prosody></voice></speak>`;
+  // Edge can read ordinal + period as a list label without pausing. Replace only
+  // that separator with a short break, inside the same prosody/request as the news.
+  // Ordinary sentence punctuation remains native; avoid adding two pauses here.
+  const body = escape(chunk.text).replace(CUE_PAUSE, (_all, before: string, cue: string) =>
+    `${before}${cue}<break time="320ms"/>`);
+  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(pitch)}" volume="${percent(volume)}">${body}</prosody></voice></speak>`;
 }

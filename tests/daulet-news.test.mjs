@@ -59,6 +59,25 @@ test("one escaped prosody span; no invented breaths, nested pitch or spoken SSML
   assert.match(ssml,/А &amp; Б &lt;тест&gt;/u);
   assert.doesNotMatch(ssml,/<break|range=/);
 });
+test("all thirteen news labels pause inside their original request, including merged paragraphs",()=>{
+  const labels=["Бірінші","Екінші","Үшінші","Төртінші","Бесінші","Алтыншы","Жетінші","Сегізінші","Тоғызыншы","Оныншы","Он бірінші","Он екінші","Он үшінші"];
+  for(const label of labels){
+    const text=`${label}. Қазақстан өкілдері мәжіліске қатысты.`;
+    const chunks=planDauletNewsChunks(prepareDauletNewsText(text));
+    assert.equal(chunks.length,1);
+    assert.equal(chunks[0].text,text);
+    const ssml=dauletNewsSsml(chunks[0],0.82,0);
+    assert.ok(ssml.includes(`${label}<break time="320ms"/> Қазақстан`));
+    assert.equal((ssml.match(/<break/g)||[]).length,1);
+    assert.equal((ssml.match(/<prosody/g)||[]).length,1);
+  }
+  const spoken=prepareDauletNewsText("1. Алғашқы хабар.\n\n2. Келесі хабар. Он үшінші: Соңғы хабар.");
+  const ssml=dauletNewsSsml({text:spoken,rate:1,boundary:"end"},0.82,0);
+  assert.equal((ssml.match(/<break time="320ms"\/>/g)||[]).length,3);
+  const ordinary=dauletNewsSsml({text:'Бірінші кезекте мәселе қаралды. Екінші тарап келісті. <break time="900ms"/>',rate:1,boundary:"end"},0.82,0);
+  assert.doesNotMatch(ordinary,/<break/);
+  assert.match(ordinary,/&lt;break time=&quot;900ms&quot;\/&gt;/);
+});
 
 function tone(freq=180,seconds=1,amplitude=0.25) {
   const out=new Int16Array(24000*seconds);
