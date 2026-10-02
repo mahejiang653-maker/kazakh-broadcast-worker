@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.3";
+export const DAULET_NEWS_VERSION = "daulet-news-v3.4";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
@@ -127,22 +127,57 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
   let previous = speed;
   return chunks.map((chunk, index) => {
     // A restrained, meaningful data-load adjustment, never random pitch motion.
+    // Very long news groups settle a little instead of racing through dense facts.
     const wordCount = chunk.text.split(/\s+/u).length;
     const load = /(?:жылғы|пайыз|миллион|миллиард|сағат)/iu.test(chunk.text);
-    const target = speed * (focus ? load ? 0.995 : wordCount > 80 ? 0.998 : 1 : 1);
+    const density = wordCount > 70 ? 0.992 : wordCount > 45 ? 0.996 : 1;
+    const paragraphSettle = chunk.boundary === "paragraph" ? 0.998 : 1;
+    const target = speed * (focus ? Math.min(load ? 0.995 : 1, density) * paragraphSettle : 1);
     const rate = continuous ? CLAMP(target, previous - 0.005, previous + 0.005) : target;
     previous = rate;
     return {...chunk, rate, boundary: index === chunks.length - 1 ? "end" : chunk.boundary};
   });
 }
 
+function renderLongNewsBreaths(text: string, escape: (value: string) => string) {
+  const words = text.trim().split(/\s+/u).filter(Boolean).length;
+  if (words < 45) return escape(text);
+
+  let output = "";
+  let cursor = 0;
+  let lastBreath = 0;
+  const punctuation = /[,，;；:：]/gu;
+  for (const match of text.matchAll(punctuation)) {
+    const index = match.index ?? 0;
+    const mark = match[0];
+    const beforeWords = text.slice(lastBreath, index).trim().split(/\s+/u).filter(Boolean).length;
+    const afterWords = text.slice(index + mark.length).trim().split(/\s+/u).filter(Boolean).length;
+    const strong = /[;；:：]/u.test(mark);
+    const pause = strong
+      ? beforeWords >= 10 && afterWords >= 8 ? 75 : 0
+      : beforeWords >= 18 && afterWords >= 12 ? 45 : 0;
+
+    output += escape(text.slice(cursor, index + mark.length));
+    if (pause) {
+      output += `<break time="${pause}ms"/>`;
+      lastBreath = index + mark.length;
+    }
+    cursor = index + mark.length;
+  }
+  output += escape(text.slice(cursor));
+  return output;
+}
+
 export function dauletNewsSsml(chunk: NewsChunk, pitch: number, volume: number) {
   const escape = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const percent = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-  // Edge can read ordinal + period as a list label without pausing. Replace only
-  // that separator with a short break, inside the same prosody/request as the news.
-  // Ordinary sentence punctuation remains native; avoid adding two pauses here.
-  const body = escape(chunk.text).replace(CUE_PAUSE, (_all, before: string, cue: string) =>
+  // Long, information-dense sentences get only sparse micro-breaths at existing
+  // punctuation. Short/ordinary sentences remain untouched.
+  const breathed = renderLongNewsBreaths(chunk.text, escape);
+  const body = breathed.replace(CUE_PAUSE, (_all, before: string, cue: string) =>
     `${before}${cue}<break time="320ms"/>`);
-  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(pitch)}" volume="${percent(volume)}">${body}</prosody></voice></speak>`;
+  // A tiny boundary release prevents the final phoneme from feeling hard-cut.
+  // DSP seam logic counts this existing silence, so it does not stack pauses.
+  const release = chunk.boundary === "clause" ? 55 : chunk.boundary === "sentence" ? 85 : chunk.boundary === "paragraph" ? 100 : 140;
+  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(pitch)}" volume="${percent(volume)}">${body}<break time="${release}ms"/></prosody></voice></speak>`;
 }
