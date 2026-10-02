@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.2";
+export const DAULET_NEWS_VERSION = "daulet-news-v3.3";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
