@@ -84,16 +84,24 @@ function tone(freq=180,seconds=1,amplitude=0.25) {
   for(let i=0;i<out.length;i++)out[i]=Math.round(Math.sin(2*Math.PI*freq*i/24000)*amplitude*32767);
   return out.buffer;
 }
-test("DSP stays finite, limits low-band cut and retains full voiced samples",()=>{
+test("DSP stays finite, caps de-gurgle correction and retains full voiced samples",()=>{
   const dsp=new DauletNewsProcessor();dsp.addPcm(tone(),"sentence");dsp.addPcm(tone(1000),"end");
   const out=dsp.finish(), data=[...pcm16Blocks(out.pieces,out.gain)].flatMap(x=>[...x]);
-  assert.ok(out.metrics.maxDynamicCutDb<=2.001);
+  assert.ok(out.metrics.maxDynamicCutDb<=3.001);
   assert.ok(out.metrics.samplePeakDb<=-2+1e-6);
   assert.ok(data.every(Number.isFinite));
   assert.equal(out.metrics.seams[0].silenceMs,280);
   assert.equal(Math.round(out.metrics.durationSeconds*24000),54720);
   assert.throws(()=>dsp.addPcm(tone(),"end"));
   const silent=new DauletNewsProcessor();assert.throws(()=>silent.addPcm(new ArrayBuffer(48000),"end"),/空白/u);
+});
+test("de-gurgle reacts to low resonance and leaves clear midrange essentially alone",()=>{
+  const resonant=new DauletNewsProcessor();resonant.addPcm(tone(180,1,0.25),"end");
+  const clean=new DauletNewsProcessor();clean.addPcm(tone(1000,1,0.25),"end");
+  const resonantOut=resonant.finish(), cleanOut=clean.finish();
+  assert.ok(resonantOut.metrics.maxDynamicCutDb>1.0);
+  assert.ok(resonantOut.metrics.maxDynamicCutDb<=3.001);
+  assert.ok(cleanOut.metrics.maxDynamicCutDb<0.5);
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));

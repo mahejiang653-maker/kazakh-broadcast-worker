@@ -88,12 +88,18 @@ export type DauletDspMetrics = {
 export class DauletNewsProcessor {
   private hp = Biquad.make("highpass", 55, Math.SQRT1_2);
   private eq = Biquad.make("peaking", 210, 0.8, -0.6);
-  private low = Biquad.make("bandpass", 180, 1);
+  // Two overlapping detectors target the characteristic Daulet low/low-mid
+  // resonance without shaving the whole voice. They only engage on sustained
+  // voiced energy, so consonants, breaths and ordinary bass remain intact.
+  private lowResonance = Biquad.make("bandpass", 145, 1.25);
+  private throatResonance = Biquad.make("bandpass", 285, 1.10);
   private inputMeter = new LoudnessMeter();
   private outputMeter = new LoudnessMeter();
   private wideEnvelope = 0;
   private lowEnvelope = 0;
-  private reduction = 0;
+  private throatEnvelope = 0;
+  private lowReduction = 0;
+  private throatReduction = 0;
   private maxCut = 0;
   private peak = 0;
   private length = 0;
@@ -104,19 +110,40 @@ export class DauletNewsProcessor {
   private finished = false;
 
   private process(piece: Float32Array) {
-    const envelope = Math.exp(-1/(0.025*SR)), attack = Math.exp(-1/(0.060*SR)), release = Math.exp(-1/(0.250*SR));
+    const envelope = Math.exp(-1/(0.025*SR));
+    const lowAttack = Math.exp(-1/(0.045*SR)), lowRelease = Math.exp(-1/(0.230*SR));
+    const throatAttack = Math.exp(-1/(0.035*SR)), throatRelease = Math.exp(-1/(0.180*SR));
     for (let i=0; i<piece.length; i++) {
       let x = this.eq.tick(this.hp.tick(piece[i]));
-      const band = this.low.tick(x);
+      const lowBand = this.lowResonance.tick(x);
+      const throatBand = this.throatResonance.tick(x);
       this.wideEnvelope = envelope*this.wideEnvelope + (1-envelope)*x*x;
-      this.lowEnvelope = envelope*this.lowEnvelope + (1-envelope)*band*band;
-      const ratio = Math.sqrt(this.lowEnvelope / Math.max(this.wideEnvelope, 1e-12));
-      // Only dominant voiced low resonance; ordinary quiet speech is untouched.
-      const target = this.wideEnvelope > gain(-38)**2 ? clamp((ratio-0.60)/0.25,0,1)*2 : 0;
-      const smooth = target > this.reduction ? attack : release;
-      this.reduction = smooth*this.reduction+(1-smooth)*target;
-      x -= band * (1-gain(-this.reduction));
-      this.maxCut = Math.max(this.maxCut, this.reduction);
+      this.lowEnvelope = envelope*this.lowEnvelope + (1-envelope)*lowBand*lowBand;
+      this.throatEnvelope = envelope*this.throatEnvelope + (1-envelope)*throatBand*throatBand;
+
+      const energy = Math.max(this.wideEnvelope, 1e-12);
+      const lowRatio = Math.sqrt(this.lowEnvelope / energy);
+      const throatRatio = Math.sqrt(this.throatEnvelope / energy);
+      const voiced = this.wideEnvelope > gain(-40)**2;
+
+      // Stage 1 catches chesty/bubbly fundamentals; stage 2 catches the
+      // low-mid "gurgle" overtone. Both are ratio-gated and capped.
+      const lowTarget = voiced ? clamp((lowRatio-0.56)/0.24,0,1)*2.4 : 0;
+      const throatTarget = voiced ? clamp((throatRatio-0.42)/0.24,0,1)*1.8 : 0;
+      const lowSmooth = lowTarget > this.lowReduction ? lowAttack : lowRelease;
+      const throatSmooth = throatTarget > this.throatReduction ? throatAttack : throatRelease;
+      this.lowReduction = lowSmooth*this.lowReduction+(1-lowSmooth)*lowTarget;
+      this.throatReduction = throatSmooth*this.throatReduction+(1-throatSmooth)*throatTarget;
+
+      // Keep the combined correction conservative enough to preserve Daulet's
+      // mature weight. The filters never become a broadband bass cut.
+      const requested = this.lowReduction + this.throatReduction;
+      const scale = requested > 3.0 ? 3.0/requested : 1;
+      const lowCut = this.lowReduction*scale, throatCut = this.throatReduction*scale;
+      x -= lowBand * (1-gain(-lowCut));
+      x -= throatBand * (1-gain(-throatCut));
+      this.maxCut = Math.max(this.maxCut, lowCut+throatCut);
+
       this.peak = Math.max(this.peak, Math.abs(x));
       this.outputMeter.push(x);
       piece[i] = x;
