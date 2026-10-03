@@ -290,11 +290,63 @@ test("half-frequency evidence distinguishes alternating pulses from quantised no
       } else {
         assert.equal(out.metrics.subharmonicFrames,0,`misclassified regular ${frequency} Hz`);
         assert.equal(out.metrics.maxLowPulseCutDb,0);
+        assert.equal(out.metrics.maxAdjacentPulseMix,0);
       }
       assert.equal(out.metrics.durationSeconds,2);
       assert.ok(out.pieces.every(piece=>piece.every(Number.isFinite)));
     }
   }
+});
+test("adjacent-pulse smoothing reduces odd overtones while retaining body and upper speech",()=>{
+  const data=new Int16Array(48000),amplitudes=[.03,.13,.02,.06,.015];
+  for(let i=0;i<data.length;i++) {
+    const phase=2*Math.PI*65*i/24000;
+    const voice=amplitudes.reduce((sum,amplitude,h)=>sum+amplitude*Math.sin(phase*(h+1)),0);
+    data[i]=Math.round((voice+.025*Math.sin(2*Math.PI*4000*i/24000))*32767);
+  }
+  const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
+  const out=processor.finish(),samples=out.pieces[0];
+  const amplitudeAt=frequency=>{
+    let real=0,imaginary=0;
+    for(let i=24000;i<48000;i++) {
+      const phase=2*Math.PI*frequency*i/24000;
+      real+=samples[i]*Math.cos(phase);imaginary+=samples[i]*Math.sin(phase);
+    }
+    return 2*Math.hypot(real,imaginary)/24000;
+  };
+  assert.ok(out.metrics.confirmedAlternatingFrames>50);
+  assert.ok(out.metrics.maxAdjacentPulseMix>.19 && out.metrics.maxAdjacentPulseMix<=.200001);
+  assert.ok(20*Math.log10(amplitudeAt(325)/.015)<-1.0,"odd fifth harmonic remains too strong");
+  assert.ok(20*Math.log10(amplitudeAt(130)/.13)>-4,"body harmonic is over-attenuated");
+  assert.ok(Math.abs(20*Math.log10(amplitudeAt(4000)/.025))<.5,"upper speech changes too much");
+  assert.ok(out.metrics.maxDynamicCutDb<=13.001);
+  assert.equal(out.metrics.durationSeconds,2);
+  assert.ok(samples.every(Number.isFinite));
+});
+test("ordinary low pitch and absent half-frequency energy never enable adjacent-pulse mixing",()=>{
+  for(const frequency of [52,65,75,85,100,130,165]) {
+    const data=new Int16Array(48000);
+    for(let i=0;i<data.length;i++) {
+      const phase=2*Math.PI*frequency*i/24000;
+      data[i]=Math.round((.14*Math.sin(phase)+.035*Math.sin(phase*2)+.01*Math.sin(phase*3))*32767);
+    }
+    const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
+    const out=processor.finish();
+    assert.equal(out.metrics.maxAdjacentPulseMix,0,`regular ${frequency} Hz was averaged`);
+    assert.equal(out.metrics.confirmedAlternatingFrames,0);
+  }
+});
+test("normal moving male pitch stays outside adjacent-pulse processing",()=>{
+  const data=new Int16Array(96000);let phase=0;
+  for(let i=0;i<data.length;i++) {
+    const frequency=130+30*Math.sin(2*Math.PI*.7*i/24000);
+    phase+=2*Math.PI*frequency/24000;
+    data[i]=Math.round((.13*Math.sin(phase)+.06*Math.sin(phase*2))*32767);
+  }
+  const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
+  const out=processor.finish();
+  assert.equal(out.metrics.maxAdjacentPulseMix,0);
+  assert.equal(out.metrics.durationSeconds,4);
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));
