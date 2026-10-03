@@ -2062,12 +2062,10 @@ async function dauletNewsResponse(text: string, preset: PresetName, settings: Ed
   // native prosody span instead of layering phrase, focus and fry wrappers.
   const documentPlan = settings.directorOverrides.length ? analyzeEdgeDocument(prepared) : undefined;
   const emotionPlan = documentPlan ? analyzeEdgeEmotionPlan(prepared, documentPlan) : null;
-  const directedSettings = emotionPlan ? {...settings, emotionOverrides: materializeEdgeEmotionOverrides(emotionPlan, settings.directorOverrides)} : settings;
+  const newsDirections = emotionPlan ? materializeEdgeEmotionOverrides(emotionPlan, settings.directorOverrides) : [];
   let retriesRemaining = 4;
   const synthesize = async (chunk: NewsChunk, requestSignal: AbortSignal) => {
-    const ssml = emotionPlan
-      ? buildEdgeSsml(chunk.text, "kk-KZ-DauletNeural", preset, directedSettings, documentPlan, false, emotionPlan)
-      : dauletNewsSsml(chunk, clamp(settings.pitch + PRESETS[preset].pitch + 0.82, -18, 18), clamp(settings.volume + PRESETS[preset].volume, -7, 7));
+    const ssml = dauletNewsSsml(chunk, clamp(settings.pitch + PRESETS[preset].pitch + 0.82, -18, 18), clamp(settings.volume + PRESETS[preset].volume, -7, 7), newsDirections);
     for (let attempt = 0; attempt < 2; attempt++) {
       let retryable = true;
       try {

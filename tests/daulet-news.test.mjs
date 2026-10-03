@@ -60,6 +60,8 @@ test("one escaped prosody span; short text gets only a boundary release",()=>{
   assert.equal((ssml.match(/<break/g)||[]).length,1);
   assert.match(ssml,/<break time="140ms"\/>/);
   assert.doesNotMatch(ssml,/<break time="(?:45|75)ms"\/>|range=/);
+  assert.equal((ssml.match(/<p>/g)||[]).length,1);
+  assert.equal((ssml.match(/<s>/g)||[]).length,1);
 });
 test("all thirteen news labels pause inside their original request, including merged paragraphs",()=>{
   const labels=["Бірінші","Екінші","Үшінші","Төртінші","Бесінші","Алтыншы","Жетінші","Сегізінші","Тоғызыншы","Оныншы","Он бірінші","Он екінші","Он үшінші"];
@@ -84,7 +86,7 @@ test("all thirteen news labels pause inside their original request, including me
   assert.match(ordinary,/&lt;break time=&quot;900ms&quot;\/&gt;/);
 });
 
-test("long dense news gets sparse punctuation breaths and a slightly calmer rate",()=>{
+test("long dense news retains native punctuation phrasing and a slightly calmer rate",()=>{
   const sentence=[
     "Қазақстан өкілдері халықаралық мәжілісте жаңа бастамаларды таныстырып",
     "экономикалық байланыс пен көлік дәліздерінің жағдайын егжей-тегжейлі түсіндірді",
@@ -97,8 +99,48 @@ test("long dense news gets sparse punctuation breaths and a slightly calmer rate
   assert.equal(chunks.length,1);
   assert.ok(chunks[0].rate<1);
   const ssml=dauletNewsSsml(chunks[0],0.82,0);
-  assert.ok((ssml.match(/<break time="45ms"\/>/g)||[]).length>=1);
+  assert.doesNotMatch(ssml,/<break time="(?:45|75)ms"\/>/);
+  assert.equal((ssml.match(/,/g)||[]).length,5);
+  assert.equal((ssml.match(/<s>/g)||[]).length,1);
   assert.equal((ssml.match(/<break time="140ms"\/>/g)||[]).length,1);
+});
+
+test("a compact four/five-sentence item remains one request without absorbing the next numbered item",()=>{
+  const sentences=["Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды.","Мамандар деректерді салыстырды.","Тараптар ұсыныстарды талқылады.","Келесі мәжіліс Алматыда өтеді.","Қосымша мәлімет кейін беріледі."];
+  for(const count of [4,5]) {
+    const item=sentences.slice(0,count).join(" ");
+    const chunks=planDauletNewsChunks(item);
+    assert.equal(chunks.length,1);
+    assert.equal(chunks[0].text,item);
+    const ssml=dauletNewsSsml(chunks[0],0.82,0);
+    assert.equal((ssml.match(/<s>/g)||[]).length,count);
+    assert.equal((ssml.match(/<prosody/g)||[]).length,1);
+    assert.equal((ssml.match(/320ms/g)||[]).length,1);
+    const withNext=planDauletNewsChunks(item+" Екінші. Келесі жаңалық берілді.");
+    assert.ok(withNext.length>=2);
+    assert.ok(withNext.at(-1).text.startsWith("Екінші."));
+    assert.equal(withNext.map(c=>c.text).join(" "),item+" Екінші. Келесі жаңалық берілді.");
+  }
+});
+
+test("news emotion choices retain the native renderer, ordinal pauses and bounded item-level shading",()=>{
+  const text="Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды. Мамандар деректерді салыстырды.";
+  const chunk=planDauletNewsChunks(text)[0];
+  const base=dauletNewsSsml(chunk,0.82,0);
+  const parse=s=>[...s.match(/rate="([+-]?[\d.]+)%" pitch="([+-]?[\d.]+)%" volume="([+-]?[\d.]+)%"/).slice(1)].map(Number);
+  for(const emotion of ["happy","angry","sad","afraid","disgusted","melancholic","surprised","calm"]) {
+    const directed=dauletNewsSsml(chunk,0.82,0,[{text:"Қазақстан өкілдері жаңа мәлімет ұсынды.",emotion,intensity:1}]);
+    assert.equal((directed.match(/<prosody/g)||[]).length,1);
+    assert.equal((directed.match(/320ms/g)||[]).length,1);
+    assert.equal((directed.match(/<s>/g)||[]).length,2);
+    assert.doesNotMatch(directed,/<emphasis|contour=|range=|<mstts:/);
+    const a=parse(base),b=parse(directed);
+    assert.ok(Math.abs(a[0]-b[0])<=0.51);
+    assert.ok(Math.abs(a[1]-b[1])<=0.15);
+    assert.ok(Math.abs(a[2]-b[2])<=0.07);
+  }
+  assert.equal(dauletNewsSsml(chunk,0.82,0,[{text:"Бірінші.",emotion:"angry",intensity:1}]),base);
+  assert.equal(dauletNewsSsml(chunk,0.82,0,[{text:"Осы мәтін жоқ.",emotion:"sad",intensity:1}]),base);
 });
 
 test("semantic presenter direction is small, deterministic and single-span",()=>{

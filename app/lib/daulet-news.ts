@@ -1,13 +1,14 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.8";
+export const DAULET_NEWS_VERSION = "daulet-news-v3.9";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
 const MONTH_NAMES = ["қаңтар", "ақпан", "наурыз", "сәуір", "мамыр", "маусым", "шілде", "тамыз", "қыркүйек", "қазан", "қараша", "желтоқсан"];
 const NEWS_CUES = "Бірінші|Екінші|Үшінші|Төртінші|Бесінші|Алтыншы|Жетінші|Сегізінші|Тоғызыншы|Оныншы|Он бірінші|Он екінші|Он үшінші";
 const CUE = new RegExp(`^(?:${NEWS_CUES})[.:]?$`, "iu");
+const ITEM_START = new RegExp(`^(?:${NEWS_CUES})[.:]\\s`, "iu");
 const CUE_PAUSE = new RegExp(`(^|[.!?…。！？]\\s+|\\n\\s*\\n)(${NEWS_CUES})[.:](?=\\s+\\S)`, "giu");
 const END = /[.!?…。！？][»”’"')\]]*$/u;
 const CLAMP = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
@@ -91,13 +92,29 @@ export function splitNewsSentences(paragraph: string): string[] {
 /** 1–3 intact sentences. Only exceptional long sentences use explicit clauses. */
 export function planDauletNewsChunks(prepared: string, speed = 1, continuous = true, focus = true): NewsChunk[] {
   const chunks: NewsChunk[] = [];
-  for (const paragraph of prepared.split(/\n\s*\n/u)) {
+  const contexts=prepared.split(/\n\s*\n/u).flatMap(paragraph=>{
+    const items:string[]=[];let current:string[]=[];
+    for (const sentence of splitNewsSentences(paragraph)) {
+      if (ITEM_START.test(sentence) && current.length) {items.push(current.join(" "));current=[];}
+      current.push(sentence);
+    }
+    if (current.length) items.push(current.join(" "));
+    return items;
+  });
+  for (const paragraph of contexts) {
+    const sentences=splitNewsSentences(paragraph);
+    // A compact numbered item is one presenter thought. Keep its four/five
+    // complete sentences together instead of reopening Edge halfway through it.
+    const intactItem=ITEM_START.test(paragraph)
+      && sentences.length<=5 && paragraph.split(/\s+/u).length<=90
+      && paragraph.length<=650
+      && !sentences.slice(1).some(s=>ITEM_START.test(s));
     let group: string[] = [], words = 0;
     const flush = (boundary: NewsBoundary) => {
       if (group.length) chunks.push({text: group.join(" "), boundary, rate: speed});
       group = []; words = 0;
     };
-    for (const sentence of splitNewsSentences(paragraph)) {
+    for (const sentence of sentences) {
       const label = sentence.match(/^(.{2,18}?[.:])\s/u)?.[1];
       if (label && CUE.test(label) && group.length) flush("paragraph");
       // Never fall back to an arbitrary character/whitespace split through a name.
@@ -106,7 +123,7 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
         const unit = units[i];
         if (new TextEncoder().encode(unit).length > 18000) throw new Error("daulet:sentence-too-long");
         const count = unit.split(/\s+/u).length;
-        if (group.length && (group.length >= 3 || words + count > 115)) flush("sentence");
+        if (group.length && !intactItem && (group.length >= 3 || words + count > 115)) flush("sentence");
         group.push(unit); words += count;
         if (i < units.length - 1) flush("clause");
       }
@@ -175,47 +192,44 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
   });
 }
 
-function renderLongNewsBreaths(text: string, escape: (value: string) => string) {
-  const words = text.trim().split(/\s+/u).filter(Boolean).length;
-  if (words < 45) return escape(text);
+export type DauletNewsDirection = {
+  text: string; intensity: number;
+  emotion: "happy" | "angry" | "sad" | "afraid" | "disgusted" | "melancholic" | "surprised" | "calm";
+};
 
-  let output = "";
-  let cursor = 0;
-  let lastBreath = 0;
-  const punctuation = /[,，;；:：]/gu;
-  for (const match of text.matchAll(punctuation)) {
-    const index = match.index ?? 0;
-    const mark = match[0];
-    const beforeWords = text.slice(lastBreath, index).trim().split(/\s+/u).filter(Boolean).length;
-    const afterWords = text.slice(index + mark.length).trim().split(/\s+/u).filter(Boolean).length;
-    const strong = /[;；:：]/u.test(mark);
-    const pause = strong
-      ? beforeWords >= 10 && afterWords >= 8 ? 75 : 0
-      : beforeWords >= 18 && afterWords >= 12 ? 45 : 0;
-
-    output += escape(text.slice(cursor, index + mark.length));
-    if (pause) {
-      output += `<break time="${pause}ms"/>`;
-      lastBreath = index + mark.length;
-    }
-    cursor = index + mark.length;
-  }
-  output += escape(text.slice(cursor));
-  return output;
-}
-
-export function dauletNewsSsml(chunk: NewsChunk, pitch: number, volume: number) {
+export function dauletNewsSsml(chunk: NewsChunk, pitch: number, volume: number, directions: readonly DauletNewsDirection[] = []) {
   const escape = (s: string) => s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
   const percent = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
-  // Long, information-dense sentences get only sparse micro-breaths at existing
-  // punctuation. Short/ordinary sentences remain untouched.
-  const breathed = renderLongNewsBreaths(chunk.text, escape);
-  const body = breathed.replace(CUE_PAUSE, (_all, before: string, cue: string) =>
-    `${before}${cue}<break time="320ms"/>`);
+  // Explicit native sentence/paragraph structure, not a new prosody block for
+  // every word. Comma/semicolon timing belongs to the voice's native phrasing.
+  // The ordinal stays inside its following statement, with its required pause.
+  const body=chunk.text.split(/\n\s*\n/u).map(paragraph=>
+    `<p>${splitNewsSentences(paragraph).map(sentence=>
+      `<s>${escape(sentence).replace(CUE_PAUSE,(_all,before:string,cue:string)=>`${before}${cue}<break time="320ms"/>`)}</s>`
+    ).join(" ")}</p>`
+  ).join("");
   // A tiny boundary release prevents the final phoneme from feeling hard-cut.
   // DSP seam logic counts this existing silence, so it does not stack pauses.
   const release = chunk.boundary === "clause" ? 55 : chunk.boundary === "sentence" ? 85 : chunk.boundary === "paragraph" ? 100 : 140;
-  const directedPitch = CLAMP(pitch + (chunk.pitchDelta ?? 0), -18, 18);
-  const directedVolume = CLAMP(volume + (chunk.volumeDelta ?? 0), -7, 7);
-  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((chunk.rate - 1) * 100)}" pitch="${percent(directedPitch)}" volume="${percent(directedVolume)}">${body}<break time="${release}ms"/></prosody></voice></speak>`;
+  // User emotion choices shade the whole news item. They must not switch the
+  // dedicated news path back to the older phrase/word wrapper renderer.
+  const shades:Record<DauletNewsDirection["emotion"],[number,number,number]>={
+    happy:[0.003,0.12,0.06], angry:[-0.001,-0.04,0.06], sad:[-0.005,-0.12,-0.05],
+    afraid:[-0.003,0.08,-0.04], disgusted:[-0.004,-0.06,-0.03],
+    melancholic:[-0.005,-0.10,-0.05], surprised:[0.003,0.14,0.06], calm:[-0.002,-0.04,0],
+  };
+  const normalized=chunk.text.normalize("NFC").replace(/\s+/gu," ").trim();
+  let weight=0,rateShade=0,pitchShade=0,volumeShade=0;
+  for (const direction of directions) {
+    const text=direction.text.normalize("NFC").replace(/\s+/gu," ").trim();
+    if (!text || CUE.test(text) || !normalized.includes(text)) continue;
+    const amount=CLAMP(direction.intensity,0,1),length=text.length;
+    const [r,p,v]=shades[direction.emotion];
+    weight+=length;rateShade+=r*amount*length;pitchShade+=p*amount*length;volumeShade+=v*amount*length;
+  }
+  if (weight) {const total=Math.max(weight,normalized.length);rateShade/=total;pitchShade/=total;volumeShade/=total;}
+  const directedPitch = CLAMP(pitch + (chunk.pitchDelta ?? 0)+pitchShade, -18, 18);
+  const directedVolume = CLAMP(volume + (chunk.volumeDelta ?? 0)+volumeShade, -7, 7);
+  const directedRate=chunk.rate*(1+rateShade);
+  return `<speak xmlns="http://www.w3.org/2001/10/synthesis" version="1.0" xml:lang="kk-KZ"><voice name="kk-KZ-DauletNeural"><prosody rate="${percent((directedRate - 1) * 100)}" pitch="${percent(directedPitch)}" volume="${percent(directedVolume)}">${body}<break time="${release}ms"/></prosody></voice></speak>`;
 }
