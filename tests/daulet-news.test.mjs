@@ -165,7 +165,7 @@ test("de-gurgle reacts to low resonance and leaves clear midrange essentially al
   assert.ok(cleanOut.metrics.maxDynamicCutDb<0.5);
 });
 test("low-pulse control rejects normal male periods and only attenuates slower voiced pulses",()=>{
-  for (const frequency of [100,120,160]) {
+  for (const frequency of [100,110,121,133,147,160]) {
     const normal=new DauletNewsProcessor();normal.addPcm(mixedTone([frequency,frequency*2,frequency*3]),"end");
     const out=normal.finish();
     assert.equal(out.metrics.lowPulseFrames,0);
@@ -178,7 +178,7 @@ test("low-pulse control rejects normal male periods and only attenuates slower v
   const out=slow.finish();
   assert.ok(out.metrics.lowPulseFrames>50);
   assert.ok(out.metrics.maxLowPulseCutDb>1.5);
-  assert.ok(out.metrics.maxDynamicCutDb<=6.001);
+  assert.ok(out.metrics.maxDynamicCutDb<=13.001);
   assert.equal(out.metrics.durationSeconds,2);
   assert.ok(out.pieces.every(piece=>piece.every(Number.isFinite)));
   // Quiet ending-like energy must still engage the probe below the resonance gate.
@@ -186,10 +186,10 @@ test("low-pulse control rejects normal male periods and only attenuates slower v
   assert.ok(quiet.finish().metrics.maxLowPulseCutDb>0.5);
   const overlapping=new DauletNewsProcessor();overlapping.addPcm(mixedTone([68,136,204],2),"end");
   const overlappingOut=overlapping.finish();
-  assert.ok(overlappingOut.metrics.maxDynamicCutDb<=6.001);
+  assert.ok(overlappingOut.metrics.maxDynamicCutDb<=13.001);
   assert.ok(overlappingOut.metrics.maxResonanceCutDb<=3.001);
   assert.ok(overlappingOut.metrics.maxPulseHarmonicCutDb>0.2);
-  assert.ok(overlappingOut.metrics.maxPulseHarmonicCutDb<=1.201);
+  assert.ok(overlappingOut.metrics.maxPulseHarmonicCutDb<=1.501);
   assert.ok(overlappingOut.metrics.confirmedPulseFrames>50);
 });
 test("pulse and overtone branches preserve unvoiced noise and low-level tails",()=>{
@@ -210,6 +210,49 @@ test("pulse and overtone branches preserve unvoiced noise and low-level tails",(
   assert.ok(tailOut.metrics.maxPulseHarmonicCutDb>0.1);
   assert.equal(tailOut.metrics.durationSeconds,1);
   assert.ok(tailOut.pieces.every(piece=>piece.every(Number.isFinite)));
+});
+test("tracked bells reduce distinct slow fundamentals without removing clear upper speech energy",()=>{
+  const amplitudeAt=(data,frequency)=>{
+    let sine=0,cosine=0;
+    for(let i=24000;i<48000;i++) {
+      const phase=2*Math.PI*frequency*i/24000;
+      sine+=data[i]*Math.sin(phase);cosine+=data[i]*Math.cos(phase);
+    }
+    return 2*Math.hypot(sine,cosine)/24000;
+  };
+  for(const frequency of [52,68,82]) {
+    const dsp=new DauletNewsProcessor();dsp.addPcm(mixedTone([frequency,1000],2,0.2),"end");
+    const out=dsp.finish(),data=out.pieces[0],range=out.metrics.lowPulseFrequencyRangeHz;
+    assert.ok(range && range[0]<=frequency+2 && range[1]>=frequency-2);
+    assert.ok(20*Math.log10(amplitudeAt(data,frequency)/0.1)<-2);
+    assert.ok(Math.abs(20*Math.log10(amplitudeAt(data,1000)/0.1))<0.5);
+    assert.ok(out.metrics.maxDynamicCutDb<=13.001);
+    assert.ok(data.every(Number.isFinite));
+  }
+});
+test("half-frequency evidence distinguishes alternating pulses from quantised normal male periods",()=>{
+  for (const frequency of [101,121,133,147,165]) {
+    for (const alternating of [false,true]) {
+      const data=new Int16Array(48000);
+      for (let i=0;i<data.length;i++) {
+        const phase=2*Math.PI*frequency*i/24000;
+        const sample=0.13*Math.sin(phase)+0.06*Math.sin(phase*2)
+          +(alternating ? 0.03*Math.sin(phase/2)+0.015*Math.sin(phase*1.5) : 0);
+        data[i]=Math.round(sample*32767);
+      }
+      const dsp=new DauletNewsProcessor();dsp.addPcm(data.buffer,"end");
+      const out=dsp.finish();
+      if (alternating) {
+        assert.ok(out.metrics.subharmonicFrames>50,`missed half-frequency at ${frequency}`);
+        assert.ok(out.metrics.maxLowPulseCutDb>0.5);
+      } else {
+        assert.equal(out.metrics.subharmonicFrames,0,`misclassified regular ${frequency} Hz`);
+        assert.equal(out.metrics.maxLowPulseCutDb,0);
+      }
+      assert.equal(out.metrics.durationSeconds,2);
+      assert.ok(out.pieces.every(piece=>piece.every(Number.isFinite)));
+    }
+  }
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));
