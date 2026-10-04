@@ -35,7 +35,11 @@ function inspect(){
   return {ready:true,index:G.current,id:n.id,title:n.title,uiTitle:document.getElementById('title')?.textContent,
     mode:n.sceneMode,lon:+n.lon,lat:+n.lat,height:G.viewer.camera.positionCartographic.height,
     center:xy?{x:xy.x/canvas.clientWidth,y:xy.y/canvas.clientHeight}:null,
-    markerVisible:G.viewer.entities.values.some(e=>e.show!==false&&e.point&&e.point.show?.getValue(t)!==false&&e.position?.getValue(t)&&C.Cartesian3.distance(e.position.getValue(t),p)<5000),
+    markerVisible:G.viewer.entities.values.some(e=>{
+      if(e.show===false||!e.point||e.point.show?.getValue(t)===false)return false;
+      const position=e.position?.getValue(t),surface=position&&C.Ellipsoid.WGS84.scaleToGeodeticSurface(position);
+      return surface&&C.Cartesian3.distance(surface,p)<5000;
+    }),
     aspect:box.width/box.height,canvasFits:Math.abs(canvas.clientWidth-box.width)<2&&Math.abs(canvas.clientHeight-box.height)<2,
     controlsOutside:['prev','next','play','all'].every(id=>{const r=document.getElementById(id)?.getBoundingClientRect();return r&&(r.top>=box.bottom-1||r.bottom<=box.top+1);}),
     logoOutside:(document.querySelector('.brand')?.getBoundingClientRect().bottom||Infinity)<=box.top+1,
@@ -51,7 +55,13 @@ async function settled(index){
     if(!G?.viewer||G.current!==index||G.overviewMode||G.viewer.camera._currentFlight||!n)return false;
     const p=C.Cartesian3.fromDegrees(+n.lon,+n.lat),xy=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,p),canvas=G.viewer.scene.canvas,t=C.JulianDate.now();
     if(!xy||Math.abs(xy.x/canvas.clientWidth-.5)>.15||Math.abs(xy.y/canvas.clientHeight-.5)>.15)return false;
-    return G.viewer.entities.values.some(e=>e.show!==false&&e.point&&e.point.show?.getValue(t)!==false&&e.position?.getValue(t)&&C.Cartesian3.distance(e.position.getValue(t),p)<5000);
+    return G.viewer.entities.values.some(e=>{
+      if(e.show===false||!e.point||e.point.show?.getValue(t)===false)return false;
+      const position=e.position?.getValue(t),surface=position&&C.Ellipsoid.WGS84.scaleToGeodeticSurface(position);
+      if(!surface||C.Cartesian3.distance(surface,p)>=5000)return false;
+      const marker=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,position);
+      return marker&&Math.abs(marker.x/canvas.clientWidth-.5)<=.15&&Math.abs(marker.y/canvas.clientHeight-.5)<=.15;
+    });
   },index,{timeout:35000});
   const state=await page.evaluate(inspect);
   assert.ok(state.uiTitle.includes(state.title),'Story text and scene disagree');
