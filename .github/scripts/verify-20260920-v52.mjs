@@ -122,6 +122,7 @@ try{
   await page.waitForTimeout(5500); // R6's existing overview cleanup schedules work through 5 seconds.
   const overview=await page.evaluate(inspect);
   assert.equal(overview.overview,true);assert.equal(overview.sceneEntities,0);assert.equal(overview.markersVisible,0);
+  await page.screenshot({path:dir+'/overview.png',fullPage:true});
   report.checks.push({name:'overview-cleanup',state:overview});
   assert.deepEqual(report.errors,[]);
   assert.deepEqual(report.consoleErrors,[]);
