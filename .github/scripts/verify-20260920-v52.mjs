@@ -35,7 +35,7 @@ function inspect(){
   return {ready:true,index:G.current,id:n.id,title:n.title,uiTitle:document.getElementById('title')?.textContent,
     mode:n.sceneMode,lon:+n.lon,lat:+n.lat,height:G.viewer.camera.positionCartographic.height,
     center:xy?{x:xy.x/canvas.clientWidth,y:xy.y/canvas.clientHeight}:null,
-    markerVisible:G.viewer.entities.values.some(e=>{
+    markerVisible:(G.v51SceneEntities||[]).some(e=>{
       if(e.show===false||!e.point||e.point.show?.getValue(t)===false)return false;
       const position=e.position?.getValue(t),surface=position&&C.Ellipsoid.WGS84.scaleToGeodeticSurface(position);
       return surface&&C.Cartesian3.distance(surface,p)<5000;
@@ -54,15 +54,18 @@ async function settled(index){
     const G=window.NG14,C=window.Cesium,n=G?.news?.[G.current];
     if(!G?.viewer||G.current!==index||G.overviewMode||G.viewer.camera._currentFlight||!n)return false;
     const p=C.Cartesian3.fromDegrees(+n.lon,+n.lat),xy=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,p),canvas=G.viewer.scene.canvas,t=C.JulianDate.now();
-    if(!xy||Math.abs(xy.x/canvas.clientWidth-.5)>.15||Math.abs(xy.y/canvas.clientHeight-.5)>.15)return false;
-    return G.viewer.entities.values.some(e=>{
+    if(!xy||Math.abs(xy.x/canvas.clientWidth-.5)>.03||Math.abs(xy.y/canvas.clientHeight-.5)>.03)return false;
+    // Base/visited markers can already be visible during country highlights.
+    // finalLocation creates the current event's point in the existing V51 scene list.
+    return (G.v51SceneEntities||[]).some(e=>{
       if(e.show===false||!e.point||e.point.show?.getValue(t)===false)return false;
       const position=e.position?.getValue(t),surface=position&&C.Ellipsoid.WGS84.scaleToGeodeticSurface(position);
       if(!surface||C.Cartesian3.distance(surface,p)>=5000)return false;
       const marker=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,position);
-      return marker&&Math.abs(marker.x/canvas.clientWidth-.5)<=.15&&Math.abs(marker.y/canvas.clientHeight-.5)<=.15;
+      return marker&&Math.abs(marker.x/canvas.clientWidth-.5)<=.03&&Math.abs(marker.y/canvas.clientHeight-.5)<=.03;
     });
   },index,{timeout:35000});
+  await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:15000}).catch(()=>{});
   const state=await page.evaluate(inspect);
   assert.ok(state.uiTitle.includes(state.title),'Story text and scene disagree');
   assert.ok(Number.isFinite(state.height)&&state.height>0,'Invalid camera');
