@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-v41-stable-timbre";
+export const DAULET_NEWS_VERSION = "daulet-v42-long-take-timbre";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
@@ -130,6 +130,27 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
     }
     flush("paragraph");
   }
+  // Stable-timbre V42: every separate Edge request can reopen Daulet with a
+  // slightly different spectral/pitch state. Pack adjacent news items into long
+  // presenter takes so the voice identity is established far fewer times.
+  // 5000 chars / 800 words stays comfortably below the SSML request ceiling
+  // while preserving paragraph and ordinal pauses inside one native voice span.
+  if (continuous && chunks.length > 1) {
+    const packed: NewsChunk[] = [];
+    for (const chunk of chunks) {
+      const last = packed[packed.length - 1];
+      const joinedText = last ? last.text + (last.boundary === "paragraph" ? "\n\n" : " ") + chunk.text : "";
+      const joinedWords = joinedText ? joinedText.split(/\s+/u).length : 0;
+      if (last && joinedText.length <= 5000 && joinedWords <= 800) {
+        last.text = joinedText;
+        last.boundary = chunk.boundary;
+      } else {
+        packed.push({...chunk});
+      }
+    }
+    chunks.splice(0, chunks.length, ...packed);
+  }
+
   // Workers Free allows 50 external subrequests. Reserve room for the token and
   // bounded retries. Exceptionally fragmented manuscripts can use >3 sentences
   // in a request, always merging complete adjacent units and retaining paragraphs.
