@@ -60,6 +60,7 @@ export async function POST() {
   // male catalog without language/context restrictions so the user can choose
   // among Studio and Extended Voice Library voices.
   const url = new URL(GEMINI_VOICES_ENDPOINT);
+  url.searchParams.append("language_code", "kk-KZ");
   url.searchParams.append("gender", "male");
   url.searchParams.set("page_size", "1000");
 
@@ -84,7 +85,8 @@ export async function POST() {
     const voices = (payload.voices ?? []).flatMap((item) => {
       const id = item.id?.trim();
       const gender = item.gender?.trim().toLowerCase();
-      if (!id || gender !== "male" || seen.has(id)) return [];
+      const language = item.language_code?.trim() || item.languageCode?.trim() || "";
+      if (!id || gender !== "male" || language.toLowerCase() !== "kk-kz" || seen.has(id)) return [];
       seen.add(id);
       return [{
         id,
@@ -93,7 +95,7 @@ export async function POST() {
         pitch: item.pitch?.trim().toLowerCase() || "",
         accent: item.accent?.trim() || "",
         context: asText(item.contexts ?? item.context),
-        language: item.language_code?.trim() || item.languageCode?.trim() || "",
+        language,
         description: item.description?.trim() || asText(item.persona),
         type: item.type?.trim().toLowerCase() || "",
       }];
@@ -105,9 +107,6 @@ export async function POST() {
 
     const pitchRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
     voices.sort((a, b) => {
-      const aKk = a.language.toLowerCase() === "kk-kz" ? 0 : 1;
-      const bKk = b.language.toLowerCase() === "kk-kz" ? 0 : 1;
-      if (aKk !== bKk) return aKk - bKk;
       const aPitch = pitchRank[a.pitch] ?? 3;
       const bPitch = pitchRank[b.pitch] ?? 3;
       if (aPitch !== bPitch) return aPitch - bPitch;
