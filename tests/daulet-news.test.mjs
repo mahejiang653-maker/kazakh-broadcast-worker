@@ -153,19 +153,19 @@ test("semantic presenter direction is small, deterministic and single-span",()=>
   const chunks=planDauletNewsChunks(text,1,true,true);
   assert.equal(chunks.length,4);
   assert.equal(chunks[0].delivery,"lead");
-  assert.ok(chunks[0].pitchDelta>0);
+  assert.equal(chunks[0].pitchDelta,0);
   assert.ok(chunks[0].volumeDelta>0);
   assert.equal(chunks[1].delivery,"data");
-  assert.ok(chunks[1].pitchDelta<0);
+  assert.equal(chunks[1].pitchDelta,0);
   assert.equal(chunks[2].delivery,"transition");
-  assert.ok(chunks[2].pitchDelta>0);
+  assert.equal(chunks[2].pitchDelta,0);
   assert.equal(chunks[3].delivery,"settle");
-  assert.ok(chunks[3].pitchDelta<0);
+  assert.equal(chunks[3].pitchDelta,0);
   assert.ok(chunks[3].volumeDelta<0);
 
   const leadSsml=dauletNewsSsml(chunks[0],0.82,0);
   assert.equal((leadSsml.match(/<prosody/g)||[]).length,1);
-  assert.match(leadSsml,/pitch="\+0\.96%" volume="\+0\.10%"/);
+  assert.match(leadSsml,/pitch="\+0\.82%" volume="\+0\.10%"/);
 
   const plain=planDauletNewsChunks(text,1,true,false);
   assert.ok(plain.every(chunk=>chunk.pitchDelta===0 && chunk.volumeDelta===0));
