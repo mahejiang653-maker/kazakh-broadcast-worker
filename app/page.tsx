@@ -333,6 +333,7 @@ export default function Home() {
   ]);
   const [isLoadingGeminiVoices, setIsLoadingGeminiVoices] = useState(false);
   const [geminiVoiceWarning, setGeminiVoiceWarning] = useState("");
+  const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
   const generationController = useRef<AbortController | null>(null);
@@ -383,6 +384,23 @@ export default function Home() {
             : 2.4 * speed * selectedPreset.rateFactor),
     ),
   );
+
+  useEffect(() => {
+    if (engine !== "gemini") return;
+    let active = true;
+    setGeminiConfigured(null);
+    void fetch("/api/gemini-status", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((payload: { configured?: boolean }) => {
+        if (active) setGeminiConfigured(Boolean(payload?.configured));
+      })
+      .catch(() => {
+        if (active) setGeminiConfigured(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [engine]);
 
   useEffect(() => {
     return () => {
@@ -1688,6 +1706,32 @@ export default function Home() {
                   ))}
                 </div>
               </fieldset>
+
+              <div
+                className="broadcast-note"
+                style={{ marginTop: 12, borderColor: geminiConfigured === false ? "#f1b5ae" : undefined }}
+                aria-live="polite"
+              >
+                <div className="broadcast-index">
+                  {geminiConfigured === null ? "…" : geminiConfigured ? "✓" : "!"}
+                </div>
+                <div>
+                  <strong>
+                    {geminiConfigured === null
+                      ? "正在检查 Gemini API 连接…"
+                      : geminiConfigured
+                        ? "Gemini API 已接通"
+                        : "还差 GEMINI_API_KEY"}
+                  </strong>
+                  <p>
+                    {geminiConfigured === null
+                      ? "正在检查 Cloudflare Worker 是否已经读取到安全密钥。"
+                      : geminiConfigured
+                        ? "可以直接生成哈萨克语 TTS；API Key 只保存在 Cloudflare 服务端，不会发送到浏览器。"
+                        : "代码和页面已经部署完成；请在 Cloudflare Worker 的 Variables and Secrets 中添加 Secret：GEMINI_API_KEY，然后重新部署。"}
+                  </p>
+                </div>
+              </div>
 
               <div className="field-block">
                 <div className="field-label-row">
