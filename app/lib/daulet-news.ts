@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-news-v3.10";
+export const DAULET_NEWS_VERSION = "daulet-v41-stable-timbre";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
@@ -184,7 +184,7 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
     return {
       ...chunk,
       rate,
-      pitchDelta: focus ? CLAMP(pitchDelta, -0.20, 0.20) : 0,
+      pitchDelta: 0,
       volumeDelta: focus ? CLAMP(volumeDelta, -0.08, 0.12) : 0,
       delivery,
       boundary: index === chunks.length - 1 ? "end" : chunk.boundary,
