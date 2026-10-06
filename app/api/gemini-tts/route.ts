@@ -4,6 +4,9 @@ const MAX_CHUNK_CHARACTERS = 4800;
 const SAMPLE_RATE = 24000;
 const CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
+const M3_FIXED_VOICE = "Gacrux";
+const M3_SINGLE_SPEAKER_PROFILE =
+  "M3 is one single male Kazakh news anchor for the entire program. Use exactly one speaker from the opening through item one, item two, all the way through item thirteen and the closing. Never introduce, imitate, alternate with, or imply a second speaker. Keep the same male identity, age impression, timbre, vocal weight, pitch center, speaking distance, room character, loudness and broadcast manner across every chunk. Treat every chunk as a continuation of the same uninterrupted studio session.";
 
 const ALLOWED_MODELS = new Set([
   "gemini-3.8-flash-tts",
@@ -67,13 +70,6 @@ function jsonError(message: string, status: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
-}
-
-function sanitizeVoice(value: unknown) {
-  if (typeof value !== "string") return "";
-  const voice = value.trim();
-  if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(voice)) return "";
-  return voice;
 }
 
 function prepareGeminiText(input: string) {
@@ -288,7 +284,9 @@ export async function POST(request: Request) {
     typeof body.model === "string" && ALLOWED_MODELS.has(body.model)
       ? body.model
       : "gemini-3.8-flash-tts";
-  const voice = sanitizeVoice(body.voice) || "Gacrux";
+  // M3 is intentionally server-locked to one fixed male anchor.
+  // Ignore any client-supplied voice so the whole program cannot switch speakers.
+  const voice = M3_FIXED_VOICE;
   const preset = typeof body.preset === "string" ? body.preset : "news";
   const speed =
     typeof body.speed === "number" && Number.isFinite(body.speed)
@@ -297,7 +295,7 @@ export async function POST(request: Request) {
 
   const prepared = prepareGeminiText(rawText);
   const chunks = splitLongText(prepared);
-  const style = `${PRESET_STYLE[preset] ?? PRESET_STYLE.news} ${speedInstruction(speed)} Maintain the same speaker identity, vocal weight, pitch range and room character throughout the entire article. Read the supplied Kazakh text faithfully; do not summarize, translate, add commentary, or omit content.`;
+  const style = `${M3_SINGLE_SPEAKER_PROFILE} ${PRESET_STYLE[preset] ?? PRESET_STYLE.news} ${speedInstruction(speed)} Read the supplied Kazakh text faithfully; do not summarize, translate, add commentary, omit content, or turn quoted material into a second voice.`;
 
   try {
     const pcmParts: Uint8Array[] = [];
@@ -319,6 +317,8 @@ export async function POST(request: Request) {
         "X-Content-Type-Options": "nosniff",
         "X-Gemini-TTS-Model": model,
         "X-Gemini-TTS-Voice": voice,
+        "X-M3-Single-Speaker": "true",
+        "X-M3-Anchor": "fixed-male",
         "X-Gemini-TTS-Chunks": String(chunks.length),
       },
     });
