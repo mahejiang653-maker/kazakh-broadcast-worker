@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-v42-long-take-timbre";
+export const DAULET_NEWS_VERSION = "daulet-v43-item-timbre";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
@@ -130,18 +130,19 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
     }
     flush("paragraph");
   }
-  // Stable-timbre V42: every separate Edge request can reopen Daulet with a
-  // slightly different spectral/pitch state. Pack adjacent news items into long
-  // presenter takes so the voice identity is established far fewer times.
-  // 5000 chars / 800 words stays comfortably below the SSML request ceiling
-  // while preserving paragraph and ordinal pauses inside one native voice span.
+  // Stable-timbre V43: keep each numbered news item as one native Edge take.
+  // Do not merge across ordinal/news-item boundaries: that preserves the tested
+  // structure and still removes the old within-item voice resets that caused
+  // thick/thin timbre changes.
   if (continuous && chunks.length > 1) {
     const packed: NewsChunk[] = [];
     for (const chunk of chunks) {
       const last = packed[packed.length - 1];
+      const startsItem = ITEM_START.test(chunk.text);
+      const lastStartsItem = last ? ITEM_START.test(last.text) : false;
       const joinedText = last ? last.text + (last.boundary === "paragraph" ? "\n\n" : " ") + chunk.text : "";
       const joinedWords = joinedText ? joinedText.split(/\s+/u).length : 0;
-      if (last && joinedText.length <= 5000 && joinedWords <= 800) {
+      if (last && !startsItem && !lastStartsItem && joinedText.length <= 2400 && joinedWords <= 115) {
         last.text = joinedText;
         last.boundary = chunk.boundary;
       } else {
