@@ -612,7 +612,7 @@ export default function Home() {
       // the synthesis route runs the real full emotion/prosody plan itself.
       if (engine !== "edge") resetEmotionAnalysis();
 
-      const isDauletNews = engine === "edge" && voice === "kk-KZ-DauletNeural" && preset !== "story" && !/\p{Script=Han}/u.test(cleanText);
+      const isDauletNews = engine === "edge" && voice === "kk-KZ-DauletNeural" && !/\p{Script=Han}/u.test(cleanText);
       const payload = {
           text: cleanText,
           engine,
