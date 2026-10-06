@@ -1,7 +1,7 @@
 import { kazakhIntegerToWords, kazakhOrdinalToWords, normalizeKazakhSpeechText } from "./kazakh-speech-normalizer";
 import { prepareNativeKazakhEnglishPronunciation } from "./edge-english-pronunciation";
 
-export const DAULET_NEWS_VERSION = "daulet-v43-item-timbre";
+export const DAULET_NEWS_VERSION = "daulet-v44-body-stable";
 export type NewsBoundary = "sentence" | "paragraph" | "clause" | "end";
 export type NewsChunk = { text: string; boundary: NewsBoundary; rate: number; pitchDelta?: number; volumeDelta?: number; delivery?: "lead" | "data" | "transition" | "settle" | "neutral" };
 const MONTHS = ["", "қаңтардың", "ақпанның", "наурыздың", "сәуірдің", "мамырдың", "маусымның", "шілденің", "тамыздың", "қыркүйектің", "қазанның", "қарашаның", "желтоқсанның"];
@@ -130,10 +130,9 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
     }
     flush("paragraph");
   }
-  // Stable-timbre V43: keep each numbered news item as one native Edge take.
-  // Do not merge across ordinal/news-item boundaries: that preserves the tested
-  // structure and still removes the old within-item voice resets that caused
-  // thick/thin timbre changes.
+  // Keep bounded continuations of a numbered item in one native Edge take.
+  // New ordinals and paragraph boundaries retain their own context; fewer
+  // within-item restarts reduce an avoidable source of timbre discontinuity.
   if (continuous && chunks.length > 1) {
     const packed: NewsChunk[] = [];
     for (const chunk of chunks) {
@@ -142,7 +141,11 @@ export function planDauletNewsChunks(prepared: string, speed = 1, continuous = t
       const lastStartsItem = last ? ITEM_START.test(last.text) : false;
       const joinedText = last ? last.text + (last.boundary === "paragraph" ? "\n\n" : " ") + chunk.text : "";
       const joinedWords = joinedText ? joinedText.split(/\s+/u).length : 0;
-      if (last && !startsItem && !lastStartsItem && joinedText.length <= 2400 && joinedWords <= 115) {
+      // Continue the same item after an internal sentence split.
+      // A paragraph boundary or a new ordinal must remain a separate context.
+      // The old !lastStartsItem check blocked precisely these continuations.
+      const intactUnits = joinedText ? splitNewsSentences(joinedText).length : 0;
+      if (last && !startsItem && last.boundary === "sentence" && (lastStartsItem || intactUnits <= 6) && joinedText.length <= 2400 && joinedWords <= 115) {
         last.text = joinedText;
         last.boundary = chunk.boundary;
       } else {

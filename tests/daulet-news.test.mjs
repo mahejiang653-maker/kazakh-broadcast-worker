@@ -143,6 +143,23 @@ test("news emotion choices retain the native renderer, ordinal pauses and bounde
   assert.equal(dauletNewsSsml(chunk,0.82,0,[{text:"Осы мәтін жоқ.",emotion:"sad",intensity:1}]),base);
 });
 
+test("a numbered item's six-sentence continuation merges without swallowing another item or paragraph",()=>{
+  const item=["Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды.","Мамандар деректерді салыстырды.","Тараптар ұсыныстарды талқылады.","Келесі мәжіліс Алматыда өтеді.","Қосымша мәлімет кейін беріледі.","Бұл жұмыс алдағы уақытта да жалғасады."].join(" ");
+  const next="Екінші. Келесі жаңалық берілді.";
+  const chunks=planDauletNewsChunks(item+" "+next,1,true,true);
+  assert.equal(chunks.length,2);
+  assert.equal(chunks[0].text,item);
+  assert.equal(chunks[1].text,next);
+  assert.equal(chunks[0].boundary,"paragraph");
+  const ssml=dauletNewsSsml(chunks[0],.82,0);
+  assert.equal((ssml.match(/<prosody/g)||[]).length,1);
+  assert.equal((ssml.match(/320ms/g)||[]).length,1);
+  const paragraph="Қорытынды мәлімет кейін беріледі.";
+  const separated=planDauletNewsChunks(item+"\n\n"+paragraph,1,true,true);
+  assert.equal(separated.length,2);
+  assert.equal(separated[1].text,paragraph);
+});
+
 test("semantic presenter direction is small, deterministic and single-span",()=>{
   const text=[
     "Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды.",
@@ -347,6 +364,29 @@ test("normal moving male pitch stays outside adjacent-pulse processing",()=>{
   const out=processor.finish();
   assert.equal(out.metrics.maxAdjacentPulseMix,0);
   assert.equal(out.metrics.durationSeconds,4);
+});
+test("a constant male body stays stable when intermittent low pulses toggle the correction",()=>{
+  const data=new Int16Array(24000*6);
+  for(let i=0;i<data.length;i++){
+    const phase=2*Math.PI*130*i/24000,active=Math.floor(i/24000)%2===1;
+    const x=.13*Math.sin(phase)+.06*Math.sin(phase*2)+.025*Math.sin(2*Math.PI*4000*i/24000)
+      +(active ? .03*Math.sin(phase/2)+.02*Math.sin(phase*1.5)+.015*Math.sin(phase*2.5) : 0);
+    data[i]=Math.round(x*32767);
+  }
+  const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
+  const out=processor.finish(),x=out.pieces[0],body=[];
+  for(let second=1;second<6;second++){
+    const start=second*24000+12000,end=second*24000+21600;let real=0,imaginary=0;
+    for(let i=start;i<end;i++){
+      real+=x[i]*Math.cos(2*Math.PI*130*i/24000);
+      imaginary+=x[i]*Math.sin(2*Math.PI*130*i/24000);
+    }
+    body.push(2*Math.hypot(real,imaginary)/(end-start));
+  }
+  assert.ok(20*Math.log10(Math.max(...body)/Math.min(...body))<.25,"constant body changes with the pulse control");
+  assert.ok(out.metrics.confirmedPulseFrames>50,"test did not engage the correction");
+  assert.ok(out.metrics.maxLowPulseCutDb>5,"low-pulse treatment was weakened instead of isolated");
+  assert.equal(out.metrics.durationSeconds,6);
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));
