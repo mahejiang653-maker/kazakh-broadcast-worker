@@ -2318,7 +2318,7 @@ export async function POST(request: Request) {
   if (edgeNewsAudio !== undefined && edgeNewsAudio !== "pcm-stream-v1") return jsonError("Edge 音频格式无效。", 400);
 
   try {
-    if (edgeNewsAudio === "pcm-stream-v1" && voice === "kk-KZ-DauletNeural" && preset !== "story" && !hasHanCharacters(directedText)) {
+    if (edgeNewsAudio === "pcm-stream-v1" && voice === "kk-KZ-DauletNeural" && !hasHanCharacters(directedText)) {
       return await dauletNewsResponse(directedText, preset as PresetName, edgeSettings, request.signal);
     }
     const audioChunks = await synthesizeWithEdge(
