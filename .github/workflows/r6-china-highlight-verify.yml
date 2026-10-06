@@ -1,0 +1,27 @@
+name: Verify R6 China Highlight
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/scripts/verify-r6-china-highlight.mjs'
+      - '.github/workflows/r6-china-highlight-verify.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
+      - name: Capture settled COUNTRY rendering on production
+        run: node .github/scripts/verify-r6-china-highlight.mjs
+      - name: Save production screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-china-highlight-${{ github.sha }}
+          path: globe-verify-r6-china-highlight
