@@ -60,6 +60,39 @@ const EDGE_VOICES = [
   },
 ] as const;
 
+const GEMINI_MODELS = [
+  {
+    id: "gemini-3.8-flash-tts",
+    name: "Gemini 3.8 Flash TTS",
+    note: "旗舰音质 · 长稿稳定 · 哈萨克语优先测试",
+  },
+  {
+    id: "gemini-3.8-flash-lite-tts",
+    name: "Gemini 3.8 Flash-Lite TTS",
+    note: "更快更省 · 批量生成优先",
+  },
+] as const;
+
+type GeminiVoice = {
+  id: string;
+  name: string;
+  gender?: string;
+  pitch?: string;
+  accent?: string;
+  context?: string;
+  language?: string;
+  description?: string;
+};
+
+const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [
+  { id: "Gacrux", name: "Gacrux", gender: "male", description: "Mature · 成熟稳重" },
+  { id: "Charon", name: "Charon", gender: "male", description: "Informative · 资讯播报" },
+  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", description: "Informative · 稳健资讯" },
+  { id: "Schedar", name: "Schedar", description: "Even · 平稳一致" },
+  { id: "Alnilam", name: "Alnilam", gender: "male", description: "Firm · 坚定清晰" },
+  { id: "Sulafat", name: "Sulafat", description: "Warm · 温暖自然" },
+];
+
 const PRESETS = [
   { id: "news", label: "标准新闻", note: "连续主持 · 条目开场与收尾", rateFactor: 1.01 },
   { id: "calm", label: "沉稳长稿", note: "长稿连续 · 沉稳主持", rateFactor: 0.97 },
@@ -126,7 +159,7 @@ const ELEVEN_V3_DIRECTION_TAGS = [
 ] as const;
 
 
-type Engine = "edge" | "eleven" | "omnivoice" | "piper";
+type Engine = "edge" | "eleven" | "gemini" | "omnivoice" | "piper";
 type PresetId = (typeof PRESETS)[number]["id"];
 type EmotionAnalysisStatus = "idle" | "analyzing" | "completed" | "failed";
 type VoiceDirectorStatus = "idle" | "analyzing" | "completed" | "failed";
@@ -292,6 +325,14 @@ export default function Home() {
   const [speakerBoost, setSpeakerBoost] = useState(true);
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
+  const [geminiModel, setGeminiModel] = useState<(typeof GEMINI_MODELS)[number]["id"]>(
+    "gemini-3.8-flash-tts",
+  );
+  const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
+    ...GEMINI_FALLBACK_VOICES,
+  ]);
+  const [isLoadingGeminiVoices, setIsLoadingGeminiVoices] = useState(false);
+  const [geminiVoiceWarning, setGeminiVoiceWarning] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
   const generationController = useRef<AbortController | null>(null);
@@ -321,6 +362,11 @@ export default function Home() {
     [elevenVoices, voice],
   );
 
+  const selectedGeminiVoice = useMemo(
+    () => geminiVoices.find((item) => item.id === voice) ?? null,
+    [geminiVoices, voice],
+  );
+
   const selectedPreset = useMemo(
     () => PRESETS.find((item) => item.id === preset) ?? PRESETS[0],
     [preset],
@@ -332,7 +378,9 @@ export default function Home() {
       wordCount /
         (engine === "eleven"
           ? 2.35 * speed
-          : 2.4 * speed * selectedPreset.rateFactor),
+          : engine === "gemini"
+            ? 2.3 * speed
+            : 2.4 * speed * selectedPreset.rateFactor),
     ),
   );
 
@@ -546,6 +594,39 @@ export default function Home() {
     }
   }
 
+  async function loadGeminiVoices() {
+    setIsLoadingGeminiVoices(true);
+    setGeminiVoiceWarning("");
+    setError("");
+
+    try {
+      const response = await fetch("/api/gemini-voices", { method: "POST" });
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string; warning?: string; voices?: GeminiVoice[] }
+        | null;
+      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 声线。");
+
+      const voices = Array.isArray(payload?.voices) && payload.voices.length
+        ? payload.voices
+        : GEMINI_FALLBACK_VOICES;
+      setGeminiVoices(voices);
+      setGeminiVoiceWarning(payload?.warning || "");
+      setVoice((current) =>
+        voices.some((item) => item.id === current) ? current : voices[0].id,
+      );
+    } catch (caught) {
+      setGeminiVoices([...GEMINI_FALLBACK_VOICES]);
+      setGeminiVoiceWarning(
+        caught instanceof Error
+          ? `${caught.message} 已回退到内置 Studio 声线。`
+          : "读取 Gemini 声线失败，已回退到内置 Studio 声线。",
+      );
+      setVoice(GEMINI_FALLBACK_VOICES[0].id);
+    } finally {
+      setIsLoadingGeminiVoices(false);
+    }
+  }
+
   function selectEngine(nextEngine: Engine) {
     if (nextEngine === engine) return;
     setEngine(nextEngine);
@@ -554,7 +635,9 @@ export default function Home() {
         ? EDGE_VOICES[0].id
         : nextEngine === "eleven"
           ? elevenVoices[0]?.id ?? ""
-          : "",
+          : nextEngine === "gemini"
+            ? geminiVoices[0]?.id ?? GEMINI_FALLBACK_VOICES[0].id
+            : "",
     );
     setError("");
     resetEmotionAnalysis();
@@ -562,6 +645,10 @@ export default function Home() {
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
       void loadElevenVoices();
+    }
+
+    if (nextEngine === "gemini") {
+      void loadGeminiVoices();
     }
 
     if (nextEngine === "omnivoice" || nextEngine === "piper") {
@@ -599,9 +686,19 @@ export default function Home() {
       setError("请先读取并选择一个 ElevenLabs 声线。");
       return;
     }
+    if (engine === "gemini" && !voice) {
+      setError("请先选择一个 Gemini TTS 声线。");
+      return;
+    }
 
     setIsGenerating(true);
-    setAudioProgress("正在生成免费增强播音…");
+    setAudioProgress(
+      engine === "gemini"
+        ? "正在生成 Gemini 3.8 哈萨克语播音…"
+        : engine === "eleven"
+          ? "正在生成 ElevenLabs 高质量播音…"
+          : "正在生成免费增强播音…",
+    );
     setError("");
     generationController.current?.abort();
     const controller = new AbortController();
@@ -637,14 +734,25 @@ export default function Home() {
                 }))
               : [],
       };
+      const requestPath = engine === "gemini" ? "/api/gemini-tts" : "/api/synthesize";
+      const requestPayload =
+        engine === "gemini"
+          ? {
+              text: cleanText,
+              model: geminiModel,
+              voice,
+              preset,
+              speed,
+            }
+          : payload;
       const audioTools = isDauletNews ? await import("./lib/daulet-audio-client") : null;
       const cacheKey = audioTools ? await audioTools.dauletAudioCacheKey(payload) : null;
       let audioBlob = audioTools ? await audioTools.readDauletCache(cacheKey) : null;
       if (!audioBlob) {
-        const response = await fetch("/api/synthesize", {
+        const response = await fetch(requestPath, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify(payload),
+          body: JSON.stringify(requestPayload),
           signal: controller.signal,
         });
 
@@ -707,7 +815,9 @@ export default function Home() {
           ? caught.message
           : engine === "eleven"
             ? "高质量语音服务暂时繁忙，请稍后重试。"
-            : "免费语音服务暂时繁忙，请稍后重试。",
+            : engine === "gemini"
+              ? "Gemini TTS 暂时繁忙，请稍后重试。"
+              : "免费语音服务暂时繁忙，请稍后重试。",
       );
     } finally {
       if (generationController.current === controller) {
@@ -824,9 +934,11 @@ export default function Home() {
             ? "免费模式 1 · Edge TTS 增强"
             : engine === "eleven"
               ? "高质量模式 · ElevenLabs v3"
-              : engine === "omnivoice"
-                ? "免费模式 2 · KazakhTTS-OmniVoice"
-                : "免费模式 3 · Piper Local"}
+              : engine === "gemini"
+                ? "AI 高质量模式 · Gemini 3.8 TTS"
+                : engine === "omnivoice"
+                  ? "免费模式 2 · KazakhTTS-OmniVoice"
+                  : "免费模式 3 · Piper Local"}
         </div>
       </header>
 
@@ -843,10 +955,10 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供四套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3。Piper M2 完全不经过 Edge，并作为单一青年感男声按新闻播音场景专门调校；Edge 与 ElevenLabs v3 还能自动识别新闻稿中的中文片段。
+            现在提供五套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3，新增 AI 高质量模式 Gemini 3.8 TTS。Gemini 支持哈萨克语长稿、Studio / 扩展声线、新闻播报风格与编号后自然停顿；原有模式全部保留。
           </p>
           <div className="feature-row" aria-label="功能特点">
-            <span>Edge / OmniVoice / Piper / ElevenLabs</span>
+            <span>Edge / OmniVoice / Piper / ElevenLabs / Gemini</span>
             <span>Edge / v3 中哈自动混读</span>
             <span>三种模式均可调倍速</span>
             <span>ISSAI 式表达标签</span>
@@ -872,7 +984,7 @@ export default function Home() {
               <p className="section-kicker">BROADCAST STUDIO</p>
               <h2 id="studio-title">播音工作台</h2>
             </div>
-            <div className="format-badge">MP3</div>
+            <div className="format-badge">MP3 / WAV</div>
           </div>
 
           <div className="field-block">
@@ -1201,6 +1313,22 @@ export default function Home() {
                 <span className="voice-copy">
                   <strong>高质量模式</strong>
                   <small>ElevenLabs v3 · 声线 / 倍速 / 音色 / 表达标签 / 中文自动识别</small>
+                </span>
+                <span className="radio-mark" aria-hidden="true" />
+              </label>
+
+              <label className={`voice-option ${engine === "gemini" ? "selected" : ""}`}>
+                <input
+                  type="radio"
+                  name="engine"
+                  value="gemini"
+                  checked={engine === "gemini"}
+                  onChange={() => selectEngine("gemini")}
+                />
+                <span className="voice-avatar">G</span>
+                <span className="voice-copy">
+                  <strong>AI 高质量模式</strong>
+                  <small>Gemini 3.8 TTS · 哈萨克语 · Flash / Flash-Lite · Studio / 扩展声线 · 长稿</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -1537,6 +1665,112 @@ export default function Home() {
                 </div>
               </div>
             </>
+          ) : engine === "gemini" ? (
+            <>
+              <fieldset className="field-block">
+                <legend>Gemini TTS 模型</legend>
+                <div className="preset-grid">
+                  {GEMINI_MODELS.map((item) => (
+                    <button
+                      className={geminiModel === item.id ? "preset selected" : "preset"}
+                      type="button"
+                      key={item.id}
+                      onClick={() => {
+                        setGeminiModel(item.id);
+                        setError("");
+                        resetAudio();
+                      }}
+                      aria-pressed={geminiModel === item.id}
+                    >
+                      <strong>{item.name}</strong>
+                      <small>{item.note}</small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="field-block">
+                <div className="field-label-row">
+                  <label htmlFor="gemini-voice">Gemini 哈萨克语声线</label>
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() => void loadGeminiVoices()}
+                    disabled={isLoadingGeminiVoices}
+                  >
+                    {isLoadingGeminiVoices ? "读取中…" : "读取哈萨克语男声库"}
+                  </button>
+                </div>
+                <div className="textarea-wrap">
+                  <select
+                    id="gemini-voice"
+                    value={voice}
+                    disabled={!geminiVoices.length || isLoadingGeminiVoices}
+                    onChange={(event) => {
+                      setVoice(event.target.value);
+                      setError("");
+                      resetAudio();
+                    }}
+                    style={{
+                      width: "100%",
+                      border: 0,
+                      outline: 0,
+                      padding: "15px 17px",
+                      background: "transparent",
+                      color: "var(--ink)",
+                      fontSize: 14,
+                    }}
+                  >
+                    {geminiVoices.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}{item.description ? ` · ${item.description}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="textarea-footer">
+                    <span>优先筛选 kk-KZ · male · News</span>
+                    <span>{selectedGeminiVoice?.description || "Gemini Studio Voice"}</span>
+                  </div>
+                </div>
+                {geminiVoiceWarning ? (
+                  <p style={{ margin: "8px 2px 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
+                    {geminiVoiceWarning}
+                  </p>
+                ) : null}
+              </div>
+
+              {speedControl("倍速调节")}
+
+              <fieldset className="field-block">
+                <legend>Gemini 播音风格</legend>
+                <div className="preset-grid">
+                  {PRESETS.map((item) => (
+                    <button
+                      className={preset === item.id ? "preset selected" : "preset"}
+                      type="button"
+                      key={item.id}
+                      onClick={() => {
+                        setPreset(item.id);
+                        setError("");
+                        resetAudio();
+                      }}
+                      aria-pressed={preset === item.id}
+                    >
+                      <strong>{item.label}</strong>
+                      <small>{item.note}</small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="broadcast-note">
+                <div className="broadcast-index">G</div>
+                <div>
+                  <strong>Gemini 3.8 TTS · 哈萨克语 AI 高质量模式</strong>
+                  <p>默认使用 24 kHz WAV。15,000 字长稿会自动按自然边界分段并合并；Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。Flash 优先音质与长稿稳定，Flash-Lite 优先速度与成本。</p>
+                </div>
+              </div>
+            </>
           ) : engine === "omnivoice" ? (
             <>
               <div className="broadcast-note" style={{ marginTop: 24 }}>
@@ -1603,7 +1837,7 @@ export default function Home() {
             disabled={
               !text.trim() ||
               isGenerating ||
-              (engine === "eleven" && !voice)
+              ((engine === "eleven" || engine === "gemini") && !voice)
             }
           >
             <span className="button-icon" aria-hidden="true">
@@ -1614,19 +1848,27 @@ export default function Home() {
                 {isGenerating
                   ? engine === "eleven"
                     ? "正在生成高质量播音…"
-                    : audioProgress || "正在生成免费增强播音…"
+                    : engine === "gemini"
+                      ? audioProgress || "正在生成 Gemini 3.8 哈萨克语播音…"
+                      : audioProgress || "正在生成免费增强播音…"
                   : engine === "eleven"
                     ? voice
                       ? `生成 ElevenLabs v3 · ${speed.toFixed(2)}×`
                       : "正在等待 ElevenLabs 声线"
-                    : `生成 Edge TTS · ${speed.toFixed(2)}×`}
+                    : engine === "gemini"
+                      ? voice
+                        ? `生成 ${geminiModel === "gemini-3.8-flash-tts" ? "Gemini 3.8 Flash TTS" : "Gemini 3.8 Flash-Lite TTS"} · ${speed.toFixed(2)}×`
+                        : "正在等待 Gemini 声线"
+                      : `生成 Edge TTS · ${speed.toFixed(2)}×`}
               </strong>
               <small>
                 {isGenerating
                   ? "请保持页面开启"
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
-                    : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
+                    : engine === "gemini"
+                      ? "哈萨克语声线 + 新闻风格 + 编号停顿 · 生成后可试听并下载 24 kHz WAV"
+                      : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
             <span className="button-arrow" aria-hidden="true">→</span>
@@ -1652,9 +1894,13 @@ export default function Home() {
                 <audio controls src={audioUrl} preload="metadata">
                   您的浏览器不支持音频播放。
                 </audio>
-                <a className="download-link" href={audioUrl} download="qazaq-radio.mp3">
+                <a
+                  className="download-link"
+                  href={audioUrl}
+                  download={engine === "gemini" ? "qazaq-radio-gemini.wav" : "qazaq-radio.mp3"}
+                >
                   <span aria-hidden="true">↓</span>
-                  下载 MP3
+                  {engine === "gemini" ? "下载 WAV" : "下载 MP3"}
                 </a>
               </div>
             ) : (
@@ -1667,7 +1913,9 @@ export default function Home() {
                 <p>
                   {engine === "eleven"
                     ? "高质量音频生成后，播放器会出现在这里"
-                    : "免费增强音频生成后，播放器会出现在这里"}
+                    : engine === "gemini"
+                      ? "Gemini 哈萨克语音频生成后，播放器会出现在这里"
+                      : "免费增强音频生成后，播放器会出现在这里"}
                 </p>
               </div>
             )}
@@ -1683,7 +1931,7 @@ export default function Home() {
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
         <p>
-          免费模式一基于 Edge TTS · 免费模式二使用 KazakhTTS-OmniVoice 公共 Demo · 免费模式三使用 Piper + ISSAI KazakhTTS 浏览器本地推理 · 高质量模式使用 ElevenLabs v3 · API Key 仅保存在 Cloudflare 服务端 · {" "}
+          免费模式一基于 Edge TTS · 免费模式二使用 KazakhTTS-OmniVoice 公共 Demo · 免费模式三使用 Piper + ISSAI KazakhTTS 浏览器本地推理 · 高质量模式使用 ElevenLabs v3 · AI 高质量模式使用 Gemini 3.8 TTS · API Key 仅保存在 Cloudflare 服务端 · {" "}
           <a href="https://github.com/linshenkx/edge-tts-openai-cf-worker" target="_blank" rel="noreferrer">
             查看免费通道开源项目
           </a>
