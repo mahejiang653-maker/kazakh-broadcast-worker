@@ -656,10 +656,34 @@ export default function Home() {
         }
 
         const optimizedStream = audioTools && response.headers.get("Content-Type")?.includes("application/x-daulet-pcm");
-        audioBlob = optimizedStream
-          ? await audioTools.processDauletResponse(response, controller.signal, setAudioProgress)
-          : await response.blob();
-        if (optimizedStream && audioBlob.size && !controller.signal.aborted) void audioTools.writeDauletCache(cacheKey,audioBlob);
+        if (optimizedStream) {
+          try {
+            audioBlob = await audioTools.processDauletResponse(response, controller.signal, setAudioProgress);
+            if (audioBlob.size && !controller.signal.aborted) void audioTools.writeDauletCache(cacheKey, audioBlob);
+          } catch (processingError) {
+            if (controller.signal.aborted) throw processingError;
+            // Some Android/WebView builds cannot start or keep the module Worker
+            // used by the PCM humanizer. Retry the same Edge request through the
+            // stable server-side MP3 path so generation still succeeds.
+            setAudioProgress("手机浏览器音频处理不可用，正在自动切换兼容模式…");
+            const fallbackPayload = { ...payload, edgeNewsAudio: undefined };
+            const fallbackResponse = await fetch("/api/synthesize", {
+              method: "POST",
+              headers: {"Content-Type": "application/json"},
+              body: JSON.stringify(fallbackPayload),
+              signal: controller.signal,
+            });
+            if (!fallbackResponse.ok) {
+              const failure = (await fallbackResponse.json().catch(() => null)) as
+                | { error?: string }
+                | null;
+              throw new Error(failure?.error || "兼容模式生成失败，请稍后再试。");
+            }
+            audioBlob = await fallbackResponse.blob();
+          }
+        } else {
+          audioBlob = await response.blob();
+        }
       }
       if (controller.signal.aborted) return;
       if (!audioBlob.size) throw new Error("没有收到音频，请重新生成。");
