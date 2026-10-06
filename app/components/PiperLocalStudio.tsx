@@ -14,6 +14,7 @@ const PIPER_BASE = "/api/piper-runtime/piper/";
 const CACHE_NAME = "qazaq-piper-local-v1";
 const STREAM_PREVIEW_SEGMENTS = 1;
 const FIRST_PREVIEW_MAX_CHARS = 72;
+const CPU_THREADS = 4;
 const M2_SPEAKER = 0;
 
 type M2Preset = "news" | "calm" | "bulletin" | "expressive" | "story";
@@ -593,7 +594,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           setLoadMessage("WebGPU 初始化失败 · 自动切换 CPU Worker");
           const onnxRuntime = new mod.OnnxWebWorkerRuntime({
             basePath: ONNX_BASE,
-            numThreads: 1,
+            numThreads: Math.min(CPU_THREADS, Math.max(2, navigator.hardwareConcurrency || 2)),
           });
           selectedOnnxRuntime = onnxRuntime;
           const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
@@ -610,7 +611,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         setLoadMessage("设备不支持 WebGPU · 使用 CPU Worker");
         const onnxRuntime = new mod.OnnxWebWorkerRuntime({
           basePath: ONNX_BASE,
-          numThreads: 1,
+          numThreads: Math.min(CPU_THREADS, Math.max(2, navigator.hardwareConcurrency || 2)),
         });
         selectedOnnxRuntime = onnxRuntime;
         const phonemizeRuntime = new mod.PhonemizeWebWorkerRuntime({
@@ -681,7 +682,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
       let segments = splitM2BroadcastSegments(clean, accelerationModeRef.current === "gpu");
       if (!segments.length) throw new Error("没有可生成的有效句子。");
 
-      // Turbo V5.2: latency-first first chunk. A large first sentence makes the
+      // Turbo V6: latency-first first chunk. A large first sentence makes the
       // user wait for the entire ONNX inference before hearing anything. Split
       // only the first segment into a short preview chunk; later chunks keep the
       // larger throughput-oriented sizing.
@@ -749,7 +750,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         );
         setLoadMessage(
           pipelineReady
-            ? `M2 Turbo V5.2 预热流式双流水线 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`
+            ? `M2 Turbo V6 预热流式双流水线 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`
             : `正在本机生成 M2 · ${index + 1}/${segments.length} · ${M2_PRESETS[preset].label}`,
         );
 
@@ -783,7 +784,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         wavParts.push(inspected.pcm);
         totalPcmBytes += inspected.pcmBytes;
 
-        // Turbo V5.2: expose the first segment immediately while the rest keeps generating.
+        // Turbo V6: expose the first segment immediately while the rest keeps generating.
         if (index + 1 === STREAM_PREVIEW_SEGMENTS && segments.length > STREAM_PREVIEW_SEGMENTS) {
           const previewHeader = buildWavHeader(sampleRate, totalPcmBytes);
           const previewBlob = new Blob([previewHeader, ...wavParts], { type: "audio/x-wav" });
@@ -793,7 +794,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           setAudioUrl(previewUrl);
           setPreviewReady(true);
           setGenerationDetail("首段已可试听 · 后台继续生成 " + (index + 1) + "/" + segments.length);
-          setLoadMessage("M2 Turbo V5.2 · 首段已就绪，剩余内容后台生成");
+          setLoadMessage("M2 Turbo V6 · 首段已就绪，剩余内容后台生成");
           await yieldToBrowser();
         }
 
@@ -866,7 +867,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
         <div className="feature-row" aria-label="M2 本地播音功能">
           <span>非 Edge 引擎</span>
           <span>M2 单一主声线</span>
-          <span>WebGPU Turbo V5.2.1</span>
+          <span>WebGPU Turbo V6.1</span>
           <span>模型级新闻参数</span>
           <span>数字清晰增强</span>
           <span>长句自动分段</span>
@@ -877,7 +878,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
           <div>
             <strong>{loadMessage}</strong>
             <p>
-              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；Turbo V5.2 会让下一段音素化与当前段声学推理重叠执行，设备支持时优先使用 WebGPU Worker，不支持时自动回退 CPU Worker。
+              M2 高质量模型首次约 128 MB。现在支持最长 15,000 字稿件；Turbo V6 会让下一段音素化与当前段声学推理重叠执行，设备支持时优先使用 WebGPU Worker，不支持时自动回退 CPU Worker。
             </p>
           </div>
         </div>
@@ -1103,7 +1104,7 @@ export default function PiperLocalStudio({ sourceText }: { sourceText?: string }
                   (height, index) => <i style={{ height }} key={`${height}-${index}`} />,
                 )}
               </div>
-              <p>M2 Turbo V5.2 会优先生成首段供立即试听，同时在后台继续完成整篇 WAV。</p>
+              <p>M2 Turbo V6 会优先生成首段供立即试听，同时在后台继续完成整篇 WAV。</p>
             </div>
           )}
         </div>
