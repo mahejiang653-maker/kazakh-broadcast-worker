@@ -659,18 +659,15 @@ export default function Home() {
         if (optimizedStream) {
           try {
             audioBlob = await audioTools.processDauletResponse(response, controller.signal, setAudioProgress);
-            if (audioBlob.size && !controller.signal.aborted) void audioTools.writeDauletCache(cacheKey, audioBlob);
           } catch (processingError) {
             if (controller.signal.aborted) throw processingError;
-            // Some Android/WebView builds cannot start or keep the module Worker
-            // used by the PCM humanizer. Retry the same Edge request through the
-            // stable server-side MP3 path so generation still succeeds.
-            setAudioProgress("手机浏览器音频处理不可用，正在自动切换兼容模式…");
-            const fallbackPayload = { ...payload, edgeNewsAudio: undefined };
+            // A Worker that fails after consuming PCM needs a fresh stream, but
+            // must keep the same SSML, pitch, pauses and DSP as the normal path.
+            setAudioProgress("正在使用兼容音质处理…");
             const fallbackResponse = await fetch("/api/synthesize", {
               method: "POST",
               headers: {"Content-Type": "application/json"},
-              body: JSON.stringify(fallbackPayload),
+              body: JSON.stringify(payload),
               signal: controller.signal,
             });
             if (!fallbackResponse.ok) {
@@ -679,8 +676,12 @@ export default function Home() {
                 | null;
               throw new Error(failure?.error || "兼容模式生成失败，请稍后再试。");
             }
-            audioBlob = await fallbackResponse.blob();
+            if (!fallbackResponse.headers.get("Content-Type")?.includes("application/x-daulet-pcm")) {
+              throw new Error("没有收到完整的优化音频，请重新生成。");
+            }
+            audioBlob = await audioTools.processDauletResponseOnMainThread(fallbackResponse, controller.signal, setAudioProgress);
           }
+          if (audioBlob.size && !controller.signal.aborted) void audioTools.writeDauletCache(cacheKey, audioBlob);
         } else {
           audioBlob = await response.blob();
         }

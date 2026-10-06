@@ -3,10 +3,12 @@ import { DauletNewsProcessor, DAULET_SAMPLE_RATE, pcm16Blocks } from "./daulet-d
 import type { NewsBoundary } from "./daulet-news";
 
 const processor = new DauletNewsProcessor();
-self.onmessage = (event: MessageEvent<{id: number; type: "chunk" | "finish"; pcm?: ArrayBuffer; boundary?: NewsBoundary}>) => {
+self.onmessage = (event: MessageEvent<{id: number; type: "init" | "chunk" | "finish"; pcm?: ArrayBuffer; boundary?: NewsBoundary}>) => {
   const {id, type, pcm, boundary} = event.data;
   try {
-    if (type === "chunk" && pcm && boundary) {
+    if (type === "init") {
+      self.postMessage({id, ok:true});
+    } else if (type === "chunk" && pcm && boundary) {
       processor.addPcm(pcm,boundary);
       self.postMessage({id, ok:true});
     } else if (type === "finish") {

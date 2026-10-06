@@ -7,10 +7,12 @@ import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
 
 const dir = await mkdtemp(join(tmpdir(),"daulet-test-"));
-for (const name of ["news","dsp","stream"]) await build({input:`app/lib/daulet-${name}.ts`,platform:"node",output:{file:join(dir,`${name}.mjs`),format:"esm"}});
+for (const name of ["news","dsp","stream","audio-client"]) await build({input:`app/lib/daulet-${name}.ts`,platform:"node",output:{file:join(dir,`${name}.mjs`),format:"esm",codeSplitting:false}});
+await build({input:"app/lib/daulet-audio.worker.ts",platform:"browser",output:{file:join(dir,"audio-worker.mjs"),format:"esm",codeSplitting:false}});
 const {prepareDauletNewsText,planDauletNewsChunks,splitNewsSentences,dauletNewsSsml} = await import(pathToFileURL(join(dir,"news.mjs")));
 const {DauletNewsProcessor,pcm16Blocks} = await import(pathToFileURL(join(dir,"dsp.mjs")));
 const {streamDauletChunks,readDauletStream,encodeDauletFrame} = await import(pathToFileURL(join(dir,"stream.mjs")));
+const {processDauletResponse,processDauletResponseOnMainThread} = await import(pathToFileURL(join(dir,"audio-client.mjs")));
 test.after(()=>rm(dir,{recursive:true,force:true}));
 
 test("Kazakh letters, compound names, soft wraps and source wording survive",()=>{
@@ -435,4 +437,100 @@ test("cancelling a pending chunk aborts upstream without writing to a closed str
   const pending=reader.read();await reader.cancel();complete(tone());
   assert.equal(signal.aborted,true);
   assert.equal((await pending).done,true);
+});
+
+function compatibilityResponse() {
+  const chunks=[{text:"first",boundary:"paragraph",rate:1},{text:"last",boundary:"end",rate:1}];
+  return new Response(streamDauletChunks(chunks,async()=>tone()));
+}
+function mockWorker(t, value) {
+  const descriptor=Object.getOwnPropertyDescriptor(globalThis,"Worker");
+  Object.defineProperty(globalThis,"Worker",{value,writable:true,configurable:true});
+  t.after(()=>{if(descriptor)Object.defineProperty(globalThis,"Worker",descriptor);else delete globalThis.Worker;});
+}
+test("the production Worker and compatibility processor encode identical MP3 from the same chunks",async t=>{
+  const descriptor=Object.getOwnPropertyDescriptor(globalThis,"self"),messages=[];
+  const scope={postMessage(message){messages.push(message);},close(){}};
+  Object.defineProperty(globalThis,"self",{value:scope,writable:true,configurable:true});
+  t.after(()=>{if(descriptor)Object.defineProperty(globalThis,"self",descriptor);else delete globalThis.self;});
+  await import(pathToFileURL(join(dir,"audio-worker.mjs")));
+  scope.onmessage({data:{id:1,type:"init"}});
+  assert.deepEqual(messages.pop(),{id:1,ok:true});
+  scope.onmessage({data:{id:2,type:"chunk",pcm:tone(),boundary:"paragraph"}});
+  scope.onmessage({data:{id:3,type:"chunk",pcm:tone(),boundary:"end"}});
+  scope.onmessage({data:{id:4,type:"finish"}});
+  const worker=messages.at(-1);
+  assert.equal(worker.id,4);
+  assert.ok(worker.blob?.size);
+  const compatible=await processDauletResponseOnMainThread(compatibilityResponse(),new AbortController().signal);
+  assert.deepEqual(new Uint8Array(await compatible.arrayBuffer()),new Uint8Array(await worker.blob.arrayBuffer()));
+});
+test("Worker construction failure preserves the same PCM/DSP and does not resynthesize",async t=>{
+  const signal=new AbortController().signal;
+  const expected=await processDauletResponseOnMainThread(compatibilityResponse(),signal);
+  let fetches=0;
+  t.mock.method(globalThis,"fetch",()=>{fetches++;throw new Error("unexpected synthesis retry");});
+  mockWorker(t,class { constructor(){throw new Error("blocked Worker");} });
+  const actual=await processDauletResponse(compatibilityResponse(),signal);
+  assert.equal(fetches,0);
+  assert.equal(actual.type,"audio/mpeg");
+  assert.ok(actual.size>1000);
+  assert.deepEqual(new Uint8Array(await actual.arrayBuffer()),new Uint8Array(await expected.arrayBuffer()));
+});
+test("Worker startup handshake fails before consuming PCM and retains identical output",async t=>{
+  const response=compatibilityResponse(),signal=new AbortController().signal;
+  let terminated=0,messages=0;
+  mockWorker(t,class {
+    postMessage(message){
+      messages++;
+      assert.equal(message.type,"init");
+      assert.equal(response.bodyUsed,false);
+      queueMicrotask(()=>this.onerror());
+    }
+    terminate(){terminated++;}
+  });
+  const actual=await processDauletResponse(response,signal);
+  const expected=await processDauletResponseOnMainThread(compatibilityResponse(),signal);
+  assert.equal(messages,1);
+  assert.ok(terminated>0);
+  assert.deepEqual(new Uint8Array(await actual.arrayBuffer()),new Uint8Array(await expected.arrayBuffer()));
+});
+test("a Worker failure after PCM transfer rejects instead of returning partial MP3",async t=>{
+  let chunks=0;
+  mockWorker(t,class {
+    postMessage(message){
+      queueMicrotask(()=>{
+        if(message.type==="init")this.onmessage({data:{id:message.id,ok:true}});
+        else {chunks++;this.onerror();}
+      });
+    }
+    terminate(){}
+  });
+  await assert.rejects(processDauletResponse(compatibilityResponse(),new AbortController().signal),/处理未成功/u);
+  assert.equal(chunks,1);
+});
+test("compatibility processing rejects failed/truncated PCM streams without a download",async()=>{
+  const signal=new AbortController().signal;
+  const failed=streamDauletChunks([{text:"fail",boundary:"end",rate:1}],async()=>{throw new Error("upstream failed");});
+  await assert.rejects(processDauletResponseOnMainThread(new Response(failed),signal),/未完整/u);
+  const packet=Buffer.concat([Buffer.from("DNV1"),...encodeDauletFrame({boundary:"end",sampleRate:24000},tone()).map(x=>Buffer.from(x))]);
+  await assert.rejects(processDauletResponseOnMainThread(new Response(packet),signal),/传输中断/u);
+});
+test("compatibility cancellation during processing never emits a partial or final blob",async()=>{
+  const before=new AbortController();before.abort();
+  await assert.rejects(processDauletResponseOnMainThread(compatibilityResponse(),before.signal),/取消/u);
+  for(const stage of ["已生成 1 段","MP3 输出"]){
+    const controller=new AbortController();
+    await assert.rejects(processDauletResponseOnMainThread(compatibilityResponse(),controller.signal,message=>{
+      if(message.includes(stage))controller.abort();
+    }),/取消/u);
+  }
+});
+test("cancelling a waiting PCM reader releases the stream promptly",async()=>{
+  const controller=new AbortController();let cancelled=false;
+  const stream=new ReadableStream({start(s){s.enqueue(new TextEncoder().encode("DNV1"));},cancel(){cancelled=true;}});
+  const reading=readDauletStream(new Response(stream),async()=>{},controller.signal);
+  controller.abort();
+  await assert.rejects(reading,/取消/u);
+  assert.equal(cancelled,true);
 });

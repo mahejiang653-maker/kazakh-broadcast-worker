@@ -23,7 +23,13 @@ export async function writeDauletCache(key: string | null, blob: Blob) {
 }
 
 export async function processDauletResponse(response: Response, signal: AbortSignal, onProgress?: (message: string) => void): Promise<Blob> {
-  const worker = new Worker(new URL("./daulet-audio.worker.ts", import.meta.url), {type:"module"});
+  if (signal.aborted) throw new Error("本次生成已取消。");
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./daulet-audio.worker.ts", import.meta.url), {type:"module"});
+  } catch {
+    return processDauletResponseOnMainThread(response, signal, onProgress);
+  }
   let id = 0;
   let failure: string | null = null;
   const pending = new Map<number,{resolve:(value: {blob?: Blob})=>void; reject:(error: Error)=>void; timer:ReturnType<typeof setTimeout>}>();
@@ -40,20 +46,29 @@ export async function processDauletResponse(response: Response, signal: AbortSig
   worker.onerror = () => fail("浏览器音频处理未成功，请重新生成。");
   const abort = () => fail("本次生成已取消。");
   signal.addEventListener("abort",abort,{once:true});
-  const send = (message: object, transfer: Transferable[] = []) => new Promise<{blob?:Blob}>((resolve,reject) => {
+  const send = (message: object, transfer: Transferable[] = [], timeoutMs = 120000) => new Promise<{blob?:Blob}>((resolve,reject) => {
     if (failure) { reject(new Error(failure)); return; }
     if (signal.aborted) { reject(new Error("本次生成已取消。")); return; }
     const index = ++id;
-    const timer = setTimeout(()=>fail("音频处理超时，请重新生成。"),120000);
+    const timer = setTimeout(()=>fail("音频处理超时，请重新生成。"),timeoutMs);
     pending.set(index,{resolve,reject,timer});
-    worker.postMessage({...message,id:index},transfer);
+    try { worker.postMessage({...message,id:index},transfer); }
+    catch { fail("浏览器音频处理未成功，请重新生成。"); }
   });
   try {
+    // Confirm startup before consuming/transferring PCM. A blocked module Worker
+    // can then use the identical processor locally without a second TTS request.
+    try { await send({type:"init"}, [], 5000); }
+    catch (error) {
+      if (signal.aborted) throw error;
+      worker.terminate();
+      return await processDauletResponseOnMainThread(response, signal, onProgress);
+    }
     let completed = 0;
     await readDauletStream(response,async(pcm,boundary)=> {
       await send({type:"chunk",pcm,boundary},[pcm]);
       onProgress?.(`已生成 ${++completed} 段，正在衔接声音…`);
-    });
+    }, signal);
     onProgress?.("正在完成音质处理与 MP3 输出…");
     const result = await send({type:"finish"});
     if (!result.blob?.size) throw new Error("没有收到完整音频。");
@@ -63,4 +78,44 @@ export async function processDauletResponse(response: Response, signal: AbortSig
     for (const entry of pending.values()) clearTimeout(entry.timer);
     worker.terminate();
   }
+}
+
+/** Compatibility path: identical stateful DSP and one MP3 encode for the file. */
+export async function processDauletResponseOnMainThread(response: Response, signal: AbortSignal, onProgress?: (message: string) => void): Promise<Blob> {
+  const checkAbort = () => { if (signal.aborted) throw new Error("本次生成已取消。"); };
+  checkAbort();
+  onProgress?.("正在使用兼容音质处理…");
+  const [{ DauletNewsProcessor, DAULET_SAMPLE_RATE, pcm16Blocks }, { Mp3Encoder }] = await Promise.all([
+    import("./daulet-dsp"), import("@breezystack/lamejs"),
+  ]);
+  checkAbort();
+  const processor = new DauletNewsProcessor();
+  const yieldToPage = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+  let completed = 0;
+  await readDauletStream(response, async (pcm, boundary) => {
+    checkAbort();
+    processor.addPcm(pcm, boundary);
+    onProgress?.(`已生成 ${++completed} 段，正在衔接声音…`);
+    await yieldToPage();
+    checkAbort();
+  }, signal);
+  checkAbort();
+  onProgress?.("正在完成音质处理与 MP3 输出…");
+  await yieldToPage();
+  checkAbort();
+  const { pieces, gain } = processor.finish();
+  const encoder = new Mp3Encoder(1, DAULET_SAMPLE_RATE, 160);
+  const frames: Uint8Array[] = [];
+  let blocks = 0;
+  for (const block of pcm16Blocks(pieces, gain)) {
+    const bytes = encoder.encodeBuffer(block);
+    if (bytes.length) frames.push(new Uint8Array(bytes));
+    if (++blocks % 32 === 0) { await yieldToPage(); checkAbort(); }
+  }
+  checkAbort();
+  const end = encoder.flush();
+  if (end.length) frames.push(new Uint8Array(end));
+  const blob = new Blob(frames as BlobPart[], {type:"audio/mpeg"});
+  if (!blob.size) throw new Error("没有收到完整音频。");
+  return blob;
 }

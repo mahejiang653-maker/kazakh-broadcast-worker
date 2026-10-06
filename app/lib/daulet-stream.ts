@@ -49,13 +49,18 @@ export function streamDauletChunks(chunks: NewsChunk[], synthesize: (chunk: News
   });
 }
 
-export async function readDauletStream(response: Response, onFrame: (pcm: ArrayBuffer, boundary: NewsBoundary) => Promise<void>) {
+export async function readDauletStream(response: Response, onFrame: (pcm: ArrayBuffer, boundary: NewsBoundary) => Promise<void>, signal?: AbortSignal) {
   if (!response.body) throw new Error("没有收到语音数据。");
   const reader = response.body.getReader();
+  const checkAbort = () => { if (signal?.aborted) throw new Error("本次生成已取消。"); };
+  const abort = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener("abort", abort, {once:true});
   let buffer = new Uint8Array(0), offset = 0;
   const take = async (length: number): Promise<Uint8Array> => {
+    checkAbort();
     while (buffer.length - offset < length) {
       const {value, done} = await reader.read();
+      checkAbort();
       if (done) throw new Error("音频传输中断，请重新生成。");
       const rest = buffer.subarray(offset);
       const joined = new Uint8Array(rest.length + value.length);
@@ -83,6 +88,7 @@ export async function readDauletStream(response: Response, onFrame: (pcm: ArrayB
       await onFrame((await take(pcmSize)).buffer as ArrayBuffer, meta.boundary!);
     }
   } finally {
+    signal?.removeEventListener("abort", abort);
     await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
