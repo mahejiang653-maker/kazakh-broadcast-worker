@@ -108,6 +108,18 @@ try{
   assert.equal(edition.retiredController,false,'Retired post-controller loaded');
   assert.deepEqual(edition.titles,Array.from(expected.demo,n=>n.title));
   report.edition=edition;
+  const borders=await page.evaluate(()=>({
+    ownership:NG14.v52ChinaBoundaryOwnership?.getDiagnostics(),
+    count:NG14.borderEntities.length,
+    canonical:NG14.countries.get('CHN').entities.every(e=>e._chinaAuthoritativeOutline&&NG14.viewer.entities.contains(e)),
+    stale:NG14.borderEntities.some(e=>!NG14.viewer.entities.contains(e)),
+    cache:[...document.querySelectorAll('script[src]')].map(e=>e.getAttribute('src')).filter(s=>/china-border-ownership|v51-scene-engine/.test(s)),
+  }));
+  assert.equal(borders.ownership?.removedGenericEdges,177,'Neighbor-side China frontier was not replaced');
+  assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
+  assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
+  assert.ok(borders.cache.every(s=>s.endsWith('?v=20261007-r6-china-border-ownership')));
+  report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();
     const state=await settled(i);report.stories.push(state);
@@ -138,6 +150,41 @@ try{
   assert.equal(overview.collision.indexedLabels,overview.labelEntities);
   await page.screenshot({path:dir+'/overview.png',fullPage:true});
   report.checks.push({name:'overview-cleanup',state:overview});
+  // Dedicated screenshots use the actual production Cesium scene. These camera
+  // destinations are test views only; no production camera/event data is changed.
+  await page.setViewportSize({width:1280,height:900});
+  await page.locator('#timeline button').nth(0).click();
+  await page.waitForFunction(()=>NG14.v51SceneEntities.filter(e=>e.polygon).length===514&&!NG14.viewer.camera._currentFlight,null,{timeout:35000});
+  const countryFill=await page.evaluate(()=>({fills:NG14.v51SceneEntities.filter(e=>e.polygon).length,
+    rings:NG14.countries.get('CHN').authoritativeOutline.geometry.coordinates.length}));
+  assert.equal(countryFill.fills,countryFill.rings);
+  await page.screenshot({path:dir+'/china-country-highlight.png',fullPage:true});
+  report.checks.push({name:'china-country-fill-aligned',state:countryFill});
+  await settled(0);
+  await page.locator('#all').click();await page.waitForTimeout(5500);
+  for(const [name,lon,lat,height]of [
+    ['china-national',103.5,35.5,18000000],['china-border-northwest',82.3,45.2,420000],
+    ['china-border-northeast',132.7,47.9,450000],['china-border-korea',126.1,41.0,450000],
+    ['china-border-southwest',93.4,28.6,900000],['china-border-vietnam',107.1,22.1,380000],
+    ['china-taiwan',121.0,24.0,1600000],['china-south-sea',112.0,14.0,3400000],
+  ]){
+    await page.evaluate(({lon,lat,height})=>{
+      const C=Cesium;NG14.viewer.camera.cancelFlight();
+      NG14.viewer.camera.setView({destination:C.Cartesian3.fromDegrees(lon,lat,height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}});
+    },{lon,lat,height});
+    await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:12000}).catch(()=>{});
+    await page.waitForTimeout(500);
+    await page.screenshot({path:dir+'/'+name+'.png',fullPage:true});
+    const state=await page.evaluate(inspect);
+    assert.equal(state.sceneEntities,0);assert.equal(state.markersVisible,0);
+    assert.ok(Math.abs(state.aspect-16/9)<.01&&state.canvasFits&&!state.overflow);
+    report.checks.push({name,state});
+  }
+  await page.setViewportSize({width:360,height:800});
+  await page.locator('#timeline button').nth(11).click();
+  const chinaMobile=await settled(11);
+  await page.screenshot({path:dir+'/china-border-mobile.png',fullPage:true});
+  report.checks.push({name:'china-border-mobile',state:chinaMobile});
   assert.deepEqual(report.errors,[]);
   assert.deepEqual(report.consoleErrors,[]);
   report.status='PASS';console.log('R6_PRODUCTION_13_13_PASS',expected.DAILY_LOCK);

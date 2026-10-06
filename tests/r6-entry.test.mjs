@@ -42,12 +42,14 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(requests.length, 2);
   for (const request of requests) assert.equal(request.options.cache, 'no-store');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(scripts.length, 31);
+  assert.equal(scripts.length, 32);
   assert.equal(new Set(scripts).size, scripts.length);
   assert.ok(!scripts.some(s => /scene-controller|releases\/y1/.test(s)));
   const names = scripts.map(s => s.split('?')[0]);
   assert.ok(names.indexOf('/news-globe-v14-v52-camera-breathing-room.js') < names.indexOf(dataPath));
   assert.ok(names.indexOf(dataPath) < names.indexOf('/news-globe-v14-main.js'));
+  assert.ok(names.indexOf('/news-globe-v52-china-border-ownership.js') < names.indexOf('/news-globe-v14-main.js'));
+  for (const name of ['news-globe-v52-china-border-ownership.js', 'news-globe-v14-v51-scene-engine.js']) assert.ok(scripts.includes(`/${name}?v=20261007-r6-china-border-ownership`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
   for (const name of ['news-globe-v52-screen-collision-hotfix.js', 'news-globe-v52-flags-overview-clean.js']) {
     assert.ok(scripts.includes(`/${name}?v=20261007-r6-overlay-lifecycle`),'Updated overlay must bypass its old cache key');
