@@ -60,6 +60,8 @@ const EDGE_VOICES = [
   },
 ] as const;
 
+const M3_FIXED_VOICE = "Gacrux";
+
 const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
@@ -654,7 +656,7 @@ export default function Home() {
         : nextEngine === "eleven"
           ? elevenVoices[0]?.id ?? ""
           : nextEngine === "gemini"
-            ? geminiVoices[0]?.id ?? GEMINI_FALLBACK_VOICES[0].id
+            ? M3_FIXED_VOICE
             : "",
     );
     setError("");
@@ -663,10 +665,6 @@ export default function Home() {
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
       void loadElevenVoices();
-    }
-
-    if (nextEngine === "gemini") {
-      void loadGeminiVoices();
     }
 
     if (nextEngine === "omnivoice" || nextEngine === "piper") {
@@ -758,7 +756,7 @@ export default function Home() {
           ? {
               text: cleanText,
               model: geminiModel,
-              voice,
+              voice: M3_FIXED_VOICE,
               preset,
               speed,
             }
@@ -953,7 +951,7 @@ export default function Home() {
             : engine === "eleven"
               ? "高质量模式 · ElevenLabs v3"
               : engine === "gemini"
-                ? "AI 高质量模式 · Gemini 3.8 TTS"
+                ? "M3 · 固定哈萨克男性主播"
                 : engine === "omnivoice"
                   ? "免费模式 2 · KazakhTTS-OmniVoice"
                   : "免费模式 3 · Piper Local"}
@@ -973,7 +971,7 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供五套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3，新增 AI 高质量模式 Gemini 3.8 TTS。Gemini 支持哈萨克语长稿、Studio / 扩展声线、新闻播报风格与编号后自然停顿；原有模式全部保留。
+            现在提供五套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3，新增 M3 固定哈萨克男性主播。M3 基于 Gemini 3.8 TTS，从开头到第十三条新闻和结尾始终由同一个男性主播完成，长稿分段也锁定同一声线与同一播音人格；原有模式全部保留。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / Piper / ElevenLabs / Gemini</span>
@@ -1345,8 +1343,8 @@ export default function Home() {
                 />
                 <span className="voice-avatar">G</span>
                 <span className="voice-copy">
-                  <strong>AI 高质量模式</strong>
-                  <small>Gemini 3.8 TTS · 哈萨克语 · Flash / Flash-Lite · Studio / 扩展声线 · 长稿</small>
+                  <strong>M3 · 固定男性主播</strong>
+                  <small>Gemini 3.8 TTS · 单主播 · 开头到第十三条及结尾全程同一人 · 长稿连续</small>
                 </span>
                 <span className="radio-mark" aria-hidden="true" />
               </label>
@@ -1733,54 +1731,12 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="field-block">
-                <div className="field-label-row">
-                  <label htmlFor="gemini-voice">Gemini 哈萨克语声线</label>
-                  <button
-                    className="text-action"
-                    type="button"
-                    onClick={() => void loadGeminiVoices()}
-                    disabled={isLoadingGeminiVoices}
-                  >
-                    {isLoadingGeminiVoices ? "读取中…" : "读取哈萨克语男声库"}
-                  </button>
+              <div className="broadcast-note" style={{ marginTop: 12 }}>
+                <div className="broadcast-index">M3</div>
+                <div>
+                  <strong>M3 固定单主播 · 哈萨克男性</strong>
+                  <p>主播声线已锁定为同一个成熟男性声线。开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾，全程只允许这一位主播；引用、引语和新闻人物发言也不会切换成第二个人声。</p>
                 </div>
-                <div className="textarea-wrap">
-                  <select
-                    id="gemini-voice"
-                    value={voice}
-                    disabled={!geminiVoices.length || isLoadingGeminiVoices}
-                    onChange={(event) => {
-                      setVoice(event.target.value);
-                      setError("");
-                      resetAudio();
-                    }}
-                    style={{
-                      width: "100%",
-                      border: 0,
-                      outline: 0,
-                      padding: "15px 17px",
-                      background: "transparent",
-                      color: "var(--ink)",
-                      fontSize: 14,
-                    }}
-                  >
-                    {geminiVoices.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.name}{item.description ? ` · ${item.description}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="textarea-footer">
-                    <span>优先筛选 kk-KZ · male · News</span>
-                    <span>{selectedGeminiVoice?.description || "Gemini Studio Voice"}</span>
-                  </div>
-                </div>
-                {geminiVoiceWarning ? (
-                  <p style={{ margin: "8px 2px 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
-                    {geminiVoiceWarning}
-                  </p>
-                ) : null}
               </div>
 
               {speedControl("倍速调节")}
@@ -1810,8 +1766,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>Gemini 3.8 TTS · 哈萨克语 AI 高质量模式</strong>
-                  <p>默认使用 24 kHz WAV。15,000 字长稿会自动按自然边界分段并合并；Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。Flash 优先音质与长稿稳定，Flash-Lite 优先速度与成本。</p>
+                  <strong>M3 · 固定哈萨克男性主播</strong>
+                  <p>默认使用 24 kHz WAV。15,000 字长稿会自动按自然边界分段并合并；每一段都强制使用同一个男性 voice ID 和同一套主播人格参数。Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。Flash 优先音质与长稿稳定，Flash-Lite 优先速度与成本。</p>
                 </div>
               </div>
             </>
@@ -1893,7 +1849,7 @@ export default function Home() {
                   ? engine === "eleven"
                     ? "正在生成高质量播音…"
                     : engine === "gemini"
-                      ? audioProgress || "正在生成 Gemini 3.8 哈萨克语播音…"
+                      ? audioProgress || "正在生成 M3 固定单主播播音…"
                       : audioProgress || "正在生成免费增强播音…"
                   : engine === "eleven"
                     ? voice
@@ -1901,8 +1857,8 @@ export default function Home() {
                       : "正在等待 ElevenLabs 声线"
                     : engine === "gemini"
                       ? voice
-                        ? `生成 ${geminiModel === "gemini-3.8-flash-tts" ? "Gemini 3.8 Flash TTS" : "Gemini 3.8 Flash-Lite TTS"} · ${speed.toFixed(2)}×`
-                        : "正在等待 Gemini 声线"
+                        ? `生成 M3 · ${geminiModel === "gemini-3.8-flash-tts" ? "Flash" : "Flash-Lite"} · 固定男主播 · ${speed.toFixed(2)}×`
+                        : "正在等待 M3 主播"
                       : `生成 Edge TTS · ${speed.toFixed(2)}×`}
               </strong>
               <small>
@@ -1911,7 +1867,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "哈萨克语声线 + 新闻风格 + 编号停顿 · 生成后可试听并下载 24 kHz WAV"
+                      ? "固定单主播 + 新闻风格 + 编号停顿 + 长稿同声线连续 · 生成后可试听并下载 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
@@ -1941,7 +1897,7 @@ export default function Home() {
                 <a
                   className="download-link"
                   href={audioUrl}
-                  download={engine === "gemini" ? "qazaq-radio-gemini.wav" : "qazaq-radio.mp3"}
+                  download={engine === "gemini" ? "qazaq-radio-m3.wav" : "qazaq-radio.mp3"}
                 >
                   <span aria-hidden="true">↓</span>
                   {engine === "gemini" ? "下载 WAV" : "下载 MP3"}
@@ -1958,7 +1914,7 @@ export default function Home() {
                   {engine === "eleven"
                     ? "高质量音频生成后，播放器会出现在这里"
                     : engine === "gemini"
-                      ? "Gemini 哈萨克语音频生成后，播放器会出现在这里"
+                      ? "M3 单主播哈萨克语音频生成后，播放器会出现在这里"
                       : "免费增强音频生成后，播放器会出现在这里"}
                 </p>
               </div>
