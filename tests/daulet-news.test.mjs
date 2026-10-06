@@ -188,6 +188,21 @@ test("semantic presenter direction is small, deterministic and single-span",()=>
   assert.ok(plain.every(chunk=>chunk.pitchDelta===0 && chunk.volumeDelta===0));
 });
 
+test("a raised user pitch remains common across differently directed news chunks",()=>{
+  const prepared=prepareDauletNewsText([
+    "Бірінші. Қазақстан өкілдері жаңа мәлімет ұсынды.",
+    "Көрсеткіш он бес пайыз деңгейінде қалыптасты.",
+    "Нәтижесінде мәжіліс аяқталды."
+  ].join("\n\n"));
+  const chunks=planDauletNewsChunks(prepared,1,true,true);
+  assert.equal(chunks.length,3);
+  for(const pitch of [5.82,10.82,15.82]) {
+    const values=chunks.map(c=>dauletNewsSsml(c,pitch,0).match(/pitch="([^"]+)"/)[1]);
+    assert.deepEqual(values,Array(3).fill(`+${pitch.toFixed(2)}%`));
+    for(const c of chunks)assert.equal((dauletNewsSsml(c,pitch,0).match(/<prosody/g)||[]).length,1);
+  }
+});
+
 function tone(freq=180,seconds=1,amplitude=0.25) {
   const out=new Int16Array(24000*seconds);
   for(let i=0;i<out.length;i++)out[i]=Math.round(Math.sin(2*Math.PI*freq*i/24000)*amplitude*32767);
@@ -365,28 +380,33 @@ test("normal moving male pitch stays outside adjacent-pulse processing",()=>{
   assert.equal(out.metrics.maxAdjacentPulseMix,0);
   assert.equal(out.metrics.durationSeconds,4);
 });
-test("a constant male body stays stable when intermittent low pulses toggle the correction",()=>{
-  const data=new Int16Array(24000*6);
-  for(let i=0;i<data.length;i++){
-    const phase=2*Math.PI*130*i/24000,active=Math.floor(i/24000)%2===1;
-    const x=.13*Math.sin(phase)+.06*Math.sin(phase*2)+.025*Math.sin(2*Math.PI*4000*i/24000)
-      +(active ? .03*Math.sin(phase/2)+.02*Math.sin(phase*1.5)+.015*Math.sin(phase*2.5) : 0);
-    data[i]=Math.round(x*32767);
-  }
-  const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
-  const out=processor.finish(),x=out.pieces[0],body=[];
-  for(let second=1;second<6;second++){
-    const start=second*24000+12000,end=second*24000+21600;let real=0,imaginary=0;
-    for(let i=start;i<end;i++){
-      real+=x[i]*Math.cos(2*Math.PI*130*i/24000);
-      imaginary+=x[i]*Math.sin(2*Math.PI*130*i/24000);
+test("normal and raised male bodies stay stable when intermittent low pulses change the correction branch",()=>{
+  // Cover both the adjacent-pulse and bell-only branches. The old 130 Hz-only
+  // case missed shoulder attenuation around the raised 140/150 Hz body.
+  for(const frequency of [110,120,130,140,150,160]) {
+    const data=new Int16Array(24000*6);
+    for(let i=0;i<data.length;i++){
+      const phase=2*Math.PI*frequency*i/24000,active=Math.floor(i/24000)%2===1;
+      const x=.13*Math.sin(phase)+.06*Math.sin(phase*2)+.025*Math.sin(2*Math.PI*4000*i/24000)
+        +(active ? .03*Math.sin(phase/2)+.02*Math.sin(phase*1.5)+.015*Math.sin(phase*2.5) : 0);
+      data[i]=Math.round(x*32767);
     }
-    body.push(2*Math.hypot(real,imaginary)/(end-start));
+    const processor=new DauletNewsProcessor();processor.addPcm(data.buffer,"end");
+    const out=processor.finish(),x=out.pieces[0],body=[];
+    for(let second=1;second<6;second++){
+      const start=second*24000+12000,end=second*24000+21600;let real=0,imaginary=0;
+      for(let i=start;i<end;i++){
+        real+=x[i]*Math.cos(2*Math.PI*frequency*i/24000);
+        imaginary+=x[i]*Math.sin(2*Math.PI*frequency*i/24000);
+      }
+      body.push(2*Math.hypot(real,imaginary)/(end-start));
+    }
+    assert.ok(20*Math.log10(Math.max(...body)/Math.min(...body))<.25,`constant ${frequency} Hz body changes with the pulse control`);
+    assert.ok(out.metrics.confirmedPulseFrames>50,"test did not engage the correction");
+    assert.ok(out.metrics.maxLowPulseCutDb>1.5,"test did not engage the low-pulse treatment");
+    if([110,130,140,150].includes(frequency))assert.ok(out.metrics.maxLowPulseCutDb>5,"strong low-pulse treatment was weakened instead of isolated");
+    assert.equal(out.metrics.durationSeconds,6);
   }
-  assert.ok(20*Math.log10(Math.max(...body)/Math.min(...body))<.25,"constant body changes with the pulse control");
-  assert.ok(out.metrics.confirmedPulseFrames>50,"test did not engage the correction");
-  assert.ok(out.metrics.maxLowPulseCutDb>5,"low-pulse treatment was weakened instead of isolated");
-  assert.equal(out.metrics.durationSeconds,6);
 });
 test("bounded synthesis concurrency preserves source order, even out-of-order replies",async()=>{
   const chunks=[0,1,2,3,4].map(n=>({text:String(n),boundary:n===4?"end":"sentence",rate:1}));

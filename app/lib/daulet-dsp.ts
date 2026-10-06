@@ -461,11 +461,13 @@ export class DauletNewsProcessor {
       // frequency; fixed parallel subtraction missed many 48–83 Hz candidates.
       // Refresh every 10 ms, with coefficients ramped over those same samples.
       if ((this.sampleCursor-1) % (SR/100)===0) {
-        // A slow-pulse cut must not pull down the neighbouring normal male
-        // body harmonic whenever detection toggles. Narrow the bell while
-        // retaining its centre, depth and the existing odd-pulse treatment.
-        this.pulseBell.set(this.trackedPitch,3.2,pulseCut);
-        this.harmonicBell.set(this.trackedPitch*3,2.5,harmonicCut);
+        // Both bells have shoulders towards the second/body harmonic. When
+        // alternation evidence drops, the bell-only branch has a larger cut
+        // budget; broad shoulders then colour a raised male voice differently.
+        // Protect that neighbouring harmonic in either branch, keeping the
+        // tracked centres and centre-depth budgets rather than shifting pitch.
+        this.pulseBell.set(this.trackedPitch,6,pulseCut);
+        this.harmonicBell.set(this.trackedPitch*3,5,harmonicCut);
       }
       x=this.adjacentPulse.tick(x,this.trackedPitch,this.adjacentMix);
       x=this.harmonicBell.tick(this.pulseBell.tick(x));
