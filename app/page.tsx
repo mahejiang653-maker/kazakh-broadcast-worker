@@ -84,15 +84,24 @@ type GeminiVoice = {
   context?: string;
   language?: string;
   description?: string;
+  type?: string;
+};
+
+const M3_CURRENT_ANCHOR: GeminiVoice = {
+  id: M3_ANCHOR_TOKEN,
+  name: "M3 V2 当前专属主播",
+  gender: "male",
+  pitch: "medium",
+  language: "kk-KZ",
+  type: "prompted",
+  description: "当前专属持久声纹 · 较成熟偏厚；可切换下方其他男声",
 };
 
 const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [
-  { id: "Gacrux", name: "Gacrux", gender: "male", description: "Mature · 成熟稳重" },
-  { id: "Charon", name: "Charon", gender: "male", description: "Informative · 资讯播报" },
-  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", description: "Informative · 稳健资讯" },
-  { id: "Schedar", name: "Schedar", description: "Even · 平稳一致" },
-  { id: "Alnilam", name: "Alnilam", gender: "male", description: "Firm · 坚定清晰" },
-  { id: "Sulafat", name: "Sulafat", description: "Warm · 温暖自然" },
+  { id: "Gacrux", name: "Gacrux", gender: "male", pitch: "medium", type: "prebuilt", description: "Mature · 成熟稳重" },
+  { id: "Charon", name: "Charon", gender: "male", pitch: "medium", type: "prebuilt", description: "Informative · 资讯播报" },
+  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", pitch: "medium", type: "prebuilt", description: "Informative · 稳健资讯" },
+  { id: "Alnilam", name: "Alnilam", gender: "male", pitch: "medium", type: "prebuilt", description: "Firm · 坚定清晰" },
 ];
 
 const PRESETS = [
@@ -331,10 +340,14 @@ export default function Home() {
     "gemini-3.8-flash-tts",
   );
   const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
+    M3_CURRENT_ANCHOR,
     ...GEMINI_FALLBACK_VOICES,
   ]);
   const [isLoadingGeminiVoices, setIsLoadingGeminiVoices] = useState(false);
   const [geminiVoiceWarning, setGeminiVoiceWarning] = useState("");
+  const [geminiMaleVoiceCount, setGeminiMaleVoiceCount] = useState(0);
+  const [geminiVoiceSearch, setGeminiVoiceSearch] = useState("");
+  const [geminiPitchFilter, setGeminiPitchFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
@@ -369,6 +382,28 @@ export default function Home() {
     () => geminiVoices.find((item) => item.id === voice) ?? null,
     [geminiVoices, voice],
   );
+
+  const filteredGeminiVoices = useMemo(() => {
+    const query = geminiVoiceSearch.trim().toLowerCase();
+    return geminiVoices.filter((item) => {
+      if (item.id === M3_ANCHOR_TOKEN) return geminiPitchFilter === "all" && !query;
+      if (geminiPitchFilter !== "all" && item.pitch !== geminiPitchFilter) return false;
+      if (!query) return true;
+      const haystack = [
+        item.name,
+        item.description,
+        item.accent,
+        item.context,
+        item.language,
+        item.pitch,
+        item.type,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [geminiVoices, geminiVoiceSearch, geminiPitchFilter]);
 
   const selectedPreset = useMemo(
     () => PRESETS.find((item) => item.id === preset) ?? PRESETS[0],
@@ -622,26 +657,45 @@ export default function Home() {
     try {
       const response = await fetch("/api/gemini-voices", { method: "POST" });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; warning?: string; voices?: GeminiVoice[] }
+        | {
+            error?: string;
+            warning?: string;
+            voices?: GeminiVoice[];
+            totalMaleVoices?: number;
+          }
         | null;
-      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 声线。");
+      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 男声库。");
 
-      const voices = Array.isArray(payload?.voices) && payload.voices.length
+      const catalog = Array.isArray(payload?.voices) && payload.voices.length
         ? payload.voices
         : GEMINI_FALLBACK_VOICES;
+      const seen = new Set<string>();
+      const voices = [M3_CURRENT_ANCHOR, ...catalog].filter((item) => {
+        if (!item.id || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+
       setGeminiVoices(voices);
+      setGeminiMaleVoiceCount(
+        typeof payload?.totalMaleVoices === "number"
+          ? payload.totalMaleVoices
+          : catalog.length,
+      );
       setGeminiVoiceWarning(payload?.warning || "");
       setVoice((current) =>
-        voices.some((item) => item.id === current) ? current : voices[0].id,
+        voices.some((item) => item.id === current) ? current : M3_ANCHOR_TOKEN,
       );
     } catch (caught) {
-      setGeminiVoices([...GEMINI_FALLBACK_VOICES]);
+      const voices = [M3_CURRENT_ANCHOR, ...GEMINI_FALLBACK_VOICES];
+      setGeminiVoices(voices);
+      setGeminiMaleVoiceCount(GEMINI_FALLBACK_VOICES.length);
       setGeminiVoiceWarning(
         caught instanceof Error
-          ? `${caught.message} 已回退到内置 Studio 声线。`
-          : "读取 Gemini 声线失败，已回退到内置 Studio 声线。",
+          ? `${caught.message} 已回退到内置已确认男声。`
+          : "读取 Gemini 男声库失败，已回退到内置已确认男声。",
       );
-      setVoice(GEMINI_FALLBACK_VOICES[0].id);
+      setVoice(M3_ANCHOR_TOKEN);
     } finally {
       setIsLoadingGeminiVoices(false);
     }
@@ -665,6 +719,10 @@ export default function Home() {
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
       void loadElevenVoices();
+    }
+
+    if (nextEngine === "gemini") {
+      void loadGeminiVoices();
     }
 
     if (nextEngine === "omnivoice" || nextEngine === "piper") {
@@ -756,7 +814,7 @@ export default function Home() {
           ? {
               text: cleanText,
               model: geminiModel,
-              voice: M3_ANCHOR_TOKEN,
+              voice,
               preset,
               speed,
             }
