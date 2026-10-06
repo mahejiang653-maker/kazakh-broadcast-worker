@@ -5,22 +5,35 @@ import fs from "node:fs";
 const route = fs.readFileSync(new URL("../app/api/gemini-tts/route.ts", import.meta.url), "utf8");
 const page = fs.readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 
-test("M3 is server-locked to one fixed male anchor", () => {
-  assert.match(route, /const M3_FIXED_VOICE = "Gacrux";/);
-  assert.match(route, /const voice = M3_FIXED_VOICE;/);
-  assert.doesNotMatch(route, /sanitizeVoice\(body\.voice\)/);
-  assert.match(route, /"X-M3-Single-Speaker": "true"/);
-  assert.match(route, /"X-M3-Anchor": "fixed-male"/);
+test("M3 resolves one persistent Google-managed voice identity", () => {
+  assert.match(route, /const M3_VOICE_DISPLAY_NAME = "QAZAQ M3 Anchor v2";/);
+  assert.match(route, /type: "prompted"/);
+  assert.match(route, /store: true/);
+  assert.match(route, /language_code: "kk-KZ"/);
+  assert.match(route, /gender: "male"/);
+  assert.match(route, /cachedM3VoiceId/);
+  assert.match(route, /item\.id\?\.startsWith\("voice_"\)/);
+  assert.match(route, /created\.id\?\.startsWith\("voice_"\)/);
 });
 
-test("M3 uses a single speech_config voice per chunk", () => {
+test("M3 synthesis reuses the persistent voice_ ID as single-speaker speech_config", () => {
+  assert.match(route, /const voice = await resolveM3Voice\(apiKey\);/);
   assert.match(route, /speech_config:\s*\[\{ voice \}\]/);
-  assert.match(route, /Never introduce, imitate, alternate with, or imply a second speaker/);
-  assert.match(route, /Treat every chunk as a continuation of the same uninterrupted studio session/);
+  assert.match(route, /"X-M3-Single-Speaker": "true"/);
+  assert.match(route, /"X-M3-Voice-Source": "persistent-voice-design"/);
+  assert.doesNotMatch(route, /M3_SINGLE_SPEAKER_PROFILE/);
+  assert.doesNotMatch(route, /Maintain the same speaker identity/);
 });
 
-test("M3 UI communicates one anchor from opening through item thirteen and closing", () => {
+test("M3 minimizes chunk resets for normal daily scripts", () => {
+  assert.match(route, /if \(speed <= 0\.94\) return 6200;/);
+  assert.match(route, /return 7000;/);
+  assert.match(route, /splitLongText\(prepared, maxChunkCharactersForSpeed\(speed\)\)/);
+});
+
+test("M3 UI communicates one persistent anchor from opening through item thirteen and closing", () => {
   assert.match(page, /M3 · 固定男性主播/);
   assert.match(page, /开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾/);
-  assert.match(page, /voice: M3_FIXED_VOICE/);
+  assert.match(page, /持久 voice_ 声纹 ID/);
+  assert.match(page, /voice: M3_ANCHOR_TOKEN/);
 });

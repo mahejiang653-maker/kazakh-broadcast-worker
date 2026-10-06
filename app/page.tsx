@@ -60,7 +60,7 @@ const EDGE_VOICES = [
   },
 ] as const;
 
-const M3_FIXED_VOICE = "Gacrux";
+const M3_ANCHOR_TOKEN = "m3-persistent-anchor";
 
 const GEMINI_MODELS = [
   {
@@ -656,7 +656,7 @@ export default function Home() {
         : nextEngine === "eleven"
           ? elevenVoices[0]?.id ?? ""
           : nextEngine === "gemini"
-            ? M3_FIXED_VOICE
+            ? M3_ANCHOR_TOKEN
             : "",
     );
     setError("");
@@ -756,7 +756,7 @@ export default function Home() {
           ? {
               text: cleanText,
               model: geminiModel,
-              voice: M3_FIXED_VOICE,
+              voice: M3_ANCHOR_TOKEN,
               preset,
               speed,
             }
@@ -1735,7 +1735,7 @@ export default function Home() {
                 <div className="broadcast-index">M3</div>
                 <div>
                   <strong>M3 固定单主播 · 哈萨克男性</strong>
-                  <p>主播声线已锁定为同一个成熟男性声线。开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾，全程只允许这一位主播；引用、引语和新闻人物发言也不会切换成第二个人声。</p>
+                  <p>主播不再使用容易跨请求漂移的普通预设声线。首次生成时会创建并保存一个专属的持久 voice_ 声纹 ID；之后开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾，以及所有长稿分段，都只复用这一枚声纹。</p>
                 </div>
               </div>
 
@@ -1767,7 +1767,7 @@ export default function Home() {
                 <div className="broadcast-index">G</div>
                 <div>
                   <strong>M3 · 固定哈萨克男性主播</strong>
-                  <p>默认使用 24 kHz WAV。15,000 字长稿会自动按自然边界分段并合并；每一段都强制使用同一个男性 voice ID 和同一套主播人格参数。Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。Flash 优先音质与长稿稳定，Flash-Lite 优先速度与成本。</p>
+                  <p>默认使用 24 kHz WAV。M3 现在使用 Google Voice Design 生成的持久 voice_ 声纹，而不是每段重新依赖预设声线；普通 5800–6000 字新闻稿在常用倍速下优先一次生成，超长稿才分段，并继续复用同一 voice_ ID。Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。</p>
                 </div>
               </div>
             </>
@@ -1867,7 +1867,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "固定单主播 + 新闻风格 + 编号停顿 + 长稿同声线连续 · 生成后可试听并下载 24 kHz WAV"
+                      ? "持久 voice_ 单主播 + 新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
