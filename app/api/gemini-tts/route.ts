@@ -71,6 +71,7 @@ type GeminiVoice = {
   displayName?: string;
   type?: string;
   gender?: string;
+  language_code?: string;
 };
 
 type GeminiVoiceListPayload = {
@@ -301,6 +302,7 @@ async function listMaleVoiceIds(apiKey: string) {
   }
 
   const url = new URL(GEMINI_VOICES_ENDPOINT);
+  url.searchParams.append("language_code", "kk-KZ");
   url.searchParams.append("gender", "male");
   url.searchParams.set("page_size", "1000");
 
@@ -320,7 +322,7 @@ async function listMaleVoiceIds(apiKey: string) {
   const payload = (await response.json()) as GeminiVoiceListPayload;
   const ids = new Set(
     (payload.voices ?? [])
-      .filter((item) => item.gender?.trim().toLowerCase() === "male")
+      .filter((item) => item.gender?.trim().toLowerCase() === "male" && item.language_code?.trim().toLowerCase() === "kk-kz")
       .flatMap((item) => (item.id?.trim() ? [item.id.trim()] : [])),
   );
 
