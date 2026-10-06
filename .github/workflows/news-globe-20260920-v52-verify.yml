@@ -6,6 +6,9 @@ on:
       - 'public/news-globe-data-20260920-v52-r1.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'public/news-globe-v14-v52-camera-breathing-room.js'
+      - 'public/news-globe-v52-screen-collision-hotfix.js'
+      - 'public/news-globe-v52-flags-overview-clean.js'
+      - 'tests/r6-overlay-lifecycle.test.mjs'
       - '.github/scripts/verify-20260920-v52.mjs'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
   workflow_dispatch:
@@ -21,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - name: Check current R6 entry
-        run: node --test tests/r6-entry.test.mjs
+        run: node --test tests/r6-entry.test.mjs tests/r6-overlay-lifecycle.test.mjs
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
       - name: Verify this commit after CI deployment
         run: node .github/scripts/verify-20260920-v52.mjs

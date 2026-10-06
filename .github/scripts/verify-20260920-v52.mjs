@@ -47,6 +47,8 @@ function inspect(){
     overview:G.overviewMode,entities:G.viewer.entities.values.length,
     sceneEntities:['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'].reduce((sum,k)=>sum+(G[k]?.length||0),0),
     markersVisible:[...(G.markers||[]),...(G.pulses||[])].filter(e=>e.show!==false).length,
+    collision:G.v52ScreenCollision?.getDiagnostics(),cleanup:G.v52OverviewCleanup?.getDiagnostics(),
+    pointEntities:G.viewer.entities.values.filter(e=>e.point).length,labelEntities:G.viewer.entities.values.filter(e=>e.label).length,
     pending:window.__R6_QA_PENDING__?.()};
 }
 async function settled(index){
@@ -72,6 +74,10 @@ async function settled(index){
   assert.ok(Math.abs(state.aspect-16/9)<.01&&state.canvasFits,'Viewport/canvas mismatch');
   assert.ok(state.controlsOutside&&state.logoOutside&&!state.overflow,'UI bounds failed');
   assert.deepEqual(state.duplicateIds,[],'Duplicate DOM ids');
+  assert.equal(state.collision?.indexedPoints,state.pointEntities,'Point index lost or retained an entity');
+  assert.equal(state.collision?.indexedLabels,state.labelEntities,'Label index lost or retained an entity');
+  assert.equal(state.collision?.disposed,false,'Collision listener disposed during an active page');
+  assert.equal(state.cleanup?.pendingTimers,0,'Overview cleanup still scheduled in a story');
   return state;
 }
 try{
@@ -118,10 +124,18 @@ try{
     report.checks.push({name:'viewport-'+width+'x'+height,state:await settled((12+20)%13)});
     await page.screenshot({path:dir+'/viewport-'+width+'x'+height+'.png',fullPage:true});
   }
+  for(let i=0;i<8;i++)await page.locator('#all').click();
+  const replacedOverview=await page.evaluate(inspect);
+  assert.ok(replacedOverview.cleanup.pendingTimers<=9,'Repeated overview requests accumulated cleanup jobs');
+  await page.locator('#next').click();
+  report.checks.push({name:'eight-overviews-then-story',state:await settled((12+21)%13)});
   await page.locator('#all').click();
   await page.waitForTimeout(5500); // R6's existing overview cleanup schedules work through 5 seconds.
   const overview=await page.evaluate(inspect);
   assert.equal(overview.overview,true);assert.equal(overview.sceneEntities,0);assert.equal(overview.markersVisible,0);
+  assert.equal(overview.cleanup.pendingTimers,0,'Final overview cleanup jobs did not drain');
+  assert.equal(overview.collision.indexedPoints,overview.pointEntities);
+  assert.equal(overview.collision.indexedLabels,overview.labelEntities);
   await page.screenshot({path:dir+'/overview.png',fullPage:true});
   report.checks.push({name:'overview-cleanup',state:overview});
   assert.deepEqual(report.errors,[]);

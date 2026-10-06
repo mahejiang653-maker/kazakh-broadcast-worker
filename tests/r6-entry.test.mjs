@@ -49,6 +49,9 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v14-v52-camera-breathing-room.js') < names.indexOf(dataPath));
   assert.ok(names.indexOf(dataPath) < names.indexOf('/news-globe-v14-main.js'));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
+  for (const name of ['news-globe-v52-screen-collision-hotfix.js', 'news-globe-v52-flags-overview-clean.js']) {
+    assert.ok(scripts.includes(`/${name}?v=20261007-r6-overlay-lifecycle`),'Updated overlay must bypass its old cache key');
+  }
 });
 
 test('a future edition updates the entry without a loader edit', async () => {
