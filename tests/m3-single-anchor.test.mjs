@@ -12,7 +12,7 @@ test("M3 resolves one persistent Google-managed voice identity", () => {
   assert.match(route, /language_code: "kk-KZ"/);
   assert.match(route, /gender: "male"/);
   assert.match(route, /cachedM3VoiceId/);
-  assert.match(route, /existing\.id\?\.startsWith\("voice_"\)/);
+  assert.match(route, /item\.id\?\.startsWith\("voice_"\)/);
   assert.match(route, /created\.id\?\.startsWith\("voice_"\)/);
 });
 
