@@ -1,40 +1,29 @@
-const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
+const NAMED_MALE_STUDIO_VOICES = [
+  { id: "Iapetus", name: "Iapetus", gender: "male", description: "Clear · 清晰，建议先试" },
+  { id: "Schedar", name: "Schedar", gender: "male", description: "Even · 平稳，建议先试" },
+  { id: "Achird", name: "Achird", gender: "male", description: "Friendly · 亲和，建议先试" },
+  { id: "Charon", name: "Charon", gender: "male", description: "Informative · 资讯播报" },
+  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", description: "Informative · 资讯播报" },
+  { id: "Algieba", name: "Algieba", gender: "male", description: "Smooth · 顺滑" },
+  { id: "Alnilam", name: "Alnilam", gender: "male", description: "Firm · 坚定" },
+  { id: "Orus", name: "Orus", gender: "male", description: "Firm · 坚定" },
+  { id: "Umbriel", name: "Umbriel", gender: "male", description: "Easy-going · 轻松自然" },
+  { id: "Zubenelgenubi", name: "Zubenelgenubi", gender: "male", description: "Casual · 日常自然" },
+  { id: "Sadaltager", name: "Sadaltager", gender: "male", description: "Knowledgeable · 知识型" },
+  { id: "Puck", name: "Puck", gender: "male", description: "Upbeat · 明快" },
+  { id: "Sadachbia", name: "Sadachbia", gender: "male", description: "Lively · 活泼" },
+  { id: "Enceladus", name: "Enceladus", gender: "male", description: "Breathy · 气声" },
+  { id: "Fenrir", name: "Fenrir", gender: "male", description: "Excitable · 激昂" },
+  { id: "Algenib", name: "Algenib", gender: "male", description: "Gravelly · 沙哑粗粝" },
+];
 
-const FALLBACK_VOICES: never[] = [];
-
-type GeminiVoicePayload = {
-  voices?: Array<{
-    id?: string;
-    name?: string;
-    display_name?: string;
-    displayName?: string;
-    gender?: string;
-    pitch?: string;
-    accent?: string;
-    description?: string;
-    language_code?: string;
-    languageCode?: string;
-    context?: string | string[];
-    contexts?: string[];
-    persona?: string | string[];
-    type?: string;
-  }>;
-  next_page_token?: string;
-  nextPageToken?: string;
-};
-
-function asText(value: string | string[] | undefined) {
-  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
-  return value?.trim() || "";
-}
-
-function fallbackResponse(warning?: string) {
+export async function POST() {
   return Response.json(
     {
-      voices: FALLBACK_VOICES,
-      totalMaleVoices: 0,
-      catalogAvailable: false,
-      warning: warning || "",
+      voices: NAMED_MALE_STUDIO_VOICES,
+      totalMaleVoices: NAMED_MALE_STUDIO_VOICES.length,
+      catalogAvailable: true,
+      warning: "",
     },
     {
       headers: {
@@ -43,83 +32,4 @@ function fallbackResponse(warning?: string) {
       },
     },
   );
-}
-
-export async function POST() {
-  const apiKey = (process.env.GEMINI_API_KEY ?? "").trim();
-  if (!apiKey) {
-    return fallbackResponse("尚未配置 GEMINI_API_KEY，无法读取 kk-KZ 哈萨克男声目录。");
-  }
-
-  // Google Voices API supports up to 1000 voices per page. Request the full
-  // male catalog without language/context restrictions so the user can choose
-  // among Studio and Extended Voice Library voices.
-  const url = new URL(GEMINI_VOICES_ENDPOINT);
-  url.searchParams.append("language_code", "kk-KZ");
-  url.searchParams.append("gender", "male");
-  url.searchParams.set("page_size", "1000");
-
-  try {
-    const response = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        "x-goog-api-key": apiKey,
-        Accept: "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      return fallbackResponse(
-        `暂时无法读取 Gemini kk-KZ 哈萨克男声目录（${response.status}）${detail ? "。" : "。"}`,
-      );
-    }
-
-    const payload = (await response.json()) as GeminiVoicePayload;
-    const seen = new Set<string>();
-    const voices = (payload.voices ?? []).flatMap((item) => {
-      const id = item.id?.trim();
-      const gender = item.gender?.trim().toLowerCase();
-      const language = item.language_code?.trim() || item.languageCode?.trim() || "";
-      if (!id || gender !== "male" || language.toLowerCase() !== "kk-kz" || seen.has(id)) return [];
-      seen.add(id);
-      return [{
-        id,
-        name: item.display_name?.trim() || item.displayName?.trim() || item.name?.trim() || id,
-        gender: "male",
-        pitch: item.pitch?.trim().toLowerCase() || "",
-        accent: item.accent?.trim() || "",
-        context: asText(item.contexts ?? item.context),
-        language,
-        description: item.description?.trim() || asText(item.persona),
-        type: item.type?.trim().toLowerCase() || "",
-      }];
-    });
-
-    const pitchRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
-    voices.sort((a, b) => {
-      const aPitch = pitchRank[a.pitch] ?? 3;
-      const bPitch = pitchRank[b.pitch] ?? 3;
-      if (aPitch !== bPitch) return aPitch - bPitch;
-      return a.name.localeCompare(b.name, "en");
-    });
-
-    return Response.json(
-      {
-        voices,
-        totalMaleVoices: voices.length,
-        catalogAvailable: true,
-        warning: "",
-      },
-      {
-        headers: {
-          "Cache-Control": "no-store",
-          "X-Content-Type-Options": "nosniff",
-        },
-      },
-    );
-  } catch (error) {
-    console.error("Failed to load Gemini male voices", error);
-    return fallbackResponse("读取 Gemini kk-KZ 哈萨克男声目录失败。");
-  }
 }
