@@ -11,8 +11,25 @@ const M3_VOICE_DESIGN_PROMPT =
   "A native Kazakh male television and radio news anchor in his 30s to early 40s. Mature but not old, medium-low natural pitch, clear standard Kazakh pronunciation, steady newsroom delivery, warm natural chest resonance, restrained emotion, crisp consonants, clean Kazakh vowels, moderate pace, gentle sentence endings, no exaggerated bass, no breathy acting, no theatrical character performance.";
 
 let cachedM3VoiceId: string | null = null;
-let cachedMaleVoiceIds: Set<string> | null = null;
-let cachedMaleVoiceIdsAt = 0;
+
+const NAMED_MALE_STUDIO_VOICES = new Set([
+  "Achird",
+  "Algenib",
+  "Algieba",
+  "Alnilam",
+  "Charon",
+  "Enceladus",
+  "Fenrir",
+  "Iapetus",
+  "Orus",
+  "Puck",
+  "Rasalgethi",
+  "Sadachbia",
+  "Sadaltager",
+  "Schedar",
+  "Umbriel",
+  "Zubenelgenubi",
+]);
 
 const ALLOWED_MODELS = new Set([
   "gemini-3.8-flash-tts",
@@ -295,42 +312,6 @@ async function resolveM3Voice(apiKey: string) {
 }
 
 
-async function listMaleVoiceIds(apiKey: string) {
-  const now = Date.now();
-  if (cachedMaleVoiceIds && now - cachedMaleVoiceIdsAt < 10 * 60 * 1000) {
-    return cachedMaleVoiceIds;
-  }
-
-  const url = new URL(GEMINI_VOICES_ENDPOINT);
-  url.searchParams.append("language_code", "kk-KZ");
-  url.searchParams.append("gender", "male");
-  url.searchParams.set("page_size", "1000");
-
-  const response = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      "x-goog-api-key": apiKey,
-      Accept: "application/json",
-    },
-  });
-
-  if (!response.ok) {
-    const detail = await readErrorDetail(response);
-    throw new Error(`无法验证 Gemini 男声目录（${response.status}）：${detail}`);
-  }
-
-  const payload = (await response.json()) as GeminiVoiceListPayload;
-  const ids = new Set(
-    (payload.voices ?? [])
-      .filter((item) => item.gender?.trim().toLowerCase() === "male" && item.language_code?.trim().toLowerCase() === "kk-kz")
-      .flatMap((item) => (item.id?.trim() ? [item.id.trim()] : [])),
-  );
-
-  cachedMaleVoiceIds = ids;
-  cachedMaleVoiceIdsAt = now;
-  return ids;
-}
-
 async function resolveSelectedM3Voice(apiKey: string, requestedVoice: string) {
   if (!requestedVoice || requestedVoice === M3_ANCHOR_TOKEN) {
     return {
@@ -339,14 +320,13 @@ async function resolveSelectedM3Voice(apiKey: string, requestedVoice: string) {
     };
   }
 
-  const maleVoiceIds = await listMaleVoiceIds(apiKey);
-  if (!maleVoiceIds.has(requestedVoice)) {
-    throw new Error("所选 Gemini 声线不存在、已失效或不是男性声线，请刷新男声列表后重新选择。");
+  if (!NAMED_MALE_STUDIO_VOICES.has(requestedVoice)) {
+    throw new Error("所选 Gemini 角色不是官方命名男声，请重新选择。");
   }
 
   return {
     id: requestedVoice,
-    source: requestedVoice.startsWith("voice_") ? "stored-male-voice" : "catalog-male-voice",
+    source: "named-male-studio-voice",
   };
 }
 
