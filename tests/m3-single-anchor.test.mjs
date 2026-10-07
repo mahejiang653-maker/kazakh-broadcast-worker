@@ -280,3 +280,13 @@ test("M3 UI is hard-isolated from Edge emotion, VibeVoice and Fish S2 controls",
   }
   assert.equal(page.includes('name: "M3 V2 当前专属主播"'), false);
 });
+
+
+test("M3 no longer has an application-side 12-minute audio cutoff", async () => {
+  const pipeline = await readFile("app/lib/m3-pipeline.ts", "utf8");
+  assert.equal(pipeline.includes("720 * 48000"), false);
+  assert.equal(pipeline.includes("M3_AUDIO_SIZE_LIMIT"), false);
+  assert.equal(pipeline.includes("Gemini 音频超过本轮安全大小上限"), false);
+  assert.ok(pipeline.includes('candidate.finishReason === "MAX_TOKENS"'));
+  assert.ok(pipeline.includes("Gemini 输出达到模型单次长度上限"));
+});
