@@ -1792,9 +1792,108 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 固定单主播 · 哈萨克男性</strong>
-                  <p>主播不再使用容易跨请求漂移的普通预设声线。首次生成时会创建并保存一个专属的持久 voice_ 声纹 ID；之后开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾，以及所有长稿分段，都只复用这一枚声纹。</p>
+                  <strong>M3 固定单主播 · 哈萨克男声可选</strong>
+                  <p>这里只加载 Gemini 3.8 中标记为 kk-KZ + male 的哈萨克男声。先选一个主播，再生成整篇；开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾始终只使用当前选中的这一个 voice ID。</p>
                 </div>
+              </div>
+
+              <div className="field-block">
+                <div className="field-label-row">
+                  <label htmlFor="gemini-male-voice">选择哈萨克男主播</label>
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() => void loadGeminiVoices()}
+                    disabled={isLoadingGeminiVoices}
+                  >
+                    {isLoadingGeminiVoices ? "读取中…" : "刷新哈萨克男声"}
+                  </button>
+                </div>
+
+                <div className="textarea-wrap" style={{ padding: "14px 17px 12px" }}>
+                  <input
+                    aria-label="搜索哈萨克男声"
+                    type="search"
+                    value={geminiVoiceSearch}
+                    onChange={(event) => setGeminiVoiceSearch(event.target.value)}
+                    placeholder="搜索名称、风格、口音…"
+                    style={{
+                      width: "100%",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      outline: 0,
+                      padding: "11px 12px",
+                      background: "transparent",
+                      color: "var(--ink)",
+                      fontSize: 14,
+                    }}
+                  />
+
+                  <div className="preset-grid" style={{ marginTop: 12 }}>
+                    {([
+                      ["all", "全部", "全部哈萨克男声"],
+                      ["high", "偏细", "优先解决声音偏粗"],
+                      ["medium", "中等", "自然平衡"],
+                      ["low", "低沉", "更厚更稳"],
+                    ] as const).map(([value, label, note]) => (
+                      <button
+                        className={geminiPitchFilter === value ? "preset selected" : "preset"}
+                        type="button"
+                        key={value}
+                        onClick={() => setGeminiPitchFilter(value)}
+                        aria-pressed={geminiPitchFilter === value}
+                      >
+                        <strong>{label}</strong>
+                        <small>{note}</small>
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    id="gemini-male-voice"
+                    value={voice}
+                    disabled={isLoadingGeminiVoices}
+                    onChange={(event) => {
+                      setVoice(event.target.value);
+                      setError("");
+                      resetAudio();
+                    }}
+                    style={{
+                      width: "100%",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      outline: 0,
+                      marginTop: 12,
+                      padding: "13px 12px",
+                      background: "transparent",
+                      color: "var(--ink)",
+                      fontSize: 14,
+                    }}
+                  >
+                    {filteredGeminiVoices.length ? (
+                      filteredGeminiVoices.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                          {item.pitch ? ` · ${item.pitch === "high" ? "偏细" : item.pitch === "low" ? "低沉" : "中等"}` : ""}
+                          {item.description ? ` · ${item.description}` : ""}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={voice}>当前筛选没有结果</option>
+                    )}
+                  </select>
+
+                  <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
+                    <span>{geminiMaleVoiceCount ? `已读取 ${geminiMaleVoiceCount} 个 kk-KZ 哈萨克男声` : "等待读取哈萨克男声库"}</span>
+                    <span>{selectedGeminiVoice?.pitch === "high" ? "当前：偏细" : selectedGeminiVoice?.pitch === "low" ? "当前：低沉" : "当前：中等 / 未标注"}</span>
+                  </div>
+                </div>
+
+                {geminiVoiceWarning ? (
+                  <p style={{ margin: "8px 2px 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
+                    {geminiVoiceWarning}
+                  </p>
+                ) : null}
               </div>
 
               {speedControl("倍速调节")}
@@ -1824,8 +1923,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 固定哈萨克男性主播</strong>
-                  <p>默认使用 24 kHz WAV。M3 现在使用 Google Voice Design 生成的持久 voice_ 声纹，而不是每段重新依赖预设声线；普通 5800–6000 字新闻稿在常用倍速下优先一次生成，超长稿才分段，并继续复用同一 voice_ ID。Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。</p>
+                  <strong>M3 · 可选哈萨克男声 · 整篇锁定同一人</strong>
+                  <p>默认使用 24 kHz WAV。你选择哪一个 kk-KZ 男声，整篇和所有长稿分段都复用同一个 voice ID；不会按第一条、第二条等新闻自动换人。普通 5800–6000 字新闻稿仍优先一次生成，Бірінші、Екінші直到Он үшінші等编号后自动加入短停顿。</p>
                 </div>
               </div>
             </>
@@ -1915,7 +2014,7 @@ export default function Home() {
                       : "正在等待 ElevenLabs 声线"
                     : engine === "gemini"
                       ? voice
-                        ? `生成 M3 · ${geminiModel === "gemini-3.8-flash-tts" ? "Flash" : "Flash-Lite"} · 固定男主播 · ${speed.toFixed(2)}×`
+                        ? `生成 M3 · ${selectedGeminiVoice?.name || "哈萨克男主播"} · ${geminiModel === "gemini-3.8-flash-tts" ? "Flash" : "Flash-Lite"} · ${speed.toFixed(2)}×`
                         : "正在等待 M3 主播"
                       : `生成 Edge TTS · ${speed.toFixed(2)}×`}
               </strong>
@@ -1925,7 +2024,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "持久 voice_ 单主播 + 新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
+                      ? "所选 kk-KZ 男声整篇锁定 + 新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
