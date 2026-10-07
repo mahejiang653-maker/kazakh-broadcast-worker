@@ -1,4 +1,3 @@
-const GEMINI_INTERACTIONS_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/interactions";
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
 const MAX_CHARACTERS = 15000;
 const SAMPLE_RATE = 24000;
@@ -62,14 +61,20 @@ type GeminiErrorPayload = {
   };
 };
 
-type GeminiInteractionPayload = {
-  steps?: Array<{
-    type?: string;
-    content?: Array<{
-      type?: string;
-      data?: string;
-      mime_type?: string;
-    }>;
+type GeminiGenerateContentPayload = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        inlineData?: {
+          data?: string;
+          mimeType?: string;
+        };
+        inline_data?: {
+          data?: string;
+          mime_type?: string;
+        };
+      }>;
+    };
   }>;
 };
 
@@ -171,16 +176,14 @@ function strictSpeedStyle(speed: number) {
   return "";
 }
 
-function extractAudioBase64(payload: GeminiInteractionPayload) {
-  let data = "";
-  for (const step of payload.steps ?? []) {
-    for (const item of step.content ?? []) {
-      if (item.type === "audio" && typeof item.data === "string" && item.data.length) {
-        data = item.data;
-      }
+function extractAudioBase64(payload: GeminiGenerateContentPayload) {
+  for (const candidate of payload.candidates ?? []) {
+    for (const part of candidate.content?.parts ?? []) {
+      const data = part.inlineData?.data ?? part.inline_data?.data;
+      if (typeof data === "string" && data.length) return data;
     }
   }
-  return data;
+  return "";
 }
 
 function base64ToBytes(base64: string) {
@@ -338,46 +341,50 @@ async function synthesizeChunk(
   const timeout = setTimeout(() => controller.abort(), 110000);
 
   try {
-    const response = await fetch(GEMINI_INTERACTIONS_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: [
-          {
-            type: "user_input",
-            content: [
-              {
-                type: "text",
-                text,
-                ...(style
-                  ? {
-                      annotations: [
-                        {
-                          type: "speech_metadata",
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [
+                {
+                  text,
+                  ...(style
+                    ? {
+                        speech_metadata: {
                           style,
                         },
-                      ],
-                    }
-                  : {}),
+                      }
+                    : {}),
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            responseFormat: {
+              audio: {
+                mimeType: "AUDIO_L16",
+                sampleRate: SAMPLE_RATE,
               },
-            ],
+            },
+            speechConfig: {
+              voiceConfig: {
+                voice,
+              },
+            },
           },
-        ],
-        response_format: {
-          type: "audio",
-          mime_type: "audio/l16",
-          sample_rate: SAMPLE_RATE,
-        },
-        generation_config: {
-          speech_config: [{ voice, language: "kk-KZ" }],
-        },
-      }),
-      signal: controller.signal,
-    });
+        }),
+        signal: controller.signal,
+      },
+    );
 
     if (!response.ok) {
       const detail = await readErrorDetail(response);
@@ -390,7 +397,7 @@ async function synthesizeChunk(
       throw new Error(`Gemini TTS 第 ${chunkIndex + 1} 段生成失败（${response.status}）：${detail}`);
     }
 
-    const payload = (await response.json()) as GeminiInteractionPayload;
+    const payload = (await response.json()) as GeminiGenerateContentPayload;
     const audio = extractAudioBase64(payload);
     if (!audio) throw new Error(`Gemini TTS 第 ${chunkIndex + 1} 段没有返回音频。`);
     return base64ToBytes(audio);
@@ -463,8 +470,9 @@ export async function POST(request: Request) {
         "X-Gemini-TTS-Voice": voice,
         "X-M3-Single-Speaker": "true",
         "X-M3-Strict-Single-Speaker": "true",
-        "X-M3-Language": "kk-KZ",
+        "X-M3-Language": "auto-detect-kazakh",
         "X-M3-Dialogue-Cues-Stripped": "true",
+        "X-M3-TTS-API": "generateContent-voiceConfig",
         "X-M3-Voice-Source": resolvedVoice.source,
         "X-M3-Anchor": "fixed-male",
         "X-Gemini-TTS-Chunks": String(chunks.length),
