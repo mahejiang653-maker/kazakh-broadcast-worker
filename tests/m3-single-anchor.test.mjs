@@ -88,13 +88,20 @@ test("all 13 ordinal periods and one supported pause survive; names and quotatio
   }
   assert.equal(script.prepareM3Text("Төртінші. <angry>Мәлімет. [sad] [短停顿]"), "Төртінші. <short pause>\nМәлімет.  <short pause>");
 });
-test("the full 13-item script is kept whole when limits allow, and body never includes instructions", async () => {
+
+test("copy-paste blank paragraphs collapse to one newline before Gemini", () => {
+  const prepared = script.prepareM3Text("Алғы сөз.\n\n\nКелесі сөйлем.\n   \n\t\nСоңы.");
+  assert.equal(prepared, "Алғы сөз.\nКелесі сөйлем.\nСоңы.");
+  assert.equal(prepared.includes("\n\n"), false);
+});
+test("the full 13-item script is kept whole and 1.00x sends no style metadata", async () => {
   const calls = []; const result = await run({ text: fixture(), fetcher: mock(calls) });
   const tts = calls.filter(x => x.url.endsWith(":generateContent"));
   assert.equal(tts.length, 1); assert.equal(result.audit.strategy, "single");
   assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(fixture()));
   assert.equal(tts[0].body.generationConfig.speechConfig.voiceConfig.voice, "Puck");
-  assert.equal(tts[0].body.contents[0].parts[0].speechMetadata.style, script.m3Style(1));
+  assert.equal(script.m3Style(1), "");
+  assert.equal(tts[0].body.contents[0].parts[0].speechMetadata, undefined);
   assert.equal(tts[0].body.generationConfig.temperature, 0.5);
   assert.equal(result.wav.slice(0, 4).toString(), new Uint8Array([82, 73, 70, 70]).toString());
 });
@@ -109,18 +116,24 @@ test("a long manuscript is never grouped and still uses one full-program request
   assert.equal(result.audit.parts.length, 1);
   assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(fixture()));
 });
-test("speaker metadata is absent and the one voice cannot be replaced by a person in the text", () => {
+test("1.00x has no speech metadata and the one voice remains protocol-locked", () => {
   const request = script.m3RequestBody("Putin: «Сәлем». Donald Trump: «Hello».", "Puck", script.m3Style(1));
   assert.deepEqual(request.generationConfig.speechConfig, { voiceConfig: { voice: "Puck" } });
-  assert.equal(request.contents[0].parts[0].speechMetadata.speaker, undefined);
+  assert.equal(request.contents[0].parts[0].speechMetadata, undefined);
   assert.equal(request.contents.length, 1);
 });
-test("0.95, 1.00 and 1.05 preserve voice/config and have a fixed explicit rate for the whole program", () => {
-  for (const speed of [0.95, 1, 1.05]) {
-    const a = script.m3RequestBody("А.", "Puck", script.m3Style(speed)), b = script.m3RequestBody("Б.", "Puck", script.m3Style(speed));
+test("1.00x uses empty style; non-default speeds use only a tiny rate hint", () => {
+  const normal = script.m3RequestBody("А.", "Puck", script.m3Style(1));
+  assert.equal(script.m3Style(1), "");
+  assert.equal(normal.contents[0].parts[0].speechMetadata, undefined);
+
+  for (const speed of [0.95, 1.05]) {
+    const style = script.m3Style(speed);
+    const a = script.m3RequestBody("А.", "Puck", style), b = script.m3RequestBody("Б.", "Puck", style);
     assert.deepEqual(a.generationConfig, b.generationConfig);
     assert.equal(a.contents[0].parts[0].speechMetadata.style, b.contents[0].parts[0].speechMetadata.style);
-    assert.ok(a.contents[0].parts[0].speechMetadata.style.includes(`${Math.round(speed * 100)}%`));
+    assert.equal(style, `Speaking rate: ${Math.round(speed * 100)}% of normal.`);
+    assert.equal(/identity|age|resonance|pitch|energy|newsreader/i.test(style), false);
   }
 });
 test("known F0 is recovered; scalar gain alone does not become a voice-drift rejection", () => {
