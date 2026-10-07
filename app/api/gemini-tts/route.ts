@@ -353,12 +353,16 @@ async function synthesizeChunk(
               {
                 type: "text",
                 text,
-                annotations: [
-                  {
-                    type: "speech_metadata",
-                    style,
-                  },
-                ],
+                ...(style
+                  ? {
+                      annotations: [
+                        {
+                          type: "speech_metadata",
+                          style,
+                        },
+                      ],
+                    }
+                  : {}),
               },
             ],
           },
@@ -369,7 +373,7 @@ async function synthesizeChunk(
           sample_rate: SAMPLE_RATE,
         },
         generation_config: {
-          speech_config: [{ voice }],
+          speech_config: [{ voice, language: "kk-KZ" }],
         },
       }),
       signal: controller.signal,
@@ -417,12 +421,12 @@ export async function POST(request: Request) {
     return jsonError(`文本不能超过 ${MAX_CHARACTERS} 个字符。`, 400);
   }
 
-  const model =
+  const requestedModel =
     typeof body.model === "string" && ALLOWED_MODELS.has(body.model)
       ? body.model
       : "gemini-3.8-flash-tts";
+  const model = rawText.length > 2500 ? "gemini-3.8-flash-tts" : requestedModel;
   const requestedVoice = sanitizeVoiceId(body.voice) || M3_ANCHOR_TOKEN;
-  const preset = typeof body.preset === "string" ? body.preset : "news";
   const speed =
     typeof body.speed === "number" && Number.isFinite(body.speed)
       ? clamp(body.speed, 0.7, 1.2)
@@ -436,7 +440,7 @@ export async function POST(request: Request) {
     const voice = resolvedVoice.id;
     const prepared = prepareGeminiText(rawText);
     const chunks = splitLongText(prepared, maxChunkCharactersForSpeed(speed));
-    const style = `${PRESET_STYLE[preset] ?? PRESET_STYLE.news} ${speedInstruction(speed)}`;
+    const style = strictSpeedStyle(speed);
 
     const pcmParts: Uint8Array[] = [];
     for (let index = 0; index < chunks.length; index += 1) {
@@ -458,6 +462,9 @@ export async function POST(request: Request) {
         "X-Gemini-TTS-Model": model,
         "X-Gemini-TTS-Voice": voice,
         "X-M3-Single-Speaker": "true",
+        "X-M3-Strict-Single-Speaker": "true",
+        "X-M3-Language": "kk-KZ",
+        "X-M3-Dialogue-Cues-Stripped": "true",
         "X-M3-Voice-Source": resolvedVoice.source,
         "X-M3-Anchor": "fixed-male",
         "X-Gemini-TTS-Chunks": String(chunks.length),
