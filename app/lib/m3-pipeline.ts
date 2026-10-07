@@ -54,20 +54,18 @@ export async function countM3Tokens(apiKey: string, model: string, text: string,
 async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number) {
   const { response, timer } = await googleRequest(fetcher, apiKey, model, streaming ? "streamGenerateContent?alt=sse" : "generateContent", m3RequestBody(text, voice, style), signal, streaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
-  let completed = false, bytes = 0;
+  let completed = false;
   const consume = (payload: { candidates?: AudioCandidate[]; error?: { message?: string } }) => {
     if (payload.error) throw new M3Error("M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", 502);
     const candidate = payload.candidates?.[0];
     if (!candidate) return;
-    if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到长度上限，需要使用大块生成。", 502);
+    if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到模型单次长度上限。", 502);
     if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502);
     if (candidate.finishReason === "STOP") completed = true;
     for (const p of candidate.content?.parts ?? []) {
       const inline = p.inlineData ?? (p.inline_data ? { data: p.inline_data.data, mimeType: p.inline_data.mime_type } : undefined);
       if (inline?.data) {
         const pcm = decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? "");
-        bytes += pcm.length;
-        if (bytes > 720 * 48000) throw new M3Error("M3_AUDIO_SIZE_LIMIT", "Gemini 音频超过本轮安全大小上限。", 502);
         audio.push(pcm);
       }
     }
