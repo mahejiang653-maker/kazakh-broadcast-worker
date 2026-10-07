@@ -1793,8 +1793,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 严格单主播 · 官方命名男角色</strong>
-                  <p>这版专门修复你听到的“一个角色里仍像多人轮读”。选中一个角色后，后端只发送一个 voice，并锁定 kk-KZ；同时去掉对话/重叠说话触发符号，把长稿拆成更短的同声线片段。开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾仍只使用当前选中的这个角色。</p>
+                  <strong>M3 严格单主播 V4 · 官方命名男角色</strong>
+                  <p>这版把底层从 Interactions API 改成 Google Generate Content 的单人协议：只使用 speechConfig.voiceConfig。多人模式必须使用另一个互斥字段 multiSpeakerVoiceConfig，因此这一层不再存在“同一个请求里偷偷配置多人”的空间。哈萨克语由 Gemini 3.8 自动识别。</p>
                 </div>
               </div>
 
@@ -1889,8 +1889,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 严格单主播 V3</strong>
-                  <p>正式 13 条长稿会自动使用 Gemini 3.8 Flash TTS。编号停顿改用普通标点，不再插入可能增强表演感的语音标签；引号和竖线等可能触发角色/重叠说话的符号也会在送入 TTS 前移除，但新闻文字内容本身保持不变。</p>
+                  <strong>M3 · 严格单主播 V4</strong>
+                  <p>正式 13 条长稿继续自动使用 Gemini 3.8 Flash TTS；每个片段都通过同一个 voiceConfig 指定同一个角色，并继续使用空 style / 极短速度提示、普通标点停顿和对话触发符号清理。</p>
                 </div>
               </div>
             </>
@@ -1990,7 +1990,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "严格单主播 + kk-KZ 锁定 + 空 style + 同角色短段拼接 · 24 kHz WAV"
+                      ? "Generate Content 单人 voiceConfig + 空 style + 同角色短段拼接 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
