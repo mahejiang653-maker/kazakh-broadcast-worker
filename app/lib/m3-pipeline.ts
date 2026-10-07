@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { decodeM3Audio, joinM3Wav, matchM3Loudness, screenM3Take, type M3Features } from "./m3-audio";
-import { M3_VERSION, M3_INPUT_TOKENS, M3_TEMPERATURE, estimatedM3Seconds, largeM3Chunks, m3RequestBody, m3Style, prepareM3Text, splitM3AtBoundary } from "./m3-script";
+import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
 
 type Fetcher = typeof fetch;
 type AudioCandidate = { finishReason?: string; content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }> } };
@@ -9,7 +9,7 @@ export class M3Error extends Error {
 }
 export type M3Audit = {
   version: string; model: string; voice: string; style: string; temperature: number;
-  strategy: "single" | "grouped"; inputTokens: number; ttsRequests: number; retries: number;
+  strategy: "single"; inputTokens: number | null; ttsRequests: number; retries: number;
   transport: "generateContent" | "streamGenerateContent";
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
 };
@@ -117,64 +117,110 @@ export async function generateM3Program(options: {
   signal?: AbortSignal; fetcher?: Fetcher; log?: (event: string, details: Record<string, unknown>) => void;
 }) {
   const { apiKey, model, voice, speed } = options;
-  const fetcher = options.fetcher ?? fetch, signal = options.signal ?? new AbortController().signal;
+  const fetcher = options.fetcher ?? fetch;
+  const signal = options.signal ?? new AbortController().signal;
   const log = options.log ?? ((event, details) => console.info(event, JSON.stringify(details)));
-  const text = prepareM3Text(options.text), style = m3Style(speed);
-  const tokens = await countM3Tokens(apiKey, model, text, style, signal, fetcher);
-  const singleFits = tokens + 256 <= M3_INPUT_TOKENS && estimatedM3Seconds(text, speed) <= 540;
-  const audit: M3Audit = { version: M3_VERSION, model, voice, style, temperature: M3_TEMPERATURE, strategy: singleFits ? "single" : "grouped", inputTokens: tokens, ttsRequests: 0, retries: 0, parts: [], transport: options.streaming ? "streamGenerateContent" : "generateContent" };
-  let reference: M3Features | undefined;
-  const accepted: Uint8Array[] = [];
-  const queue: Array<{ text: string; depth: number }> = (singleFits ? [text] : largeM3Chunks(text)).map(t => ({ text: t, depth: 0 }));
-  const maxRequests = 24;
-  while (queue.length) {
-    if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499);
-    const task = queue.shift()!;
-    if (task.depth > 4 || audit.parts.length + queue.length >= 16) throw new M3Error("M3_SEGMENT_LIMIT", "稿件超过本轮可安全处理的分段上限。", 400);
-    // Count each grouped block too; Cyrillic character count is not a token guarantee.
-    const taskTokens = singleFits && audit.parts.length === 0 && audit.strategy === "single" ? tokens : await countM3Tokens(apiKey, model, task.text, style, signal, fetcher);
-    if (taskTokens + 256 > M3_INPUT_TOKENS || estimatedM3Seconds(task.text, speed) > 540) {
-      queue.unshift(...splitM3AtBoundary(task.text).map(t => ({ text: t, depth: task.depth + 1 })));
-      audit.strategy = "grouped";
-      continue;
-    }
-    let selected: { pcm: Uint8Array; screening: ReturnType<typeof screenM3Take>; attempt: number } | undefined;
-    let splitForLength = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (audit.ttsRequests >= maxRequests) throw new M3Error("M3_REQUEST_BUDGET", "M3 本轮重试次数已达到上限。", 502);
-      audit.ttsRequests++;
-      if (attempt) audit.retries++;
-      let pcm: Uint8Array;
-      try { pcm = await synthesizeM3Take(apiKey, model, voice, task.text, style, signal, fetcher, Boolean(options.streaming), speed); }
-      catch (error) {
-        if (error instanceof M3Error && (["M3_OUTPUT_LIMIT", "M3_LENGTH_LIMIT"].includes(error.code) || (audit.strategy === "single" && ["M3_TIMEOUT", "M3_UPSTREAM_TIMEOUT"].includes(error.code)))) {
-          const pieces = audit.strategy === "single" ? largeM3Chunks(task.text) : splitM3AtBoundary(task.text);
-          queue.unshift(...pieces.map(t => ({ text: t, depth: task.depth + 1 })));
-          audit.strategy = "grouped"; splitForLength = true; break;
-        }
-        // Quota, permissions, region and request-schema failures NEVER restart a different path.
-        if (error instanceof M3Error && ["M3_UPSTREAM_NETWORK", "M3_TIMEOUT", "M3_SUSPICIOUSLY_SHORT_AUDIO"].includes(error.code) && attempt < 2) { log("M3_RETRY", { index: audit.parts.length, attempt: attempt + 1, reason: error.code }); continue; }
-        throw error;
+  const text = prepareM3Text(options.text);
+  const style = m3Style(speed);
+
+  // Product rule: Flash and Flash-Lite both accept up to 15,000 characters
+  // at the application layer and must synthesize the entire manuscript in
+  // exactly ONE audio-generation request. Never split, regroup, or retry.
+  const audit: M3Audit = {
+    version: M3_VERSION,
+    model,
+    voice,
+    style,
+    temperature: M3_TEMPERATURE,
+    strategy: "single",
+    inputTokens: null,
+    ttsRequests: 1,
+    retries: 0,
+    parts: [],
+    transport: options.streaming ? "streamGenerateContent" : "generateContent",
+  };
+
+  if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499);
+
+  let pcm: Uint8Array;
+  try {
+    pcm = await synthesizeM3Take(
+      apiKey,
+      model,
+      voice,
+      text,
+      style,
+      signal,
+      fetcher,
+      Boolean(options.streaming),
+      speed,
+    );
+  } catch (error) {
+    if (error instanceof M3Error) {
+      // Strict single-request policy: no retry and no fallback chunking.
+      if (["M3_OUTPUT_LIMIT", "M3_LENGTH_LIMIT"].includes(error.code)) {
+        throw new M3Error(
+          error.code,
+          "Gemini 单次整篇生成达到模型长度上限。按照当前设置不会分段或重试；请缩短稿件后重新生成。",
+          error.status,
+          error.details,
+        );
       }
-      const screening = screenM3Take(pcm, reference);
-      const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
-      if (screening.features.voicedFrames < minimumVoicedFrames) {
-        log("M3_INSUFFICIENT_VOICED_AUDIO", { index: audit.parts.length, attempt: attempt + 1, voicedFrames: screening.features.voicedFrames });
-        if (attempt < 2) continue;
-        throw new M3Error("M3_INSUFFICIENT_VOICED_AUDIO", "M3 未返回足够的有效语音，重试后仍无法检查，已停止拼接。", 502);
+      if (["M3_TIMEOUT", "M3_UPSTREAM_TIMEOUT"].includes(error.code)) {
+        throw new M3Error(
+          error.code,
+          "Gemini 单次整篇生成超时。按照当前设置不会分段或重试；请直接重新点击生成或缩短稿件。",
+          error.status,
+          error.details,
+        );
       }
-      if (!reference && screening.anchor.voicedFrames >= 18) reference = screening.anchor;
-      if (!screening.detected) { selected = { pcm, screening, attempt }; break; }
-      log("VOICE_DRIFT_DETECTED", { index: audit.parts.length, attempt: attempt + 1, score: screening.score, comparison: screening.overall });
-      // Same text + identical voice/model/style/temperature on every attempt; no pitch shifting.
     }
-    if (splitForLength) continue;
-    if (!selected) throw new M3Error("VOICE_DRIFT_DETECTED", "M3 检测到持续声线异常，重试后仍未通过，已停止拼接。", 502, { requests: audit.ttsRequests, acceptedChunks: accepted.length });
-    const gainDb = accepted.length && reference ? matchM3Loudness(selected.pcm, reference.rmsDb, selected.screening.features.rmsDb) : 0;
-    accepted.push(selected.pcm);
-    audit.parts.push({ index: audit.parts.length, characters: task.text.length, seconds: selected.pcm.length / 48000, attempts: selected.attempt + 1, features: selected.screening.features, score: selected.screening.score, windowWarnings: selected.screening.windows.filter(w => w.comparison.detected).length, gainDb });
-    log("M3_CHUNK_ACCEPTED", { index: audit.parts.length - 1, seconds: selected.pcm.length / 48000, attempts: selected.attempt + 1, strategy: audit.strategy });
+    throw error;
   }
-  log("M3_PROGRAM_COMPLETE", { strategy: audit.strategy, chunks: accepted.length, requests: audit.ttsRequests, retries: audit.retries, model, voice });
-  return { wav: joinM3Wav(accepted), audit };
+
+  const screening = screenM3Take(pcm);
+  const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
+  if (screening.features.voicedFrames < minimumVoicedFrames) {
+    throw new M3Error(
+      "M3_INSUFFICIENT_VOICED_AUDIO",
+      "M3 单次整篇生成没有返回足够的有效语音。按照当前设置不会自动重试。",
+      502,
+    );
+  }
+  if (screening.detected) {
+    log("VOICE_DRIFT_DETECTED", {
+      index: 0,
+      attempt: 1,
+      score: screening.score,
+      comparison: screening.overall,
+    });
+    throw new M3Error(
+      "VOICE_DRIFT_DETECTED",
+      "M3 在这一次整篇生成内部检测到持续声线异常。按照当前设置不会分段或重试。",
+      502,
+      { requests: 1, acceptedChunks: 0 },
+    );
+  }
+
+  audit.parts.push({
+    index: 0,
+    characters: text.length,
+    seconds: pcm.length / 48000,
+    attempts: 1,
+    features: screening.features,
+    score: screening.score,
+    windowWarnings: screening.windows.filter(w => w.comparison.detected).length,
+    gainDb: 0,
+  });
+
+  log("M3_PROGRAM_COMPLETE", {
+    strategy: "single",
+    chunks: 1,
+    requests: 1,
+    retries: 0,
+    model,
+    voice,
+  });
+
+  return { wav: joinM3Wav([pcm]), audit };
 }
