@@ -1347,7 +1347,7 @@ export default function Home() {
                   <div className="broadcast-index">M3</div>
                   <div>
                     <strong>M3 干净输入模式</strong>
-                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；15,000 字符以内始终整篇一次生成。</p>
+                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；连续空行自动压缩，1.00× 不发送 style，15,000 字符以内始终整篇一次生成。</p>
                   </div>
                 </div>
               ) : null}
@@ -1796,8 +1796,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V6 · 官方命名男角色</strong>
-                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。无论稿件长短，整篇只发送 1 次音频生成请求，不分段、不分块、不自动改模型。</p>
+                  <strong>M3 单次整篇 V7 · 官方命名男角色</strong>
+                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。无论稿件长短，整篇只发送 1 次音频生成请求；复制粘贴产生的连续空行会自动压成一个换行，避免段落边界反复触发重新起势。</p>
                 </div>
               </div>
 
@@ -1884,16 +1884,16 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">1</div>
                 <div>
-                  <strong>固定主播身份与中性新闻播报</strong>
-                  <p>各段使用同一套播报约束，战争、科技、经济等主题均保持稳定语气。编号后保留短暂停顿，倍速设置贯穿整篇。</p>
+                  <strong>1.00× 不再发送身份 / 风格提示</strong>
+                  <p>标准 1.00× 时完全不发送 speechMetadata.style，只依赖当前选中的 voiceConfig。0.95×、1.05× 等非默认倍速仅发送一句极短的速度提示，不再包含身份、年龄、共鸣、音高、情绪等元指令。</p>
                 </div>
               </div>
 
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V6</strong>
-                  <p>本模式不再做分段兜底，也不做自动重试。若 Google 单次输出达到 MAX_TOKENS、超时或检测到明显声线异常，本次直接失败并提示原因，不会偷偷拆成多段重新生成。</p>
+                  <strong>M3 · 单次整篇 V7 · 空行清洗 + 空 style</strong>
+                  <p>本模式不分段、不自动重试。连续空行会在送入 Gemini 前折叠；1.00× 不发送任何 style 元数据。若 Google 单次输出达到 MAX_TOKENS、超时或检测到明显声线异常，本次直接失败并提示原因。</p>
                 </div>
               </div>
             </>
