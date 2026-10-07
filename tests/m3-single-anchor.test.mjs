@@ -65,19 +65,18 @@ test("EOF without STOP and a stream error never deliver received partial audio",
     await assert.rejects(run({ streaming: true, fetcher: async url => url.endsWith(":countTokens") ? Response.json({ totalTokens: 100 }) : sseResponse([first, ...(errorEvent ? [{ error: { message: "upstream interrupted" } }] : [])]) }), error => error.code === (errorEvent ? "M3_STREAM_ERROR" : "M3_INCOMPLETE_AUDIO"));
   }
 });
-test("an upstream full-program timeout regroups at large news boundaries, preserving parameters", async () => {
-  const calls = []; let generated = 0;
-  const result = await run({ text: fixture(), streaming: true, fetcher: async (url, init) => {
-    calls.push({ url, body: JSON.parse(init.body) });
-    if (url.endsWith(":countTokens")) return Response.json({ totalTokens: 300 });
-    if (!generated++) return new Response("Upstream timeout", { status: 524 });
-    return sseResponse(streamEvents(tone(160, 20)));
-  } });
+test("an upstream full-program timeout fails after exactly one full-program request", async () => {
+  const calls = [];
+  await assert.rejects(run({
+    text: fixture(),
+    streaming: true,
+    fetcher: async (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return new Response("Upstream timeout", { status: 524 });
+    },
+  }), error => error.code === "M3_UPSTREAM_TIMEOUT");
   const tts = calls.filter(x => x.url.endsWith(":streamGenerateContent?alt=sse"));
-  assert.equal(tts.length, 4); assert.equal(result.audit.strategy, "grouped");
-  assert.equal(result.audit.parts.length, 3);
-  for (const call of tts) assert.deepEqual(call.body.generationConfig, tts[0].body.generationConfig);
-  assert.equal(tts.slice(1).map(x => x.body.contents[0].parts[0].text).join(" ").replace(/\s+/g, " "), script.prepareM3Text(fixture()).replace(/\s+/g, " "));
+  assert.equal(tts.length, 1);
 });
 
 test("all 13 ordinal periods and one supported pause survive; names and quotations remain text", () => {
@@ -99,15 +98,16 @@ test("the full 13-item script is kept whole when limits allow, and body never in
   assert.equal(tts[0].body.generationConfig.temperature, 0.5);
   assert.equal(result.wav.slice(0, 4).toString(), new Uint8Array([82, 73, 70, 70]).toString());
 });
-test("large fallback groups intro+1–4, 5–9, 10–13+closing, with identical configuration", async () => {
-  const calls = []; const result = await run({ text: fixture(), fetcher: mock(calls, 9000) });
+test("a long manuscript is never grouped and still uses one full-program request", async () => {
+  const calls = [];
+  const result = await run({ text: fixture(), fetcher: mock(calls, 9000) });
   const tts = calls.filter(x => x.url.endsWith(":generateContent"));
-  assert.equal(tts.length, 3); assert.equal(result.audit.strategy, "grouped");
-  assert.ok(tts[0].body.contents[0].parts[0].text.includes("Төртінші."));
-  assert.ok(tts[1].body.contents[0].parts[0].text.startsWith("Бесінші."));
-  assert.ok(tts[2].body.contents[0].parts[0].text.endsWith("Осымен бүгінгі кескін айақталды."));
-  for (const call of tts) assert.deepEqual(call.body.generationConfig, tts[0].body.generationConfig);
-  assert.equal(tts.map(x => x.body.contents[0].parts[0].text).join(" ").replace(/\s+/g, " "), script.prepareM3Text(fixture()).replace(/\s+/g, " "));
+  assert.equal(tts.length, 1);
+  assert.equal(result.audit.strategy, "single");
+  assert.equal(result.audit.ttsRequests, 1);
+  assert.equal(result.audit.retries, 0);
+  assert.equal(result.audit.parts.length, 1);
+  assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(fixture()));
 });
 test("speaker metadata is absent and the one voice cannot be replaced by a person in the text", () => {
   const request = script.m3RequestBody("Putin: «Сәлем». Donald Trump: «Hello».", "Puck", script.m3Style(1));
@@ -144,46 +144,62 @@ test("scalar loudness matching is bounded, prevents clipping and preserves F0", 
   for (let p = 0; p < hot.length; p += 2) peak = Math.max(peak, Math.abs(values.getInt16(p, true)));
   assert.ok(peak <= 32700);
 });
-test("silent audio cannot pass screening and is never delivered", async () => {
+test("silent audio cannot pass screening and is never retried", async () => {
   const calls = [];
-  await assert.rejects(run({ fetcher: mock(calls, 300, [new Uint8Array(12 * 48000)]) }), error => error.code === "M3_INSUFFICIENT_VOICED_AUDIO");
-  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 3);
+  await assert.rejects(
+    run({ fetcher: mock(calls, 300, [new Uint8Array(12 * 48000)]) }),
+    error => error.code === "M3_INSUFFICIENT_VOICED_AUDIO",
+  );
+  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
 test("persistent large pitch/timbre changes are detected inside a single take too", () => {
   const a = tone(160, 24), b = tone(270, 36), pcm = new Uint8Array(a.length + b.length); pcm.set(a); pcm.set(b, a.length);
   const report = audio.screenM3Take(pcm);
   assert.equal(report.detected, true); assert.ok(report.windows.some(x => x.comparison.detected));
 });
-test("an anomalous second chunk is regenerated with exactly the same request and never appended", async () => {
-  const calls = []; const result = await run({ text: fixture(), fetcher: mock(calls, 9000, [tone(160), tone(270), tone(160), tone(160)]) });
-  const tts = calls.filter(x => x.url.endsWith(":generateContent"));
-  assert.equal(tts.length, 4); assert.equal(result.audit.retries, 1); assert.equal(result.audit.parts[1].attempts, 2);
-  assert.deepEqual(tts[1].body, tts[2].body);
-  assert.ok(result.audit.parts.every(x => Math.abs(x.features.f0Median - 160) < 2));
-});
-test("exhausted drift retries fail closed instead of producing a completed WAV", async () => {
+test("voice drift inside the single full-program take fails without a retry", async () => {
   const calls = [];
-  await assert.rejects(run({ text: fixture(), fetcher: mock(calls, 9000, [tone(160), tone(270)]) }), e => e.code === "VOICE_DRIFT_DETECTED");
-  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 4);
+  const a = tone(160, 24), b = tone(270, 36), pcm = new Uint8Array(a.length + b.length);
+  pcm.set(a); pcm.set(b, a.length);
+  await assert.rejects(
+    run({ text: fixture(), fetcher: mock(calls, 9000, [pcm]) }),
+    error => error.code === "VOICE_DRIFT_DETECTED",
+  );
+  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
+});
+test("single-request policy never retries after drift failure", async () => {
+  const calls = [];
+  const a = tone(160, 24), b = tone(270, 36), pcm = new Uint8Array(a.length + b.length);
+  pcm.set(a); pcm.set(b, a.length);
+  await assert.rejects(
+    run({ text: fixture(), fetcher: mock(calls, 9000, [pcm]) }),
+    error => error.code === "VOICE_DRIFT_DETECTED",
+  );
+  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
 test("region error stops immediately and never falls back to another voice/model/path", async () => {
   const calls = []; const fetcher = async (url, init) => { calls.push({ url, init }); return Response.json({ error: { message: "User location is not supported for the API use." } }, { status: 400 }); };
   await assert.rejects(run({ fetcher }), e => e instanceof M3Error && e.code === "GEMINI_REGION_UNSUPPORTED" && e.status === 503);
   assert.equal(calls.length, 1);
 });
-test("quota error does not retry or change temperature", async () => {
-  const calls = []; const fetcher = async (url, init) => { calls.push({ url, init }); return url.endsWith(":countTokens") ? Response.json({ totalTokens: 30 }) : new Response('{}', { status: 429 }); };
-  await assert.rejects(run({ fetcher }), e => e.code === "GEMINI_QUOTA_LIMIT"); assert.equal(calls.length, 2);
-});
-test("MAX_TOKENS audio is discarded; all text is regrouped", async () => {
-  const calls = []; let n = 0;
+test("quota error stops after the one generation request", async () => {
+  const calls = [];
   const fetcher = async (url, init) => {
-    const body = JSON.parse(init.body); calls.push({ url, body });
-    if (url.endsWith(":countTokens")) return Response.json({ totalTokens: 300 });
-    return Response.json(payload(tone(), n++ === 0 ? "MAX_TOKENS" : "STOP"));
+    calls.push({ url, init });
+    return new Response('{}', { status: 429 });
   };
-  const result = await run({ text: fixture(), fetcher });
-  assert.equal(result.audit.strategy, "grouped"); assert.equal(result.audit.parts.length, 3); assert.equal(result.audit.ttsRequests, 4);
+  await assert.rejects(run({ fetcher }), e => e.code === "GEMINI_QUOTA_LIMIT");
+  assert.equal(calls.length, 1);
+});
+test("MAX_TOKENS fails closed and never regroups or retries", async () => {
+  const calls = [];
+  const fetcher = async (url, init) => {
+    const body = JSON.parse(init.body);
+    calls.push({ url, body });
+    return Response.json(payload(tone(), "MAX_TOKENS"));
+  };
+  await assert.rejects(run({ text: fixture(), fetcher }), e => e.code === "M3_OUTPUT_LIMIT");
+  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
 test("WAV headers are stripped and invalid rates/channels/truncation are rejected", () => {
   const pcm = tone(), wav = audio.joinM3Wav([pcm]);
@@ -209,6 +225,24 @@ test("invalid/non-male voice and oversized manuscripts fail before synthesis", a
   const result = await handleM3Request(new Request("https://test/api/gemini-tts", { method: "POST", body: JSON.stringify({ text: "а".repeat(15001), voice: "Puck" }) }), "fake-test-key");
   assert.equal(result.status, 400);
 });
+test("Flash and Flash-Lite both accept 15,000 characters and issue exactly one TTS request", async () => {
+  for (const model of ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]) {
+    const calls = [];
+    const result = await run({
+      model,
+      text: "а".repeat(15000),
+      fetcher: mock(calls, 99999, [tone(160, 18)]),
+    });
+    const tts = calls.filter(x => x.url.endsWith(":generateContent"));
+    assert.equal(tts.length, 1, model);
+    assert.equal(tts[0].body.contents[0].parts[0].text.length, 15000);
+    assert.equal(result.audit.strategy, "single");
+    assert.equal(result.audit.ttsRequests, 1);
+    assert.equal(result.audit.retries, 0);
+    assert.equal(result.audit.parts.length, 1);
+  }
+});
+
 test("M3 deployment pins only M3 routes to the supported EU execution jurisdiction", async () => {
   const worker = await readFile("worker/index.ts", "utf8"), config = JSON.parse(await readFile("wrangler.jsonc", "utf8"));
   assert.ok(worker.includes('namespace.jurisdiction("eu")'));
