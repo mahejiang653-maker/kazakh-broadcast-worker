@@ -201,9 +201,8 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
       : 1;
 
   try {
-    // Resolve a supported named male voice or the existing persistent anchor once.
-    // The selected voice is validated server-side and then held constant for
-    // the entire article and every long-form chunk.
+    // Resolve one supported male voice once. M3 sends the entire manuscript
+    // in one audio-generation request; there are no long-form chunks.
     const resolvedVoice = await resolveSelectedM3Voice(apiKey, requestedVoice);
     const voice = resolvedVoice.id;
     const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal, streaming: true });
@@ -228,7 +227,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
         "X-M3-Strategy": audit.strategy,
         "X-M3-TTS-Requests": String(audit.ttsRequests),
         "X-M3-Retries": String(audit.retries),
-        "X-M3-Input-Tokens": String(audit.inputTokens),
+        "X-M3-Input-Tokens": audit.inputTokens === null ? "not-preflighted" : String(audit.inputTokens),
         "X-M3-Acoustic-Screening": audit.parts.every(p => p.features.voicedFrames >= 18) ? "heuristic-passed" : "limited-short-audio",
         "X-M3-Audit": JSON.stringify(audit.parts.map(p => ({ index: p.index, seconds: Math.round(p.seconds * 100) / 100, attempts: p.attempts, score: Math.round(p.score * 100) / 100, f0: Math.round(p.features.f0Median), warnings: p.windowWarnings, gainDb: Math.round(p.gainDb * 100) / 100 }))),
         "X-M3-Backend-Region": region,
