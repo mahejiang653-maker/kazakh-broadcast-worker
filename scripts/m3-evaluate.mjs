@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
+import { createHash } from "node:crypto";
 
 const mode = process.argv[2];
 if (!["baseline", "A", "B", "C", "analyze"].includes(mode)) throw new Error("Usage: node scripts/m3-evaluate.mjs baseline|A|B|C|analyze [output-directory]");
@@ -13,6 +14,7 @@ for (const name of ["script", "audio"]) await build({ input: `app/lib/m3-${name}
 const script = await import(pathToFileURL(join(root, "script.mjs")));
 const audio = await import(pathToFileURL(join(root, "audio.mjs")));
 const original = (await readFile("tests/fixtures/m3-real-13-news.txt", "utf8")).trim();
+const scriptHash = createHash("sha256").update(original).digest("hex");
 const text = script.prepareM3Text(original);
 const sections = script.m3Sections(text);
 if (sections.length !== 15) throw new Error(`Expected introduction + 13 news + closing, got ${sections.length}`);
@@ -25,20 +27,31 @@ const runCurl = args => new Promise((accept, reject) => {
 if (mode !== "analyze") {
   // Baseline uses the unchanged V4 full-program pipeline; C is the controlled 15-request variant.
   const blocks = mode === "B" ? script.largeM3Chunks(text) : mode === "C" ? sections : [original];
-  const manifest = { mode, generatedAt: new Date().toISOString(), characters: original.length, words: original.split(/\s+/).length, sections: sections.length, requestedVoice: "Puck", requestedModel: "gemini-3.8-flash-tts", speed: 1, endpoint, requests: [] };
+  let manifest = { mode, scriptHash, generatedAt: new Date().toISOString(), characters: original.length, words: original.split(/\s+/).length, sections: sections.length, requestedVoice: "Puck", requestedModel: "gemini-3.8-flash-tts", speed: 1, endpoint, requests: [] };
+  try {
+    const previous = JSON.parse(await readFile(join(root, `${mode}.json`), "utf8"));
+    if (previous.scriptHash === scriptHash) manifest = { ...previous, error: undefined };
+  } catch {}
+  let lastRequestStarted = Date.now() - 60000;
   try {
     for (let i = 0; i < blocks.length; i++) {
       const prefix = join(root, `${mode}-${String(i + 1).padStart(2, "0")}`);
       const payload = `${prefix}.request.json`, wav = `${prefix}.wav`, headerFile = `${prefix}.headers`;
+      const prior = manifest.requests.find(r => r.index === i && r.status === 200 && (mode === "baseline" || r.headers["x-m3-version"] === script.M3_VERSION));
+      if (prior) { console.log(`${mode} ${i + 1}: reuse recorded successful response`); continue; }
+      // Space independent experiment calls; never rotate models/keys to evade Google's limits.
+      const wait = Math.max(0, 60000 - (Date.now() - lastRequestStarted));
+      if (wait) { console.log(`Waiting ${Math.ceil(wait / 1000)}s before the next independent QA call`); await new Promise(resolve => setTimeout(resolve, wait)); }
       await writeFile(payload, JSON.stringify({ text: blocks[i], voice: "Puck", model: manifest.requestedModel, speed: 1, preset: "news" }));
       console.log(`${mode} ${i + 1}/${blocks.length}: ${blocks[i].length} characters, requesting live TTS`);
       const started = Date.now();
+      lastRequestStarted = started;
       const status = Number(await runCurl(["--silent", "--show-error", "--max-time", "660", "--retry", "0", "--request", "POST", endpoint, "--header", "Content-Type: application/json", "--data-binary", `@${payload}`, "--dump-header", headerFile, "--output", wav, "--write-out", "%{http_code}"]));
       const rawHeaders = await readFile(headerFile, "utf8");
       const headers = Object.fromEntries([...rawHeaders.matchAll(/^([^:\r\n]+):\s*(.*)$/gm)].map(m => [m[1].toLowerCase(), m[2].trim()]));
       const bytes = await readFile(wav);
       const record = { index: i, characters: blocks[i].length, status, elapsedSeconds: (Date.now() - started) / 1000, bytes: bytes.length, headers, file: wav };
-      manifest.requests.push(record);
+      manifest.requests = [...manifest.requests.filter(r => r.index !== i), record].sort((a, b) => a.index - b.index);
       await writeFile(join(root, `${mode}.json`), JSON.stringify(manifest, null, 2));
       console.log(JSON.stringify(record));
       if (status !== 200 || !/^audio\/wav/.test(headers["content-type"] ?? "")) throw new Error(`Live M3 failed: ${bytes.toString("utf8").slice(0, 900)}`);

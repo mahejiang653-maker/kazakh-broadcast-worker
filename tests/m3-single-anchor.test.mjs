@@ -31,6 +31,54 @@ function mock(upstream = [], initialCount = 300, audioSequence = [tone(160, 60)]
 }
 const run = (overrides = {}) => generateM3Program({ apiKey: "fake-test-key", model: "gemini-3.8-flash-tts", voice: "Puck", text: "Бірінші. Маңызды жаңалық туралы мәлімет жарияланды.", speed: 1, log() {}, ...overrides });
 const fixture = () => "Сәлем тораптастар.\n\n" + script.NUMBERED_OPENERS.map(x => `${x}. ${"Жаңалық мәтіні. ".repeat(8)}`).join("\n\n") + "\n\nОсымен бүгінгі кескін айақталды.";
+function sseResponse(events, finalSeparator = true) {
+  const bytes = new TextEncoder().encode(events.map(x => `data: ${JSON.stringify(x)}\r\n\r\n`).join("").replace(finalSeparator ? /$^/ : /\r\n\r\n$/, ""));
+  let offset = 0, reads = 0;
+  return new Response(new ReadableStream({ pull(controller) {
+    if (offset === bytes.length) { controller.close(); return; }
+    const size = [1, 7, 16384, 3][reads++ % 4];
+    controller.enqueue(bytes.slice(offset, offset + size)); offset = Math.min(bytes.length, offset + size);
+  } }), { headers: { "Content-Type": "text/event-stream" } });
+}
+function streamEvents(pcm, end = "STOP") {
+  const half = Math.floor(pcm.length / 4) * 2;
+  const first = payload(pcm.slice(0, half)); delete first.candidates[0].finishReason;
+  const last = payload(pcm.slice(half), end);
+  return [first, last];
+}
+
+test("one streaming TTS request preserves the full program/config across fragmented SSE frames", async () => {
+  const calls = []; const pcm = tone(160, 60);
+  const result = await run({ text: fixture(), streaming: true, fetcher: async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) });
+    return url.endsWith(":countTokens") ? Response.json({ totalTokens: 300 }) : sseResponse(streamEvents(pcm), false);
+  } });
+  const tts = calls.filter(x => x.url.endsWith(":streamGenerateContent?alt=sse"));
+  assert.equal(tts.length, 1); assert.equal(result.audit.ttsRequests, 1);
+  assert.equal(result.audit.transport, "streamGenerateContent");
+  assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(fixture()));
+  assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), pcm);
+});
+test("EOF without STOP and a stream error never deliver received partial audio", async () => {
+  for (const errorEvent of [false, true]) {
+    const first = payload(tone(160, 18)); delete first.candidates[0].finishReason;
+    await assert.rejects(run({ streaming: true, fetcher: async url => url.endsWith(":countTokens") ? Response.json({ totalTokens: 100 }) : sseResponse([first, ...(errorEvent ? [{ error: { message: "upstream interrupted" } }] : [])]) }), error => error.code === (errorEvent ? "M3_STREAM_ERROR" : "M3_INCOMPLETE_AUDIO"));
+  }
+});
+test("an upstream full-program timeout regroups at large news boundaries, preserving parameters", async () => {
+  const calls = []; let generated = 0;
+  const result = await run({ text: fixture(), streaming: true, fetcher: async (url, init) => {
+    calls.push({ url, body: JSON.parse(init.body) });
+    if (url.endsWith(":countTokens")) return Response.json({ totalTokens: 300 });
+    if (!generated++) return new Response("Upstream timeout", { status: 524 });
+    return sseResponse(streamEvents(tone(160, 20)));
+  } });
+  const tts = calls.filter(x => x.url.endsWith(":streamGenerateContent?alt=sse"));
+  assert.equal(tts.length, 4); assert.equal(result.audit.strategy, "grouped");
+  assert.equal(result.audit.parts.length, 3);
+  for (const call of tts) assert.deepEqual(call.body.generationConfig, tts[0].body.generationConfig);
+  assert.equal(tts.slice(1).map(x => x.body.contents[0].parts[0].text).join(" ").replace(/\s+/g, " "), script.prepareM3Text(fixture()).replace(/\s+/g, " "));
+});
 
 test("all 13 ordinal periods and one supported pause survive; names and quotations remain text", () => {
   for (const opener of script.NUMBERED_OPENERS) {

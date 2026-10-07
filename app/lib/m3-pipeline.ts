@@ -10,6 +10,7 @@ export class M3Error extends Error {
 export type M3Audit = {
   version: string; model: string; voice: string; style: string; temperature: number;
   strategy: "single" | "grouped"; inputTokens: number; ttsRequests: number; retries: number;
+  transport: "generateContent" | "streamGenerateContent";
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
 };
 
@@ -38,33 +39,71 @@ async function googleRequest(fetcher: Fetcher, apiKey: string, model: string, me
       // Preserve only actionable quota information, never project identifiers or credentials.
       throw new M3Error("GEMINI_QUOTA_LIMIT", "Gemini TTS 已达到配额或速率限制，请稍后重试。", 429, { ...(retryAfterSeconds ? { retryAfterSeconds } : {}), quotas: quota ?? [] });
     }
+    if ([408, 504, 524].includes(response.status)) throw new M3Error("M3_UPSTREAM_TIMEOUT", `Gemini TTS 上游响应超时（${response.status}）。`, 504);
     const limit = response.status === 400 && /(?:input|context|output|token|text).*(?:limit|too (?:long|large)|exceed|maximum)/i.test(detail);
     throw new M3Error(limit ? "M3_LENGTH_LIMIT" : "GEMINI_REQUEST_FAILED", `Gemini TTS 请求失败（${response.status}）：${detail}`, 502, { upstreamStatus: response.status });
   }
-  return response;
+  return { response, timer };
 }
 export async function countM3Tokens(apiKey: string, model: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher = fetch) {
-  const response = await googleRequest(fetcher, apiKey, model, "countTokens", { contents: m3RequestBody(text, "Puck", style).contents }, signal, 15000);
+  const { response } = await googleRequest(fetcher, apiKey, model, "countTokens", { contents: m3RequestBody(text, "Puck", style).contents }, signal, 15000);
   const result = await response.json() as { totalTokens?: number };
   if (!Number.isFinite(result.totalTokens) || result.totalTokens! < 0) throw new M3Error("M3_TOKEN_COUNT_FAILED", "Gemini 未返回有效的长度检查结果。", 502);
   return result.totalTokens!;
 }
-async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher) {
-  const response = await googleRequest(fetcher, apiKey, model, "generateContent", m3RequestBody(text, voice, style), signal, 230000);
-  const payload = await response.json() as { candidates?: AudioCandidate[] };
-  const candidate = payload.candidates?.[0];
-  if (!candidate) throw new M3Error("M3_NO_AUDIO", "Gemini 没有返回音频。", 502);
-  if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到长度上限，需要使用大块生成。", 502);
-  if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502);
-  const parts = candidate.content?.parts ?? [];
+async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number) {
+  const { response, timer } = await googleRequest(fetcher, apiKey, model, streaming ? "streamGenerateContent?alt=sse" : "generateContent", m3RequestBody(text, voice, style), signal, streaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
-  for (const p of parts) {
-    const inline = p.inlineData ?? (p.inline_data ? { data: p.inline_data.data, mimeType: p.inline_data.mime_type } : undefined);
-    if (inline?.data) audio.push(decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? ""));
-  }
+  let completed = false, bytes = 0;
+  const consume = (payload: { candidates?: AudioCandidate[]; error?: { message?: string } }) => {
+    if (payload.error) throw new M3Error("M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", 502);
+    const candidate = payload.candidates?.[0];
+    if (!candidate) return;
+    if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到长度上限，需要使用大块生成。", 502);
+    if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502);
+    if (candidate.finishReason === "STOP") completed = true;
+    for (const p of candidate.content?.parts ?? []) {
+      const inline = p.inlineData ?? (p.inline_data ? { data: p.inline_data.data, mimeType: p.inline_data.mime_type } : undefined);
+      if (inline?.data) {
+        const pcm = decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? "");
+        bytes += pcm.length;
+        if (bytes > 720 * 48000) throw new M3Error("M3_AUDIO_SIZE_LIMIT", "Gemini 音频超过本轮安全大小上限。", 502);
+        audio.push(pcm);
+      }
+    }
+  };
+  if (streaming) {
+    if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) throw new M3Error("M3_INVALID_STREAM", "Gemini 没有返回预期的音频流。", 502);
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let pending = "";
+    const frame = (block: string) => {
+      const data = block.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+      if (data && data !== "[DONE]") consume(JSON.parse(data));
+    };
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        pending += decoder.decode(value, { stream: true });
+        let separator: RegExpExecArray | null;
+        while ((separator = /\r?\n\r?\n/.exec(pending))) {
+          frame(pending.slice(0, separator.index));
+          pending = pending.slice(separator.index + separator[0].length);
+        }
+        if (pending.length > 50_000_000) throw new M3Error("M3_INVALID_STREAM", "Gemini 音频流帧超过安全大小上限。", 502);
+      }
+      pending += decoder.decode();
+      if (pending.trim()) frame(pending);
+    } catch (error) {
+      await reader.cancel().catch(() => {});
+      if (error instanceof M3Error) throw error;
+      throw new M3Error(signal.aborted ? "M3_CANCELLED" : timer.aborted ? "M3_TIMEOUT" : "M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", signal.aborted ? 499 : timer.aborted ? 504 : 502);
+    } finally { reader.releaseLock(); }
+  } else consume(await response.json());
+  if (!completed) throw new M3Error("M3_INCOMPLETE_AUDIO", "Gemini 音频没有完整结束标记，未交付部分音频。", 502);
   if (!audio.length) throw new M3Error("M3_NO_AUDIO", "Gemini 没有返回可用音频。", 502);
   const total = audio.reduce((sum, p) => sum + p.length, 0);
-  if (total / 48000 < Math.max(0.25, text.replace(/<[^>]+>/g, "").split(/\s+/).length / 8)) throw new M3Error("M3_SUSPICIOUSLY_SHORT_AUDIO", "Gemini 返回的音频明显短于稿件，未进入最终拼接。", 502);
+  if (total / 48000 < Math.max(0.25, text.replace(/<[^>]+>/g, "").split(/\s+/).length / (5 * speed))) throw new M3Error("M3_SUSPICIOUSLY_SHORT_AUDIO", "Gemini 返回的音频明显短于稿件，未进入最终拼接。", 502);
   if (audio.length === 1) return audio[0];
   const pcm = new Uint8Array(total);
   let offset = 0;
@@ -74,6 +113,7 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
 
 export async function generateM3Program(options: {
   apiKey: string; model: string; voice: string; text: string; speed: number;
+  streaming?: boolean;
   signal?: AbortSignal; fetcher?: Fetcher; log?: (event: string, details: Record<string, unknown>) => void;
 }) {
   const { apiKey, model, voice, speed } = options;
@@ -82,7 +122,7 @@ export async function generateM3Program(options: {
   const text = prepareM3Text(options.text), style = m3Style(speed);
   const tokens = await countM3Tokens(apiKey, model, text, style, signal, fetcher);
   const singleFits = tokens + 256 <= M3_INPUT_TOKENS && estimatedM3Seconds(text, speed) <= 540;
-  const audit: M3Audit = { version: M3_VERSION, model, voice, style, temperature: M3_TEMPERATURE, strategy: singleFits ? "single" : "grouped", inputTokens: tokens, ttsRequests: 0, retries: 0, parts: [] };
+  const audit: M3Audit = { version: M3_VERSION, model, voice, style, temperature: M3_TEMPERATURE, strategy: singleFits ? "single" : "grouped", inputTokens: tokens, ttsRequests: 0, retries: 0, parts: [], transport: options.streaming ? "streamGenerateContent" : "generateContent" };
   let reference: M3Features | undefined;
   const accepted: Uint8Array[] = [];
   const queue: Array<{ text: string; depth: number }> = (singleFits ? [text] : largeM3Chunks(text)).map(t => ({ text: t, depth: 0 }));
@@ -105,9 +145,9 @@ export async function generateM3Program(options: {
       audit.ttsRequests++;
       if (attempt) audit.retries++;
       let pcm: Uint8Array;
-      try { pcm = await synthesizeM3Take(apiKey, model, voice, task.text, style, signal, fetcher); }
+      try { pcm = await synthesizeM3Take(apiKey, model, voice, task.text, style, signal, fetcher, Boolean(options.streaming), speed); }
       catch (error) {
-        if (error instanceof M3Error && ["M3_OUTPUT_LIMIT", "M3_LENGTH_LIMIT"].includes(error.code)) {
+        if (error instanceof M3Error && (["M3_OUTPUT_LIMIT", "M3_LENGTH_LIMIT"].includes(error.code) || (audit.strategy === "single" && ["M3_TIMEOUT", "M3_UPSTREAM_TIMEOUT"].includes(error.code)))) {
           const pieces = audit.strategy === "single" ? largeM3Chunks(task.text) : splitM3AtBoundary(task.text);
           queue.unshift(...pieces.map(t => ({ text: t, depth: task.depth + 1 })));
           audit.strategy = "grouped"; splitForLength = true; break;
