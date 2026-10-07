@@ -1,5 +1,5 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-continuous-v5";
+export const M3_VERSION = "m3-continuous-v5-stream";
 export const M3_STRICT_ANCHOR = "One continuous, neutral Kazakh male newsreader. Preserve the selected voice's identity, age impression, resonance, baseline pitch, energy and delivery throughout. Read all names and quotations in the narrator's own voice. No impersonation, dialogue, dramatic acting or topic-dependent emotion. Natural sentence emphasis only.";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;

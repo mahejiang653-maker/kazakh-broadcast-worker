@@ -66,12 +66,12 @@ const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
     name: "Gemini 3.8 Flash TTS",
-    note: "正式长稿优先 · 声纹与房间感稳定性更好",
+    note: "正式长稿优先 · 整篇连续生成",
   },
   {
     id: "gemini-3.8-flash-lite-tts",
     name: "Gemini 3.8 Flash-Lite TTS",
-    note: "短句试听优先 · 超过 2500 字符会自动切到 Flash",
+    note: "短句试听优先 · 全程保留所选模型",
   },
 ] as const;
 
@@ -1990,7 +1990,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "Generate Content 单人 voiceConfig + 空 style + 同角色短段拼接 · 24 kHz WAV"
+                      ? "连续播报 · 固定主播约束 · 声线异常筛查 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>

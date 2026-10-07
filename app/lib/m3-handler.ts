@@ -206,7 +206,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
     // the entire article and every long-form chunk.
     const resolvedVoice = await resolveSelectedM3Voice(apiKey, requestedVoice);
     const voice = resolvedVoice.id;
-    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal });
+    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal, streaming: true });
 
     return new Response(wav.buffer as ArrayBuffer, {
       status: 200,
@@ -221,7 +221,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
         "X-M3-Strict-Single-Speaker": "true",
         "X-M3-Language": "auto-detect-kazakh",
         "X-M3-Transcript": "verbatim-with-pause-tags",
-        "X-M3-TTS-API": "generateContent-voiceConfig",
+        "X-M3-TTS-API": `${audit.transport}-voiceConfig`,
         "X-M3-Voice-Source": resolvedVoice.source,
         "X-M3-Anchor": "strict-constant-v5",
         "X-M3-Version": M3_VERSION,
