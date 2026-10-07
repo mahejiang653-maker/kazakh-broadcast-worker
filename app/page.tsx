@@ -64,12 +64,12 @@ const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
     name: "Gemini 3.8 Flash TTS",
-    note: "正式长稿优先 · 整篇连续生成",
+    note: "15,000 字符 · 强制整篇一次请求 · 不分段",
   },
   {
     id: "gemini-3.8-flash-lite-tts",
     name: "Gemini 3.8 Flash-Lite TTS",
-    note: "短句试听优先 · 全程保留所选模型",
+    note: "15,000 字符 · 强制整篇一次请求 · 不分段",
   },
 ] as const;
 
@@ -1347,7 +1347,7 @@ export default function Home() {
                   <div className="broadcast-index">M3</div>
                   <div>
                     <strong>M3 干净输入模式</strong>
-                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速。</p>
+                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；15,000 字符以内始终整篇一次生成。</p>
                   </div>
                 </div>
               ) : null}
@@ -1796,8 +1796,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 连续单主播 V5 · 官方命名男角色</strong>
-                  <p>整篇新闻优先一次连续生成。超过单次长度限制时才分成几个大块，每块保持相同角色和中性新闻播报方式；人物名字和引语均由主播本人朗读。</p>
+                  <strong>M3 单次整篇 V6 · 官方命名男角色</strong>
+                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。无论稿件长短，整篇只发送 1 次音频生成请求，不分段、不分块、不自动改模型。</p>
                 </div>
               </div>
 
@@ -1892,8 +1892,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 连续单主播 V5</strong>
-                  <p>长稿会检查声学异常；发现持续的音高或音色异常时，使用相同角色重试，仍未通过则停止合成。声学筛查帮助发现异常，不能保证每次生成都完全一致。</p>
+                  <strong>M3 · 单次整篇 V6</strong>
+                  <p>本模式不再做分段兜底，也不做自动重试。若 Google 单次输出达到 MAX_TOKENS、超时或检测到明显声线异常，本次直接失败并提示原因，不会偷偷拆成多段重新生成。</p>
                 </div>
               </div>
             </>
