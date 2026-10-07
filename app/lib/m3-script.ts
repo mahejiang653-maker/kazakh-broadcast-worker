@@ -1,6 +1,5 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-single-request-v6";
-export const M3_STRICT_ANCHOR = "One continuous, neutral Kazakh male newsreader. Preserve the selected voice's identity, age impression, resonance, baseline pitch, energy and delivery throughout. Read all names and quotations in the narrator's own voice. No impersonation, dialogue, dramatic acting or topic-dependent emotion. Natural sentence emphasis only.";
+export const M3_VERSION = "m3-single-request-v7-clean-text";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;
 export const M3_TEMPERATURE = 0.5;
@@ -15,11 +14,13 @@ export function prepareM3Text(input: string) {
     .replace(/<(?!short pause>|long pause>)[^>\n]{1,100}>/giu, "")
     .replace(/[|｜]/g, " ")
     .replace(new RegExp(`(^|\\n)([ \\t]*(?:${openerPattern}))[ \\t]*[.。](?:[ \\t]*<short pause>)?[ \\t\\n]*`, "giu"), "$1$2. <short pause>\n")
+    .replace(/\n(?:[ \t]*\n)+/g, "\n")
     .trim();
 }
 
 export function m3Style(speed: number) {
-  return `${M3_STRICT_ANCHOR} Constant speaking pace: ${Math.round(speed * 100)}% of the selected voice's normal rate.`;
+  if (Math.abs(speed - 1) < 0.005) return "";
+  return `Speaking rate: ${Math.round(speed * 100)}% of normal.`;
 }
 
 export function estimatedM3Seconds(text: string, speed: number) {
@@ -65,7 +66,13 @@ export function largeM3Chunks(text: string) {
 
 export function m3RequestBody(text: string, voice: string, style: string, temperature = M3_TEMPERATURE) {
   return {
-    contents: [{ role: "user", parts: [{ text, speechMetadata: { style } }] }],
+    contents: [{
+      role: "user",
+      parts: [{
+        text,
+        ...(style ? { speechMetadata: { style } } : {}),
+      }],
+    }],
     generationConfig: {
       responseModalities: ["AUDIO"],
       temperature,
