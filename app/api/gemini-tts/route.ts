@@ -36,16 +36,7 @@ const ALLOWED_MODELS = new Set([
   "gemini-3.8-flash-lite-tts",
 ]);
 
-// Keep turn-level style intentionally short. Gemini's own 3.8 guidance
-// recommends anchoring identity in a persistent designed voice rather than
-// repeating long "keep the same speaker" instructions on every request.
-const PRESET_STYLE: Record<string, string> = {
-  news: "Professional Kazakh news delivery; steady, neutral and clear.",
-  calm: "Calm Kazakh long-form news delivery; slightly slower and restrained.",
-  bulletin: "Concise Kazakh news bulletin; focused, clear and slightly brisk.",
-  expressive: "Natural Kazakh broadcast delivery with subtle emphasis only.",
-  story: "Warm Kazakh documentary narration; natural and restrained.",
-};
+// Strict M3 keeps per-turn style empty or minimal to reduce voice drift.
 
 const NUMBERED_OPENERS = [
   "Бірінші",
@@ -115,29 +106,36 @@ function sanitizeVoiceId(value: unknown) {
 
 function prepareGeminiText(input: string) {
   let output = input
-    .replaceAll("[短停顿]", "<short pause>")
-    .replaceAll("[长停顿]", "<long pause>")
-    .replaceAll("[叹气]", "<sigh>")
-    .replaceAll("[轻笑]", "<laugh>")
-    .replaceAll("[清嗓]", "<cough>");
+    .replaceAll("[短停顿]", "... ")
+    .replaceAll("[长停顿]", "... ... ")
+    .replaceAll("[叹气]", " ")
+    .replaceAll("[轻笑]", " ")
+    .replaceAll("[清嗓]", " ")
+    .replaceAll("|", " ")
+    .replaceAll("｜", " ")
+    .replaceAll("«", "")
+    .replaceAll("»", "")
+    .replaceAll("“", "")
+    .replaceAll("”", "")
+    .replaceAll("„", "")
+    .replaceAll("‟", "")
+    .replaceAll('"', "");
 
   for (const opener of NUMBERED_OPENERS) {
     const pattern = new RegExp(
-      `(^|\\n)(\\s*${opener.replaceAll(" ", "\\s+")}\\s*[.。])\\s*(?!<short pause>)`,
+      `(^|\\n)(\\s*${opener.replaceAll(" ", "\\s+")})\\s*[.。]\\s*`,
       "giu",
     );
-    output = output.replace(pattern, "$1$2 <short pause> ");
+    output = output.replace(pattern, "$1$2... ");
   }
 
   return output.trim();
 }
 
 function maxChunkCharactersForSpeed(speed: number) {
-  // The daily 5,800–6,000 character news script should normally fit in one
-  // request at ordinary speeds, eliminating the most audible reset point.
-  if (speed <= 0.8) return 5600;
-  if (speed <= 0.94) return 6200;
-  return 7000;
+  if (speed <= 0.82) return 2400;
+  if (speed <= 0.94) return 2800;
+  return 3200;
 }
 
 function splitLongText(text: string, maxCharacters: number) {
@@ -167,12 +165,10 @@ function splitLongText(text: string, maxCharacters: number) {
   return chunks;
 }
 
-function speedInstruction(speed: number) {
-  if (speed <= 0.82) return "Noticeably slower than normal, while staying natural.";
-  if (speed <= 0.94) return "Slightly slower than normal.";
-  if (speed < 1.06) return "Natural professional broadcast pace.";
-  if (speed < 1.14) return "Slightly faster than normal, while staying clear.";
-  return "Brisk broadcast pace, while staying clear.";
+function strictSpeedStyle(speed: number) {
+  if (speed < 0.94) return "speaking slowly";
+  if (speed > 1.06) return "speaking slightly faster";
+  return "";
 }
 
 function extractAudioBase64(payload: GeminiInteractionPayload) {
