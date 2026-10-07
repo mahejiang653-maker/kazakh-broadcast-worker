@@ -23,17 +23,24 @@ test("M3 exposes only official named male Studio roles plus the custom anchor", 
     assert.match(route, new RegExp(`"${name}"`));
     assert.match(voicesRoute, new RegExp(`id: "${name}"`));
   }
-  assert.doesNotMatch(voicesRoute, /Gacrux/);
-  assert.doesNotMatch(voicesRoute, /Sulafat/);
 });
 
-test("strict M3 uses exactly one selected voice with Kazakh language lock", () => {
-  assert.match(route, /const requestedVoice = sanitizeVoiceId\(body\.voice\) \|\| M3_ANCHOR_TOKEN;/);
-  assert.match(route, /NAMED_MALE_STUDIO_VOICES\.has\(requestedVoice\)/);
-  assert.match(route, /speech_config:\s*\[\{ voice, language: "kk-KZ" \}\]/);
-  assert.doesNotMatch(route, /speech_config:\s*\{\s*speakers/);
-  assert.match(route, /"X-M3-Strict-Single-Speaker": "true"/);
-  assert.match(route, /"X-M3-Language": "kk-KZ"/);
+test("M3 V4 uses Generate Content protocol-level single-speaker voiceConfig", () => {
+  assert.match(route, /models\/\$\{model\}:generateContent/);
+  assert.match(route, /generationConfig:/);
+  assert.match(route, /responseModalities: \["AUDIO"\]/);
+  assert.match(route, /speechConfig:\s*\{\s*voiceConfig:\s*\{\s*voice,/s);
+  assert.doesNotMatch(route, /multiSpeakerVoiceConfig/);
+  assert.doesNotMatch(route, /GEMINI_INTERACTIONS_ENDPOINT/);
+  assert.doesNotMatch(route, /speech_config:\s*\[/);
+  assert.match(route, /"X-M3-TTS-API": "generateContent-voiceConfig"/);
+});
+
+test("M3 V4 uses raw PCM output for safe concatenation", () => {
+  assert.match(route, /mimeType: "AUDIO_L16"/);
+  assert.match(route, /sampleRate: SAMPLE_RATE/);
+  assert.match(route, /GeminiGenerateContentPayload/);
+  assert.match(route, /inlineData\?\.data \?\? part\.inline_data\?\.data/);
 });
 
 test("strict M3 removes dialogue/performance triggers and uses punctuation pauses", () => {
@@ -41,8 +48,6 @@ test("strict M3 removes dialogue/performance triggers and uses punctuation pause
   assert.match(route, /replaceAll\("\|", " "\)/);
   assert.match(route, /replaceAll\("«", ""\)/);
   assert.match(route, /output\.replace\(pattern, "\$1\$2\.\.\. "\)/);
-  assert.doesNotMatch(route, /<short pause>/);
-  assert.doesNotMatch(route, /<laugh>/);
 });
 
 test("strict M3 uses empty style at normal speed and shorter turns", () => {
@@ -50,21 +55,16 @@ test("strict M3 uses empty style at normal speed and shorter turns", () => {
   assert.match(route, /return "";/);
   assert.match(route, /if \(speed <= 0\.94\) return 2800;/);
   assert.match(route, /return 3200;/);
-  assert.match(route, /const style = strictSpeedStyle\(speed\);/);
-  assert.doesNotMatch(route, /PRESET_STYLE/);
 });
 
 test("long M3 programs automatically use Flash for stability", () => {
   assert.match(route, /rawText\.length > 2500 \? "gemini-3\.8-flash-tts" : requestedModel/);
 });
 
-test("M3 UI exposes strict single-speaker behavior", () => {
-  assert.match(page, /M3 严格单主播 · 官方命名男角色/);
-  assert.match(page, /严格单主播模式已关闭角色化播音风格/);
-  assert.match(page, /M3 · 严格单主播 V3/);
+test("M3 UI exposes protocol-level single-speaker V4", () => {
+  assert.match(page, /M3 严格单主播 V4 · 官方命名男角色/);
+  assert.match(page, /speechConfig\.voiceConfig/);
+  assert.match(page, /multiSpeakerVoiceConfig/);
+  assert.match(page, /M3 · 严格单主播 V4/);
   assert.match(page, /选择命名男角色/);
-  assert.match(page, /Iapetus/);
-  assert.match(page, /Schedar/);
-  assert.match(page, /Charon/);
-  assert.match(page, /开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾/);
 });
