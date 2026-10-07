@@ -66,12 +66,12 @@ const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
     name: "Gemini 3.8 Flash TTS",
-    note: "旗舰音质 · 长稿稳定 · 哈萨克语优先测试",
+    note: "正式长稿优先 · 声纹与房间感稳定性更好",
   },
   {
     id: "gemini-3.8-flash-lite-tts",
     name: "Gemini 3.8 Flash-Lite TTS",
-    note: "更快更省 · 批量生成优先",
+    note: "短句试听优先 · 超过 2500 字符会自动切到 Flash",
   },
 ] as const;
 
@@ -1793,8 +1793,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 固定单主播 · 官方命名男角色</strong>
-                  <p>改回你之前看到的有名字角色。这里列出 Google 官方标记为 Male 的 Studio 预设角色；Gemini 3.8 会自动识别哈萨克语输入。先选一个角色，再生成整篇；开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾始终只使用当前选中的这个名字。</p>
+                  <strong>M3 严格单主播 · 官方命名男角色</strong>
+                  <p>这版专门修复你听到的“一个角色里仍像多人轮读”。选中一个角色后，后端只发送一个 voice，并锁定 kk-KZ；同时去掉对话/重叠说话触发符号，把长稿拆成更短的同声线片段。开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾仍只使用当前选中的这个角色。</p>
                 </div>
               </div>
 
@@ -1878,33 +1878,19 @@ export default function Home() {
 
               {speedControl("倍速调节")}
 
-              <fieldset className="field-block">
-                <legend>Gemini 播音风格</legend>
-                <div className="preset-grid">
-                  {PRESETS.map((item) => (
-                    <button
-                      className={preset === item.id ? "preset selected" : "preset"}
-                      type="button"
-                      key={item.id}
-                      onClick={() => {
-                        setPreset(item.id);
-                        setError("");
-                        resetAudio();
-                      }}
-                      aria-pressed={preset === item.id}
-                    >
-                      <strong>{item.label}</strong>
-                      <small>{item.note}</small>
-                    </button>
-                  ))}
+              <div className="broadcast-note">
+                <div className="broadcast-index">1</div>
+                <div>
+                  <strong>严格单主播模式已关闭角色化播音风格</strong>
+                  <p>标准 1.00× 下不再发送新闻、故事、生动等 style 提示，让所选 voice 自己承担声纹身份。只有明显调慢或调快时才发送一个极短的速度提示，以降低 voice drift。</p>
                 </div>
-              </fieldset>
+              </div>
 
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 可选官方命名男角色 · 整篇锁定同一人</strong>
-                  <p>建议你先试 Iapetus（Clear）、Schedar（Even）、Achird（Friendly）、Charon / Rasalgethi（Informative）、Algieba（Smooth）；它们比 Algenib（Gravelly）更适合你现在想减少“粗声”的方向。选择后整篇和所有长稿分段都复用同一个角色名。</p>
+                  <strong>M3 · 严格单主播 V3</strong>
+                  <p>正式 13 条长稿会自动使用 Gemini 3.8 Flash TTS。编号停顿改用普通标点，不再插入可能增强表演感的语音标签；引号和竖线等可能触发角色/重叠说话的符号也会在送入 TTS 前移除，但新闻文字内容本身保持不变。</p>
                 </div>
               </div>
             </>
@@ -2004,7 +1990,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "所选命名男角色整篇锁定 + 哈萨克语新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
+                      ? "严格单主播 + kk-KZ 锁定 + 空 style + 同角色短段拼接 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>
