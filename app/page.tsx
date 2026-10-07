@@ -60,8 +60,6 @@ const EDGE_VOICES = [
   },
 ] as const;
 
-const M3_ANCHOR_TOKEN = "m3-persistent-anchor";
-
 const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
@@ -85,16 +83,6 @@ type GeminiVoice = {
   language?: string;
   description?: string;
   type?: string;
-};
-
-const M3_CURRENT_ANCHOR: GeminiVoice = {
-  id: M3_ANCHOR_TOKEN,
-  name: "M3 V2 当前专属主播",
-  gender: "male",
-  pitch: "medium",
-  language: "kk-KZ",
-  type: "prompted",
-  description: "当前专属持久声纹 · 较成熟偏厚；可切换下方其他男声",
 };
 
 const GEMINI_NAMED_MALE_VOICES: GeminiVoice[] = [
