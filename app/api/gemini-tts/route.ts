@@ -5,11 +5,14 @@ const SAMPLE_RATE = 24000;
 const CHANNELS = 1;
 const BITS_PER_SAMPLE = 16;
 
+const M3_ANCHOR_TOKEN = "m3-persistent-anchor";
 const M3_VOICE_DISPLAY_NAME = "QAZAQ M3 Anchor v2";
 const M3_VOICE_DESIGN_PROMPT =
   "A native Kazakh male television and radio news anchor in his 30s to early 40s. Mature but not old, medium-low natural pitch, clear standard Kazakh pronunciation, steady newsroom delivery, warm natural chest resonance, restrained emotion, crisp consonants, clean Kazakh vowels, moderate pace, gentle sentence endings, no exaggerated bass, no breathy acting, no theatrical character performance.";
 
 let cachedM3VoiceId: string | null = null;
+let cachedMaleVoiceIds: Set<string> | null = null;
+let cachedMaleVoiceIdsAt = 0;
 
 const ALLOWED_MODELS = new Set([
   "gemini-3.8-flash-tts",
@@ -67,6 +70,8 @@ type GeminiVoice = {
   display_name?: string;
   displayName?: string;
   type?: string;
+  gender?: string;
+  language_code?: string;
 };
 
 type GeminiVoiceListPayload = {
@@ -82,6 +87,13 @@ function jsonError(message: string, status: number) {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function sanitizeVoiceId(value: unknown) {
+  if (typeof value !== "string") return "";
+  const voice = value.trim();
+  if (!/^[A-Za-z0-9_.:-]{1,180}$/.test(voice)) return "";
+  return voice;
 }
 
 function prepareGeminiText(input: string) {
@@ -282,6 +294,62 @@ async function resolveM3Voice(apiKey: string) {
   return created.id;
 }
 
+
+async function listMaleVoiceIds(apiKey: string) {
+  const now = Date.now();
+  if (cachedMaleVoiceIds && now - cachedMaleVoiceIdsAt < 10 * 60 * 1000) {
+    return cachedMaleVoiceIds;
+  }
+
+  const url = new URL(GEMINI_VOICES_ENDPOINT);
+  url.searchParams.append("language_code", "kk-KZ");
+  url.searchParams.append("gender", "male");
+  url.searchParams.set("page_size", "1000");
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
+    headers: {
+      "x-goog-api-key": apiKey,
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const detail = await readErrorDetail(response);
+    throw new Error(`无法验证 Gemini 男声目录（${response.status}）：${detail}`);
+  }
+
+  const payload = (await response.json()) as GeminiVoiceListPayload;
+  const ids = new Set(
+    (payload.voices ?? [])
+      .filter((item) => item.gender?.trim().toLowerCase() === "male" && item.language_code?.trim().toLowerCase() === "kk-kz")
+      .flatMap((item) => (item.id?.trim() ? [item.id.trim()] : [])),
+  );
+
+  cachedMaleVoiceIds = ids;
+  cachedMaleVoiceIdsAt = now;
+  return ids;
+}
+
+async function resolveSelectedM3Voice(apiKey: string, requestedVoice: string) {
+  if (!requestedVoice || requestedVoice === M3_ANCHOR_TOKEN) {
+    return {
+      id: await resolveM3Voice(apiKey),
+      source: "persistent-voice-design",
+    };
+  }
+
+  const maleVoiceIds = await listMaleVoiceIds(apiKey);
+  if (!maleVoiceIds.has(requestedVoice)) {
+    throw new Error("所选 Gemini 声线不存在、已失效或不是男性声线，请刷新男声列表后重新选择。");
+  }
+
+  return {
+    id: requestedVoice,
+    source: requestedVoice.startsWith("voice_") ? "stored-male-voice" : "catalog-male-voice",
+  };
+}
+
 async function synthesizeChunk(
   apiKey: string,
   model: string,
@@ -377,6 +445,7 @@ export async function POST(request: Request) {
     typeof body.model === "string" && ALLOWED_MODELS.has(body.model)
       ? body.model
       : "gemini-3.8-flash-tts";
+  const requestedVoice = sanitizeVoiceId(body.voice) || M3_ANCHOR_TOKEN;
   const preset = typeof body.preset === "string" ? body.preset : "news";
   const speed =
     typeof body.speed === "number" && Number.isFinite(body.speed)
@@ -384,9 +453,11 @@ export async function POST(request: Request) {
       : 1;
 
   try {
-    // Resolve one persistent Google-managed custom voice for M3. Once created,
-    // every future article and every chunk reuses the same voice_ ID.
-    const voice = await resolveM3Voice(apiKey);
+    // The user may select any male voice returned by Google's Voices API.
+    // The selected voice is validated server-side and then held constant for
+    // the entire article and every long-form chunk.
+    const resolvedVoice = await resolveSelectedM3Voice(apiKey, requestedVoice);
+    const voice = resolvedVoice.id;
     const prepared = prepareGeminiText(rawText);
     const chunks = splitLongText(prepared, maxChunkCharactersForSpeed(speed));
     const style = `${PRESET_STYLE[preset] ?? PRESET_STYLE.news} ${speedInstruction(speed)}`;
@@ -411,7 +482,7 @@ export async function POST(request: Request) {
         "X-Gemini-TTS-Model": model,
         "X-Gemini-TTS-Voice": voice,
         "X-M3-Single-Speaker": "true",
-        "X-M3-Voice-Source": "persistent-voice-design",
+        "X-M3-Voice-Source": resolvedVoice.source,
         "X-M3-Anchor": "fixed-male",
         "X-Gemini-TTS-Chunks": String(chunks.length),
       },

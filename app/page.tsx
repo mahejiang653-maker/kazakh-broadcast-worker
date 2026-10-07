@@ -84,16 +84,20 @@ type GeminiVoice = {
   context?: string;
   language?: string;
   description?: string;
+  type?: string;
 };
 
-const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [
-  { id: "Gacrux", name: "Gacrux", gender: "male", description: "Mature · 成熟稳重" },
-  { id: "Charon", name: "Charon", gender: "male", description: "Informative · 资讯播报" },
-  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", description: "Informative · 稳健资讯" },
-  { id: "Schedar", name: "Schedar", description: "Even · 平稳一致" },
-  { id: "Alnilam", name: "Alnilam", gender: "male", description: "Firm · 坚定清晰" },
-  { id: "Sulafat", name: "Sulafat", description: "Warm · 温暖自然" },
-];
+const M3_CURRENT_ANCHOR: GeminiVoice = {
+  id: M3_ANCHOR_TOKEN,
+  name: "M3 V2 当前专属主播",
+  gender: "male",
+  pitch: "medium",
+  language: "kk-KZ",
+  type: "prompted",
+  description: "当前专属持久声纹 · 较成熟偏厚；可切换下方其他男声",
+};
+
+const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [];
 
 const PRESETS = [
   { id: "news", label: "标准新闻", note: "连续主持 · 条目开场与收尾", rateFactor: 1.01 },
@@ -331,10 +335,14 @@ export default function Home() {
     "gemini-3.8-flash-tts",
   );
   const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
+    M3_CURRENT_ANCHOR,
     ...GEMINI_FALLBACK_VOICES,
   ]);
   const [isLoadingGeminiVoices, setIsLoadingGeminiVoices] = useState(false);
   const [geminiVoiceWarning, setGeminiVoiceWarning] = useState("");
+  const [geminiMaleVoiceCount, setGeminiMaleVoiceCount] = useState(0);
+  const [geminiVoiceSearch, setGeminiVoiceSearch] = useState("");
+  const [geminiPitchFilter, setGeminiPitchFilter] = useState<"all" | "high" | "medium" | "low">("all");
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
@@ -369,6 +377,28 @@ export default function Home() {
     () => geminiVoices.find((item) => item.id === voice) ?? null,
     [geminiVoices, voice],
   );
+
+  const filteredGeminiVoices = useMemo(() => {
+    const query = geminiVoiceSearch.trim().toLowerCase();
+    return geminiVoices.filter((item) => {
+      if (item.id === M3_ANCHOR_TOKEN) return geminiPitchFilter === "all" && !query;
+      if (geminiPitchFilter !== "all" && item.pitch !== geminiPitchFilter) return false;
+      if (!query) return true;
+      const haystack = [
+        item.name,
+        item.description,
+        item.accent,
+        item.context,
+        item.language,
+        item.pitch,
+        item.type,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [geminiVoices, geminiVoiceSearch, geminiPitchFilter]);
 
   const selectedPreset = useMemo(
     () => PRESETS.find((item) => item.id === preset) ?? PRESETS[0],
@@ -622,26 +652,45 @@ export default function Home() {
     try {
       const response = await fetch("/api/gemini-voices", { method: "POST" });
       const payload = (await response.json().catch(() => null)) as
-        | { error?: string; warning?: string; voices?: GeminiVoice[] }
+        | {
+            error?: string;
+            warning?: string;
+            voices?: GeminiVoice[];
+            totalMaleVoices?: number;
+          }
         | null;
-      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 声线。");
+      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini kk-KZ 哈萨克男声库。");
 
-      const voices = Array.isArray(payload?.voices) && payload.voices.length
+      const catalog = Array.isArray(payload?.voices) && payload.voices.length
         ? payload.voices
-        : GEMINI_FALLBACK_VOICES;
+        : [];
+      const seen = new Set<string>();
+      const voices = [M3_CURRENT_ANCHOR, ...catalog].filter((item) => {
+        if (!item.id || seen.has(item.id)) return false;
+        seen.add(item.id);
+        return true;
+      });
+
       setGeminiVoices(voices);
+      setGeminiMaleVoiceCount(
+        typeof payload?.totalMaleVoices === "number"
+          ? payload.totalMaleVoices
+          : catalog.length,
+      );
       setGeminiVoiceWarning(payload?.warning || "");
       setVoice((current) =>
-        voices.some((item) => item.id === current) ? current : voices[0].id,
+        voices.some((item) => item.id === current) ? current : M3_ANCHOR_TOKEN,
       );
     } catch (caught) {
-      setGeminiVoices([...GEMINI_FALLBACK_VOICES]);
+      const voices = [M3_CURRENT_ANCHOR];
+      setGeminiVoices(voices);
+      setGeminiMaleVoiceCount(0);
       setGeminiVoiceWarning(
         caught instanceof Error
-          ? `${caught.message} 已回退到内置 Studio 声线。`
-          : "读取 Gemini 声线失败，已回退到内置 Studio 声线。",
+          ? `${caught.message} 当前只保留 M3 专属 kk-KZ 男主播。`
+          : "读取 Gemini kk-KZ 男声库失败，当前只保留 M3 专属男主播。",
       );
-      setVoice(GEMINI_FALLBACK_VOICES[0].id);
+      setVoice(M3_ANCHOR_TOKEN);
     } finally {
       setIsLoadingGeminiVoices(false);
     }
@@ -665,6 +714,10 @@ export default function Home() {
 
     if (nextEngine === "eleven" && !elevenVoices.length) {
       void loadElevenVoices();
+    }
+
+    if (nextEngine === "gemini") {
+      void loadGeminiVoices();
     }
 
     if (nextEngine === "omnivoice" || nextEngine === "piper") {
@@ -756,7 +809,7 @@ export default function Home() {
           ? {
               text: cleanText,
               model: geminiModel,
-              voice: M3_ANCHOR_TOKEN,
+              voice,
               preset,
               speed,
             }
@@ -1734,9 +1787,108 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 固定单主播 · 哈萨克男性</strong>
-                  <p>主播不再使用容易跨请求漂移的普通预设声线。首次生成时会创建并保存一个专属的持久 voice_ 声纹 ID；之后开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾，以及所有长稿分段，都只复用这一枚声纹。</p>
+                  <strong>M3 固定单主播 · 哈萨克男声可选</strong>
+                  <p>这里只加载 Gemini 3.8 中标记为 kk-KZ + male 的哈萨克男声。先选一个主播，再生成整篇；开头 → 第一条 → 第二条 → …… → 第十三条 → 结尾始终只使用当前选中的这一个 voice ID。</p>
                 </div>
+              </div>
+
+              <div className="field-block">
+                <div className="field-label-row">
+                  <label htmlFor="gemini-male-voice">选择哈萨克男主播</label>
+                  <button
+                    className="text-action"
+                    type="button"
+                    onClick={() => void loadGeminiVoices()}
+                    disabled={isLoadingGeminiVoices}
+                  >
+                    {isLoadingGeminiVoices ? "读取中…" : "刷新哈萨克男声"}
+                  </button>
+                </div>
+
+                <div className="textarea-wrap" style={{ padding: "14px 17px 12px" }}>
+                  <input
+                    aria-label="搜索哈萨克男声"
+                    type="search"
+                    value={geminiVoiceSearch}
+                    onChange={(event) => setGeminiVoiceSearch(event.target.value)}
+                    placeholder="搜索名称、风格、口音…"
+                    style={{
+                      width: "100%",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      outline: 0,
+                      padding: "11px 12px",
+                      background: "transparent",
+                      color: "var(--ink)",
+                      fontSize: 14,
+                    }}
+                  />
+
+                  <div className="preset-grid" style={{ marginTop: 12 }}>
+                    {([
+                      ["all", "全部", "全部哈萨克男声"],
+                      ["high", "偏细", "优先解决声音偏粗"],
+                      ["medium", "中等", "自然平衡"],
+                      ["low", "低沉", "更厚更稳"],
+                    ] as const).map(([value, label, note]) => (
+                      <button
+                        className={geminiPitchFilter === value ? "preset selected" : "preset"}
+                        type="button"
+                        key={value}
+                        onClick={() => setGeminiPitchFilter(value)}
+                        aria-pressed={geminiPitchFilter === value}
+                      >
+                        <strong>{label}</strong>
+                        <small>{note}</small>
+                      </button>
+                    ))}
+                  </div>
+
+                  <select
+                    id="gemini-male-voice"
+                    value={voice}
+                    disabled={isLoadingGeminiVoices}
+                    onChange={(event) => {
+                      setVoice(event.target.value);
+                      setError("");
+                      resetAudio();
+                    }}
+                    style={{
+                      width: "100%",
+                      border: "1px solid var(--line)",
+                      borderRadius: 10,
+                      outline: 0,
+                      marginTop: 12,
+                      padding: "13px 12px",
+                      background: "transparent",
+                      color: "var(--ink)",
+                      fontSize: 14,
+                    }}
+                  >
+                    {filteredGeminiVoices.length ? (
+                      filteredGeminiVoices.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                          {item.pitch ? ` · ${item.pitch === "high" ? "偏细" : item.pitch === "low" ? "低沉" : "中等"}` : ""}
+                          {item.description ? ` · ${item.description}` : ""}
+                        </option>
+                      ))
+                    ) : (
+                      <option value={voice}>当前筛选没有结果</option>
+                    )}
+                  </select>
+
+                  <div className="textarea-footer" style={{ margin: "12px -17px -12px" }}>
+                    <span>{geminiMaleVoiceCount ? `已读取 ${geminiMaleVoiceCount} 个 kk-KZ 哈萨克男声` : "等待读取哈萨克男声库"}</span>
+                    <span>{selectedGeminiVoice?.pitch === "high" ? "当前：偏细" : selectedGeminiVoice?.pitch === "low" ? "当前：低沉" : "当前：中等 / 未标注"}</span>
+                  </div>
+                </div>
+
+                {geminiVoiceWarning ? (
+                  <p style={{ margin: "8px 2px 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
+                    {geminiVoiceWarning}
+                  </p>
+                ) : null}
               </div>
 
               {speedControl("倍速调节")}
@@ -1766,8 +1918,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 固定哈萨克男性主播</strong>
-                  <p>默认使用 24 kHz WAV。M3 现在使用 Google Voice Design 生成的持久 voice_ 声纹，而不是每段重新依赖预设声线；普通 5800–6000 字新闻稿在常用倍速下优先一次生成，超长稿才分段，并继续复用同一 voice_ ID。Бірінші、Екінші直到Он үшінші等新闻编号后自动加入短停顿。</p>
+                  <strong>M3 · 可选哈萨克男声 · 整篇锁定同一人</strong>
+                  <p>默认使用 24 kHz WAV。你选择哪一个 kk-KZ 男声，整篇和所有长稿分段都复用同一个 voice ID；不会按第一条、第二条等新闻自动换人。普通 5800–6000 字新闻稿仍优先一次生成，Бірінші、Екінші直到Он үшінші等编号后自动加入短停顿。</p>
                 </div>
               </div>
             </>
@@ -1857,7 +2009,7 @@ export default function Home() {
                       : "正在等待 ElevenLabs 声线"
                     : engine === "gemini"
                       ? voice
-                        ? `生成 M3 · ${geminiModel === "gemini-3.8-flash-tts" ? "Flash" : "Flash-Lite"} · 固定男主播 · ${speed.toFixed(2)}×`
+                        ? `生成 M3 · ${selectedGeminiVoice?.name || "哈萨克男主播"} · ${geminiModel === "gemini-3.8-flash-tts" ? "Flash" : "Flash-Lite"} · ${speed.toFixed(2)}×`
                         : "正在等待 M3 主播"
                       : `生成 Edge TTS · ${speed.toFixed(2)}×`}
               </strong>
@@ -1867,7 +2019,7 @@ export default function Home() {
                   : engine === "eleven"
                     ? "声线 + 倍速 + 音色参数 · 生成后可试听并下载 MP3"
                     : engine === "gemini"
-                      ? "持久 voice_ 单主播 + 新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
+                      ? "所选 kk-KZ 男声整篇锁定 + 新闻风格 + 编号停顿 + 优先整稿一次生成 · 24 kHz WAV"
                       : "声线 + 倍速 + 音调 + 音量 · 免费生成 MP3"}
               </small>
             </span>

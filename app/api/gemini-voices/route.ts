@@ -1,13 +1,6 @@
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
 
-const FALLBACK_VOICES = [
-  { id: "Gacrux", name: "Gacrux", gender: "male", pitch: "medium", context: "News", description: "Mature · 成熟稳重" },
-  { id: "Charon", name: "Charon", gender: "male", pitch: "medium", context: "News", description: "Informative · 资讯播报" },
-  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", pitch: "medium", context: "News", description: "Informative · 稳健资讯" },
-  { id: "Schedar", name: "Schedar", gender: "neutral", pitch: "medium", context: "News", description: "Even · 平稳一致" },
-  { id: "Alnilam", name: "Alnilam", gender: "male", pitch: "medium", context: "News", description: "Firm · 坚定清晰" },
-  { id: "Sulafat", name: "Sulafat", gender: "neutral", pitch: "medium", context: "Narration", description: "Warm · 温暖自然" },
-];
+const FALLBACK_VOICES: never[] = [];
 
 type GeminiVoicePayload = {
   voices?: Array<{
@@ -21,16 +14,25 @@ type GeminiVoicePayload = {
     description?: string;
     language_code?: string;
     languageCode?: string;
+    context?: string | string[];
     contexts?: string[];
-    context?: string[];
-    persona?: string[];
+    persona?: string | string[];
+    type?: string;
   }>;
+  next_page_token?: string;
+  nextPageToken?: string;
 };
+
+function asText(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+  return value?.trim() || "";
+}
 
 function fallbackResponse(warning?: string) {
   return Response.json(
     {
       voices: FALLBACK_VOICES,
+      totalMaleVoices: 0,
       catalogAvailable: false,
       warning: warning || "",
     },
@@ -46,15 +48,16 @@ function fallbackResponse(warning?: string) {
 export async function POST() {
   const apiKey = (process.env.GEMINI_API_KEY ?? "").trim();
   if (!apiKey) {
-    return fallbackResponse("尚未配置 GEMINI_API_KEY，先显示内置推荐 Studio 声线。");
+    return fallbackResponse("尚未配置 GEMINI_API_KEY，无法读取 kk-KZ 哈萨克男声目录。");
   }
 
+  // Google Voices API supports up to 1000 voices per page. Request the full
+  // male catalog without language/context restrictions so the user can choose
+  // among Studio and Extended Voice Library voices.
   const url = new URL(GEMINI_VOICES_ENDPOINT);
   url.searchParams.append("language_code", "kk-KZ");
   url.searchParams.append("gender", "male");
-  url.searchParams.append("context", "News");
-  url.searchParams.append("type", "prebuilt");
-  url.searchParams.set("page_size", "100");
+  url.searchParams.set("page_size", "1000");
 
   try {
     const response = await fetch(url.toString(), {
@@ -68,34 +71,43 @@ export async function POST() {
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
       return fallbackResponse(
-        `暂时无法读取 Gemini 哈萨克语扩展声线库（${response.status}）${detail ? "，已回退到内置 Studio 声线。" : "。"}`,
+        `暂时无法读取 Gemini kk-KZ 哈萨克男声目录（${response.status}）${detail ? "。" : "。"}`,
       );
     }
 
     const payload = (await response.json()) as GeminiVoicePayload;
     const seen = new Set<string>();
-    const voices = [
-      ...(payload.voices ?? []).flatMap((item) => {
-        const id = item.id?.trim();
-        if (!id || seen.has(id)) return [];
-        seen.add(id);
-        return [{
-          id,
-          name: item.display_name?.trim() || item.displayName?.trim() || item.name?.trim() || id,
-          gender: item.gender?.trim() || "",
-          pitch: item.pitch?.trim() || "",
-          accent: item.accent?.trim() || "",
-          context: (item.contexts ?? item.context ?? []).join(", "),
-          language: item.language_code?.trim() || item.languageCode?.trim() || "",
-          description: item.description?.trim() || (item.persona ?? []).join(", "),
-        }];
-      }),
-      ...FALLBACK_VOICES.filter((item) => !seen.has(item.id)),
-    ];
+    const voices = (payload.voices ?? []).flatMap((item) => {
+      const id = item.id?.trim();
+      const gender = item.gender?.trim().toLowerCase();
+      const language = item.language_code?.trim() || item.languageCode?.trim() || "";
+      if (!id || gender !== "male" || language.toLowerCase() !== "kk-kz" || seen.has(id)) return [];
+      seen.add(id);
+      return [{
+        id,
+        name: item.display_name?.trim() || item.displayName?.trim() || item.name?.trim() || id,
+        gender: "male",
+        pitch: item.pitch?.trim().toLowerCase() || "",
+        accent: item.accent?.trim() || "",
+        context: asText(item.contexts ?? item.context),
+        language,
+        description: item.description?.trim() || asText(item.persona),
+        type: item.type?.trim().toLowerCase() || "",
+      }];
+    });
+
+    const pitchRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
+    voices.sort((a, b) => {
+      const aPitch = pitchRank[a.pitch] ?? 3;
+      const bPitch = pitchRank[b.pitch] ?? 3;
+      if (aPitch !== bPitch) return aPitch - bPitch;
+      return a.name.localeCompare(b.name, "en");
+    });
 
     return Response.json(
       {
         voices,
+        totalMaleVoices: voices.length,
         catalogAvailable: true,
         warning: "",
       },
@@ -107,7 +119,7 @@ export async function POST() {
       },
     );
   } catch (error) {
-    console.error("Failed to load Gemini voices", error);
-    return fallbackResponse("读取 Gemini 扩展声线库失败，已回退到内置 Studio 声线。");
+    console.error("Failed to load Gemini male voices", error);
+    return fallbackResponse("读取 Gemini kk-KZ 哈萨克男声目录失败。");
   }
 }
