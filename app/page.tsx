@@ -60,8 +60,6 @@ const EDGE_VOICES = [
   },
 ] as const;
 
-const M3_ANCHOR_TOKEN = "m3-persistent-anchor";
-
 const GEMINI_MODELS = [
   {
     id: "gemini-3.8-flash-tts",
@@ -85,16 +83,6 @@ type GeminiVoice = {
   language?: string;
   description?: string;
   type?: string;
-};
-
-const M3_CURRENT_ANCHOR: GeminiVoice = {
-  id: M3_ANCHOR_TOKEN,
-  name: "M3 V2 当前专属主播",
-  gender: "male",
-  pitch: "medium",
-  language: "kk-KZ",
-  type: "prompted",
-  description: "当前专属持久声纹 · 较成熟偏厚；可切换下方其他男声",
 };
 
 const GEMINI_NAMED_MALE_VOICES: GeminiVoice[] = [
@@ -352,7 +340,6 @@ export default function Home() {
     "gemini-3.8-flash-tts",
   );
   const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
-    M3_CURRENT_ANCHOR,
     ...GEMINI_NAMED_MALE_VOICES,
   ]);
   const [isLoadingGeminiVoices, setIsLoadingGeminiVoices] = useState(false);
@@ -575,6 +562,10 @@ export default function Home() {
     setText(voiceDirectorResult.directedText);
     setError("");
     resetEmotionAnalysis();
+    if (nextEngine === "gemini") {
+      resetVoiceDirector();
+      setVoiceDirectorUndoText(null);
+    }
     resetAudio();
   }
 
@@ -671,7 +662,7 @@ export default function Home() {
         ? payload.voices
         : GEMINI_NAMED_MALE_VOICES;
       const seen = new Set<string>();
-      const voices = [M3_CURRENT_ANCHOR, ...catalog].filter((item) => {
+      const voices = [...catalog].filter((item) => {
         if (!item.id || seen.has(item.id)) return false;
         seen.add(item.id);
         return true;
@@ -688,7 +679,7 @@ export default function Home() {
         voices.some((item) => item.id === current) ? current : "Iapetus",
       );
     } catch (caught) {
-      const voices = [M3_CURRENT_ANCHOR, ...GEMINI_NAMED_MALE_VOICES];
+      const voices = [...GEMINI_NAMED_MALE_VOICES];
       setGeminiVoices(voices);
       setGeminiMaleVoiceCount(GEMINI_NAMED_MALE_VOICES.length);
       setGeminiVoiceWarning(
@@ -816,7 +807,6 @@ export default function Home() {
               text: cleanText,
               model: geminiModel,
               voice,
-              preset,
               speed,
             }
           : payload;
@@ -1347,6 +1337,19 @@ export default function Home() {
                     )}
                   </div>
                 </>
+              ) : null}
+              {engine === "gemini" ? (
+                <div
+                  className="broadcast-note"
+                  style={{ margin: "12px 17px 0" }}
+                  aria-label="M3 干净输入模式"
+                >
+                  <div className="broadcast-index">M3</div>
+                  <div>
+                    <strong>M3 干净输入模式</strong>
+                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速。</p>
+                  </div>
+                </div>
               ) : null}
               <div className="textarea-footer" id="character-count">
                 <span>{wordCount ? `${wordCount} 个词 · ${formatDuration(estimatedDuration)}` : "等待输入"}</span>

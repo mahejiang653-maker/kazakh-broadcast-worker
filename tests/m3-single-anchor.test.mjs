@@ -216,3 +216,20 @@ test("M3 deployment pins only M3 routes to the supported EU execution jurisdicti
   assert.deepEqual(config.migrations[0].new_sqlite_classes, ["M3RegionalSession"]);
   assert.ok(worker.includes("await handler.fetch(request, env, ctx)"));
 });
+
+
+test("M3 UI is hard-isolated from Edge emotion, VibeVoice and Fish S2 controls", async () => {
+  const page = await readFile("app/page.tsx", "utf8");
+  assert.ok(page.includes('M3 干净输入模式'));
+  assert.ok(page.includes('Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini'));
+  assert.ok(page.includes('engine === "edge" ? ('));
+  const geminiPayload = page.match(/engine === "gemini"\s*\?\s*\{([\s\S]*?)\}\s*:\s*payload;/)?.[1] ?? "";
+  assert.ok(geminiPayload.includes("text: cleanText"));
+  assert.ok(geminiPayload.includes("model: geminiModel"));
+  assert.ok(geminiPayload.includes("voice"));
+  assert.ok(geminiPayload.includes("speed"));
+  for (const forbidden of ["preset", "edgePitch", "edgeVolume", "edgeFineFocus", "edgeLongFormContinuity", "edgeEmotionOverrides", "style", "speakerBoost"]) {
+    assert.equal(geminiPayload.includes(forbidden), false, forbidden);
+  }
+  assert.equal(page.includes('name: "M3 V2 当前专属主播"'), false);
+});
