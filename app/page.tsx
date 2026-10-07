@@ -97,12 +97,7 @@ const M3_CURRENT_ANCHOR: GeminiVoice = {
   description: "当前专属持久声纹 · 较成熟偏厚；可切换下方其他男声",
 };
 
-const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [
-  { id: "Gacrux", name: "Gacrux", gender: "male", pitch: "medium", type: "prebuilt", description: "Mature · 成熟稳重" },
-  { id: "Charon", name: "Charon", gender: "male", pitch: "medium", type: "prebuilt", description: "Informative · 资讯播报" },
-  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", pitch: "medium", type: "prebuilt", description: "Informative · 稳健资讯" },
-  { id: "Alnilam", name: "Alnilam", gender: "male", pitch: "medium", type: "prebuilt", description: "Firm · 坚定清晰" },
-];
+const GEMINI_FALLBACK_VOICES: GeminiVoice[] = [];
 
 const PRESETS = [
   { id: "news", label: "标准新闻", note: "连续主持 · 条目开场与收尾", rateFactor: 1.01 },
@@ -664,11 +659,11 @@ export default function Home() {
             totalMaleVoices?: number;
           }
         | null;
-      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 男声库。");
+      if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini kk-KZ 哈萨克男声库。");
 
       const catalog = Array.isArray(payload?.voices) && payload.voices.length
         ? payload.voices
-        : GEMINI_FALLBACK_VOICES;
+        : [];
       const seen = new Set<string>();
       const voices = [M3_CURRENT_ANCHOR, ...catalog].filter((item) => {
         if (!item.id || seen.has(item.id)) return false;
@@ -687,13 +682,13 @@ export default function Home() {
         voices.some((item) => item.id === current) ? current : M3_ANCHOR_TOKEN,
       );
     } catch (caught) {
-      const voices = [M3_CURRENT_ANCHOR, ...GEMINI_FALLBACK_VOICES];
+      const voices = [M3_CURRENT_ANCHOR];
       setGeminiVoices(voices);
-      setGeminiMaleVoiceCount(GEMINI_FALLBACK_VOICES.length);
+      setGeminiMaleVoiceCount(0);
       setGeminiVoiceWarning(
         caught instanceof Error
-          ? `${caught.message} 已回退到内置已确认男声。`
-          : "读取 Gemini 男声库失败，已回退到内置已确认男声。",
+          ? `${caught.message} 当前只保留 M3 专属 kk-KZ 男主播。`
+          : "读取 Gemini kk-KZ 男声库失败，当前只保留 M3 专属男主播。",
       );
       setVoice(M3_ANCHOR_TOKEN);
     } finally {
