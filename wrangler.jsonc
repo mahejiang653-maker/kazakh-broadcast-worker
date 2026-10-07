@@ -3,9 +3,27 @@
   "name": "kazakh-broadcast-worker",
   "main": "./worker/index.ts",
   "compatibility_date": "2026-05-22",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
-  }
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "M3_SESSIONS",
+        "class_name": "M3RegionalSession"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "m3-regional-v1",
+      "new_sqlite_classes": [
+        "M3RegionalSession"
+      ]
+    }
+  ]
 }

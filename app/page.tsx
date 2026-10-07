@@ -1030,7 +1030,7 @@ export default function Home() {
             被听见。
           </h1>
           <p className="hero-description">
-            现在提供五套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3，新增 M3 固定哈萨克男性主播。M3 基于 Gemini 3.8 TTS，从开头到第十三条新闻和结尾始终由同一个男性主播完成，长稿分段也锁定同一声线与同一播音人格；原有模式全部保留。
+            现在提供五套哈萨克语播音引擎：免费模式 1 为 Edge TTS，免费模式 2 为 KazakhTTS-OmniVoice，免费模式 3 为浏览器本地 Piper M2，高质量模式为 ElevenLabs v3，新增 M3 固定哈萨克男性主播。M3 基于 Gemini 3.8 TTS，整篇优先连续生成，长稿使用固定播报约束与声学异常筛查。
           </p>
           <div className="feature-row" aria-label="功能特点">
             <span>Edge / OmniVoice / Piper / ElevenLabs / Gemini</span>
@@ -1777,14 +1777,14 @@ export default function Home() {
                     {geminiConfigured === null
                       ? "正在检查 Gemini API 连接…"
                       : geminiConfigured
-                        ? "Gemini API 已接通"
+                        ? "Gemini 密钥已配置"
                         : "还差 GEMINI_API_KEY"}
                   </strong>
                   <p>
                     {geminiConfigured === null
                       ? "正在检查 Cloudflare Worker 是否已经读取到安全密钥。"
                       : geminiConfigured
-                        ? "可以直接生成哈萨克语 TTS；API Key 只保存在 Cloudflare 服务端，不会发送到浏览器。"
+                        ? "密钥已由服务端读取；能否生成以 Google 实际请求结果为准。API Key 不会发送到浏览器。"
                         : "代码和页面已经部署完成；请在 Cloudflare Worker 的 Variables and Secrets 中添加 Secret：GEMINI_API_KEY，然后重新部署。"}
                   </p>
                 </div>
@@ -1793,8 +1793,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 严格单主播 V4 · 官方命名男角色</strong>
-                  <p>这版把底层从 Interactions API 改成 Google Generate Content 的单人协议：只使用 speechConfig.voiceConfig。多人模式必须使用另一个互斥字段 multiSpeakerVoiceConfig，因此这一层不再存在“同一个请求里偷偷配置多人”的空间。哈萨克语由 Gemini 3.8 自动识别。</p>
+                  <strong>M3 连续单主播 V5 · 官方命名男角色</strong>
+                  <p>整篇新闻优先一次连续生成。超过单次长度限制时才分成几个大块，每块保持相同角色和中性新闻播报方式；人物名字和引语均由主播本人朗读。</p>
                 </div>
               </div>
 
@@ -1881,16 +1881,16 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">1</div>
                 <div>
-                  <strong>严格单主播模式已关闭角色化播音风格</strong>
-                  <p>标准 1.00× 下不再发送新闻、故事、生动等 style 提示，让所选 voice 自己承担声纹身份。只有明显调慢或调快时才发送一个极短的速度提示，以降低 voice drift。</p>
+                  <strong>固定主播身份与中性新闻播报</strong>
+                  <p>各段使用同一套播报约束，战争、科技、经济等主题均保持稳定语气。编号后保留短暂停顿，倍速设置贯穿整篇。</p>
                 </div>
               </div>
 
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 严格单主播 V4</strong>
-                  <p>正式 13 条长稿继续自动使用 Gemini 3.8 Flash TTS；每个片段都通过同一个 voiceConfig 指定同一个角色，并继续使用空 style / 极短速度提示、普通标点停顿和对话触发符号清理。</p>
+                  <strong>M3 · 连续单主播 V5</strong>
+                  <p>长稿会检查声学异常；发现持续的音高或音色异常时，使用相同角色重试，仍未通过则停止合成。声学筛查帮助发现异常，不能保证每次生成都完全一致。</p>
                 </div>
               </div>
             </>

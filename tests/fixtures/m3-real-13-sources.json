@@ -1,0 +1,19 @@
+{
+  "purpose": "Historical real-news regression corpus, not a current-news publication. All A/B/C runs use exactly this Kazakh script.",
+  "verifiedAt": "2026-10-07",
+  "sources": [
+    { "item": 1, "date": "2022-03-02", "url": "https://press.un.org/en/2022/ga12407.doc.htm" },
+    { "item": 2, "date": "2023-06-06", "url": "https://press.un.org/en/2023/sc15310.doc.htm" },
+    { "item": 3, "date": "2024-03-25", "url": "https://press.un.org/en/2024/sc15641.doc.htm" },
+    { "item": 4, "date": "2023-05-05", "url": "https://www.who.int/news/item/05-05-2023-statement-on-the-fifteenth-meeting-of-the-international-health-regulations-(2005)-emergency-committee-regarding-the-coronavirus-disease-(covid-19)-pandemic" },
+    { "item": 5, "date": "2024-08-14", "url": "https://www.who.int/news/item/14-08-2024-who-director-general-declares-mpox-outbreak-a-public-health-emergency-of-international-concern" },
+    { "item": 6, "date": "2022-11-16", "url": "https://www.nasa.gov/news-release/liftoff-nasas-artemis-i-mega-rocket-launches-orion-to-moon/" },
+    { "item": 7, "date": "2024-01-20", "url": "https://global.jaxa.jp/press/2024/01/20240120-1_e.html" },
+    { "item": 8, "date": "2024-10-08", "url": "https://www.nobelprize.org/prizes/physics/2024/press-release/" },
+    { "item": 9, "date": "2024-10-09", "url": "https://www.nobelprize.org/prizes/chemistry/2024/press-release/" },
+    { "item": 10, "date": "2024-06-06", "url": "https://www.ecb.europa.eu/press/pr/date/2024/html/ecb.mp240606~2148ecdb3c.en.html" },
+    { "item": 11, "date": "2023-09-24", "url": "https://www.nasa.gov/news-release/nasas-first-asteroid-sample-has-landed-now-secure-in-clean-room/" },
+    { "item": 12, "date": "2013", "url": "https://whc.unesco.org/en/list/1414/" },
+    { "item": 13, "date": "2022-04-22", "url": "https://xj.caac.gov.cn/GDTPXW_XJ/202204/t20220422_212964.html" }
+  ]
+}
