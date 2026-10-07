@@ -1,11 +1,6 @@
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
 
-const FALLBACK_VOICES = [
-  { id: "Gacrux", name: "Gacrux", gender: "male", pitch: "medium", context: "News", type: "prebuilt", description: "Mature · 成熟稳重" },
-  { id: "Charon", name: "Charon", gender: "male", pitch: "medium", context: "News", type: "prebuilt", description: "Informative · 资讯播报" },
-  { id: "Rasalgethi", name: "Rasalgethi", gender: "male", pitch: "medium", context: "News", type: "prebuilt", description: "Informative · 稳健资讯" },
-  { id: "Alnilam", name: "Alnilam", gender: "male", pitch: "medium", context: "News", type: "prebuilt", description: "Firm · 坚定清晰" },
-];
+const FALLBACK_VOICES: never[] = [];
 
 type GeminiVoicePayload = {
   voices?: Array<{
@@ -37,7 +32,7 @@ function fallbackResponse(warning?: string) {
   return Response.json(
     {
       voices: FALLBACK_VOICES,
-      totalMaleVoices: FALLBACK_VOICES.length,
+      totalMaleVoices: 0,
       catalogAvailable: false,
       warning: warning || "",
     },
@@ -53,7 +48,7 @@ function fallbackResponse(warning?: string) {
 export async function POST() {
   const apiKey = (process.env.GEMINI_API_KEY ?? "").trim();
   if (!apiKey) {
-    return fallbackResponse("尚未配置 GEMINI_API_KEY，先显示内置已确认男声。");
+    return fallbackResponse("尚未配置 GEMINI_API_KEY，无法读取 kk-KZ 哈萨克男声目录。");
   }
 
   // Google Voices API supports up to 1000 voices per page. Request the full
@@ -76,7 +71,7 @@ export async function POST() {
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
       return fallbackResponse(
-        `暂时无法读取 Gemini 全部男声（${response.status}）${detail ? "，已回退到内置已确认男声。" : "。"}`,
+        `暂时无法读取 Gemini kk-KZ 哈萨克男声目录（${response.status}）${detail ? "。" : "。"}`,
       );
     }
 
@@ -100,10 +95,6 @@ export async function POST() {
         type: item.type?.trim().toLowerCase() || "",
       }];
     });
-
-    for (const item of FALLBACK_VOICES) {
-      if (!seen.has(item.id)) voices.push(item);
-    }
 
     const pitchRank: Record<string, number> = { high: 0, medium: 1, low: 2 };
     voices.sort((a, b) => {
@@ -129,6 +120,6 @@ export async function POST() {
     );
   } catch (error) {
     console.error("Failed to load Gemini male voices", error);
-    return fallbackResponse("读取 Gemini 全部男声失败，已回退到内置已确认男声。");
+    return fallbackResponse("读取 Gemini kk-KZ 哈萨克男声目录失败。");
   }
 }
