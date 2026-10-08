@@ -246,7 +246,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
             send("done", {
               cuts, gains, originalPcmBytes, timings: audit.timings, voice, model, integrity: audit.integrity,
               audioDiagnostics: audit.signal,
-              pitchScreen: audit.pitchScreen,
+              pitchScreen: audit.pitchScreen, voiceTimeline: audit.voiceTimeline,
             });
           }).catch((error: unknown) => {
             const details = error instanceof M3Error ? error.details : undefined;
@@ -263,6 +263,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               proposedLowVolumeRegions: Array.isArray(details?.proposedLowVolumeRegions) ? details.proposedLowVolumeRegions.slice(0, 40) : undefined,
               diagnostics: details?.audioDiagnostics,
               integrity: details?.integrity,
+              voiceTimeline: details?.voiceTimeline,
             });
           }).finally(() => {
             clearInterval(heartbeat);
