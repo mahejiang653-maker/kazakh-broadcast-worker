@@ -4,12 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
 import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
-import { prepareM3Text, type M3TextMode } from "./lib/m3-script";
+import { M3_VERSION, prepareM3Text, type M3TextMode } from "./lib/m3-script";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
 
 const MAX_CHARACTERS = 15000;
+const M3_PUBLIC_VERSION = M3_VERSION.match(/v\d+/i)?.[0].toUpperCase() ?? "未知";
 
 const EDGE_VOICES = [
   {
@@ -349,6 +350,7 @@ export default function Home() {
   const [geminiMaleVoiceCount, setGeminiMaleVoiceCount] = useState(GEMINI_NAMED_MALE_VOICES.length);
   const [geminiVoiceSearch, setGeminiVoiceSearch] = useState("");
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
+  const [m3ServerVersion, setM3ServerVersion] = useState<string | null>(null);
   const [m3TextMode, setM3TextMode] = useState<M3TextMode>("clean");
   const m3PreparedPreview = useMemo(() => prepareM3Text(text.trim(), m3TextMode), [text, m3TextMode]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -433,13 +435,20 @@ export default function Home() {
     if (engine !== "gemini") return;
     let active = true;
     setGeminiConfigured(null);
+    setM3ServerVersion(null);
     void fetch("/api/gemini-status", { cache: "no-store" })
       .then((response) => response.json())
-      .then((payload: { configured?: boolean }) => {
-        if (active) setGeminiConfigured(Boolean(payload?.configured));
+      .then((payload: { configured?: boolean; version?: string }) => {
+        if (active) {
+          setGeminiConfigured(Boolean(payload?.configured));
+          setM3ServerVersion(typeof payload?.version === "string" ? payload.version : null);
+        }
       })
       .catch(() => {
-        if (active) setGeminiConfigured(false);
+        if (active) {
+          setGeminiConfigured(false);
+          setM3ServerVersion(null);
+        }
       });
     return () => {
       active = false;
@@ -1859,10 +1868,19 @@ export default function Home() {
                 </div>
               </div>
 
+              {m3ServerVersion ? (
+                <p role="status" style={{ margin: "12px 0", fontSize: 12, lineHeight: 1.6 }}>
+                  当前页面：{M3_PUBLIC_VERSION} · 服务端：{m3ServerVersion.match(/v\d+/i)?.[0].toUpperCase() ?? m3ServerVersion}
+                  {m3ServerVersion === M3_VERSION
+                    ? " · 版本一致"
+                    : " · 版本不一致：请关闭旧网页并重新打开后再生成，避免旧界面与新服务端规则混用。"}
+                </p>
+              ) : null}
+
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V14 · 检查 Google 输入文本</strong>
+                  <strong>M3 单次整篇 {M3_PUBLIC_VERSION} · 检查 Google 输入文本</strong>
                   <p>Flash / Flash-Lite 均保留 15,000 字符和一次整篇请求。V14 移除自动插入的编号停顿标签及其他隐式标点改写，可选择空格标准化或保留原文，直接核对真正发送的文字。不自动做两次 A/B 生成。</p>
                 </div>
               </div>
@@ -1997,7 +2015,7 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V13 · 连续文本 + 实时试听</strong>
+                  <strong>M3 · 单次整篇 {M3_PUBLIC_VERSION} · 连续文本 + 实时试听</strong>
                   <p>整篇只调用 Google 一次。先检查每批音频再允许试听；遇到持续高频异常会暂停试听并保留原始诊断音频。微弱讲话不会按静音删除，只有确认的数字静音可缩短。声学检查不能代替全文逐字核对，也不能保证模型始终保持同一声线。</p>
                 </div>
               </div>

@@ -722,3 +722,17 @@ test("V14 both Flash models preserve one TTS request with either text treatment"
     }
   }
 });
+
+
+test("M3 UI derives both version labels from the actual backend constant", async () => {
+  const page = await readFile("app/page.tsx", "utf8");
+  assert.ok(page.includes('import { M3_VERSION, prepareM3Text'));
+  assert.ok(page.includes('const M3_PUBLIC_VERSION = M3_VERSION.match'));
+  assert.ok(page.includes('M3 单次整篇 {M3_PUBLIC_VERSION} · 检查 Google 输入文本'));
+  assert.ok(page.includes('M3 · 单次整篇 {M3_PUBLIC_VERSION} · 连续文本 + 实时试听'));
+  assert.equal(page.includes('M3 · 单次整篇 V13 · 连续文本 + 实时试听'), false);
+  assert.ok(page.includes('setM3ServerVersion(typeof payload?.version === "string" ? payload.version : null)'));
+  assert.ok(page.includes('m3ServerVersion === M3_VERSION'));
+  const regional = await readFile("worker/m3-regional-session.ts", "utf8");
+  assert.ok(regional.includes('version: M3_VERSION'));
+});
