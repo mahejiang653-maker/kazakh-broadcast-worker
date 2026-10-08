@@ -156,8 +156,8 @@ export function decodeM3Audio(bytes: Uint8Array, mime: string) {
 }
 export function compressM3InternalSilence(
   pcm: Uint8Array,
-  minSilenceMs = 1800,
-  keepMs = 500,
+  minSilenceMs = 4000,
+  keepMs = 650,
 ) {
   const frameSamples = 480; // 20 ms at 24 kHz
   const frameBytes = frameSamples * 2;
@@ -177,7 +177,7 @@ export function compressM3InternalSilence(
     const rms = Math.sqrt(energy / frameSamples);
     // Conservative digital-silence threshold: do not classify low-level speech,
     // breaths or room tone as removable silence.
-    silent[frame] = rms < 0.0025 && peak < 0.012;
+    silent[frame] = rms < 0.0035 && peak < 0.02;
   }
 
   const minFrames = Math.ceil(minSilenceMs / 20);
