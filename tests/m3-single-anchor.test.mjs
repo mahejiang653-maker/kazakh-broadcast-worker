@@ -609,7 +609,7 @@ test("V12 keeps single-request and diagnostic semantics explicit", async () => {
   ]);
   assert.ok(source.includes('activityDefinition: "acoustic-candidates-not-verified-speech"'));
   assert.ok(source.includes("不会放大噪声、删除区段后冒充全文完成"));
-  assert.ok(scriptSource.includes("m3-single-request-v12-hum-integrity"));
+  assert.ok(scriptSource.includes("m3-single-request-v13-stream-anomaly"));
 });
 
 test("uploaded V11 WAV must preserve bytes and reveal bass-hum evidence", { skip: !process.env.M3_V11_WAV }, async () => {
