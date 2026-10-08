@@ -380,3 +380,59 @@ test("live M3 API path uses the same EU regional service and one Google call", a
   assert.match(page, /边生成边试听/);
   assert.match(clientRoute, /handleM3Request/);
 });
+
+test("PCM duration and actual signal activity are measured separately", () => {
+  const voice = tone(160, 2);
+  const gap = new Uint8Array(20 * 48000);
+  const pcm = new Uint8Array(voice.length + gap.length);
+  pcm.set(voice);
+  const activity = audio.assessM3Signal(pcm);
+  assert.ok(activity.rawSeconds >= 21.9);
+  assert.ok(activity.activeSeconds > 1 && activity.activeSeconds < 3);
+  assert.ok(activity.trailingInactiveSeconds > 18);
+  assert.ok(activity.activeRatio < 0.2);
+});
+
+test("low-volume PCM is not rejected solely because pitch detector cannot track it", async () => {
+  const quiet = tone(160, 18, 0.006);
+  const stats = audio.assessM3Signal(quiet);
+  assert.ok(stats.activeSeconds > 12, JSON.stringify(stats));
+  assert.ok(audio.screenM3Take(quiet).features.voicedFrames < 18);
+  const result = await run({ fetcher: mock([], 300, [quiet]) });
+  assert.equal(result.audit.signal.activeSeconds > 12, true);
+  assert.equal(result.audit.pitchScreen, "unreliable");
+  assert.ok(result.wav.byteLength > 44);
+});
+
+test("an actual silent PCM response fails with actionable diagnostics without a retry", async () => {
+  const calls = [];
+  await assert.rejects(
+    run({ fetcher: mock(calls, 300, [new Uint8Array(18 * 48000)]) }),
+    error => error.code === "M3_INSUFFICIENT_VOICED_AUDIO" &&
+      error.details?.audioDiagnostics?.activeSeconds === 0 &&
+      error.details?.audioDiagnostics?.rawSeconds === 18,
+  );
+  assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
+});
+
+test("live transport skips unused full WAV copy but retains exact activity diagnostics", async () => {
+  const pcm = tone(160, 18);
+  const result = await run({ skipWavAssembly: true, fetcher: mock([], 300, [pcm]) });
+  assert.equal(result.wav, null);
+  assert.equal(result.originalPcmBytes, pcm.byteLength);
+  assert.ok(result.audit.signal.activeSeconds > 12);
+});
+
+test("live UI resets unverified PCM display after an incomplete generation", async () => {
+  const [page, pipeline, handler] = await Promise.all([
+    readFile("app/page.tsx", "utf8"),
+    readFile("app/lib/m3-pipeline.ts", "utf8"),
+    readFile("app/lib/m3-handler.ts", "utf8"),
+  ]);
+  assert.ok(page.includes("已缓冲原始 PCM"));
+  assert.ok(page.includes("setM3ReceivedSeconds(0)"));
+  assert.ok(page.includes('isGenerating && m3ReceivedSeconds > 0'));
+  assert.ok(pipeline.includes("M3_PITCH_TRACKING_INCONCLUSIVE"));
+  assert.ok(handler.includes("skipWavAssembly: true"));
+  assert.ok(handler.includes("audioDiagnostics: audit.signal"));
+});
