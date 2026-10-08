@@ -910,9 +910,57 @@ test("V15 refuses to disguise missing narration by compressing abnormal source s
     onDiagnostic(stage, bytes) { stages.push({ stage, bytes: bytes.slice() }); },
   }), e => e.code === "M3_UNVERIFIED_AUDIO_REPAIR" &&
     e.details?.proposedCuts?.length > 0 &&
-    e.details?.integrity?.rawBytes === pcm.length);
+    e.details?.proposedSilenceRegions?.[0]?.seconds > 4 &&
+    e.details?.stage === "postprocess-repair-gate" &&
+    e.details?.integrity?.rawBytes === pcm.length &&
+    /数字静音/.test(e.message));
   assert.equal(calls.length, 1, "single Google generation, no fallback");
   assert.equal(stages.length, 1, "must retain raw, never manufacture a processed complete WAV");
   assert.equal(stages[0].stage, "raw");
   assert.deepEqual(new Uint8Array(stages[0].bytes), pcm);
+});
+
+
+test("V15 A/B/C attribute distinct PCM-silence failures without another synthesis", async () => {
+  const pcm = concat(modulated(160, 6), new Uint8Array(48000 * 6), modulated(180, 6));
+  for (const diagnosticMode of ["legacy-05", "legacy-default", "interactions-default"]) {
+    const calls = [];
+    const fetcher = async (url, opts) => {
+      calls.push({ url, body: JSON.parse(opts.body) });
+      return diagnosticMode === "interactions-default"
+        ? sseResponse([...interactionSseEvents(pcm), "[DONE]"])
+        : sseResponse(streamEvents(pcm));
+    };
+    await assert.rejects(run({ diagnosticMode, streaming: true, fetcher }), e => {
+      assert.equal(e.code, "M3_UNVERIFIED_AUDIO_REPAIR");
+      assert.equal(e.details?.diagnosticMode, diagnosticMode);
+      assert.equal(e.details?.transport, diagnosticMode === "interactions-default" ? "interactions" : "streamGenerateContent");
+      assert.equal(e.details?.temperature, diagnosticMode === "legacy-05" ? 0.5 : null);
+      assert.equal(e.details?.stage, "postprocess-repair-gate");
+      assert.equal(e.details?.integrity?.rawBytes, pcm.length);
+      assert.equal(e.details?.proposedLowVolumeRegions?.length, 0);
+      assert.ok(e.details?.proposedSilenceRegions?.length > 0);
+      assert.ok(e.details?.proposedSilenceRegions[0].startSeconds >= 6);
+      assert.ok(e.details?.proposedSilenceRegions[0].endSeconds <= 12);
+      assert.match(e.details?.textSha256 ?? "", /^[a-f0-9]{64}$/);
+      assert.equal(JSON.stringify(e.details).includes("fake-test-key"), false);
+      assert.match(e.message, /数字静音裁剪候选/);
+      return true;
+    });
+    assert.equal(calls.length, 1, diagnosticMode + ": must not retry");
+  }
+});
+
+test("V15 failure SSE forwards reason, transport and intervals; QA files have unique names", async () => {
+  const [handler, page] = await Promise.all([
+    readFile("app/lib/m3-handler.ts", "utf8"),
+    readFile("app/page.tsx", "utf8"),
+  ]);
+  assert.ok(handler.includes("proposedSilenceRegions:"));
+  assert.ok(handler.includes("proposedLowVolumeRegions:"));
+  assert.ok(handler.includes("diagnosticMode,"));
+  assert.ok(handler.includes("textSha256: details?.textSha256"));
+  assert.ok(page.includes("m3-${m3DiagnosticMode}-${voiceLabel}-${stamp}"));
+  assert.ok(page.includes("m3Diagnostic.filename"));
+  assert.ok(page.includes("请在下一次生成前保存本次文件"));
 });

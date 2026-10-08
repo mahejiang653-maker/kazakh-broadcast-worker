@@ -366,13 +366,16 @@ export default function Home() {
   const [m3Timing, setM3Timing] = useState<M3LiveTimings | null>(null);
   const [m3PreviewWarning, setM3PreviewWarning] = useState("");
   const [m3SafeSeconds, setM3SafeSeconds] = useState(0);
-  const [m3Diagnostic, setM3Diagnostic] = useState<{ audio: string | null; json: string } | null>(null);
-  const m3DiagnosticRef = useRef<{ audio: string | null; json: string } | null>(null);
+  const [m3Diagnostic, setM3Diagnostic] = useState<{ audio: string | null; json: string; filename: string } | null>(null);
+  const m3DiagnosticRef = useRef<{ audio: string | null; json: string; filename: string } | null>(null);
   function saveM3Diagnostic(raw: Blob | null, details: unknown) {
     const previous = m3DiagnosticRef.current;
     if (previous?.audio) URL.revokeObjectURL(previous.audio);
     if (previous?.json) URL.revokeObjectURL(previous.json);
-    const urls = { audio: raw ? URL.createObjectURL(raw) : null, json: URL.createObjectURL(new Blob([JSON.stringify(details, null, 2)], { type: "application/json" })) };
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const voiceLabel = voice.replace(/[^A-Za-z0-9_-]/g, "-").slice(0, 50);
+    const filename = `m3-${m3DiagnosticMode}-${voiceLabel}-${stamp}`;
+    const urls = { audio: raw ? URL.createObjectURL(raw) : null, json: URL.createObjectURL(new Blob([JSON.stringify(details, null, 2)], { type: "application/json" })), filename };
     m3DiagnosticRef.current = urls; setM3Diagnostic(urls);
   }
   const [audioSettingsDirty, setAudioSettingsDirty] = useState(false);
@@ -2185,9 +2188,9 @@ export default function Home() {
             <div className="broadcast-note">
               <div className="broadcast-index">QA</div>
               <div>
-                <p>本次原始音频仅供故障诊断，可能含异常信号或未完成内容；不会上传保存到服务器。</p>
-                {m3Diagnostic.audio ? <a className="text-action" href={m3Diagnostic.audio} download="m3-original-diagnostic.wav">下载原始诊断 WAV</a> : null}
-                {" · "}<a className="text-action" href={m3Diagnostic.json} download="m3-diagnostics.json">下载诊断数据</a>
+                <p>本次原始音频仅供故障诊断，可能含异常信号或未完成内容；不会上传保存到服务器。文件名含接口模式和生成时间，便于比较 A/B/C。请在下一次生成前保存本次文件。</p>
+                {m3Diagnostic.audio ? <a className="text-action" href={m3Diagnostic.audio} download={`${m3Diagnostic.filename}-original.wav`}>下载原始诊断 WAV</a> : null}
+                {" · "}<a className="text-action" href={m3Diagnostic.json} download={`${m3Diagnostic.filename}-diagnostics.json`}>下载诊断数据</a>
               </div>
             </div>
           ) : null}

@@ -111,9 +111,22 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
         if (chunkTrace.length < 24) chunkTrace.push({ index: audio.length, offset: bytes, bytes: pcm.length, sha256: hash });
         firstAudioMs ??= Date.now() - started;
         if (previousPcm && previousVaried && varied && previousPcm.length >= 48000 && pcm.length >= 48000) {
-          const tail = createHash("sha256").update(previousPcm.subarray(previousPcm.length - 24000)).digest("hex");
-          const head = createHash("sha256").update(pcm.subarray(0, 24000)).digest("hex");
-          if (tail === head) throw new M3Error("M3_OVERLAPPING_PCM", "相邻音频块存在重复字节区间，已停止拼接而未猜测删除。", 502);
+          const tailBytes = previousPcm.subarray(previousPcm.length - 24000);
+          const headBytes = pcm.subarray(0, 24000);
+          // An exact 0.5s zero-filled pause at both sides of an SSE
+          // boundary is NOT replayed narration. Require variation *within*
+          // each compared window, not merely elsewhere inside its chunks.
+          const windowVaries = (window: Uint8Array) => {
+            for (let at = 2; at < window.length; at += 2) {
+              if (window[at] !== window[0] || window[at + 1] !== window[1]) return true;
+            }
+            return false;
+          };
+          if (windowVaries(tailBytes) && windowVaries(headBytes)) {
+            const tail = createHash("sha256").update(tailBytes).digest("hex");
+            const head = createHash("sha256").update(headBytes).digest("hex");
+            if (tail === head) throw new M3Error("M3_OVERLAPPING_PCM", "相邻音频块存在重复字节区间，已停止拼接而未猜测删除。", 502);
+          }
         }
         rawHash.update(pcm); rawCrc32 = m3Crc32(pcm, rawCrc32); bytes += pcm.length;
         previousPcm = pcm; previousVaried = varied;
@@ -364,11 +377,38 @@ export async function generateM3Program(options: {
   // Preserve the original bytes/diagnostics and fail instead of hiding gaps
   // through silence compression or gain adjustment.
   if (silenceCleanup.cuts.length || silenceCleanup.gains.length) {
+    // These are proposed edits, NOT proof that Google omitted any words.
+    // Report what was observed instead of collapsing distinct failures into
+    // one undifferentiated message or repairing them into an alleged full take.
+    const seconds = (byteOffset: number) => Math.round(byteOffset / 48000 * 100) / 100;
+    const proposedSilenceRegions = silenceCleanup.cuts.map(c => ({
+      startSeconds: seconds(c.start), endSeconds: seconds(c.end),
+      seconds: seconds(c.end - c.start),
+    }));
+    const proposedLowVolumeRegions = silenceCleanup.gains.map(g => ({
+      startSeconds: seconds(g.start), endSeconds: seconds(g.end),
+      gainDb: g.gainDb,
+    }));
+    const description: string[] = [];
+    if (proposedSilenceRegions.length) {
+      const first = proposedSilenceRegions[0];
+      description.push(`数字静音裁剪候选 ${proposedSilenceRegions.length} 处，第一处约 ${first.startSeconds}–${first.endSeconds} 秒`);
+    }
+    if (proposedLowVolumeRegions.length) {
+      const first = proposedLowVolumeRegions[0];
+      description.push(`异常低音量增益候选 ${proposedLowVolumeRegions.length} 处，第一处约 ${first.startSeconds}–${first.endSeconds} 秒（拟补偿 ${first.gainDb} dB）`);
+    }
     throw new M3Error(
       "M3_UNVERIFIED_AUDIO_REPAIR",
-      "原始音频含需要裁剪的长静音或需要增益补偿的异常低音量区间。为避免掩盖漏读，本次保留原始诊断证据，不会把修补后的音频标记为全文完成。",
+      `原始 PCM 质量检查未通过：${description.join("；")}。这只是声学风险检测，不能据此证明漏读。为避免掩盖问题，已拒绝将修补后音频标记为全文完成；请下载原始 WAV 与诊断 JSON。`,
       502,
-      { integrity: audit.integrity, audioDiagnostics: activity, proposedCuts: silenceCleanup.cuts, proposedGains: silenceCleanup.gains },
+      {
+        stage: "postprocess-repair-gate", diagnosticMode, transport: audit.transport,
+        temperature: audit.temperature, model, voice, textMode, textSha256,
+        integrity: audit.integrity, audioDiagnostics: activity,
+        proposedCuts: silenceCleanup.cuts, proposedGains: silenceCleanup.gains,
+        proposedSilenceRegions, proposedLowVolumeRegions,
+      },
     );
   }
   pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
