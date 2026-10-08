@@ -195,5 +195,23 @@ export function isM3Base64(text: unknown): text is string {
 }
 
 export function unresolvedM3Low(scan: M3SignalScan, gains: M3Gain[]) {
-  return scan.summary.uncertainLowRegions.filter(r => !gains.some(g => g.start / 48000 <= r.start + 0.12 && g.end / 48000 >= r.end - 0.12 && g.gainDb >= 12));
+  // A sustained 50–100 Hz hum may be loud enough to escape the old absolute
+  // low-level test while remaining completely unlike speech. Fail closed.
+  // Neither class is ever automatically deleted or amplified.
+  const suspect = [
+    ...scan.summary.uncertainLowRegions,
+    ...scan.summary.lowFrequencyDominatedRegions,
+  ].filter(r => !gains.some(g =>
+    g.start / 48000 <= r.start + 0.12 &&
+    g.end / 48000 >= r.end - 0.12 && g.gainDb >= 12,
+  )).sort((a, b) => a.start - b.start);
+  const merged: typeof suspect = [];
+  for (const r of suspect) {
+    const previous = merged[merged.length - 1];
+    if (previous && r.start <= previous.end + 0.02) {
+      previous.end = Math.max(previous.end, r.end);
+      previous.seconds = previous.end - previous.start;
+    } else merged.push({ ...r });
+  }
+  return merged;
 }
