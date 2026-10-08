@@ -1,15 +1,214 @@
-(function(G){G.DATA_KEY='ng-20261008-v52-a1-r6-lock13a';G.meta={date:'2026-10-08',version:'V52-A1-R6-daily13'};G.demo=[
-{id:1,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'国庆假期返程客流进入高峰，全国铁路单日预计发送旅客2415万人次。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',focusLabel:'北京'},
-{id:2,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},title:'我国9月末外汇储备规模为34003亿美元，较8月末下降381亿美元。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',focusLabel:'北京'},
-{id:3,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',contextCountries:['FRA','DEU'],finalLocation:true},title:'我国商务部门回应法国、德国有关欧盟贸易防御提议，强调开放合作和自由贸易。',location:'中国北京',lon:116.4074,lat:39.9042,countryIso3:'CHN',secondaryCountryIso3:'FRA',focusLabel:'北京'},
-{id:4,sceneMode:'POINT',scenePlan:{primaryIso3:'USA',finalLocation:true},title:'Anduril宣布在马里兰州Sparrows Point推进约37亿美元军工制造项目。',location:'美国马里兰州Sparrows Point',lon:-76.4910,lat:39.2218,countryIso3:'USA',focusLabel:'Sparrows Point'},
-{id:5,sceneMode:'POINT',scenePlan:{primaryIso3:'RUS',contextCountries:['USA'],finalLocation:true},title:'美国就俄罗斯伊尔库茨克一宗疑似传染病事件寻求更多信息，事件原因仍待进一步确认。',location:'俄罗斯伊尔库茨克',lon:104.2807,lat:52.2869,countryIso3:'RUS',secondaryCountryIso3:'USA',focusLabel:'伊尔库茨克'},
-{id:6,sceneMode:'POINT',scenePlan:{primaryIso3:'IRN',contextCountries:['USA'],finalLocation:true},title:'美国国会文件显示，美军在伊朗战争相关行动中有81架航空器损失或受损。',location:'伊朗战区',lon:51.3890,lat:35.6892,countryIso3:'IRN',secondaryCountryIso3:'USA',focusLabel:'伊朗战区'},
-{id:7,sceneMode:'ATTACK',attackType:'missile',scenePlan:{primaryIso3:'UKR',attackerIso3:'RUS',victimIso3:'UKR',contextCountries:['RUS'],finalLocation:true,targetLabel:'普里卢基'},title:'俄罗斯对乌克兰发动大规模导弹和无人机袭击，普里卢基等地出现人员伤亡。',location:'乌克兰切尔尼戈夫州普里卢基',lon:32.3876,lat:50.5932,countryIso3:'UKR',secondaryCountryIso3:'RUS',targetCountryIso3:'UKR',sourceCountryIso3:'RUS',sourceLon:37.6173,sourceLat:55.7558,focusLabel:'普里卢基'},
-{id:8,sceneMode:'ATTACK',attackType:'missile',scenePlan:{primaryIso3:'YEM',attackerIso3:'YEM',victimIso3:'YEM',finalLocation:true,targetLabel:'亚丁国际机场'},title:'胡塞武装以弹道导弹和无人机袭击亚丁国际机场，部分航班受到影响。',location:'也门亚丁国际机场',lon:45.0288,lat:12.8295,countryIso3:'YEM',targetCountryIso3:'YEM',sourceCountryIso3:'YEM',sourceLon:44.1910,sourceLat:15.3694,focusLabel:'亚丁国际机场'},
-{id:9,sceneMode:'POINT',scenePlan:{primaryIso3:'SWE',finalLocation:true},title:'2026年诺贝尔化学奖公布，Henri B. Kagan和Kenso Soai获奖。',location:'瑞典斯德哥尔摩',lon:18.0686,lat:59.3293,countryIso3:'SWE',focusLabel:'斯德哥尔摩'},
-{id:10,sceneMode:'POINT',scenePlan:{primaryIso3:'USA',finalLocation:true},title:'美国政府与多家科技和生物医药机构推进规模18亿美元的AI生物学计划。',location:'美国加利福尼亚州Redwood City',lon:-122.2364,lat:37.4852,countryIso3:'USA',focusLabel:'Redwood City'},
-{id:11,sceneMode:'POINT',scenePlan:{primaryIso3:'USA',finalLocation:true},title:'Microsoft与NVIDIA公布面向本地AI计算的新一代电脑与硬件方案。',location:'美国加利福尼亚州旧金山',lon:-122.4194,lat:37.7749,countryIso3:'USA',focusLabel:'旧金山'},
-{id:12,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'国庆假期霍尔果斯跨境旅游持续升温，前4天出入境人员约12.5万人次。',location:'新疆霍尔果斯市',lon:80.4208,lat:44.2017,countryIso3:'CHN',focusLabel:'霍尔果斯'},
-{id:13,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6168,lat:43.8256}],title:'新疆和静县民警假日期间帮助牧民找回走失的500余只羊。',location:'新疆和静县巩金沟附近',lon:86.3911,lat:42.3172,countryIso3:'CHN',focusLabel:'和静县'}
-];G.DAILY_LOCK='20261008-LOCK13-A';})(window.NG14=window.NG14||{});
+(function(G){G.DATA_KEY='ng-20261008-v52-a1-r6-user13b';G.meta={date:'2026-10-08',version:'V52-A1-R6-daily13',source:'user-provided',verification:'some event details not independently verified'};G.demo=[
+  {
+    "id": 1,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "CHN",
+      "finalLocation": true
+    },
+    "title": "国庆假期我国跨区域人员流动达21.42亿人次，假日出行规模庞大。",
+    "location": "中国北京",
+    "lon": 116.4074,
+    "lat": 39.9042,
+    "countryIso3": "CHN",
+    "focusLabel": "北京"
+  },
+  {
+    "id": 2,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "USA",
+      "finalLocation": true
+    },
+    "title": "飓风Isaias逼近美国墨西哥湾，油气企业撤离人员并减产。",
+    "location": "美国墨西哥湾",
+    "lon": -90,
+    "lat": 27,
+    "countryIso3": "USA",
+    "focusLabel": "墨西哥湾"
+  },
+  {
+    "id": 3,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "IRN",
+      "finalLocation": true
+    },
+    "title": "中东航运风险叠加美国飓风，国际油价大幅波动。",
+    "location": "霍尔木兹海峡",
+    "lon": 56.25,
+    "lat": 26.55,
+    "countryIso3": "IRN",
+    "focusLabel": "霍尔木兹海峡"
+  },
+  {
+    "id": 4,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "USA",
+      "finalLocation": true
+    },
+    "title": "美国国务卿鲁比奥称俄乌战争陷入危险僵局，呼吁推动谈判。",
+    "location": "美国华盛顿",
+    "lon": -77.0365,
+    "lat": 38.8977,
+    "countryIso3": "USA",
+    "focusLabel": "华盛顿"
+  },
+  {
+    "id": 5,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "ITA",
+      "finalLocation": true
+    },
+    "title": "意大利议会最终批准梅洛尼政府推动的选举制度改革。",
+    "location": "意大利罗马",
+    "lon": 12.4964,
+    "lat": 41.9028,
+    "countryIso3": "ITA",
+    "focusLabel": "罗马"
+  },
+  {
+    "id": 6,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "ZMB",
+      "finalLocation": true
+    },
+    "title": "美国与赞比亚签署24.9亿美元卫生融资协议，删除争议条款。",
+    "location": "赞比亚卢萨卡",
+    "lon": 28.3228,
+    "lat": -15.3875,
+    "countryIso3": "ZMB",
+    "focusLabel": "卢萨卡"
+  },
+  {
+    "id": 7,
+    "sceneMode": "ATTACK",
+    "attackType": "missile",
+    "scenePlan": {
+      "primaryIso3": "UKR",
+      "attackerIso3": "RUS",
+      "victimIso3": "UKR",
+      "contextCountries": [
+        "RUS"
+      ],
+      "finalLocation": true,
+      "targetLabel": "克拉马托尔斯克"
+    },
+    "title": "乌克兰克拉马托尔斯克遭空袭，至少30人死亡、18人受伤。",
+    "location": "乌克兰克拉马托尔斯克",
+    "lon": 37.5563,
+    "lat": 48.7389,
+    "countryIso3": "UKR",
+    "focusLabel": "克拉马托尔斯克",
+    "secondaryCountryIso3": "RUS",
+    "targetCountryIso3": "UKR",
+    "sourceCountryIso3": "RUS",
+    "sourceLon": 37.6173,
+    "sourceLat": 55.7558
+  },
+  {
+    "id": 8,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "TUR",
+      "finalLocation": true
+    },
+    "title": "土耳其警告俄乌黑海袭击升级，商船及粮食运输安全受到威胁。",
+    "location": "土耳其安卡拉",
+    "lon": 32.8597,
+    "lat": 39.9334,
+    "countryIso3": "TUR",
+    "focusLabel": "安卡拉"
+  },
+  {
+    "id": 9,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "SWE",
+      "finalLocation": true
+    },
+    "title": "加拿大作家安妮·卡森获得2026年诺贝尔文学奖。",
+    "location": "瑞典斯德哥尔摩",
+    "lon": 18.0686,
+    "lat": 59.3293,
+    "countryIso3": "SWE",
+    "focusLabel": "斯德哥尔摩"
+  },
+  {
+    "id": 10,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "POL",
+      "finalLocation": true
+    },
+    "title": "波兰一所学校发生袭击，造成1人死亡、2人受伤。",
+    "location": "波兰（具体学校待核实）",
+    "lon": 21.0122,
+    "lat": 52.2297,
+    "countryIso3": "POL",
+    "focusLabel": "波兰"
+  },
+  {
+    "id": 11,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "CHN",
+      "finalLocation": true
+    },
+    "title": "我国科研团队研制核光钟，在量子精密测量领域取得突破。",
+    "location": "中国（研究机构地点待核实）",
+    "lon": 116.4074,
+    "lat": 39.9042,
+    "countryIso3": "CHN",
+    "focusLabel": "中国"
+  },
+  {
+    "id": 12,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "CHN",
+      "finalLocation": true
+    },
+    "title": "新疆独库公路10月8日起实施冬季封闭，保障山区道路安全。",
+    "location": "新疆独库公路（中段示意）",
+    "lon": 84.4,
+    "lat": 43.15,
+    "countryIso3": "CHN",
+    "focusLabel": "独库公路",
+    "adminChain": [
+      {
+        "location": "新疆维吾尔自治区",
+        "focusLabel": "新疆",
+        "placeType": "自治区",
+        "lon": 87.6168,
+        "lat": 43.8256
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "sceneMode": "POINT",
+    "scenePlan": {
+      "primaryIso3": "CHN",
+      "finalLocation": true
+    },
+    "title": "乌鲁木齐国际陆港区“天山号”班列累计发运764列，对外物流持续发展。",
+    "location": "新疆乌鲁木齐国际陆港区",
+    "lon": 87.5,
+    "lat": 43.88,
+    "countryIso3": "CHN",
+    "focusLabel": "乌鲁木齐",
+    "adminChain": [
+      {
+        "location": "新疆维吾尔自治区",
+        "focusLabel": "新疆",
+        "placeType": "自治区",
+        "lon": 87.6168,
+        "lat": 43.8256
+      }
+    ]
+  }
+];G.DAILY_LOCK='20261008-LOCK13-B';})(window.NG14=window.NG14||{});
