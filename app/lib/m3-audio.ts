@@ -221,11 +221,12 @@ export function compressM3InternalSilence(
     start = end;
   }
 
-  if (!ranges.length) return { pcm, removedMs: 0, regions: 0 };
+  if (!ranges.length) return { pcm, removedMs: 0, regions: 0, cuts: [] as Array<{ start: number; end: number }> };
 
   const chunks: Uint8Array[] = [];
   let cursor = 0;
   let removedFrames = 0;
+  const cuts: Array<{ start: number; end: number }> = [];
   for (const range of ranges) {
     const startByte = range.startFrame * frameBytes;
     const endByte = range.endFrame * frameBytes;
@@ -234,6 +235,7 @@ export function compressM3InternalSilence(
     const tailFrames = preservedFrames - headFrames;
     const headEnd = startByte + headFrames * frameBytes;
     const tailStart = endByte - tailFrames * frameBytes;
+    cuts.push({ start: headEnd, end: tailStart });
 
     if (startByte > cursor) chunks.push(pcm.subarray(cursor, startByte));
     if (headEnd > startByte) chunks.push(pcm.subarray(startByte, headEnd));
@@ -255,6 +257,7 @@ export function compressM3InternalSilence(
     pcm: output,
     removedMs: removedFrames * frameMs,
     regions: ranges.length,
+    cuts,
   };
 }
 

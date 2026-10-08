@@ -11,6 +11,9 @@ const script = await import(pathToFileURL(join(dir, "script.mjs")));
 const audio = await import(pathToFileURL(join(dir, "audio.mjs")));
 const { generateM3Program, M3Error } = await import(pathToFileURL(join(dir, "pipeline.mjs")));
 const { handleM3Request } = await import(pathToFileURL(join(dir, "handler.mjs")));
+const clientFile = join(dir, "live-client.mjs");
+await build({ input: "app/lib/m3-live-client.ts", platform: "browser", output: { file: clientFile, format: "esm", codeSplitting: false } });
+const liveClient = await import(pathToFileURL(clientFile));
 test.after(() => rm(dir, { recursive: true, force: true }));
 function tone(pitch = 160, seconds = 18, gain = 0.18) {
   const pcm = new Uint8Array(seconds * 48000), view = new DataView(pcm.buffer);
@@ -321,4 +324,59 @@ test("M3 no longer has an application-side 12-minute audio cutoff", async () => 
   assert.equal(pipeline.includes("Gemini 音频超过本轮安全大小上限"), false);
   assert.ok(pipeline.includes('candidate.finishReason === "MAX_TOKENS"'));
   assert.ok(pipeline.includes("Gemini 输出达到模型单次长度上限"));
+});
+
+
+test("live streamed PCM is delivered progressively and final WAV applies the same silence cuts", async () => {
+  const first = tone(160, 2), silence = new Uint8Array(6 * 48000), last = tone(160, 2);
+  const pcm = new Uint8Array(first.length + silence.length + last.length);
+  pcm.set(first); pcm.set(silence, first.length); pcm.set(last, first.length + silence.length);
+  const cleanup = audio.compressM3InternalSilence(pcm);
+  const a = pcm.slice(0, 150000), b = pcm.slice(150000);
+  const events = [
+    { event: "start", data: { model: "gemini-3.8-flash-lite-tts" } },
+    { event: "audio", data: { data: Buffer.from(a).toString("base64") } },
+    { event: "heartbeat", data: { elapsedMs: 5000 } },
+    { event: "audio", data: { data: Buffer.from(b).toString("base64") } },
+    { event: "done", data: { cuts: cleanup.cuts, originalPcmBytes: pcm.length, timings: { upstreamMs: 4000, postprocessMs: 150, totalMs: 4150 } } },
+  ];
+  const wire = events.map(({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+  const preview = new liveClient.M3LivePreview();
+  const progress = [];
+  const result = await liveClient.receiveM3LiveAudio(
+    new Response(wire, { headers: { "Content-Type": "text/event-stream" } }),
+    preview,
+    (seconds) => progress.push(seconds),
+  );
+  assert.equal(Math.round(result.receivedSeconds), 10);
+  assert.ok(progress.length >= 2);
+  assert.equal(result.timings.totalMs, 4150);
+  const wav = new Uint8Array(await result.audioBlob.arrayBuffer());
+  assert.deepEqual(audio.decodeM3Audio(wav, "audio/wav"), cleanup.pcm);
+});
+
+test("live PCM never produces a completed WAV without an upstream done event", async () => {
+  const preview = new liveClient.M3LivePreview();
+  const body = `event: audio\ndata: ${JSON.stringify({ data: Buffer.from(tone(160, 1)).toString("base64") })}\n\n`;
+  await assert.rejects(
+    liveClient.receiveM3LiveAudio(new Response(body, { headers: { "Content-Type": "text/event-stream" } }), preview, () => {}),
+    /尚未完成整篇生成/,
+  );
+});
+
+test("live M3 API path uses the same EU regional service and one Google call", async () => {
+  const [entry, regional, handler, page, clientRoute] = await Promise.all([
+    readFile("worker/index.ts", "utf8"),
+    readFile("worker/m3-regional-session.ts", "utf8"),
+    readFile("app/lib/m3-handler.ts", "utf8"),
+    readFile("app/page.tsx", "utf8"),
+    readFile("app/api/gemini-tts-live/route.ts", "utf8"),
+  ]);
+  assert.match(entry, /url\.pathname === "\/api\/gemini-tts-live"/);
+  assert.match(regional, /url\.pathname === "\/api\/gemini-tts-live"/);
+  assert.match(regional, /"cloudflare-eu-jurisdiction"/);
+  assert.match(handler, /onAudioChunk\(chunk\)/);
+  assert.match(page, /receiveM3LiveAudio\(response, preview/);
+  assert.match(page, /边生成边试听/);
+  assert.match(clientRoute, /handleM3Request/);
 });

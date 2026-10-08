@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { generateM3Program, M3Error } from "./m3-pipeline";
 import { M3_VERSION } from "./m3-script";
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
@@ -166,7 +167,7 @@ async function resolveSelectedM3Voice(apiKey: string, requestedVoice: string) {
   };
 }
 
-export async function handleM3Request(request: Request, suppliedApiKey: string, region = "unrestricted-edge") {
+export async function handleM3Request(request: Request, suppliedApiKey: string, region = "unrestricted-edge", liveStream = false) {
   const apiKey = suppliedApiKey.trim();
   if (!apiKey) {
     return jsonError(
@@ -205,6 +206,62 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
     // in one audio-generation request; there are no long-form chunks.
     const resolvedVoice = await resolveSelectedM3Voice(apiKey, requestedVoice);
     const voice = resolvedVoice.id;
+
+    if (liveStream) {
+      const encoder = new TextEncoder();
+      const streamAbort = new AbortController();
+      const signal = AbortSignal.any([request.signal, streamAbort.signal]);
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          let closed = false;
+          let sentBytes = 0;
+          const startedAt = Date.now();
+          const send = (event: string, payload: unknown) => {
+            if (closed) return;
+            try {
+              controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+            } catch { closed = true; streamAbort.abort(); }
+          };
+          send("start", { voice, model, version: M3_VERSION, singleRequest: true });
+          const heartbeat = setInterval(
+            () => send("heartbeat", { elapsedMs: Date.now() - startedAt, receivedSeconds: sentBytes / 48000 }),
+            12000,
+          );
+          void generateM3Program({
+            apiKey, model, voice, text: rawText, speed, streaming: true, signal,
+            onAudioChunk(chunk) {
+              // Bound event size to avoid large base64 strings on Android.
+              for (let at = 0; at < chunk.length; at += 192000) {
+                const piece = chunk.subarray(at, Math.min(chunk.length, at + 192000));
+                sentBytes += piece.length;
+                send("audio", { data: Buffer.from(piece).toString("base64"), receivedSeconds: sentBytes / 48000 });
+              }
+            },
+          }).then(({ audit, cuts, originalPcmBytes }) => {
+            send("done", { cuts, originalPcmBytes, timings: audit.timings, voice, model });
+          }).catch((error: unknown) => {
+            send("error", {
+              code: error instanceof M3Error ? error.code : "M3_STREAM_ERROR",
+              error: error instanceof Error ? error.message : "Gemini 音频流生成失败。",
+            });
+          }).finally(() => {
+            clearInterval(heartbeat);
+            if (!closed) { closed = true; controller.close(); }
+          });
+        },
+        cancel() { streamAbort.abort(); },
+      });
+      return new Response(stream, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-store, no-transform",
+          "X-Content-Type-Options": "nosniff",
+          "X-M3-Preview": "live-pcm-one-request",
+        },
+      });
+    }
+
     const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal, streaming: true });
 
     return new Response(wav.buffer as ArrayBuffer, {

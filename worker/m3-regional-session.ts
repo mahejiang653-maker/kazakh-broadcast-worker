@@ -19,7 +19,7 @@ export class M3RegionalSession {
       const observed = await this.observedEgress();
       return Response.json({ configured: Boolean(this.env.GEMINI_API_KEY?.trim()), service: "Gemini 3.8 TTS", keyName: "GEMINI_API_KEY", version: M3_VERSION, backend: "cloudflare-durable-object", jurisdiction: "eu", observedEgress: observed, apiAccessVerified: false }, { headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
     }
-    if (url.pathname !== "/api/gemini-tts" || request.method !== "POST") return new Response("Not found", { status: 404 });
-    return handleM3Request(request, this.env.GEMINI_API_KEY ?? "", "cloudflare-eu-jurisdiction");
+    if ((url.pathname !== "/api/gemini-tts" && url.pathname !== "/api/gemini-tts-live") || request.method !== "POST") return new Response("Not found", { status: 404 });
+    return handleM3Request(request, this.env.GEMINI_API_KEY ?? "", "cloudflare-eu-jurisdiction", url.pathname === "/api/gemini-tts-live");
   }
 }

@@ -52,7 +52,7 @@ export async function countM3Tokens(apiKey: string, model: string, text: string,
   if (!Number.isFinite(result.totalTokens) || result.totalTokens! < 0) throw new M3Error("M3_TOKEN_COUNT_FAILED", "Gemini 未返回有效的长度检查结果。", 502);
   return result.totalTokens!;
 }
-async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number) {
+async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number, onAudioChunk?: (pcm: Uint8Array) => void) {
   const { response, timer } = await googleRequest(fetcher, apiKey, model, streaming ? "streamGenerateContent?alt=sse" : "generateContent", m3RequestBody(text, voice, style), signal, streaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
   let completed = false;
@@ -68,6 +68,7 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
       if (inline?.data) {
         const pcm = decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? "");
         audio.push(pcm);
+        onAudioChunk?.(pcm);
       }
     }
   };
@@ -113,6 +114,7 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
 export async function generateM3Program(options: {
   apiKey: string; model: string; voice: string; text: string; speed: number;
   streaming?: boolean;
+  onAudioChunk?: (pcm: Uint8Array) => void;
   signal?: AbortSignal; fetcher?: Fetcher; log?: (event: string, details: Record<string, unknown>) => void;
 }) {
   const { apiKey, model, voice, speed } = options;
@@ -156,6 +158,7 @@ export async function generateM3Program(options: {
       fetcher,
       Boolean(options.streaming),
       speed,
+      options.onAudioChunk,
     );
   } catch (error) {
     if (error instanceof M3Error) {
@@ -183,6 +186,7 @@ export async function generateM3Program(options: {
   audit.timings.upstreamMs = Date.now() - upstreamStartedAt;
   const postprocessStartedAt = Date.now();
 
+  const originalPcmBytes = pcm.byteLength;
   const silenceCleanup = compressM3InternalSilence(pcm);
   pcm = silenceCleanup.pcm;
   if (silenceCleanup.regions) {
@@ -244,5 +248,5 @@ export async function generateM3Program(options: {
     totalMs: audit.timings.totalMs,
   });
 
-  return { wav: joinM3Wav([pcm]), audit };
+  return { wav: joinM3Wav([pcm]), audit, originalPcmBytes, cuts: silenceCleanup.cuts };
 }
