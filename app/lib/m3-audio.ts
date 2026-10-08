@@ -263,8 +263,10 @@ export function compressM3InternalSilence(
     while (end < frameCount && silent[end]) end += 1;
     const length = end - start;
 
-    // Only compress internal silence. Keep leading/trailing silence untouched.
-    if (start > 0 && end < frameCount && length > minFrames) {
+    // Long model-generated padding can also occur at the start or end.
+    // Keep 650 ms there too, instead of leaving minutes of silent audio.
+    // A fully silent recording is rejected by independent activity validation.
+    if ((start > 0 || end < frameCount) && length > minFrames) {
       ranges.push({
         startFrame: start,
         endFrame: end,
