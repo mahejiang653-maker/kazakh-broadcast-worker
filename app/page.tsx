@@ -855,7 +855,7 @@ export default function Home() {
             const minutes = Math.floor(seconds / 60);
             const remainder = String(Math.floor(seconds % 60)).padStart(2, "0");
             setAudioProgress(seconds > 0
-              ? `Google 已传来 ${minutes}:${remainder} 音频 · 可边生成边试听`
+              ? `收到 ${minutes}:${remainder} 原始 PCM · 尚未通过有效语音检查`
               : `等待 Google 开始输出声音 · 已等待 ${Math.round(elapsedMs / 1000)} 秒`);
           });
           audioBlob = live.audioBlob;
@@ -906,6 +906,12 @@ export default function Home() {
       );
     } catch (caught) {
       if (controller.signal.aborted) return;
+      if (engine === "gemini") {
+        m3PreviewRef.current?.stop();
+        m3PreviewRef.current = null;
+        setM3PreviewPlaying(false);
+        setM3ReceivedSeconds(0);
+      }
       setError(
         caught instanceof Error
           ? caught.message
@@ -1827,7 +1833,7 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V9 · 支持边生成边试听</strong>
+                  <strong>M3 单次整篇 V10 · 支持边生成边试听</strong>
                   <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
@@ -1923,8 +1929,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V9 · 连续文本 + 实时试听</strong>
-                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行声纹核验与超过 4 秒的异常静音压缩。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
+                  <strong>M3 · 单次整篇 V10 · 连续文本 + 实时试听</strong>
+                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行独立语音活动检查、声纹启发式筛查与超过 4 秒的异常静音压缩；避免只因音高检测不可靠而错误拒绝有效声音。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
                 </div>
               </div>
             </>
@@ -2031,12 +2037,12 @@ export default function Home() {
             <span className="button-arrow" aria-hidden="true">→</span>
           </button>
 
-          {engine === "gemini" && m3ReceivedSeconds > 0 ? (
+          {engine === "gemini" && isGenerating && m3ReceivedSeconds > 0 ? (
             <div className="broadcast-note" aria-live="polite">
               <div className="broadcast-index">LIVE</div>
               <div>
-                <strong>已经收到 {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")} 的播音</strong>
-                <p>仍是整篇一次 Google 请求。可以先试听已生成的部分；完整 WAV 将在全篇完成并通过检查后出现。</p>
+                <strong>已缓冲原始 PCM {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")}（未验证）</strong>
+                <p>仍是整篇一次 Google 请求。此时显示的是原始 PCM 时长，不代表都是真实朗读；可先试听，只有整篇完成并通过语音活动和声线检查后才提供 WAV。</p>
                 <button
                   className="text-action"
                   type="button"

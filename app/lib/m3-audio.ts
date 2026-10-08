@@ -170,6 +170,59 @@ export function decodeM3Audio(bytes: Uint8Array, mime: string) {
   if (!/^audio\/(?:l16|pcm)(?:;|$)/i.test(mime) || /(?:rate|samplerate)=(?!24000(?:;|$))\d+/i.test(mime) || /channels=(?!1(?:;|$))\d+/i.test(mime) || !bytes.length || bytes.length % 2) throw new Error("M3_AUDIO_FORMAT_MISMATCH");
   return bytes;
 }
+// This is an independent signal-activity estimate, not biometric speaker
+// verification and not a claim that the manuscript was read correctly.
+// The pitch/MFCC screen may be unreliable on some legitimate voices.
+export function assessM3Signal(pcm: Uint8Array) {
+  const seconds = pcm.byteLength / 48000;
+  const sampleEveryMs = 200;
+  const windowSamples = 480; // 20 ms, sampled once per 200 ms
+  const strideBytes = 9600; // 200 ms at 24 kHz PCM16 mono
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const frameCount = Math.floor(pcm.byteLength / strideBytes);
+  let activeFrames = 0;
+  let maxPeak = 0;
+  let rmsSum = 0;
+  let run = 0;
+  let maxInactiveRun = 0;
+  let trailingInactiveRun = 0;
+
+  for (let frame = 0; frame < frameCount; frame++) {
+    const start = frame * strideBytes;
+    let energy = 0;
+    let peak = 0;
+    // Sparse sampling keeps even long-form screening cheap.
+    for (let sample = 0; sample < windowSamples; sample += 4) {
+      const value = Math.abs(view.getInt16(start + sample * 2, true)) / 32768;
+      energy += value * value;
+      if (value > peak) peak = value;
+    }
+    const rms = Math.sqrt(energy / (windowSamples / 4));
+    maxPeak = Math.max(maxPeak, peak);
+    rmsSum += rms;
+    if (rms >= 0.003 || peak >= 0.016) {
+      activeFrames++;
+      maxInactiveRun = Math.max(maxInactiveRun, run);
+      run = 0;
+    } else {
+      run++;
+    }
+  }
+  maxInactiveRun = Math.max(maxInactiveRun, run);
+  trailingInactiveRun = run;
+  const activeSeconds = activeFrames * sampleEveryMs / 1000;
+  return {
+    rawSeconds: Math.round(seconds * 10) / 10,
+    sampledFrames: frameCount,
+    activeSeconds: Math.round(activeSeconds * 10) / 10,
+    activeRatio: frameCount ? Math.round(activeFrames / frameCount * 1000) / 1000 : 0,
+    longestInactiveSeconds: Math.round(maxInactiveRun * sampleEveryMs / 1000 * 10) / 10,
+    trailingInactiveSeconds: Math.round(trailingInactiveRun * sampleEveryMs / 1000 * 10) / 10,
+    maxPeak: Math.round(maxPeak * 10000) / 10000,
+    meanRms: frameCount ? Math.round(rmsSum / frameCount * 100000) / 100000 : 0,
+  };
+}
+
 export function compressM3InternalSilence(
   pcm: Uint8Array,
   minSilenceMs = 4000,
@@ -210,8 +263,10 @@ export function compressM3InternalSilence(
     while (end < frameCount && silent[end]) end += 1;
     const length = end - start;
 
-    // Only compress internal silence. Keep leading/trailing silence untouched.
-    if (start > 0 && end < frameCount && length > minFrames) {
+    // Long model-generated padding can also occur at the start or end.
+    // Keep 650 ms there too, instead of leaving minutes of silent audio.
+    // A fully silent recording is rejected by independent activity validation.
+    if ((start > 0 || end < frameCount) && length > minFrames) {
       ranges.push({
         startFrame: start,
         endFrame: end,

@@ -229,6 +229,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
           );
           void generateM3Program({
             apiKey, model, voice, text: rawText, speed, streaming: true, signal,
+            skipWavAssembly: true,
             onAudioChunk(chunk) {
               // Bound event size to avoid large base64 strings on Android.
               for (let at = 0; at < chunk.length; at += 192000) {
@@ -238,11 +239,16 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               }
             },
           }).then(({ audit, cuts, originalPcmBytes }) => {
-            send("done", { cuts, originalPcmBytes, timings: audit.timings, voice, model });
+            send("done", {
+              cuts, originalPcmBytes, timings: audit.timings, voice, model,
+              audioDiagnostics: audit.signal,
+              pitchScreen: audit.pitchScreen,
+            });
           }).catch((error: unknown) => {
             send("error", {
               code: error instanceof M3Error ? error.code : "M3_STREAM_ERROR",
               error: error instanceof Error ? error.message : "Gemini 音频流生成失败。",
+              diagnostics: error instanceof M3Error ? error.details?.audioDiagnostics : undefined,
             });
           }).finally(() => {
             clearInterval(heartbeat);
@@ -263,6 +269,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
     }
 
     const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal, streaming: true });
+    if (!wav) throw new M3Error("M3_INTERNAL_WAV_MISSING", "M3 完整 WAV 组装失败。", 502);
 
     return new Response(wav.buffer as ArrayBuffer, {
       status: 200,
