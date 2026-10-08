@@ -1833,7 +1833,7 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V9 · 支持边生成边试听</strong>
+                  <strong>M3 单次整篇 V10 · 支持边生成边试听</strong>
                   <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
@@ -1929,8 +1929,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V9 · 连续文本 + 实时试听</strong>
-                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行声纹核验与超过 4 秒的异常静音压缩。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
+                  <strong>M3 · 单次整篇 V10 · 连续文本 + 实时试听</strong>
+                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行独立语音活动检查、声纹启发式筛查与超过 4 秒的异常静音压缩；避免只因音高检测不可靠而错误拒绝有效声音。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
                 </div>
               </div>
             </>
