@@ -863,7 +863,7 @@ test("V15 Interactions rejects audio after completion, duplicate completion and 
   const faulty = [
     { events: [...complete, audioEvent, "[DONE]"], code: "M3_AUDIO_AFTER_STOP" },
     { events: [...complete, completedEvent, "[DONE]"], code: "M3_AUDIO_AFTER_STOP" },
-    { events: [complete[0], complete[1], audioEvent, ...complete.slice(2), "[DONE]"], code: "M3_INVALID_STREAM" },
+    { events: [complete[0], complete[1], complete[2], complete[4], complete[3], complete[5], "[DONE]"], code: "M3_INVALID_STREAM" },
     { events: complete.filter(e => e.event_type !== "step.start"), code: "M3_INVALID_STREAM" },
     { events: complete.map(e => e.event_type === "step.delta" ? { ...e, delta: { ...e.delta, data: "@bad-base64" } } : e), code: "M3_INVALID_BASE64" },
     { events: complete.filter(e => e.event_type !== "step.stop"), code: "M3_INCOMPLETE_AUDIO" },
