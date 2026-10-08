@@ -2220,12 +2220,12 @@ export default function Home() {
             </div>
           ) : null}
 
-          {engine === "gemini" && m3ActualTextForQa && (m3Diagnostic || audioUrl) ? (
+          {engine === "gemini" && (m3ActualTextForQa || text.trim()) ? (
             <div className="broadcast-note" style={{ marginTop: 12 }}>
               <div className="broadcast-index">TXT</div>
               <div style={{ minWidth: 0, width: "100%" }}>
                 <strong>全文漏读／重复初筛（本地文字对照 · 0 次 Google 请求）</strong>
-                <p>将另一套语音识别得到的哈萨克语转写文字粘贴到下方，与本次真正发送给 Google 的文本核对 13 条编号及内容近似程度。原稿和识别文字仅在浏览器内计算，不会发送至服务器；不能把文字匹配误当成声音逐字核验。</p>
+                <p>无需生成语音即可核对历史录音：把当时「实际发送给 Google 的文本」粘贴在上面的主编辑框，再把独立识别的哈萨克语转写文字粘贴到下面。本次已生成音频则优先采用冻结的实际请求文本。所有对照仅在浏览器内计算，不会发送至服务器；不能把文字匹配误当成声音逐字核验。</p>
                 <textarea
                   aria-label="独立哈萨克语转写文字"
                   value={m3ExternalTranscript}
@@ -2239,7 +2239,7 @@ export default function Home() {
                   className="text-action"
                   style={{ marginTop: 8 }}
                   disabled={!m3ExternalTranscript.trim()}
-                  onClick={() => setM3TranscriptAudit(auditM3Transcript(m3ActualTextForQa, m3ExternalTranscript))}
+                  onClick={() => setM3TranscriptAudit(auditM3Transcript(m3ActualTextForQa ?? prepareM3Text(text.trim(), m3TextMode), m3ExternalTranscript))}
                 >
                   核对 13 条新闻（不生成语音）
                 </button>

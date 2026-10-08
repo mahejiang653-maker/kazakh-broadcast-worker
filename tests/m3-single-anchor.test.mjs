@@ -1107,7 +1107,7 @@ test("M3 audit treats orthographic variation as review, never proven omitted spe
 test("M3 web keeps transcript audit local, optional and tied to frozen Google request text", async () => {
   const page = await readFile("app/page.tsx", "utf8");
   assert.match(page, /setM3ActualTextForQa\(engine === "gemini" \? prepareM3Text\(cleanText, m3TextMode\)/);
-  assert.ok(page.includes("auditM3Transcript(m3ActualTextForQa, m3ExternalTranscript)"));
+  assert.ok(page.includes("auditM3Transcript(m3ActualTextForQa ?? prepareM3Text(text.trim(), m3TextMode), m3ExternalTranscript)"));
   assert.ok(page.includes("不会发送至服务器"));
   assert.ok(page.includes("不生成语音"));
 });
@@ -1131,4 +1131,12 @@ test("M3 sentence matching tolerates punctuation changes and runs with flat ASR 
   const report = transcriptAudit.auditM3Transcript(reference, recognized);
   assert.equal(report.sections[11].recognizedCount, 1);
   assert.equal(report.sections[11].sentenceWarnings.length, 0);
+});
+
+test("M3 historical WAV text QA requires no M3 generation or uploaded audio", async () => {
+  const page = await readFile("app/page.tsx", "utf8");
+  assert.ok(page.includes('{engine === "gemini" && (m3ActualTextForQa || text.trim()) ? ('));
+  assert.ok(page.includes("无需生成语音即可核对历史录音"));
+  assert.ok(page.includes("m3ActualTextForQa ?? prepareM3Text(text.trim(), m3TextMode)"));
+  assert.ok(page.includes("不会发送至服务器"));
 });
