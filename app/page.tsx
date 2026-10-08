@@ -855,7 +855,7 @@ export default function Home() {
             const minutes = Math.floor(seconds / 60);
             const remainder = String(Math.floor(seconds % 60)).padStart(2, "0");
             setAudioProgress(seconds > 0
-              ? `Google 已传来 ${minutes}:${remainder} 音频 · 可边生成边试听`
+              ? `收到 ${minutes}:${remainder} 原始 PCM · 尚未通过有效语音检查`
               : `等待 Google 开始输出声音 · 已等待 ${Math.round(elapsedMs / 1000)} 秒`);
           });
           audioBlob = live.audioBlob;
@@ -906,6 +906,12 @@ export default function Home() {
       );
     } catch (caught) {
       if (controller.signal.aborted) return;
+      if (engine === "gemini") {
+        m3PreviewRef.current?.stop();
+        m3PreviewRef.current = null;
+        setM3PreviewPlaying(false);
+        setM3ReceivedSeconds(0);
+      }
       setError(
         caught instanceof Error
           ? caught.message
@@ -2031,12 +2037,12 @@ export default function Home() {
             <span className="button-arrow" aria-hidden="true">→</span>
           </button>
 
-          {engine === "gemini" && m3ReceivedSeconds > 0 ? (
+          {engine === "gemini" && isGenerating && m3ReceivedSeconds > 0 ? (
             <div className="broadcast-note" aria-live="polite">
               <div className="broadcast-index">LIVE</div>
               <div>
-                <strong>已经收到 {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")} 的播音</strong>
-                <p>仍是整篇一次 Google 请求。可以先试听已生成的部分；完整 WAV 将在全篇完成并通过检查后出现。</p>
+                <strong>已缓冲原始 PCM {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")}（未验证）</strong>
+                <p>仍是整篇一次 Google 请求。此时显示的是原始 PCM 时长，不代表都是真实朗读；可先试听，只有整篇完成并通过语音活动和声线检查后才提供 WAV。</p>
                 <button
                   className="text-action"
                   type="button"
