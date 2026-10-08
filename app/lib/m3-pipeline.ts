@@ -370,13 +370,13 @@ export async function generateM3Program(options: {
   }
 
   const silenceCleanup = planM3Repair(scan);
-  const unresolved = unresolvedM3Low(scan, silenceCleanup.gains);
+  const unresolved = unresolvedM3Low(scan, []);
   if (unresolved.length) throw new M3Error("M3_UNRESOLVED_LOW_SIGNAL", `原始音频含持续极低电平或低频嗡声区间（最长约 ${Math.round(Math.max(...unresolved.map(r => r.seconds)))} 秒），不能确认其中有可恢复的讲话，已保留原始诊断音频；不会放大噪声、删除区段后冒充全文完成。`, 502,
     { audioDiagnostics: activity, integrity: audit.integrity, unresolved });
   // Never deliver edited audio as proof of a complete verbatim narration.
   // Preserve the original bytes/diagnostics and fail instead of hiding gaps
   // through silence compression or gain adjustment.
-  if (silenceCleanup.cuts.length || silenceCleanup.gains.length) {
+  if (silenceCleanup.cuts.length) {
     // These are proposed edits, NOT proof that Google omitted any words.
     // Report what was observed instead of collapsing distinct failures into
     // one undifferentiated message or repairing them into an alleged full take.
@@ -411,19 +411,31 @@ export async function generateM3Program(options: {
       },
     );
   }
-  pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
-  if (audit.integrity) {
-    audit.integrity.processedSha256 = pcm.byteLength === originalPcmBytes && !silenceCleanup.gains.length ? audit.integrity.rawSha256 : createHash("sha256").update(pcm).digest("hex");
-    audit.integrity.processedCrc32 = pcm.byteLength === originalPcmBytes && !silenceCleanup.gains.length ? audit.integrity.rawCrc32 : m3Crc32(pcm);
-    audit.integrity.processedBytes = pcm.length;
-  }
-  options.onDiagnostic?.("processed", pcm, { cuts: silenceCleanup.cuts, gains: silenceCleanup.gains, ...audit.integrity });
-  if (silenceCleanup.regions) {
-    log("M3_LONG_SILENCE_COMPRESSED", {
-      regions: silenceCleanup.regions,
-      removedMs: silenceCleanup.removedMs,
+  // A proposal to boost short, modulated speech is not an acoustic failure.
+  // The B-mode field recording (331.92s; 91% speech candidates; zero
+  // sustained silent/low-frequency regions) was incorrectly rejected solely
+  // because the gain planner suggested a one-second gain. Do not change
+  // the samples or claim the transcript was independently verified.
+  if (silenceCleanup.gains.length) {
+    log("M3_GAIN_CANDIDATES_NOT_APPLIED", {
+      candidateCount: silenceCleanup.gains.length,
+      firstRegions: silenceCleanup.gains.slice(0, 12).map(g => ({
+        startSeconds: g.start / 48000, endSeconds: g.end / 48000, proposedGainDb: g.gainDb,
+      })),
+      policy: "diagnostic-only; no amplification; no rejection without independent anomaly evidence",
     });
   }
+  // Both the preview stream and final WAV must use exactly the original PCM.
+  if (audit.integrity) {
+    audit.integrity.processedSha256 = audit.integrity.rawSha256;
+    audit.integrity.processedCrc32 = audit.integrity.rawCrc32;
+    audit.integrity.processedBytes = pcm.length;
+  }
+  options.onDiagnostic?.("processed", pcm, {
+    cuts: [], gains: [],
+    gainCandidatesNotApplied: silenceCleanup.gains.slice(0, 24),
+    ...audit.integrity,
+  });
 
   const screening = screenM3Take(pcm);
   const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
@@ -459,7 +471,7 @@ export async function generateM3Program(options: {
     features: screening.features,
     score: screening.score,
     windowWarnings: reliablePitch ? screening.windows.filter(w => w.comparison.detected).length : 0,
-    gainDb: Math.max(0, ...silenceCleanup.gains.map(g => g.gainDb)),
+    gainDb: 0, // no gain is applied; candidates remain diagnostic-only
   });
 
   audit.timings.postprocessMs = Date.now() - postprocessStartedAt;
@@ -472,9 +484,10 @@ export async function generateM3Program(options: {
     retries: 0,
     model,
     voice,
-    silenceRegionsCompressed: silenceCleanup.regions,
-    silenceRemovedMs: silenceCleanup.removedMs,
-    gainRegions: silenceCleanup.gains.length,
+    silenceRegionsCompressed: 0,
+    silenceRemovedMs: 0,
+    gainRegions: 0,
+    gainCandidatesNotApplied: silenceCleanup.gains.length,
     rawSha256: audit.integrity?.rawSha256,
     processedSha256: audit.integrity?.processedSha256,
     activitySeconds: activity.activeSeconds,
@@ -491,7 +504,7 @@ export async function generateM3Program(options: {
     wav: options.skipWavAssembly ? null : joinM3Wav([pcm]),
     audit,
     originalPcmBytes,
-    cuts: silenceCleanup.cuts,
-    gains: silenceCleanup.gains,
+    cuts: [],
+    gains: [],
   };
 }
