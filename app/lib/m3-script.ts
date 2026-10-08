@@ -1,5 +1,5 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-single-request-v7-clean-text";
+export const M3_VERSION = "m3-single-request-v8-flat-text";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;
 export const M3_TEMPERATURE = 0.5;
@@ -13,14 +13,12 @@ export function prepareM3Text(input: string) {
     // Only pause controls survive in strict news mode. Words/names/quotes remain verbatim.
     .replace(/<(?!short pause>|long pause>)[^>\n]{1,100}>/giu, "")
     .replace(/[|｜]/g, " ")
-    .replace(new RegExp(`(^|\\n)([ \\t]*(?:${openerPattern}))[ \\t]*[.。](?:[ \\t]*<short pause>)?[ \\t\\n]*`, "giu"), "$1$2. <short pause>\n")
-    .replace(/\n(?:[ \t]*\n)+/g, "\n")
+    .replace(new RegExp(`(^|\\n)([ \\t]*(?:${openerPattern}))[ \\t]*[.。](?:[ \\t]*<short pause>)?[ \\t\\n]*`, "giu"), "$1$2. <short pause> ")
+    // Paragraph boundaries are presentation-only for M3. Flatten all line
+    // breaks to spaces so Gemini receives one continuous narration stream.
+    .replace(/[ \t]*\n+[ \t]*/g, " ")
+    .replace(/[ \t]{2,}/g, " ")
     .trim();
-}
-
-export function m3Style(speed: number) {
-  if (Math.abs(speed - 1) < 0.005) return "";
-  return `Speaking rate: ${Math.round(speed * 100)}% of normal.`;
 }
 
 export function estimatedM3Seconds(text: string, speed: number) {
