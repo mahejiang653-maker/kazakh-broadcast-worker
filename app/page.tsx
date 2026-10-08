@@ -364,6 +364,18 @@ export default function Home() {
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
   const [m3Timing, setM3Timing] = useState<M3LiveTimings | null>(null);
+  const [m3VoiceTimeline, setM3VoiceTimeline] = useState<{
+    status: string; windowsScanned: number; advisoryWindows: number;
+    longestMultiCueRun: number; maxPitchSemitones: number;
+    firstSustainedStart: number | null;
+  } | null>(null);
+  function captureM3VoiceTimeline(data: unknown) {
+    const payload = data as { voiceTimeline?: unknown; server?: { voiceTimeline?: unknown } } | null;
+    const raw = payload?.voiceTimeline ?? payload?.server?.voiceTimeline;
+    if (raw && typeof raw === "object" && "status" in raw) {
+      setM3VoiceTimeline(raw as typeof m3VoiceTimeline);
+    }
+  }
   const [m3PreviewWarning, setM3PreviewWarning] = useState("");
   const [m3SafeSeconds, setM3SafeSeconds] = useState(0);
   const [m3Diagnostic, setM3Diagnostic] = useState<{ audio: string | null; json: string; filename: string } | null>(null);
@@ -545,6 +557,7 @@ export default function Home() {
     setAudioUrl(null);
     setGeneratedAt("");
     setM3Timing(null);
+    setM3VoiceTimeline(null);
     setAudioSettingsDirty(false);
   }
 
@@ -819,6 +832,7 @@ export default function Home() {
     setM3SafeSeconds(0);
     setM3PreviewWarning("");
     setM3Timing(null);
+    setM3VoiceTimeline(null);
 
     try {
       // Emotion preflight is best-effort UI feedback only. Never block TTS on it:
@@ -900,6 +914,7 @@ export default function Home() {
           setM3Timing(live.timings);
           setM3PreviewPlaying(false);
           saveM3Diagnostic(live.rawAudioBlob, live.diagnostics);
+          captureM3VoiceTimeline(live.diagnostics);
         } else if (optimizedStream) {
           try {
             audioBlob = await audioTools.processDauletResponse(response, controller.signal, setAudioProgress);
@@ -946,7 +961,7 @@ export default function Home() {
       );
     } catch (caught) {
       if (controller.signal.aborted) return;
-      if (caught instanceof M3LiveError) saveM3Diagnostic(caught.rawAudioBlob, caught.diagnostics);
+      if (caught instanceof M3LiveError) { saveM3Diagnostic(caught.rawAudioBlob, caught.diagnostics); captureM3VoiceTimeline(caught.diagnostics); }
       if (engine === "gemini") {
         m3PreviewRef.current?.stop();
         m3PreviewRef.current = null;
@@ -2210,6 +2225,19 @@ export default function Home() {
               </p>
             ) : null}
 
+            {engine === "gemini" && m3VoiceTimeline ? (
+              <div className="broadcast-note" style={{ marginTop: 10 }} role="status">
+                <div className="broadcast-index">QA</div>
+                <div>
+                  <strong>长篇主播一致性声学检查：{m3VoiceTimeline.status === "sustained-multi-cue-drift-risk" ? "存在持续多指标异常疑点" : m3VoiceTimeline.advisoryWindows > 0 ? "存在音高／语气变化，建议人工复听" : "未检测到持续异常"}</strong>
+                  <p>
+                    已分析 {m3VoiceTimeline.windowsScanned} 个时间窗口 · 需复核 {m3VoiceTimeline.advisoryWindows} 个 · 相对开头最大音高差 {(m3VoiceTimeline.maxPitchSemitones ?? 0).toFixed(1)} 半音
+                    {m3VoiceTimeline.firstSustainedStart != null ? ` · 异常疑点起点约 ${Math.floor(m3VoiceTimeline.firstSustainedStart)} 秒` : ""}
+                    。这不是声纹验证，也不代表逐字朗读完整；时间轴详情见诊断 JSON。
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {audioUrl && engine === "gemini" && m3Timing ? (
               <p style={{ margin: "10px 0 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
                 M3 耗时：首批音频 {m3Timing.firstAudioMs == null ? "未知" : (m3Timing.firstAudioMs / 1000).toFixed(1) + " 秒"} · Google 生成 {(m3Timing.upstreamMs / 1000).toFixed(1)} 秒 · 本站后处理 {(m3Timing.postprocessMs / 1000).toFixed(1)} 秒 · 总计 {(m3Timing.totalMs / 1000).toFixed(1)} 秒
