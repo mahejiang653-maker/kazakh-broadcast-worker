@@ -8,12 +8,14 @@ export type M3TranscriptSectionAudit = {
   index: number; opener: string;
   referenceFound: boolean; recognizedCount: number;
   similarity: number | null;
+  sentenceWarnings: Array<{ sentenceNumber: number; sourceExcerpt: string; bestSimilarity: number }>;
   status: "present" | "review-text" | "missing-heading" | "duplicate-heading" | "missing-source";
 };
 export type M3TranscriptAudit = {
   referenceHeadings: number; recognizedHeadings: number;
   presentHeadings: number; missingHeadings: number[];
   duplicatedHeadings: number[]; reviewSections: number[];
+  sentenceReviewCount: number;
   introLikelyPresent: boolean; endingLikelyPresent: boolean;
   sections: M3TranscriptSectionAudit[];
   transcriptVerified: false;
@@ -62,6 +64,36 @@ function similarity(a: string, b: string) {
   return Math.round(1000 * 2 * shared / (la + lb)) / 1000;
 }
 
+function reviewSentences(original: string, recognized: string) {
+  const sourceSentences = original.split(/(?<=[.!?。！？])\s+/u)
+    .map(s => s.trim()).filter(s => letters(s).length >= 25);
+  const heard = letters(recognized);
+  const warnings: Array<{ sentenceNumber: number; sourceExcerpt: string; bestSimilarity: number }> = [];
+  for (let i = 0; i < sourceSentences.length; i++) {
+    const phrase = sourceSentences[i];
+    const length = letters(phrase).length;
+    if (!heard.length) {
+      warnings.push({ sentenceNumber: i + 1, sourceExcerpt: phrase.slice(0, 65), bestSimilarity: 0 });
+      continue;
+    }
+    // Windowed matching tolerates ASR punctuation and sentence splitting.
+    // The word/character content is never changed, just compared locally.
+    const stride = Math.max(8, Math.floor(length / 4));
+    let best = 0;
+    for (const factor of [0.8, 1, 1.2]) {
+      const width = Math.max(1, Math.round(length * factor));
+      for (let pos = 0; pos < heard.length; pos += stride) {
+        best = Math.max(best, similarity(phrase, heard.slice(pos, Math.min(heard.length, pos + width))));
+        if (best > 0.85) break;
+      }
+    }
+    if (best < 0.48) warnings.push({
+      sentenceNumber: i + 1, sourceExcerpt: phrase.slice(0, 65), bestSimilarity: best,
+    });
+  }
+  return warnings;
+}
+
 export function auditM3Transcript(reference: string, recognized: string): M3TranscriptAudit {
   const source = parts(reference);
   const heard = parts(recognized);
@@ -74,9 +106,10 @@ export function auditM3Transcript(reference: string, recognized: string): M3Tran
     const b = heard.find(x => x.index === index);
     const count = heardCount.get(index) ?? 0;
     const score = a && b ? similarity(a.content, b.content) : null;
+    const sentenceWarnings = a && b ? reviewSentences(a.content, b.content) : [];
     return {
       index, opener, referenceFound: Boolean(a), recognizedCount: count,
-      similarity: score,
+      similarity: score, sentenceWarnings,
       status: !a ? "missing-source" : count > 1 ? "duplicate-heading" :
         !count ? "missing-heading" : score !== null && score < 0.55 ? "review-text" : "present",
     };
@@ -89,10 +122,11 @@ export function auditM3Transcript(reference: string, recognized: string): M3Tran
     presentHeadings: sections.filter(x => x.recognizedCount > 0).length,
     missingHeadings: sections.filter(x => x.status === "missing-heading").map(x => x.index),
     duplicatedHeadings: sections.filter(x => x.status === "duplicate-heading").map(x => x.index),
-    reviewSections: sections.filter(x => x.status === "review-text").map(x => x.index),
+    reviewSections: sections.filter(x => x.status === "review-text" || x.sentenceWarnings.length > 0).map(x => x.index),
+    sentenceReviewCount: sections.reduce((total, x) => total + x.sentenceWarnings.length, 0),
     introLikelyPresent: letters(intro).length >= 30,
     endingLikelyPresent: /осымен|осымен|осымен|ертең|сау\s+сәлемет|кездескенше/iu.test(ending),
     sections, transcriptVerified: false,
-    notice: "仅对照原稿与独立转写文字的13条结构及近似字形；不能证明声音逐字完整。ASR错拼、语速、标点和哈萨克语变体可能产生假阳性/假阴性。未经独立语音识别的文字不能用于证明漏读。",
+    notice: "仅对照原稿与独立转写文字的13条编号、段落及句级近似字形；句级警告不是已证实漏读。ASR错拼、语速、标点和哈萨克语变体可能产生假阳性/假阴性。未经独立语音识别的文字不能用于证明声音逐字完整。",
   };
 }
