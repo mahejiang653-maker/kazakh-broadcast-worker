@@ -1827,7 +1827,7 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V8 · 官方命名男角色</strong>
+                  <strong>M3 单次整篇 V9 · 支持边生成边试听</strong>
                   <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
@@ -1923,8 +1923,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V8 · 连续文本 + 长静音压缩</strong>
-                  <p>本模式不分段、不自动重试。所有段落换行在送入 Gemini 前都会变成普通空格；生成后若检测到超过 4 秒的异常内部静音，会压缩到约 0.65 秒。正常句间停顿、呼吸和 4 秒以内的停顿不会处理。</p>
+                  <strong>M3 · 单次整篇 V9 · 连续文本 + 实时试听</strong>
+                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行声纹核验与超过 4 秒的异常静音压缩。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
                 </div>
               </div>
             </>
