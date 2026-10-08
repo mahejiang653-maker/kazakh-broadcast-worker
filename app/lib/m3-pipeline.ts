@@ -11,6 +11,7 @@ export type M3Audit = {
   version: string; model: string; voice: string; style: string; temperature: number;
   strategy: "single"; inputTokens: number | null; ttsRequests: number; retries: number;
   transport: "generateContent" | "streamGenerateContent";
+  timings: { upstreamMs: number; postprocessMs: number; totalMs: number };
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
 };
 
@@ -136,10 +137,13 @@ export async function generateM3Program(options: {
     retries: 0,
     parts: [],
     transport: options.streaming ? "streamGenerateContent" : "generateContent",
+    timings: { upstreamMs: 0, postprocessMs: 0, totalMs: 0 },
   };
 
   if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499);
 
+  const totalStartedAt = Date.now();
+  const upstreamStartedAt = Date.now();
   let pcm: Uint8Array;
   try {
     pcm = await synthesizeM3Take(
@@ -175,6 +179,9 @@ export async function generateM3Program(options: {
     }
     throw error;
   }
+
+  audit.timings.upstreamMs = Date.now() - upstreamStartedAt;
+  const postprocessStartedAt = Date.now();
 
   const silenceCleanup = compressM3InternalSilence(pcm);
   pcm = silenceCleanup.pcm;
@@ -220,6 +227,9 @@ export async function generateM3Program(options: {
     gainDb: 0,
   });
 
+  audit.timings.postprocessMs = Date.now() - postprocessStartedAt;
+  audit.timings.totalMs = Date.now() - totalStartedAt;
+
   log("M3_PROGRAM_COMPLETE", {
     strategy: "single",
     chunks: 1,
@@ -229,6 +239,9 @@ export async function generateM3Program(options: {
     voice,
     silenceRegionsCompressed: silenceCleanup.regions,
     silenceRemovedMs: silenceCleanup.removedMs,
+    upstreamMs: audit.timings.upstreamMs,
+    postprocessMs: audit.timings.postprocessMs,
+    totalMs: audit.timings.totalMs,
   });
 
   return { wav: joinM3Wav([pcm]), audit };
