@@ -28,7 +28,8 @@ function withM2IsolationHeaders(response: Response) {
 export default {
   async fetch(request: Request, env: Parameters<typeof handler.fetch>[1], ctx: Parameters<typeof handler.fetch>[2]) {
     const url = new URL(request.url);
-    if ((url.pathname === "/api/gemini-tts" && request.method === "POST") || (url.pathname === "/api/gemini-status" && request.method === "GET")) {
+    const m3Generation = (url.pathname === "/api/gemini-tts" || url.pathname === "/api/gemini-tts-live") && request.method === "POST";
+    if (m3Generation || (url.pathname === "/api/gemini-status" && request.method === "GET")) {
       const namespace = (env as { M3_SESSIONS?: M3Namespace }).M3_SESSIONS;
       if (!namespace) return withM2IsolationHeaders(Response.json({ error: "M3 服务端部署尚未就绪。", code: "M3_REGIONAL_BINDING_MISSING" }, { status: 503 }));
       const regional = namespace.jurisdiction("eu");
