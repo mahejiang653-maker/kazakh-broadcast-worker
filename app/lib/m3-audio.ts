@@ -154,6 +154,90 @@ export function decodeM3Audio(bytes: Uint8Array, mime: string) {
   if (!/^audio\/(?:l16|pcm)(?:;|$)/i.test(mime) || /(?:rate|samplerate)=(?!24000(?:;|$))\d+/i.test(mime) || /channels=(?!1(?:;|$))\d+/i.test(mime) || !bytes.length || bytes.length % 2) throw new Error("M3_AUDIO_FORMAT_MISMATCH");
   return bytes;
 }
+export function compressM3InternalSilence(
+  pcm: Uint8Array,
+  minSilenceMs = 4000,
+  keepMs = 650,
+) {
+  const frameSamples = 480; // 20 ms at 24 kHz
+  const frameBytes = frameSamples * 2;
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const frameCount = Math.floor(pcm.byteLength / frameBytes);
+  const silent = new Array<boolean>(frameCount);
+
+  for (let frame = 0; frame < frameCount; frame++) {
+    const byteOffset = frame * frameBytes;
+    let energy = 0;
+    let peak = 0;
+    for (let i = 0; i < frameSamples; i++) {
+      const sample = Math.abs(view.getInt16(byteOffset + i * 2, true)) / 32768;
+      peak = Math.max(peak, sample);
+      energy += sample * sample;
+    }
+    const rms = Math.sqrt(energy / frameSamples);
+    // Conservative digital-silence threshold: do not classify low-level speech,
+    // breaths or room tone as removable silence.
+    silent[frame] = rms < 0.0035 && peak < 0.02;
+  }
+
+  const minFrames = Math.ceil(minSilenceMs / 20);
+  const keepFrames = Math.max(1, Math.ceil(keepMs / 20));
+  const ranges: Array<{ startFrame: number; endFrame: number; removedFrames: number }> = [];
+
+  for (let start = 0; start < frameCount;) {
+    if (!silent[start]) { start += 1; continue; }
+    let end = start + 1;
+    while (end < frameCount && silent[end]) end += 1;
+    const length = end - start;
+
+    // Only compress internal silence. Keep leading/trailing silence untouched.
+    if (start > 0 && end < frameCount && length > minFrames) {
+      ranges.push({
+        startFrame: start,
+        endFrame: end,
+        removedFrames: length - keepFrames,
+      });
+    }
+    start = end;
+  }
+
+  if (!ranges.length) return { pcm, removedMs: 0, regions: 0 };
+
+  const chunks: Uint8Array[] = [];
+  let cursor = 0;
+  let removedFrames = 0;
+  for (const range of ranges) {
+    const startByte = range.startFrame * frameBytes;
+    const endByte = range.endFrame * frameBytes;
+    const preservedFrames = Math.max(1, (range.endFrame - range.startFrame) - range.removedFrames);
+    const headFrames = Math.floor(preservedFrames / 2);
+    const tailFrames = preservedFrames - headFrames;
+    const headEnd = startByte + headFrames * frameBytes;
+    const tailStart = endByte - tailFrames * frameBytes;
+
+    if (startByte > cursor) chunks.push(pcm.subarray(cursor, startByte));
+    if (headEnd > startByte) chunks.push(pcm.subarray(startByte, headEnd));
+    if (endByte > tailStart) chunks.push(pcm.subarray(tailStart, endByte));
+    cursor = endByte;
+    removedFrames += range.removedFrames;
+  }
+  if (cursor < pcm.byteLength) chunks.push(pcm.subarray(cursor));
+
+  const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return {
+    pcm: output,
+    removedMs: removedFrames * 20,
+    regions: ranges.length,
+  };
+}
+
 function edgeSilence(pcm: Uint8Array, tail: boolean) {
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
   const frames = Math.min(Math.floor(pcm.length / 480), 50);

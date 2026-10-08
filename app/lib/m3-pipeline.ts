@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { decodeM3Audio, joinM3Wav, matchM3Loudness, screenM3Take, type M3Features } from "./m3-audio";
+import { compressM3InternalSilence, decodeM3Audio, joinM3Wav, matchM3Loudness, screenM3Take, type M3Features } from "./m3-audio";
 import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
 
 type Fetcher = typeof fetch;
@@ -176,6 +176,15 @@ export async function generateM3Program(options: {
     throw error;
   }
 
+  const silenceCleanup = compressM3InternalSilence(pcm);
+  pcm = silenceCleanup.pcm;
+  if (silenceCleanup.regions) {
+    log("M3_LONG_SILENCE_COMPRESSED", {
+      regions: silenceCleanup.regions,
+      removedMs: silenceCleanup.removedMs,
+    });
+  }
+
   const screening = screenM3Take(pcm);
   const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
   if (screening.features.voicedFrames < minimumVoicedFrames) {
@@ -218,6 +227,8 @@ export async function generateM3Program(options: {
     retries: 0,
     model,
     voice,
+    silenceRegionsCompressed: silenceCleanup.regions,
+    silenceRemovedMs: silenceCleanup.removedMs,
   });
 
   return { wav: joinM3Wav([pcm]), audit };

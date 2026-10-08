@@ -1347,7 +1347,7 @@ export default function Home() {
                   <div className="broadcast-index">M3</div>
                   <div>
                     <strong>M3 干净输入模式</strong>
-                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；连续空行自动压缩，1.00× 不发送 style，15,000 字符以内始终整篇一次生成。</p>
+                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；所有段落换行会拍平成空格，1.00× 不发送 style，15,000 字符以内始终整篇一次生成。</p>
                   </div>
                 </div>
               ) : null}
@@ -1796,8 +1796,8 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V7 · 官方命名男角色</strong>
-                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。无论稿件长短，整篇只发送 1 次音频生成请求；复制粘贴产生的连续空行会自动压成一个换行，避免段落边界反复触发重新起势。</p>
+                  <strong>M3 单次整篇 V8 · 官方命名男角色</strong>
+                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
 
@@ -1892,8 +1892,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V7 · 空行清洗 + 空 style</strong>
-                  <p>本模式不分段、不自动重试。连续空行会在送入 Gemini 前折叠；1.00× 不发送任何 style 元数据。若 Google 单次输出达到 MAX_TOKENS、超时或检测到明显声线异常，本次直接失败并提示原因。</p>
+                  <strong>M3 · 单次整篇 V8 · 连续文本 + 长静音压缩</strong>
+                  <p>本模式不分段、不自动重试。所有段落换行在送入 Gemini 前都会变成普通空格；生成后若检测到超过 4 秒的异常内部静音，会压缩到约 0.65 秒。正常句间停顿、呼吸和 4 秒以内的停顿不会处理。</p>
                 </div>
               </div>
             </>
