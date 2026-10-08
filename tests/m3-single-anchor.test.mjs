@@ -36,7 +36,7 @@ function mock(upstream = [], initialCount = 300, audioSequence = [tone(160, 60)]
 const run = (overrides = {}) => generateM3Program({ apiKey: "fake-test-key", model: "gemini-3.8-flash-tts", voice: "Puck", text: "Бірінші. Маңызды жаңалық туралы мәлімет жарияланды.", speed: 1, log() {}, ...overrides });
 const fixture = () => "Сәлем тораптастар.\n\n" + script.NUMBERED_OPENERS.map(x => `${x}. ${"Жаңалық мәтіні. ".repeat(8)}`).join("\n\n") + "\n\nОсымен бүгінгі кескін айақталды.";
 function sseResponse(events, finalSeparator = true) {
-  const bytes = new TextEncoder().encode(events.map(x => `data: ${JSON.stringify(x)}\r\n\r\n`).join("").replace(finalSeparator ? /$^/ : /\r\n\r\n$/, ""));
+  const bytes = new TextEncoder().encode(events.map(x => x === "[DONE]" ? "event: done\r\ndata: [DONE]\r\n\r\n" : `data: ${JSON.stringify(x)}\r\n\r\n`).join("").replace(finalSeparator ? /$^/ : /\r\n\r\n$/, ""));
   let offset = 0, reads = 0;
   return new Response(new ReadableStream({ pull(controller) {
     if (offset === bytes.length) { controller.close(); return; }
@@ -555,7 +555,7 @@ test("preview halts HF anomaly rather than queuing minutes of inaudible playback
   assert.equal(p.bufferedSeconds,8);assert.equal(p.safeSeconds,2);assert.match(p.warning,/试听已暂停/);
 });
 test("raw vs processed evidence is exact and never logs manuscript or credentials", async () => {
-  const pcm=concat(modulated(),new Uint8Array(48000*6),modulated(171));const evidence=[];
+  const pcm=concat(modulated(),new Uint8Array(48000*3),modulated(171));const evidence=[];
   const logs=[];const result=await run({fetcher:mock([],300,[pcm]),onDiagnostic:(stage,bytes,details)=>evidence.push({stage,bytes:bytes.slice(),details}),log:(event,d)=>logs.push({event,d})});
   assert.equal(evidence.length,2);assert.deepEqual(new Uint8Array(evidence[0].bytes),pcm);
   assert.equal(result.audit.integrity.rawBytes,pcm.length);assert.equal(result.audit.integrity.processedBytes,evidence[1].bytes.length);
@@ -779,7 +779,7 @@ test("V15 Interactions streams 24 kHz PCM from one request using one voice", asy
     const calls = [];
     const result = await run({ streaming: true, model, diagnosticMode: "interactions-default", text: sample, textMode: "verbatim", fetcher: async (url, options) => {
       calls.push({ url, body: JSON.parse(options.body) });
-      return sseResponse(interactionSseEvents(pcm), false);
+      return sseResponse([...interactionSseEvents(pcm), "[DONE]"], false);
     } });
     assert.equal(calls.length, 1);
     assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
@@ -835,4 +835,84 @@ test("V15 manual transport selectors do not trigger automatic additional API cal
   assert.equal(script.normalizeM3DiagnosticMode("bad input"), "legacy-05");
   assert.equal(script.m3Temperature("legacy-default"), null);
   assert.equal(script.m3Temperature("legacy-05"), 0.5);
+});
+
+
+test("V15 Interactions requires both completed status and final [DONE] SSE sentinel", async () => {
+  const pcm = tone(160, 18);
+  const base = interactionSseEvents(pcm, true);
+  for (const events of [
+    base,
+    [...interactionSseEvents(pcm, false), "[DONE]"],
+    ["[DONE]", ...base],
+  ]) {
+    const requests = [];
+    await assert.rejects(run({
+      streaming: true, diagnosticMode: "interactions-default",
+      fetcher: async (url) => { requests.push(url); return sseResponse(events); },
+    }), e => e.code === "M3_INCOMPLETE_AUDIO");
+    assert.equal(requests.length, 1);
+  }
+});
+
+test("V15 Interactions rejects audio after completion, duplicate completion and corrupted deltas", async () => {
+  const pcm = tone(160, 18);
+  const complete = interactionSseEvents(pcm);
+  const completedEvent = complete.at(-1);
+  const audioEvent = complete.find(e => e.event_type === "step.delta");
+  const faulty = [
+    { events: [...complete, audioEvent, "[DONE]"], code: "M3_AUDIO_AFTER_STOP" },
+    { events: [...complete, completedEvent, "[DONE]"], code: "M3_AUDIO_AFTER_STOP" },
+    { events: [complete[0], complete[1], complete[2], complete[4], complete[3], complete[5], "[DONE]"], code: "M3_INVALID_STREAM" },
+    { events: complete.filter(e => e.event_type !== "step.start"), code: "M3_INVALID_STREAM" },
+    { events: complete.map(e => e.event_type === "step.delta" ? { ...e, delta: { ...e.delta, data: "@bad-base64" } } : e), code: "M3_INVALID_BASE64" },
+    { events: complete.filter(e => e.event_type !== "step.stop"), code: "M3_INCOMPLETE_AUDIO" },
+    { events: complete.map(e => e.event_type === "step.delta" ? { ...e, delta: { ...e.delta, channels: 2 } } : e), code: "M3_AUDIO_FORMAT_MISMATCH" },
+  ];
+  for (const { events, code } of faulty) {
+    const calls = [];
+    await assert.rejects(run({ streaming: true, diagnosticMode: "interactions-default",
+      fetcher: async (url) => { calls.push(url); return sseResponse(events); },
+    }), e => e.code === code, "expected " + code);
+    assert.equal(calls.length, 1, "never retry or fallback");
+  }
+});
+
+test("V15 cancellation never completes a WAV even after Google's success marker", async () => {
+  const pcm = tone(160, 18);
+  const aborter = new AbortController(), requests = [];
+  await assert.rejects(run({
+    diagnosticMode: "interactions-default", streaming: true, signal: aborter.signal,
+    fetcher: async url => { requests.push(url); aborter.abort(); return sseResponse([...interactionSseEvents(pcm), "[DONE]"]); },
+  }), e => e.code === "M3_CANCELLED");
+  assert.equal(requests.length, 1);
+});
+
+test("V15 Interactions enforces streaming even when caller omits the legacy streaming flag", async () => {
+  const pcm = tone(160, 18), requests = [];
+  const result = await run({
+    diagnosticMode: "interactions-default", streaming: false,
+    fetcher: async (url, init) => {
+      requests.push({ url, body: JSON.parse(init.body) });
+      return sseResponse([...interactionSseEvents(pcm), "[DONE]"]);
+    },
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].body.stream, true);
+  assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), pcm);
+});
+
+test("V15 refuses to disguise missing narration by compressing abnormal source silence", async () => {
+  const pcm = concat(modulated(160, 6), new Uint8Array(48000 * 6), modulated(180, 6));
+  const calls = [], stages = [];
+  await assert.rejects(run({
+    fetcher: mock(calls, 300, [pcm]),
+    onDiagnostic(stage, bytes) { stages.push({ stage, bytes: bytes.slice() }); },
+  }), e => e.code === "M3_UNVERIFIED_AUDIO_REPAIR" &&
+    e.details?.proposedCuts?.length > 0 &&
+    e.details?.integrity?.rawBytes === pcm.length);
+  assert.equal(calls.length, 1, "single Google generation, no fallback");
+  assert.equal(stages.length, 1, "must retain raw, never manufacture a processed complete WAV");
+  assert.equal(stages[0].stage, "raw");
+  assert.deepEqual(new Uint8Array(stages[0].bytes), pcm);
 });
