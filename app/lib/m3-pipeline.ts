@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { M3StreamingAnomalyGuard, scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
 import { assessM3Signal, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
-import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
+import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text, type M3TextMode } from "./m3-script";
 
 type Fetcher = typeof fetch;
 type AudioCandidate = { index?: number; finishReason?: string; content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }> } };
@@ -168,6 +168,7 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
 
 export async function generateM3Program(options: {
   apiKey: string; model: string; voice: string; text: string; speed: number;
+  textMode?: M3TextMode;
   streaming?: boolean;
   onAudioChunk?: (pcm: Uint8Array) => void;
   skipWavAssembly?: boolean;
@@ -178,7 +179,18 @@ export async function generateM3Program(options: {
   const fetcher = options.fetcher ?? fetch;
   const signal = options.signal ?? new AbortController().signal;
   const log = options.log ?? ((event, details) => console.info(event, JSON.stringify(details)));
-  const text = prepareM3Text(options.text);
+  const textMode = options.textMode ?? "clean";
+  const text = prepareM3Text(options.text, textMode);
+  const textSha256 = createHash("sha256").update(text, "utf8").digest("hex");
+  log("M3_UPSTREAM_TEXT_AUDIT", {
+    mode: textMode,
+    originalCharacters: options.text.length,
+    submittedCharacters: text.length,
+    submittedSha256: textSha256,
+    pauseTagsInSubmittedText: (text.match(/<short pause>|<long pause>/giu) ?? []).length,
+    originalNewlines: (options.text.match(/\r\n|\r|\n/gu) ?? []).length,
+    submittedNewlines: (text.match(/\n/gu) ?? []).length,
+  });
   const style = m3Style(speed);
 
   // Product rule: Flash and Flash-Lite both accept up to 15,000 characters
