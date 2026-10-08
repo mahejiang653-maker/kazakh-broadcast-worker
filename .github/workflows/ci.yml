@@ -20,6 +20,8 @@ jobs:
         run: npm ci
       - name: Test production build
         run: npm test
+      - name: TypeScript static check
+        run: npx tsc --noEmit --pretty false
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
