@@ -964,3 +964,48 @@ test("V15 failure SSE forwards reason, transport and intervals; QA files have un
   assert.ok(page.includes("m3Diagnostic.filename"));
   assert.ok(page.includes("请在下一次生成前保存本次文件"));
 });
+
+
+test("B field-data regression: gain suggestions alone cannot invalidate intact full PCM", async () => {
+  // Approximate B's real root cause without embedding the user's personal
+  // 15.9MB recorded audio into GitHub: a single low-amplitude voiced passage
+  // surrounded by healthy speech, with no multi-second lost audio.
+  const original = concat(modulated(160, 6, 0.15), modulated(160, 8, 0.005), modulated(160, 6, 0.15));
+  const plan = signalTools.planM3Repair(signalTools.scanM3Signal(original));
+  assert.equal(plan.cuts.length, 0);
+  assert.ok(plan.gains.length > 0, "must reproduce original false-positive gain proposal");
+  for (const diagnosticMode of ["legacy-05", "legacy-default", "interactions-default"]) {
+    const calls = [], events = [];
+    const fetcher = async (url, init) => {
+      calls.push({ url, body: JSON.parse(init.body) });
+      return diagnosticMode === "interactions-default"
+        ? sseResponse([...interactionSseEvents(original), "[DONE]"])
+        : sseResponse(streamEvents(original));
+    };
+    const result = await run({
+      streaming: true, diagnosticMode, fetcher,
+      log(event, details) { events.push({ event, details }); },
+    });
+    assert.equal(calls.length, 1, "must not retry or use fallback");
+    assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), original,
+      "must deliver original bytes without any gain or cut");
+    assert.equal(result.audit.integrity.rawSha256, result.audit.integrity.processedSha256);
+    assert.equal(result.audit.integrity.rawCrc32, result.audit.integrity.processedCrc32);
+    assert.equal(result.audit.integrity.rawBytes, result.audit.integrity.processedBytes);
+    assert.equal(result.audit.parts[0].gainDb, 0);
+    assert.ok(events.some(e => e.event === "M3_GAIN_CANDIDATES_NOT_APPLIED"), "leave diagnostic evidence");
+    assert.ok(events.some(e => e.event === "M3_PROGRAM_COMPLETE" &&
+      e.details.gainRegions === 0 && e.details.gainCandidatesNotApplied > 0));
+  }
+});
+
+test("M3 live preview never amplifies a low-level PCM segment", () => {
+  const original = concat(modulated(160, 6, 0.15), modulated(160, 8, 0.005), modulated(160, 6, 0.15));
+  const preview = new liveClient.M3LivePreview();
+  preview.add(original);
+  assert.equal(preview.safeSeconds, original.length / 48000);
+  assert.equal(preview.warning, "");
+  assert.equal(preview.chunks.length, 1);
+  assert.deepEqual(preview.chunks[0], original, "live listening must use unaltered raw samples");
+  preview.stop();
+});
