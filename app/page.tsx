@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
 import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
+import { prepareM3Text, type M3TextMode } from "./lib/m3-script";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -348,6 +349,8 @@ export default function Home() {
   const [geminiMaleVoiceCount, setGeminiMaleVoiceCount] = useState(GEMINI_NAMED_MALE_VOICES.length);
   const [geminiVoiceSearch, setGeminiVoiceSearch] = useState("");
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
+  const [m3TextMode, setM3TextMode] = useState<M3TextMode>("clean");
+  const m3PreparedPreview = useMemo(() => prepareM3Text(text.trim(), m3TextMode), [text, m3TextMode]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
   const [m3ReceivedSeconds, setM3ReceivedSeconds] = useState(0);
@@ -842,6 +845,7 @@ export default function Home() {
               model: geminiModel,
               voice,
               speed,
+              textMode: m3TextMode,
             }
           : payload;
       const audioTools = isDauletNews ? await import("./lib/daulet-audio-client") : null;
@@ -1408,8 +1412,8 @@ export default function Home() {
                 >
                   <div className="broadcast-index">M3</div>
                   <div>
-                    <strong>M3 干净输入模式</strong>
-                    <p>Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini。M3 只发送正文、模型、当前选中的一个角色和倍速；所有段落换行会拍平成空格，1.00× 不发送 style，15,000 字符以内始终整篇一次生成。</p>
+                    <strong>M3 输入文字独立检查</strong>
+                    <p>Edge 情绪、VibeVoice 和 Fish S2 参数不会进入 Gemini。默认只整理空格与换行；不会主动改动哈萨克语标点或插入停顿标签。可在下面查看 Google 实际接收的文字。</p>
                   </div>
                 </div>
               ) : null}
@@ -1858,9 +1862,48 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V13 · 支持边生成边试听</strong>
-                  <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
+                  <strong>M3 单次整篇 V14 · 检查 Google 输入文本</strong>
+                  <p>Flash / Flash-Lite 均保留 15,000 字符和一次整篇请求。V14 移除自动插入的编号停顿标签及其他隐式标点改写，可选择空格标准化或保留原文，直接核对真正发送的文字。不自动做两次 A/B 生成。</p>
                 </div>
+              </div>
+
+              <div className="field-block">
+                <div className="field-label-row">
+                  <label htmlFor="m3-text-mode">M3 发送给 Google 的文字</label>
+                </div>
+                <select
+                  id="m3-text-mode"
+                  value={m3TextMode}
+                  disabled={isGenerating}
+                  onChange={(event) => {
+                    setM3TextMode(event.target.value as M3TextMode);
+                    resetAudio();
+                    setError("");
+                  }}
+                  style={{ width: "100%", padding: "12px", border: "1px solid var(--line)", borderRadius: 10, background: "var(--paper)", color: "var(--ink)" }}
+                >
+                  <option value="clean">空格标准化（推荐）· 不改标点、不插入停顿</option>
+                  <option value="verbatim">原文保留 · 换行、标点和中间空格全部保留</option>
+                </select>
+                <p style={{ fontSize: 12, opacity: 0.75, marginTop: 8 }}>
+                  不会自动调用 Gemini 进行双版本对比；每次点击生成仍只发起一次完整请求。
+                </p>
+                <details style={{ marginTop: 12, border: "1px solid var(--line)", borderRadius: 10, padding: 12 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 600 }}>查看实际发送给 Google 的文本（免费预览）</summary>
+                  <p style={{ margin: "10px 0", fontSize: 12, lineHeight: 1.6 }}>
+                    输入 {text.trim().length} 字符 → 提交 {m3PreparedPreview.length} 字符。
+                    {m3PreparedPreview === text.trim()
+                      ? " 与原稿去除首尾空白后完全一致。"
+                      : " 已发生空白字符整理；没有添加任何停顿标签或更改原有标点。"}
+                  </p>
+                  <textarea
+                    readOnly
+                    aria-label="实际提交给 Google 的 M3 文本"
+                    value={m3PreparedPreview}
+                    rows={7}
+                    style={{ width: "100%", resize: "vertical", minHeight: 150, borderRadius: 8, padding: 10, border: "1px solid var(--line)", color: "var(--ink)", background: "transparent", fontSize: 14, lineHeight: 1.6 }}
+                  />
+                </details>
               </div>
 
               <div className="field-block">
