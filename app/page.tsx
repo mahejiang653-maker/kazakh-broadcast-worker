@@ -2249,7 +2249,8 @@ export default function Home() {
                       识别到 {m3TranscriptAudit.presentHeadings}/13 个不同编号 ·
                       缺少 {m3TranscriptAudit.missingHeadings.length} 个 ·
                       重复 {m3TranscriptAudit.duplicatedHeadings.length} 个 ·
-                      内容疑似差异 {m3TranscriptAudit.reviewSections.length} 条。
+                      内容疑似差异 {m3TranscriptAudit.reviewSections.length} 条 ·
+                      需复听句子 {m3TranscriptAudit.sentenceReviewCount} 处。
                       开场：{m3TranscriptAudit.introLikelyPresent ? "存在文字" : "未能确认"}；
                       结尾：{m3TranscriptAudit.endingLikelyPresent ? "有告别关键词" : "未能确认"}。
                     </p>
@@ -2262,6 +2263,23 @@ export default function Home() {
                         </span>
                       ))}
                     </div>
+                    {m3TranscriptAudit.sentenceReviewCount > 0 ? (
+                      <div style={{ marginTop: 10, fontSize: 12 }}>
+                        <strong>优先人工复听（最多显示前 20 处，均非确定漏读）：</strong>
+                        <ul style={{ paddingLeft: 20, marginTop: 6 }}>
+                          {m3TranscriptAudit.sections.flatMap(section =>
+                            section.sentenceWarnings.map(item => ({
+                              index: section.index, ...item,
+                            }))
+                          ).slice(0, 20).map((warning, i) => (
+                            <li key={i}>
+                              第 {warning.index} 条第 {warning.sentenceNumber} 句 · 字形近似 {Math.round(warning.bestSimilarity * 100)}%：
+                              <span style={{ overflowWrap: "anywhere" }}>{warning.sourceExcerpt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                     <p style={{ fontSize: 12, opacity: 0.8, marginTop: 10 }}>{m3TranscriptAudit.notice}</p>
                   </div>
                 ) : null}
