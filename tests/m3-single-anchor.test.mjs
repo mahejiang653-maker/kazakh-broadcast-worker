@@ -137,6 +137,9 @@ test("a long manuscript is never grouped and still uses one full-program request
   assert.equal(result.audit.retries, 0);
   assert.equal(result.audit.parts.length, 1);
   assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(fixture()));
+  assert.ok(result.audit.timings.upstreamMs >= 0);
+  assert.ok(result.audit.timings.postprocessMs >= 0);
+  assert.ok(result.audit.timings.totalMs >= result.audit.timings.upstreamMs);
 });
 test("1.00x has no speech metadata and the one voice remains protocol-locked", () => {
   const request = script.m3RequestBody("Putin: «Сәлем». Donald Trump: «Hello».", "Puck", script.m3Style(1));
@@ -187,6 +190,13 @@ test("silent audio cannot pass screening and is never retried", async () => {
   );
   assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
+test("long-form voice screening uses only a small fixed number of windows", () => {
+  const pcm = tone(160, 180);
+  const report = audio.screenM3Take(pcm);
+  assert.ok(report.windows.length <= 4, report.windows.length);
+  assert.ok(report.features.voicedFrames >= 18);
+});
+
 test("persistent large pitch/timbre changes are detected inside a single take too", () => {
   const a = tone(160, 24), b = tone(270, 36), pcm = new Uint8Array(a.length + b.length); pcm.set(a); pcm.set(b, a.length);
   const report = audio.screenM3Take(pcm);
