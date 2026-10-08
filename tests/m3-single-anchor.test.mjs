@@ -436,3 +436,20 @@ test("live UI resets unverified PCM display after an incomplete generation", asy
   assert.ok(handler.includes("skipWavAssembly: true"));
   assert.ok(handler.includes("audioDiagnostics: audit.signal"));
 });
+
+test("oversized trailing or leading PCM padding does not inflate the final recording", () => {
+  const speech = tone(160, 3);
+  const deadAir = new Uint8Array(22 * 48000);
+  for (const trailing of [true, false]) {
+    const pcm = new Uint8Array(speech.length + deadAir.length);
+    if (trailing) pcm.set(speech, 0);
+    else pcm.set(speech, deadAir.length);
+    const result = audio.compressM3InternalSilence(pcm);
+    assert.equal(result.regions, 1);
+    assert.ok(result.removedMs > 20000, result.removedMs);
+    const remaining = result.pcm.length / 48000;
+    assert.ok(remaining >= 3 && remaining < 4.5, remaining);
+    if (trailing) assert.deepEqual(result.pcm.subarray(0, speech.length), speech);
+    else assert.deepEqual(result.pcm.subarray(result.pcm.length - speech.length), speech);
+  }
+});
