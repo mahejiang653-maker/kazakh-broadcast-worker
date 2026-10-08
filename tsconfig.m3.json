@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "incremental": false,
+    "plugins": [],
+    "noEmit": true
+  },
+  "include": [
+    "app/lib/m3-*.ts",
+    "worker/m3-regional-session.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
