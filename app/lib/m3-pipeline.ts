@@ -139,11 +139,11 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
     if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502, { integrity: partialIntegrity() });
     if (candidate.finishReason === "STOP") completed = true;
   };
+  let streamDone = false;
   if (useStreaming) {
     if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) throw new M3Error("M3_INVALID_STREAM", "Gemini 没有返回预期的音频流。", 502);
     const reader = response.body.getReader(), decoder = new TextDecoder();
     let pending = "";
-    let streamDone = false;
     const outputSteps = new Set<number>();
     const stoppedOutputSteps = new Set<number>();
     const frame = (block: string) => {
