@@ -240,6 +240,7 @@ export async function generateM3Program(options: {
   audit.signal = activity;
   log("M3_PCM_INTEGRITY", {
     ...activity,
+    activityDefinition: "acoustic-candidates-not-verified-speech",
     rawSha256: audit.integrity?.rawSha256,
     rawBytes: originalPcmBytes,
     inputCharacters: text.length,
@@ -258,7 +259,7 @@ export async function generateM3Program(options: {
   if (activity.activeSeconds < minimumActivity) {
     throw new M3Error(
       "M3_INSUFFICIENT_VOICED_AUDIO",
-      `Gemini 返回了约 ${activity.rawSeconds} 秒 PCM，但采样检测到的有效声音仅约 ${activity.activeSeconds} 秒。疑似大量静音或无效音频，已拒绝生成；本次不会重试或拆段。`,
+      `Gemini 返回约 ${activity.rawSeconds} 秒 PCM，宽松声学活动候选约 ${activity.activeSeconds} 秒，独立语音频段证据约 ${activity.speechEvidenceSeconds} 秒；不能证明内容已完整朗读。音频可疑，本次不会重试或拆段。`,
       502,
       { audioDiagnostics: activity, integrity: audit.integrity },
     );
@@ -266,7 +267,7 @@ export async function generateM3Program(options: {
 
   const silenceCleanup = planM3Repair(scan);
   const unresolved = unresolvedM3Low(scan, silenceCleanup.gains);
-  if (unresolved.length) throw new M3Error("M3_UNRESOLVED_LOW_SIGNAL", `原始音频含持续极低电平区间（最长约 ${Math.round(Math.max(...unresolved.map(r => r.seconds)))} 秒），尚不能确认或安全恢复讲话，已保留原始诊断音频，未裁剪后冒充完成。`, 502,
+  if (unresolved.length) throw new M3Error("M3_UNRESOLVED_LOW_SIGNAL", `原始音频含持续极低电平或低频嗡声区间（最长约 ${Math.round(Math.max(...unresolved.map(r => r.seconds)))} 秒），不能确认其中有可恢复的讲话，已保留原始诊断音频；不会放大噪声、删除区段后冒充全文完成。`, 502,
     { audioDiagnostics: activity, integrity: audit.integrity, unresolved });
   pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
   if (audit.integrity) {
