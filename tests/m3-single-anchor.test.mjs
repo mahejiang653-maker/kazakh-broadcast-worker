@@ -728,11 +728,111 @@ test("M3 UI derives both version labels from the actual backend constant", async
   const page = await readFile("app/page.tsx", "utf8");
   assert.ok(page.includes('import { M3_VERSION, prepareM3Text'));
   assert.ok(page.includes('const M3_PUBLIC_VERSION = M3_VERSION.match'));
-  assert.ok(page.includes('M3 单次整篇 {M3_PUBLIC_VERSION} · 检查 Google 输入文本'));
+  assert.ok(page.includes('M3 单次整篇 {M3_PUBLIC_VERSION} · 输入文本及生成接口诊断'));
   assert.ok(page.includes('M3 · 单次整篇 {M3_PUBLIC_VERSION} · 连续文本 + 实时试听'));
   assert.equal(page.includes('M3 · 单次整篇 V13 · 连续文本 + 实时试听'), false);
   assert.ok(page.includes('setM3ServerVersion(typeof payload?.version === "string" ? payload.version : null)'));
   assert.ok(page.includes('m3ServerVersion === M3_VERSION'));
   const regional = await readFile("worker/m3-regional-session.ts", "utf8");
   assert.ok(regional.includes('version: M3_VERSION'));
+});
+
+
+function interactionSseEvents(pcm, complete = true) {
+  const half = Math.floor(pcm.length / 4) * 2;
+  const deltas = [pcm.subarray(0, half), pcm.subarray(half)].map(piece => ({
+    event_type: "step.delta",
+    index: 0,
+    delta: { type: "audio", data: Buffer.from(piece).toString("base64"), mime_type: "audio/l16", sample_rate: 24000, channels: 1 },
+  }));
+  return [{ event_type: "interaction.created", interaction: { status: "in_progress" } },
+    { event_type: "step.start", index: 0, step: { type: "model_output" } },
+    ...deltas,
+    { event_type: "step.stop", index: 0 },
+    ...(complete ? [{ event_type: "interaction.completed", interaction: { status: "completed" } }] : [])];
+}
+
+test("V15 legacy temperature A/B changes only the optional temperature property", async () => {
+  const sample = "Сәлем тораптастар.\n\nБірінші. Еліміз жаңалықтары.";
+  for (const diagnosticMode of ["legacy-05", "legacy-default"]) {
+    const calls = [];
+    const result = await run({ streaming: true, diagnosticMode, textMode: "verbatim", text: sample, fetcher: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return sseResponse(streamEvents(tone(160, 18)), false);
+    } });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url.includes(":streamGenerateContent?alt=sse"), true);
+    const config = calls[0].body.generationConfig;
+    assert.equal(config.temperature, diagnosticMode === "legacy-05" ? 0.5 : undefined);
+    assert.equal(calls[0].body.contents[0].parts[0].text, sample);
+    assert.deepEqual(config.speechConfig, { voiceConfig: { voice: "Puck" } });
+    assert.equal(result.audit.ttsRequests, 1);
+    assert.equal(result.audit.retries, 0);
+    assert.equal(result.audit.temperature, diagnosticMode === "legacy-05" ? 0.5 : null);
+  }
+});
+
+test("V15 Interactions streams 24 kHz PCM from one request using one voice", async () => {
+  const sample = "Сәлем тораптастар.\n\nБірінші. «жүңгө», еліміз!";
+  const pcm = tone(160, 18);
+  for (const model of ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]) {
+    const calls = [];
+    const result = await run({ streaming: true, model, diagnosticMode: "interactions-default", text: sample, textMode: "verbatim", fetcher: async (url, options) => {
+      calls.push({ url, body: JSON.parse(options.body) });
+      return sseResponse(interactionSseEvents(pcm), false);
+    } });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+    assert.equal(calls[0].body.stream, true);
+    assert.equal(calls[0].body.input[0].content[0].text, sample);
+    assert.equal(calls[0].body.input[0].content[0].annotations, undefined);
+    assert.deepEqual(calls[0].body.generation_config.speech_config, [{ voice: "Puck" }]);
+    assert.deepEqual(calls[0].body.response_format, { type: "audio", mime_type: "audio/l16", sample_rate: 24000 });
+    assert.equal(calls[0].body.generation_config.temperature, undefined);
+    assert.equal(result.audit.transport, "interactions");
+    assert.equal(result.audit.ttsRequests, 1);
+    assert.equal(result.audit.retries, 0);
+    assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), pcm);
+  }
+});
+
+test("V15 Interactions incomplete, failed, or wrong-format streams never become completed WAV", async () => {
+  const pcm = tone(160, 18);
+  const valid = interactionSseEvents(pcm, false);
+  const failures = [
+    { events: valid, code: "M3_INCOMPLETE_AUDIO" },
+    { events: [...valid, { event_type: "interaction.completed", interaction: { status: "incomplete" } }], code: "M3_INCOMPLETE_AUDIO" },
+    { events: [...valid, { event_type: "interaction.failed" }], code: "M3_STREAM_ERROR" },
+    { events: valid.map(v => v.event_type === "step.delta" ? { ...v, delta: { ...v.delta, sample_rate: 16000 } } : v), code: "M3_AUDIO_FORMAT_MISMATCH" },
+  ];
+  for (const sample of failures) {
+    const requests = [];
+    await assert.rejects(
+      run({ streaming: true, diagnosticMode: "interactions-default",
+        fetcher: async (url, options) => {
+          requests.push(url);
+          return sseResponse(sample.events, false);
+        },
+      }), err => err.code === sample.code,
+    );
+    assert.equal(requests.length, 1);
+  }
+});
+
+test("V15 manual transport selectors do not trigger automatic additional API calls", async () => {
+  const [page, handler, scriptSrc] = await Promise.all([
+    readFile("app/page.tsx", "utf8"),
+    readFile("app/lib/m3-handler.ts", "utf8"),
+    readFile("app/lib/m3-script.ts", "utf8"),
+  ]);
+  assert.ok(page.includes("id=\"m3-diagnostic-mode\""));
+  assert.ok(page.includes('value="legacy-05"'));
+  assert.ok(page.includes('value="legacy-default"'));
+  assert.ok(page.includes('value="interactions-default"'));
+  assert.ok(page.includes("diagnosticMode: m3DiagnosticMode"));
+  assert.ok(handler.includes('normalizeM3DiagnosticMode(body.diagnosticMode)'));
+  assert.ok(scriptSrc.includes('m3-single-request-v15-transport-comparison'));
+  assert.equal(script.normalizeM3DiagnosticMode("bad input"), "legacy-05");
+  assert.equal(script.m3Temperature("legacy-default"), null);
+  assert.equal(script.m3Temperature("legacy-05"), 0.5);
 });
