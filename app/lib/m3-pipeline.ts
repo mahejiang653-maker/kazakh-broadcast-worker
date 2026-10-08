@@ -360,6 +360,17 @@ export async function generateM3Program(options: {
   const unresolved = unresolvedM3Low(scan, silenceCleanup.gains);
   if (unresolved.length) throw new M3Error("M3_UNRESOLVED_LOW_SIGNAL", `原始音频含持续极低电平或低频嗡声区间（最长约 ${Math.round(Math.max(...unresolved.map(r => r.seconds)))} 秒），不能确认其中有可恢复的讲话，已保留原始诊断音频；不会放大噪声、删除区段后冒充全文完成。`, 502,
     { audioDiagnostics: activity, integrity: audit.integrity, unresolved });
+  // Never deliver edited audio as proof of a complete verbatim narration.
+  // Preserve the original bytes/diagnostics and fail instead of hiding gaps
+  // through silence compression or gain adjustment.
+  if (silenceCleanup.cuts.length || silenceCleanup.gains.length) {
+    throw new M3Error(
+      "M3_UNVERIFIED_AUDIO_REPAIR",
+      "原始音频含需要裁剪的长静音或需要增益补偿的异常低音量区间。为避免掩盖漏读，本次保留原始诊断证据，不会把修补后的音频标记为全文完成。",
+      502,
+      { integrity: audit.integrity, audioDiagnostics: activity, proposedCuts: silenceCleanup.cuts, proposedGains: silenceCleanup.gains },
+    );
+  }
   pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
   if (audit.integrity) {
     audit.integrity.processedSha256 = pcm.byteLength === originalPcmBytes && !silenceCleanup.gains.length ? audit.integrity.rawSha256 : createHash("sha256").update(pcm).digest("hex");
