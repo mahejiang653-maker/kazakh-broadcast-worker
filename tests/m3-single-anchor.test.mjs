@@ -555,7 +555,7 @@ test("preview halts HF anomaly rather than queuing minutes of inaudible playback
   assert.equal(p.bufferedSeconds,8);assert.equal(p.safeSeconds,2);assert.match(p.warning,/试听已暂停/);
 });
 test("raw vs processed evidence is exact and never logs manuscript or credentials", async () => {
-  const pcm=concat(modulated(),new Uint8Array(48000*6),modulated(171));const evidence=[];
+  const pcm=concat(modulated(),new Uint8Array(48000*3),modulated(171));const evidence=[];
   const logs=[];const result=await run({fetcher:mock([],300,[pcm]),onDiagnostic:(stage,bytes,details)=>evidence.push({stage,bytes:bytes.slice(),details}),log:(event,d)=>logs.push({event,d})});
   assert.equal(evidence.length,2);assert.deepEqual(new Uint8Array(evidence[0].bytes),pcm);
   assert.equal(result.audit.integrity.rawBytes,pcm.length);assert.equal(result.audit.integrity.processedBytes,evidence[1].bytes.length);
@@ -900,4 +900,19 @@ test("V15 Interactions enforces streaming even when caller omits the legacy stre
   assert.equal(requests.length, 1);
   assert.equal(requests[0].body.stream, true);
   assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), pcm);
+});
+
+test("V15 refuses to disguise missing narration by compressing abnormal source silence", async () => {
+  const pcm = concat(modulated(160, 6), new Uint8Array(48000 * 6), modulated(180, 6));
+  const calls = [], stages = [];
+  await assert.rejects(run({
+    fetcher: mock(calls, 300, [pcm]),
+    onDiagnostic(stage, bytes) { stages.push({ stage, bytes: bytes.slice() }); },
+  }), e => e.code === "M3_UNVERIFIED_AUDIO_REPAIR" &&
+    e.details?.proposedCuts?.length > 0 &&
+    e.details?.integrity?.rawBytes === pcm.length);
+  assert.equal(calls.length, 1, "single Google generation, no fallback");
+  assert.equal(stages.length, 1, "must retain raw, never manufacture a processed complete WAV");
+  assert.equal(stages[0].stage, "raw");
+  assert.deepEqual(new Uint8Array(stages[0].bytes), pcm);
 });
