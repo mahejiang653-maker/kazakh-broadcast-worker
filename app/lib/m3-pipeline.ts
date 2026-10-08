@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { M3StreamingAnomalyGuard, scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
+import { M3StreamingAnomalyGuard, scanM3Signal, planM3Repair, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
 import { assessM3Signal, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
 import { M3_VERSION, m3RequestBody, m3InteractionsRequestBody, m3Temperature, m3Style, prepareM3Text, type M3TextMode, type M3DiagnosticMode } from "./m3-script";
 
