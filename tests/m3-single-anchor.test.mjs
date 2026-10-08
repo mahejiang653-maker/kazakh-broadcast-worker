@@ -205,11 +205,14 @@ test("silent audio cannot pass screening and is never retried", async () => {
   );
   assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
-test("long-form voice screening uses only a small fixed number of windows", () => {
+test("long-form voice screening covers every section with bounded analysis windows", () => {
   const pcm = tone(160, 180);
   const report = audio.screenM3Take(pcm);
-  assert.ok(report.windows.length <= 4, report.windows.length);
+  assert.ok(report.windows.length >= 12, report.windows.length);
+  assert.ok(report.windows.length <= Math.ceil(180 / 12) + 1, report.windows.length);
+  assert.equal(report.timeline.windowsScanned, report.windows.length);
   assert.ok(report.features.voicedFrames >= 18);
+  assert.equal(report.detected, false);
 });
 
 test("persistent large pitch/timbre changes are detected inside a single take too", () => {
