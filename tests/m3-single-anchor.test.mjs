@@ -6,9 +6,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
 const dir = await mkdtemp(join(tmpdir(), "m3-test-"));
-for (const name of ["script", "audio", "pipeline", "handler"]) await build({ input: `app/lib/m3-${name}.ts`, platform: "node", output: { file: join(dir, `${name}.mjs`), format: "esm", codeSplitting: false } });
+for (const name of ["script", "audio", "signal", "pipeline", "handler"]) await build({ input: `app/lib/m3-${name}.ts`, platform: "node", output: { file: join(dir, `${name}.mjs`), format: "esm", codeSplitting: false } });
 const script = await import(pathToFileURL(join(dir, "script.mjs")));
 const audio = await import(pathToFileURL(join(dir, "audio.mjs")));
+const signalTools = await import(pathToFileURL(join(dir, "signal.mjs")));
 const { generateM3Program, M3Error } = await import(pathToFileURL(join(dir, "pipeline.mjs")));
 const { handleM3Request } = await import(pathToFileURL(join(dir, "handler.mjs")));
 const clientFile = join(dir, "live-client.mjs");
@@ -17,7 +18,7 @@ const liveClient = await import(pathToFileURL(clientFile));
 test.after(() => rm(dir, { recursive: true, force: true }));
 function tone(pitch = 160, seconds = 18, gain = 0.18) {
   const pcm = new Uint8Array(seconds * 48000), view = new DataView(pcm.buffer);
-  for (let i = 0; i < pcm.length / 2; i++) { const t = i / 24000; view.setInt16(i * 2, Math.round(32767 * gain * (Math.sin(2 * Math.PI * pitch * t) + 0.24 * Math.sin(4 * Math.PI * pitch * t))), true); }
+  for (let i = 0; i < pcm.length / 2; i++) { const t = i / 24000; view.setInt16(i * 2, Math.round(32767 * gain * (1 + 0.015 * Math.sin(t * 0.17)) * (Math.sin(2 * Math.PI * pitch * t) + 0.24 * Math.sin(4 * Math.PI * pitch * t))), true); }
   return pcm;
 }
 function payload(pcm, reason = "STOP", mime = "audio/L16;codec=pcm;rate=24000") { return { candidates: [{ finishReason: reason, content: { parts: [{ inlineData: { mimeType: mime, data: Buffer.from(pcm).toString("base64") } }] } }] }; }
@@ -335,10 +336,10 @@ test("live streamed PCM is delivered progressively and final WAV applies the sam
   const a = pcm.slice(0, 150000), b = pcm.slice(150000);
   const events = [
     { event: "start", data: { model: "gemini-3.8-flash-lite-tts" } },
-    { event: "audio", data: { data: Buffer.from(a).toString("base64") } },
+    { event: "audio", data: { sequence: 0, offset: 0, crc32: signalTools.m3Crc32(a), data: Buffer.from(a).toString("base64") } },
     { event: "heartbeat", data: { elapsedMs: 5000 } },
-    { event: "audio", data: { data: Buffer.from(b).toString("base64") } },
-    { event: "done", data: { cuts: cleanup.cuts, originalPcmBytes: pcm.length, timings: { upstreamMs: 4000, postprocessMs: 150, totalMs: 4150 } } },
+    { event: "audio", data: { sequence: 1, offset: a.length, crc32: signalTools.m3Crc32(b), data: Buffer.from(b).toString("base64") } },
+    { event: "done", data: { cuts: cleanup.cuts, gains: [], originalPcmBytes: pcm.length, integrity: { rawBytes: pcm.length, rawCrc32: signalTools.m3Crc32(pcm), processedBytes: cleanup.pcm.length, processedCrc32: signalTools.m3Crc32(cleanup.pcm) }, timings: { upstreamMs: 4000, postprocessMs: 150, totalMs: 4150 } } },
   ];
   const wire = events.map(({ event, data }) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
   const preview = new liveClient.M3LivePreview();
@@ -357,7 +358,8 @@ test("live streamed PCM is delivered progressively and final WAV applies the sam
 
 test("live PCM never produces a completed WAV without an upstream done event", async () => {
   const preview = new liveClient.M3LivePreview();
-  const body = `event: audio\ndata: ${JSON.stringify({ data: Buffer.from(tone(160, 1)).toString("base64") })}\n\n`;
+  const pcm = tone(160, 1);
+  const body = `event: start\ndata: {}\n\nevent: audio\ndata: ${JSON.stringify({ sequence: 0, offset: 0, crc32: signalTools.m3Crc32(pcm), data: Buffer.from(pcm).toString("base64") })}\n\n`;
   await assert.rejects(
     liveClient.receiveM3LiveAudio(new Response(body, { headers: { "Content-Type": "text/event-stream" } }), preview, () => {}),
     /尚未完成整篇生成/,
@@ -397,10 +399,10 @@ test("low-volume PCM is not rejected solely because pitch detector cannot track 
   const quiet = tone(160, 18, 0.006);
   const stats = audio.assessM3Signal(quiet);
   assert.ok(stats.activeSeconds > 12, JSON.stringify(stats));
-  assert.ok(audio.screenM3Take(quiet).features.voicedFrames < 18);
+  assert.ok(audio.screenM3Take(quiet).features.voicedFrames >= 18);
   const result = await run({ fetcher: mock([], 300, [quiet]) });
   assert.equal(result.audit.signal.activeSeconds > 12, true);
-  assert.equal(result.audit.pitchScreen, "unreliable");
+  assert.equal(result.audit.pitchScreen, "reliable");
   assert.ok(result.wav.byteLength > 44);
 });
 
@@ -452,4 +454,119 @@ test("oversized trailing or leading PCM padding does not inflate the final recor
     if (trailing) assert.deepEqual(result.pcm.subarray(0, speech.length), speech);
     else assert.deepEqual(result.pcm.subarray(result.pcm.length - speech.length), speech);
   }
+});
+
+function concat(...chunks) { return new Uint8Array(Buffer.concat(chunks)); }
+function modulated(pitch = 160, seconds = 6, gain = 0.08) {
+  const pcm = tone(pitch, seconds, gain), v = new DataView(pcm.buffer);
+  for (let i = 0; i < pcm.length / 2; i++) {
+    const t = i / 24000, envelope = 0.15 + 0.85 * Math.sin(t * Math.PI * 2.2) ** 2;
+    v.setInt16(i * 2, Math.round(v.getInt16(i * 2, true) * envelope), true);
+  }
+  return pcm;
+}
+test("V11 never confuses the real failure's HF energy with speech or digital silence", async () => {
+  const faulty = concat(modulated(), tone(7100, 12, 0.009), modulated());
+  const scan = signalTools.scanM3Signal(faulty);
+  assert.ok(scan.summary.longestHighFrequencySeconds > 11.8);
+  assert.ok(scan.summary.activeSeconds < 13);
+  const plan = signalTools.planM3Repair(scan);
+  assert.equal(plan.cuts.length, 0, "HF noise is not silently deleted");
+  let raw;
+  const calls = [];
+  await assert.rejects(run({ fetcher: mock(calls, 300, [faulty]), onDiagnostic(stage, pcm) { if (stage === 'raw') raw = pcm.slice(); } }), e => e.code === 'M3_HIGH_FREQUENCY_ARTIFACT');
+  assert.deepEqual(new Uint8Array(raw), faulty);
+  assert.equal(calls.length, 1);
+});
+test("quiet Kazakh-like modulated phonation is retained, smoothly restored and never clipped", () => {
+  const loud = modulated(160, 6, 0.15), quiet = modulated(160, 8, 0.005), source = concat(loud, quiet, loud);
+  const scan = signalTools.scanM3Signal(source), plan = signalTools.planM3Repair(scan);
+  assert.equal(plan.cuts.length, 0);
+  assert.ok(plan.gains.length > 0);
+  const output = signalTools.applyM3Plan(source, plan.cuts, plan.gains);
+  assert.equal(source.length, output.length);
+  assert.deepEqual(output.subarray(0, loud.length), loud);
+  const after = signalTools.scanM3Signal(output);
+  assert.ok(after.summary.maxPeak < 0.86);
+  const quietBefore = audio.analyzeM3Pcm(source, 7, 13), quietAfter = audio.analyzeM3Pcm(output, 7, 13);
+  assert.ok(quietAfter.rmsDb - quietBefore.rmsDb > 12);
+  assert.ok(Math.abs(quietBefore.f0Median - quietAfter.f0Median) < 0.2);
+});
+test("very weak speech below old silence thresholds and uncertain noise are never removed", () => {
+  const weak = modulated(160, 10, 0.0005);
+  const noise = new Uint8Array(48000 * 8), dv = new DataView(noise.buffer);
+  let seed = 17;
+  for (let p = 0; p < noise.length; p += 2) { seed = (1664525 * seed + 1013904223) >>> 0; dv.setInt16(p, Math.round((seed / 2 ** 32 - 0.5) * 40), true); }
+  for (const pcm of [weak, noise]) {
+    const plan = signalTools.planM3Repair(signalTools.scanM3Signal(pcm));
+    assert.equal(plan.cuts.length, 0);
+  }
+  assert.ok(signalTools.scanM3Signal(weak).summary.activeSeconds > 5);
+  assert.equal(signalTools.planM3Repair(signalTools.scanM3Signal(noise)).gains.length, 0);
+});
+test("duplicate, cumulative, overlapping PCM and invalid Base64 fail without extra requests", async () => {
+  const a = modulated(153, 2), b = modulated(171, 2);
+  for (const [events, code] of [
+    [[{...payload(a), candidates: [{...payload(a).candidates[0], finishReason: undefined}]}, payload(a)], 'M3_REPEATED_PCM'],
+    [[{...payload(a), candidates: [{...payload(a).candidates[0], finishReason: undefined}]}, payload(concat(a, b))], 'M3_CUMULATIVE_PCM'],
+    [[{...payload(a), candidates: [{...payload(a).candidates[0], finishReason: undefined}]}, payload(concat(a.subarray(a.length - 24000), b))], 'M3_OVERLAPPING_PCM'],
+    [[{ candidates: [{finishReason:'STOP',content:{parts:[{inlineData:{data:'@@bad!',mimeType:'audio/pcm;rate=24000'}}]}}]}], 'M3_INVALID_BASE64'],
+  ]) {
+    let calls = 0;
+    await assert.rejects(run({ streaming:true, fetcher: async () => { calls++;return sseResponse(events); } }), e => e.code === code);
+    assert.equal(calls, 1);
+  }
+});
+test("audio after STOP and truncated PCM never become downloadable audio", async () => {
+  await assert.rejects(run({streaming:true,fetcher:async()=>sseResponse([payload(modulated()),payload(modulated(180))])}),e=>e.code==='M3_AUDIO_AFTER_STOP');
+  await assert.rejects(run({fetcher:mock([],300,[new Uint8Array(301)])}),e=>e.code==='M3_AUDIO_FORMAT_MISMATCH');
+});
+test("phone and Worker apply identical gains/cuts at fragmented chunk boundaries", async () => {
+  const pcm = concat(modulated(160, 6, 0.15), modulated(160, 8, 0.005), new Uint8Array(48000 * 6), modulated(160, 6, 0.15));
+  const plan = signalTools.planM3Repair(signalTools.scanM3Signal(pcm));
+  const expected = signalTools.applyM3Plan(pcm, plan.cuts, plan.gains);
+  const pieces=[];for(let i=0;i<pcm.length;i+=13462)pieces.push(pcm.subarray(i,i+13462));
+  const wav=liveClient.assembleM3Wav(pieces,pcm.length,plan.cuts,plan.gains,signalTools.m3Crc32(expected));
+  assert.deepEqual(audio.decodeM3Audio(new Uint8Array(await wav.arrayBuffer()),'audio/wav'),expected);
+});
+test("mobile raw PCM checksum/sequence rejects replay and preserves diagnostic original", async () => {
+  const pcm = modulated(), message={ sequence:0,offset:0,crc32:signalTools.m3Crc32(pcm),data:Buffer.from(pcm).toString('base64') };
+  for(const second of [message,{...message,sequence:1,offset:pcm.length,crc32:0}]) {
+    const wire=`event: start\ndata: {}\n\nevent: audio\ndata: ${JSON.stringify(message)}\n\nevent: audio\ndata: ${JSON.stringify(second)}\n\n`;
+    const preview=new liveClient.M3LivePreview();
+    await assert.rejects(liveClient.receiveM3LiveAudio(new Response(wire,{headers:{'Content-Type':'text/event-stream'}}),preview,()=>{}),e=>{
+      assert.ok(e instanceof liveClient.M3LiveError);assert.equal(e.rawAudioBlob.size,pcm.length+44);return true;
+    });
+  }
+});
+test("preview halts HF anomaly rather than queuing minutes of inaudible playback", () => {
+  const p=new liveClient.M3LivePreview();p.add(modulated(160,2));p.add(tone(7000,4,.01));p.add(modulated(160,2));
+  assert.equal(p.bufferedSeconds,8);assert.equal(p.safeSeconds,2);assert.match(p.warning,/试听已暂停/);
+});
+test("raw vs processed evidence is exact and never logs manuscript or credentials", async () => {
+  const pcm=concat(modulated(),new Uint8Array(48000*6),modulated(171));const evidence=[];
+  const logs=[];const result=await run({fetcher:mock([],300,[pcm]),onDiagnostic:(stage,bytes,details)=>evidence.push({stage,bytes:bytes.slice(),details}),log:(event,d)=>logs.push({event,d})});
+  assert.equal(evidence.length,2);assert.deepEqual(new Uint8Array(evidence[0].bytes),pcm);
+  assert.equal(result.audit.integrity.rawBytes,pcm.length);assert.equal(result.audit.integrity.processedBytes,evidence[1].bytes.length);
+  assert.equal(result.audit.integrity.contentVerified,false);
+  assert.equal(JSON.stringify(logs).includes('fake-test-key'),false);assert.equal(JSON.stringify(logs).includes('Маңызды'),false);
+});
+test("uploaded 682.76s regression rejects HF failure while preserving original samples", {skip:!process.env.M3_FAULT_WAV}, async () => {
+  const pcm=audio.decodeM3Audio(await readFile(process.env.M3_FAULT_WAV),'audio/wav');
+  const scan=signalTools.scanM3Signal(pcm);assert.equal(scan.summary.rawSeconds,682.76);
+  assert.ok(scan.summary.highFrequencySeconds>520);assert.ok(scan.summary.longestHighFrequencySeconds>209);
+  const before=Buffer.from(pcm);assert.equal(signalTools.planM3Repair(scan).cuts.length,0);
+  await assert.rejects(run({fetcher:mock([],300,[pcm])}),e=>e.code==='M3_HIGH_FREQUENCY_ARTIFACT');
+  assert.deepEqual(new Uint8Array(pcm),new Uint8Array(before));
+});
+test("100ms SSE packets cannot evade the preview HF guard", () => {
+  const p=new liveClient.M3LivePreview(),pcm=tone(7100,4,.008);
+  for(let at=0;at<pcm.length;at+=4800)p.add(pcm.subarray(at,at+4800));
+  assert.equal(p.bufferedSeconds,4);assert.equal(p.safeSeconds,0);assert.match(p.warning,/试听已暂停/);
+});
+test("uncertain quantized low-level noise is retained and not amplified or delivered as complete", async () => {
+  const tiny=tone(53,16,.00025),pcm=concat(modulated(),tiny,modulated(180));
+  const scan=signalTools.scanM3Signal(pcm),plan=signalTools.planM3Repair(scan);
+  assert.equal(plan.cuts.length,0);assert.equal(plan.gains.length,0);
+  await assert.rejects(run({fetcher:mock([],300,[pcm])}),e=>e.code==='M3_UNRESOLVED_LOW_SIGNAL');
 });

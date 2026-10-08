@@ -1,9 +1,11 @@
 import { Buffer } from "node:buffer";
-import { assessM3Signal, compressM3InternalSilence, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
+import { createHash } from "node:crypto";
+import { scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
+import { assessM3Signal, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
 import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
 
 type Fetcher = typeof fetch;
-type AudioCandidate = { finishReason?: string; content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }> } };
+type AudioCandidate = { index?: number; finishReason?: string; content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }> } };
 export class M3Error extends Error {
   constructor(public code: string, message: string, public status = 502, public details?: Record<string, unknown>) { super(message); }
 }
@@ -11,7 +13,8 @@ export type M3Audit = {
   version: string; model: string; voice: string; style: string; temperature: number;
   strategy: "single"; inputTokens: number | null; ttsRequests: number; retries: number;
   transport: "generateContent" | "streamGenerateContent";
-  timings: { upstreamMs: number; postprocessMs: number; totalMs: number };
+  timings: { upstreamMs: number; firstAudioMs: number | null; postprocessMs: number; totalMs: number };
+  integrity: { rawSha256: string; processedSha256: string; rawCrc32: number; processedCrc32: number; rawBytes: number; processedBytes: number; chunks: number; chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }>; contentVerified: false } | null;
   signal: ReturnType<typeof assessM3Signal> | null;
   pitchScreen: "reliable" | "unreliable" | null;
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
@@ -55,24 +58,58 @@ export async function countM3Tokens(apiKey: string, model: string, text: string,
   return result.totalTokens!;
 }
 async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number, onAudioChunk?: (pcm: Uint8Array) => void) {
+  const requestStarted = Date.now();
   const { response, timer } = await googleRequest(fetcher, apiKey, model, streaming ? "streamGenerateContent?alt=sse" : "generateContent", m3RequestBody(text, voice, style), signal, streaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
-  let completed = false;
+  const rawHash = createHash("sha256");
+  const chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }> = [];
+  let completed = false, bytes = 0, rawCrc32 = 0, firstAudioMs: number | null = null;
+  const started = requestStarted;
+  let previousPcm: Uint8Array | null = null, previousVaried = false;
+  const recentHashes = new Set<string>();
+  const partialIntegrity = () => ({ rawBytes: bytes, rawCrc32, rawSha256: rawHash.copy().digest("hex"), chunks: audio.length, chunkTrace, complete: false });
   const consume = (payload: { candidates?: AudioCandidate[]; error?: { message?: string } }) => {
     if (payload.error) throw new M3Error("M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", 502);
-    const candidate = payload.candidates?.[0];
+    const candidate = payload.candidates?.find(c => (c.index ?? 0) === 0);
+    if (completed && candidate?.content?.parts?.length) throw new M3Error("M3_AUDIO_AFTER_STOP", "Gemini 在结束标记后继续发送音频，已停止拼接。", 502);
     if (!candidate) return;
-    if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到模型单次长度上限。", 502);
-    if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502);
-    if (candidate.finishReason === "STOP") completed = true;
     for (const p of candidate.content?.parts ?? []) {
       const inline = p.inlineData ?? (p.inline_data ? { data: p.inline_data.data, mimeType: p.inline_data.mime_type } : undefined);
       if (inline?.data) {
-        const pcm = decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? "");
+        // Google's documented SSE inlineData is a PCM delta. Never reinterpret it as cumulative.
+        // Strict Base64 validation prevents Buffer.from silently accepting corrupt payloads.
+        if (!isM3Base64(inline.data)) throw new M3Error("M3_INVALID_BASE64", "Gemini 音频 Base64 损坏。", 502);
+        let pcm: Uint8Array;
+        try { pcm = decodeM3Audio(Buffer.from(inline.data, "base64"), inline.mimeType ?? ""); }
+        catch { throw new M3Error("M3_AUDIO_FORMAT_MISMATCH", "Gemini 音频格式或 PCM 字节对齐异常，未丢帧或补零。", 502); }
+        const hash = createHash("sha256").update(pcm).digest("hex");
+        // Silence can legitimately repeat; a repeated >=1s nonconstant waveform is ambiguous.
+        // Reject it instead of guessing a deduplication that could delete words.
+        let varied = false;
+        for (let p = 2; p < pcm.length && !varied; p += 2) varied = pcm[p] !== pcm[0] || pcm[p + 1] !== pcm[1];
+        if (pcm.length >= 48000 && varied && recentHashes.has(hash)) throw new M3Error("M3_REPEATED_PCM", "Gemini 重复返回同一段 PCM，无法确认全文连续性；未删除或重复累计。", 502);
+        if (previousPcm && previousVaried && previousPcm.length >= 48000 && pcm.length > previousPcm.length) {
+          const prefixHash = createHash("sha256").update(pcm.subarray(0, previousPcm.length)).digest("hex");
+          if (prefixHash === createHash("sha256").update(previousPcm).digest("hex")) throw new M3Error("M3_CUMULATIVE_PCM", "音频块疑似累计数据，已停止重复拼接。", 502);
+        }
+        if (varied && pcm.length >= 48000) recentHashes.add(hash);
+        if (recentHashes.size > 128) recentHashes.delete(recentHashes.values().next().value!);
+        if (chunkTrace.length < 24) chunkTrace.push({ index: audio.length, offset: bytes, bytes: pcm.length, sha256: hash });
+        firstAudioMs ??= Date.now() - started;
+        if (previousPcm && previousVaried && varied && previousPcm.length >= 48000 && pcm.length >= 48000) {
+          const tail = createHash("sha256").update(previousPcm.subarray(previousPcm.length - 24000)).digest("hex");
+          const head = createHash("sha256").update(pcm.subarray(0, 24000)).digest("hex");
+          if (tail === head) throw new M3Error("M3_OVERLAPPING_PCM", "相邻音频块存在重复字节区间，已停止拼接而未猜测删除。", 502);
+        }
+        rawHash.update(pcm); rawCrc32 = m3Crc32(pcm, rawCrc32); bytes += pcm.length;
+        previousPcm = pcm; previousVaried = varied;
         audio.push(pcm);
         onAudioChunk?.(pcm);
       }
     }
+    if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到模型单次长度上限。", 502, { integrity: partialIntegrity() });
+    if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502, { integrity: partialIntegrity() });
+    if (candidate.finishReason === "STOP") completed = true;
   };
   if (streaming) {
     if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) throw new M3Error("M3_INVALID_STREAM", "Gemini 没有返回预期的音频流。", 502);
@@ -98,19 +135,18 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
       if (pending.trim()) frame(pending);
     } catch (error) {
       await reader.cancel().catch(() => {});
-      if (error instanceof M3Error) throw error;
+      if (error instanceof M3Error) { error.details = { ...error.details, integrity: partialIntegrity() }; throw error; }
       throw new M3Error(signal.aborted ? "M3_CANCELLED" : timer.aborted ? "M3_TIMEOUT" : "M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", signal.aborted ? 499 : timer.aborted ? 504 : 502);
     } finally { reader.releaseLock(); }
   } else consume(await response.json());
-  if (!completed) throw new M3Error("M3_INCOMPLETE_AUDIO", "Gemini 音频没有完整结束标记，未交付部分音频。", 502);
+  if (!completed) throw new M3Error("M3_INCOMPLETE_AUDIO", "Gemini 音频没有完整结束标记，未交付部分音频。", 502, { integrity: partialIntegrity() });
   if (!audio.length) throw new M3Error("M3_NO_AUDIO", "Gemini 没有返回可用音频。", 502);
   const total = audio.reduce((sum, p) => sum + p.length, 0);
   if (total / 48000 < Math.max(0.25, text.replace(/<[^>]+>/g, "").split(/\s+/).length / (5 * speed))) throw new M3Error("M3_SUSPICIOUSLY_SHORT_AUDIO", "Gemini 返回的音频明显短于稿件，未进入最终拼接。", 502);
-  if (audio.length === 1) return audio[0];
-  const pcm = new Uint8Array(total);
+  const pcm = audio.length === 1 ? audio[0] : new Uint8Array(total);
   let offset = 0;
-  for (const part of audio) { pcm.set(part, offset); offset += part.length; }
-  return pcm;
+  if (audio.length > 1) for (const part of audio) { pcm.set(part, offset); offset += part.length; }
+  return { pcm, rawSha256: rawHash.digest("hex"), rawCrc32, chunkTrace, chunks: audio.length, firstAudioMs };
 }
 
 export async function generateM3Program(options: {
@@ -118,6 +154,7 @@ export async function generateM3Program(options: {
   streaming?: boolean;
   onAudioChunk?: (pcm: Uint8Array) => void;
   skipWavAssembly?: boolean;
+  onDiagnostic?: (stage: "raw" | "processed", pcm: Uint8Array, details: Record<string, unknown>) => void;
   signal?: AbortSignal; fetcher?: Fetcher; log?: (event: string, details: Record<string, unknown>) => void;
 }) {
   const { apiKey, model, voice, speed } = options;
@@ -142,7 +179,8 @@ export async function generateM3Program(options: {
     retries: 0,
     parts: [],
     transport: options.streaming ? "streamGenerateContent" : "generateContent",
-    timings: { upstreamMs: 0, postprocessMs: 0, totalMs: 0 },
+    timings: { upstreamMs: 0, firstAudioMs: null, postprocessMs: 0, totalMs: 0 },
+    integrity: null,
     signal: null,
     pitchScreen: null,
   };
@@ -153,7 +191,7 @@ export async function generateM3Program(options: {
   const upstreamStartedAt = Date.now();
   let pcm: Uint8Array;
   try {
-    pcm = await synthesizeM3Take(
+    const take = await synthesizeM3Take(
       apiKey,
       model,
       voice,
@@ -165,6 +203,11 @@ export async function generateM3Program(options: {
       speed,
       options.onAudioChunk,
     );
+    pcm = take.pcm;
+    audit.timings.firstAudioMs = take.firstAudioMs;
+    audit.integrity = { rawSha256: take.rawSha256, rawCrc32: take.rawCrc32, rawBytes: pcm.length,
+      chunks: take.chunks, chunkTrace: take.chunkTrace, processedSha256: "", processedCrc32: 0, processedBytes: 0, contentVerified: false };
+    options.onDiagnostic?.("raw", pcm, { ...audit.integrity });
   } catch (error) {
     if (error instanceof M3Error) {
       // Strict single-request policy: no retry and no fallback chunking.
@@ -192,10 +235,13 @@ export async function generateM3Program(options: {
   const postprocessStartedAt = Date.now();
 
   const originalPcmBytes = pcm.byteLength;
-  const activity = assessM3Signal(pcm);
+  const scan = scanM3Signal(pcm);
+  const activity = scan.summary;
   audit.signal = activity;
   log("M3_PCM_INTEGRITY", {
     ...activity,
+    rawSha256: audit.integrity?.rawSha256,
+    rawBytes: originalPcmBytes,
     inputCharacters: text.length,
     transport: audit.transport,
   });
@@ -203,18 +249,32 @@ export async function generateM3Program(options: {
   // Never interpret buffered PCM duration as verified spoken duration.
   // A long silent stream and a valid voice with poor pitch tracking must
   // produce different outcomes. No model retry or text splitting is attempted.
-  const minimumActivity = Math.max(1.0, Math.min(5, activity.rawSeconds * 0.02));
+  if (activity.longestHighFrequencySeconds >= 3) {
+    throw new M3Error("M3_HIGH_FREQUENCY_ARTIFACT", `原始音频存在约 ${activity.longestHighFrequencySeconds} 秒连续异常高频信号，不能当作低音量讲话放大，也不能删除后宣称全文完成。本次未重试；原始音频可用于诊断。`, 502,
+      { audioDiagnostics: activity, integrity: audit.integrity });
+  }
+  const words = text.replace(/<[^>]+>/g, "").match(/\S+/g)?.length ?? 0;
+  const minimumActivity = Math.max(0.15, Math.min(1, activity.rawSeconds * 0.02), words / (12 * speed));
   if (activity.activeSeconds < minimumActivity) {
     throw new M3Error(
       "M3_INSUFFICIENT_VOICED_AUDIO",
       `Gemini 返回了约 ${activity.rawSeconds} 秒 PCM，但采样检测到的有效声音仅约 ${activity.activeSeconds} 秒。疑似大量静音或无效音频，已拒绝生成；本次不会重试或拆段。`,
       502,
-      { audioDiagnostics: activity },
+      { audioDiagnostics: activity, integrity: audit.integrity },
     );
   }
 
-  const silenceCleanup = compressM3InternalSilence(pcm);
-  pcm = silenceCleanup.pcm;
+  const silenceCleanup = planM3Repair(scan);
+  const unresolved = unresolvedM3Low(scan, silenceCleanup.gains);
+  if (unresolved.length) throw new M3Error("M3_UNRESOLVED_LOW_SIGNAL", `原始音频含持续极低电平区间（最长约 ${Math.round(Math.max(...unresolved.map(r => r.seconds)))} 秒），尚不能确认或安全恢复讲话，已保留原始诊断音频，未裁剪后冒充完成。`, 502,
+    { audioDiagnostics: activity, integrity: audit.integrity, unresolved });
+  pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
+  if (audit.integrity) {
+    audit.integrity.processedSha256 = pcm.byteLength === originalPcmBytes && !silenceCleanup.gains.length ? audit.integrity.rawSha256 : createHash("sha256").update(pcm).digest("hex");
+    audit.integrity.processedCrc32 = pcm.byteLength === originalPcmBytes && !silenceCleanup.gains.length ? audit.integrity.rawCrc32 : m3Crc32(pcm);
+    audit.integrity.processedBytes = pcm.length;
+  }
+  options.onDiagnostic?.("processed", pcm, { cuts: silenceCleanup.cuts, gains: silenceCleanup.gains, ...audit.integrity });
   if (silenceCleanup.regions) {
     log("M3_LONG_SILENCE_COMPRESSED", {
       regions: silenceCleanup.regions,
@@ -256,7 +316,7 @@ export async function generateM3Program(options: {
     features: screening.features,
     score: screening.score,
     windowWarnings: reliablePitch ? screening.windows.filter(w => w.comparison.detected).length : 0,
-    gainDb: 0,
+    gainDb: Math.max(0, ...silenceCleanup.gains.map(g => g.gainDb)),
   });
 
   audit.timings.postprocessMs = Date.now() - postprocessStartedAt;
@@ -271,6 +331,9 @@ export async function generateM3Program(options: {
     voice,
     silenceRegionsCompressed: silenceCleanup.regions,
     silenceRemovedMs: silenceCleanup.removedMs,
+    gainRegions: silenceCleanup.gains.length,
+    rawSha256: audit.integrity?.rawSha256,
+    processedSha256: audit.integrity?.processedSha256,
     activitySeconds: activity.activeSeconds,
     rawPcmSeconds: activity.rawSeconds,
     pitchScreen: audit.pitchScreen,
@@ -286,5 +349,6 @@ export async function generateM3Program(options: {
     audit,
     originalPcmBytes,
     cuts: silenceCleanup.cuts,
+    gains: silenceCleanup.gains,
   };
 }

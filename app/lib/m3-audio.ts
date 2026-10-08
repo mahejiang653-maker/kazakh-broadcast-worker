@@ -1,3 +1,4 @@
+import { scanM3Signal, planM3Repair, applyM3Plan } from "./m3-signal";
 /** Bounded, dependency-free acoustic screening; NOT biometric speaker verification. */
 export const M3_SAMPLE_RATE = 24000;
 export type M3Features = {
@@ -71,7 +72,7 @@ export function analyzeM3Pcm(pcm: Uint8Array, startSeconds = 0, endSeconds = pcm
     }
     for (let i = 0; i < s.length; i++) { s[i] -= mean; energy += s[i] ** 2 / 320; }
     const rms = Math.sqrt(energy);
-    if (rms < 0.008) continue;
+    if (rms < 2 / 32768) continue;
     const pitch = framePitch(s);
     if (!pitch) continue; // compare voiced phonation, not differing silence/fricative proportions
     f0.push(pitch); levels.push(20 * Math.log10(rms));
@@ -108,7 +109,15 @@ export function compareM3Voice(reference: M3Features, candidate: M3Features): M3
 export function screenM3Take(pcm: Uint8Array, reference?: M3Features) {
   const seconds = pcm.byteLength / 48000;
   const features = analyzeM3Pcm(pcm);
-  const anchor = reference ?? analyzeM3Pcm(pcm, 0, Math.min(24, seconds));
+  let anchor = reference ?? analyzeM3Pcm(pcm, 0, Math.min(24, seconds));
+  if (!reference && anchor.voicedFrames < 18) {
+    for (const fraction of [0.2, 0.4, 0.6, 0.8]) {
+      const start = Math.max(0, Math.min(seconds - 24, seconds * fraction));
+      const candidate = analyzeM3Pcm(pcm, start, Math.min(seconds, start + 24));
+      if (candidate.voicedFrames > anchor.voicedFrames) anchor = candidate;
+      if (anchor.voicedFrames >= 18) break;
+    }
+  }
   const windows: Array<{ start: number; end: number; comparison: M3Drift }> = [];
 
   // Fast long-form screening: sample a few representative windows instead of
@@ -174,146 +183,12 @@ export function decodeM3Audio(bytes: Uint8Array, mime: string) {
 // verification and not a claim that the manuscript was read correctly.
 // The pitch/MFCC screen may be unreliable on some legitimate voices.
 export function assessM3Signal(pcm: Uint8Array) {
-  const seconds = pcm.byteLength / 48000;
-  const sampleEveryMs = 200;
-  const windowSamples = 480; // 20 ms, sampled once per 200 ms
-  const strideBytes = 9600; // 200 ms at 24 kHz PCM16 mono
-  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-  const frameCount = Math.floor(pcm.byteLength / strideBytes);
-  let activeFrames = 0;
-  let maxPeak = 0;
-  let rmsSum = 0;
-  let run = 0;
-  let maxInactiveRun = 0;
-  let trailingInactiveRun = 0;
-
-  for (let frame = 0; frame < frameCount; frame++) {
-    const start = frame * strideBytes;
-    let energy = 0;
-    let peak = 0;
-    // Sparse sampling keeps even long-form screening cheap.
-    for (let sample = 0; sample < windowSamples; sample += 4) {
-      const value = Math.abs(view.getInt16(start + sample * 2, true)) / 32768;
-      energy += value * value;
-      if (value > peak) peak = value;
-    }
-    const rms = Math.sqrt(energy / (windowSamples / 4));
-    maxPeak = Math.max(maxPeak, peak);
-    rmsSum += rms;
-    if (rms >= 0.003 || peak >= 0.016) {
-      activeFrames++;
-      maxInactiveRun = Math.max(maxInactiveRun, run);
-      run = 0;
-    } else {
-      run++;
-    }
-  }
-  maxInactiveRun = Math.max(maxInactiveRun, run);
-  trailingInactiveRun = run;
-  const activeSeconds = activeFrames * sampleEveryMs / 1000;
-  return {
-    rawSeconds: Math.round(seconds * 10) / 10,
-    sampledFrames: frameCount,
-    activeSeconds: Math.round(activeSeconds * 10) / 10,
-    activeRatio: frameCount ? Math.round(activeFrames / frameCount * 1000) / 1000 : 0,
-    longestInactiveSeconds: Math.round(maxInactiveRun * sampleEveryMs / 1000 * 10) / 10,
-    trailingInactiveSeconds: Math.round(trailingInactiveRun * sampleEveryMs / 1000 * 10) / 10,
-    maxPeak: Math.round(maxPeak * 10000) / 10000,
-    meanRms: frameCount ? Math.round(rmsSum / frameCount * 100000) / 100000 : 0,
-  };
+  return scanM3Signal(pcm).summary;
 }
-
-export function compressM3InternalSilence(
-  pcm: Uint8Array,
-  minSilenceMs = 4000,
-  keepMs = 650,
-) {
-  const frameSamples = 960; // 40 ms at 24 kHz; enough for >4 s silence detection
-  const frameBytes = frameSamples * 2;
-  const sampleStep = 4; // sparse energy scan: 240 samples per frame instead of 960
-  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-  const frameCount = Math.floor(pcm.byteLength / frameBytes);
-  const silent = new Array<boolean>(frameCount);
-
-  for (let frame = 0; frame < frameCount; frame++) {
-    const byteOffset = frame * frameBytes;
-    let energy = 0;
-    let peak = 0;
-    let sampled = 0;
-    for (let i = 0; i < frameSamples; i += sampleStep) {
-      const sample = Math.abs(view.getInt16(byteOffset + i * 2, true)) / 32768;
-      peak = Math.max(peak, sample);
-      energy += sample * sample;
-      sampled += 1;
-    }
-    const rms = Math.sqrt(energy / Math.max(1, sampled));
-    // Conservative digital-silence threshold: do not classify low-level speech,
-    // breaths or room tone as removable silence.
-    silent[frame] = rms < 0.0035 && peak < 0.02;
-  }
-
-  const frameMs = 40;
-  const minFrames = Math.ceil(minSilenceMs / frameMs);
-  const keepFrames = Math.max(1, Math.ceil(keepMs / frameMs));
-  const ranges: Array<{ startFrame: number; endFrame: number; removedFrames: number }> = [];
-
-  for (let start = 0; start < frameCount;) {
-    if (!silent[start]) { start += 1; continue; }
-    let end = start + 1;
-    while (end < frameCount && silent[end]) end += 1;
-    const length = end - start;
-
-    // Long model-generated padding can also occur at the start or end.
-    // Keep 650 ms there too, instead of leaving minutes of silent audio.
-    // A fully silent recording is rejected by independent activity validation.
-    if ((start > 0 || end < frameCount) && length > minFrames) {
-      ranges.push({
-        startFrame: start,
-        endFrame: end,
-        removedFrames: length - keepFrames,
-      });
-    }
-    start = end;
-  }
-
-  if (!ranges.length) return { pcm, removedMs: 0, regions: 0, cuts: [] as Array<{ start: number; end: number }> };
-
-  const chunks: Uint8Array[] = [];
-  let cursor = 0;
-  let removedFrames = 0;
-  const cuts: Array<{ start: number; end: number }> = [];
-  for (const range of ranges) {
-    const startByte = range.startFrame * frameBytes;
-    const endByte = range.endFrame * frameBytes;
-    const preservedFrames = Math.max(1, (range.endFrame - range.startFrame) - range.removedFrames);
-    const headFrames = Math.floor(preservedFrames / 2);
-    const tailFrames = preservedFrames - headFrames;
-    const headEnd = startByte + headFrames * frameBytes;
-    const tailStart = endByte - tailFrames * frameBytes;
-    cuts.push({ start: headEnd, end: tailStart });
-
-    if (startByte > cursor) chunks.push(pcm.subarray(cursor, startByte));
-    if (headEnd > startByte) chunks.push(pcm.subarray(startByte, headEnd));
-    if (endByte > tailStart) chunks.push(pcm.subarray(tailStart, endByte));
-    cursor = endByte;
-    removedFrames += range.removedFrames;
-  }
-  if (cursor < pcm.byteLength) chunks.push(pcm.subarray(cursor));
-
-  const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
-  const output = new Uint8Array(total);
-  let offset = 0;
-  for (const chunk of chunks) {
-    output.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  return {
-    pcm: output,
-    removedMs: removedFrames * frameMs,
-    regions: ranges.length,
-    cuts,
-  };
+export function compressM3InternalSilence(pcm: Uint8Array, minSilenceMs = 4000, keepMs = 680) {
+  const plan = planM3Repair(scanM3Signal(pcm), minSilenceMs, keepMs);
+  // This compatibility entry point only compresses verified digital silence.
+  return { ...plan, gains: [], pcm: applyM3Plan(pcm, plan.cuts, []) };
 }
 
 function edgeSilence(pcm: Uint8Array, tail: boolean) {
