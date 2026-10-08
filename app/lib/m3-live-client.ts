@@ -1,4 +1,4 @@
-import { scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, validateM3Plan, m3Crc32, type M3Cut, type M3Gain } from "./m3-signal";
+import { scanM3Signal, isM3Base64, unresolvedM3Low, validateM3Plan, m3Crc32, type M3Cut, type M3Gain } from "./m3-signal";
 export type M3LiveTimings = { upstreamMs: number; firstAudioMs?: number | null; postprocessMs: number; totalMs: number; decodeMs?: number; assemblyMs?: number };
 type Integrity = { rawBytes: number; rawCrc32: number; processedBytes: number; processedCrc32: number; rawSha256: string; processedSha256: string; contentVerified: false };
 type M3Done = { cuts: M3Cut[]; gains: M3Gain[]; originalPcmBytes: number; timings: M3LiveTimings; integrity: Integrity };
@@ -79,15 +79,14 @@ export class M3LivePreview {
     for (const piece of this.pending) { batch.set(piece, offset); offset += piece.length; }
     this.pending = []; this.pendingBytes = 0;
     const scan = scanM3Signal(batch);
-    const plan = planM3Repair(scan);
-    if (scan.summary.longestHighFrequencySeconds >= 0.5 || unresolvedM3Low(scan, plan.gains).length || (scan.summary.activeSeconds < 0.1 && batch.length >= 96000)) {
+    // Preview original PCM rather than amplifying low-level chunks; a gain
+    // planner proposal is not proof of corruption and is diagnostic only.
+    if (scan.summary.longestHighFrequencySeconds >= 0.5 || unresolvedM3Low(scan, []).length || (scan.summary.activeSeconds < 0.1 && batch.length >= 96000)) {
       this.blocked = true;
       this.warning = "试听已暂停：当前片段含异常信号或尚未确认语音，原始数据仍在接收，等待整篇检查。";
       this.stop(); return;
     }
-    // Quiet speech is preserved. Preview uses the same bounded scalar restoration as final output.
-    const safe = applyM3Plan(batch, [], plan.gains);
-    this.chunks.push(safe); this.safeSeconds += safe.length / 48000;
+    this.chunks.push(batch); this.safeSeconds += batch.length / 48000;
     this.pump();
   }
   get bufferedSeconds() { return this.bytes / 48000; }
