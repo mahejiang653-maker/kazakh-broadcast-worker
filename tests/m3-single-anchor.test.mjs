@@ -1111,3 +1111,24 @@ test("M3 web keeps transcript audit local, optional and tied to frozen Google re
   assert.ok(page.includes("不会发送至服务器"));
   assert.ok(page.includes("不生成语音"));
 });
+
+test("M3 sentence-level audit flags a missing sentence even with the correct numbered heading", () => {
+  const a = "Мемлекет мерекесінде халық саяхатқа шықты және барлық өңірлерде жол қатынасы тығыз болды.";
+  const b = "Жеті күннің ішінде қатынау саны екі миллиардтан асып кетті және жаңа деректер жарияланды.";
+  const c = "Бұл еліміздің көлік жүйесі тұрақты жұмыс істегенін және саяхат көлемі өскенін көрсетті.";
+  const reference = "Бірінші. " + [a, b, c].join(" ");
+  const recognized = "Бірінші. " + [a, c].join(" ");
+  const results = transcriptAudit.auditM3Transcript(reference, recognized);
+  assert.equal(results.sections[0].recognizedCount, 1);
+  assert.ok(results.sections[0].sentenceWarnings.length >= 1, JSON.stringify(results.sections[0]));
+  assert.ok(results.sections[0].sentenceWarnings.some(w => w.sourceExcerpt.includes("Жеті күннің")));
+  assert.equal(results.transcriptVerified, false);
+});
+test("M3 sentence matching tolerates punctuation changes and runs with flat ASR text", () => {
+  const sentence = "Шинжиаңдағы таулы жолдардағы ауа райының өзгеруі мен қар жауу қаупі көлік қатынасына әсер етеді.";
+  const reference = "Он екінші. " + sentence;
+  const recognized = "Он екінші. " + sentence.replaceAll(" ", "  ").replace("әсер етеді.", "әсер етеді");
+  const report = transcriptAudit.auditM3Transcript(reference, recognized);
+  assert.equal(report.sections[11].recognizedCount, 1);
+  assert.equal(report.sections[11].sentenceWarnings.length, 0);
+});
