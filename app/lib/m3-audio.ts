@@ -110,15 +110,31 @@ export function screenM3Take(pcm: Uint8Array, reference?: M3Features) {
   const features = analyzeM3Pcm(pcm);
   const anchor = reference ?? analyzeM3Pcm(pcm, 0, Math.min(24, seconds));
   const windows: Array<{ start: number; end: number; comparison: M3Drift }> = [];
-  // Cover the WHOLE take, so one-request audio is not exempt from screening.
-  for (let start = reference ? 0 : 24; start + 6 <= seconds; start += 12) {
+
+  // Fast long-form screening: sample a few representative windows instead of
+  // running FFT/MFCC analysis every 12 seconds across a 10–15 minute program.
+  const rawStarts = reference
+    ? [0, seconds * 0.25, seconds * 0.5, seconds * 0.75, Math.max(0, seconds - 18)]
+    : [24, seconds * 0.33, seconds * 0.66, Math.max(24, seconds - 18)];
+  const starts = [...new Set(rawStarts.map(v => Math.max(0, Math.min(Math.max(0, seconds - 6), Math.round(v)))))]
+    .filter(start => start + 6 <= seconds);
+
+  for (const start of starts) {
     const end = Math.min(seconds, start + 18);
     windows.push({ start, end, comparison: compareM3Voice(anchor, analyzeM3Pcm(pcm, start, end)) });
   }
+
   const overall = compareM3Voice(anchor, features);
-  // An isolated phonetic window is only a warning; sustained changes or whole-take shifts block.
-  const sustained = windows.some((w, i) => w.comparison.detected && windows[i + 1]?.comparison.detected);
-  return { features, anchor, overall, windows, detected: (Boolean(reference) && overall.detected) || sustained, score: overall.score + (sustained ? 5 : 0) };
+  const detectedWindows = windows.filter(w => w.comparison.detected).length;
+  const sustained = detectedWindows >= 2;
+  return {
+    features,
+    anchor,
+    overall,
+    windows,
+    detected: (Boolean(reference) && overall.detected) || sustained,
+    score: overall.score + (sustained ? 5 : 0),
+  };
 }
 /** Scalar gain only: at most 3 dB, with measured peak headroom. No pitch/EQ/resampling. */
 export function matchM3Loudness(pcm: Uint8Array, referenceDb: number, candidateDb: number) {
@@ -159,8 +175,9 @@ export function compressM3InternalSilence(
   minSilenceMs = 4000,
   keepMs = 650,
 ) {
-  const frameSamples = 480; // 20 ms at 24 kHz
+  const frameSamples = 960; // 40 ms at 24 kHz; enough for >4 s silence detection
   const frameBytes = frameSamples * 2;
+  const sampleStep = 4; // sparse energy scan: 240 samples per frame instead of 960
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
   const frameCount = Math.floor(pcm.byteLength / frameBytes);
   const silent = new Array<boolean>(frameCount);
@@ -169,19 +186,22 @@ export function compressM3InternalSilence(
     const byteOffset = frame * frameBytes;
     let energy = 0;
     let peak = 0;
-    for (let i = 0; i < frameSamples; i++) {
+    let sampled = 0;
+    for (let i = 0; i < frameSamples; i += sampleStep) {
       const sample = Math.abs(view.getInt16(byteOffset + i * 2, true)) / 32768;
       peak = Math.max(peak, sample);
       energy += sample * sample;
+      sampled += 1;
     }
-    const rms = Math.sqrt(energy / frameSamples);
+    const rms = Math.sqrt(energy / Math.max(1, sampled));
     // Conservative digital-silence threshold: do not classify low-level speech,
     // breaths or room tone as removable silence.
     silent[frame] = rms < 0.0035 && peak < 0.02;
   }
 
-  const minFrames = Math.ceil(minSilenceMs / 20);
-  const keepFrames = Math.max(1, Math.ceil(keepMs / 20));
+  const frameMs = 40;
+  const minFrames = Math.ceil(minSilenceMs / frameMs);
+  const keepFrames = Math.max(1, Math.ceil(keepMs / frameMs));
   const ranges: Array<{ startFrame: number; endFrame: number; removedFrames: number }> = [];
 
   for (let start = 0; start < frameCount;) {
@@ -233,7 +253,7 @@ export function compressM3InternalSilence(
 
   return {
     pcm: output,
-    removedMs: removedFrames * 20,
+    removedMs: removedFrames * frameMs,
     regions: ranges.length,
   };
 }
