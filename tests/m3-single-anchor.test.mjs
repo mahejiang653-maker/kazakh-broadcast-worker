@@ -570,3 +570,56 @@ test("uncertain quantized low-level noise is retained and not amplified or deliv
   assert.equal(plan.cuts.length,0);assert.equal(plan.gains.length,0);
   await assert.rejects(run({fetcher:mock([],300,[pcm])}),e=>e.code==='M3_UNRESOLVED_LOW_SIGNAL');
 });
+
+test("V12 does not count a long 90 Hz low-level hum as verified speech", () => {
+  const lead = modulated(160, 6, 0.12), hum = tone(90, 18, 0.0008), tail = modulated(160, 6, 0.12);
+  const pcm = concat(lead, hum, tail);
+  const scan = signalTools.scanM3Signal(pcm);
+  assert.ok(scan.summary.activeSeconds > scan.summary.speechEvidenceSeconds + 12,
+    JSON.stringify(scan.summary));
+  assert.ok(scan.summary.lowFrequencyDominatedSeconds >= 17.5,
+    JSON.stringify(scan.summary));
+  assert.equal(scan.summary.evidence.includes("transcription"), true);
+  const plan = signalTools.planM3Repair(scan);
+  assert.equal(plan.cuts.length, 0, "low-frequency noise must never be deleted as digital silence");
+  assert.equal(plan.gains.some(g => g.start < lead.length + hum.length && g.end > lead.length), false,
+    "unverified bass hum must never be amplified");
+  const unresolved = signalTools.unresolvedM3Low(scan, plan.gains);
+  assert.ok(unresolved.some(r => r.start < 7 && r.end > 23),
+    JSON.stringify(unresolved));
+});
+
+test("V12 rejects long bass-hum output without retrying or substituting a shorter WAV", async () => {
+  const lead = modulated(160, 6, 0.12), hum = tone(90, 18, 0.0008), tail = modulated(160, 6, 0.12);
+  const pcm = concat(lead, hum, tail), calls = [];
+  let raw = null;
+  await assert.rejects(
+    run({ fetcher: mock(calls, 300, [pcm]), onDiagnostic(stage, bytes) { if (stage === "raw") raw = bytes.slice(); } }),
+    e => e.code === "M3_UNRESOLVED_LOW_SIGNAL" &&
+      e.details?.audioDiagnostics?.lowFrequencyDominatedSeconds >= 17.5,
+  );
+  assert.deepEqual(new Uint8Array(raw), pcm);
+  assert.equal(calls.length, 1);
+});
+
+test("V12 keeps single-request and diagnostic semantics explicit", async () => {
+  const [source, scriptSource] = await Promise.all([
+    readFile("app/lib/m3-pipeline.ts", "utf8"),
+    readFile("app/lib/m3-script.ts", "utf8"),
+  ]);
+  assert.ok(source.includes('activityDefinition: "acoustic-candidates-not-verified-speech"'));
+  assert.ok(source.includes("不会放大噪声、删除区段后冒充全文完成"));
+  assert.ok(scriptSource.includes("m3-single-request-v12-hum-integrity"));
+});
+
+test("uploaded V11 WAV must preserve bytes and reveal bass-hum evidence", { skip: !process.env.M3_V11_WAV }, async () => {
+  const pcm = audio.decodeM3Audio(await readFile(process.env.M3_V11_WAV), "audio/wav");
+  const scan = signalTools.scanM3Signal(pcm);
+  assert.equal(scan.summary.rawSeconds, 1024.48);
+  assert.ok(scan.summary.lowFrequencyDominatedSeconds > 100);
+  assert.ok(scan.summary.speechEvidenceSeconds < scan.summary.activeSeconds - 100);
+  const plan = signalTools.planM3Repair(scan);
+  const unresolved = signalTools.unresolvedM3Low(scan, plan.gains);
+  assert.ok(unresolved.some(r => r.seconds >= 40));
+  assert.equal(plan.cuts.some(c => unresolved.some(r => c.start / 48000 < r.end && c.end / 48000 > r.start)), false);
+});
