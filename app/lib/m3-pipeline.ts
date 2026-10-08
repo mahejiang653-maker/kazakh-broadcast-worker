@@ -1,5 +1,5 @@
 import { Buffer } from "node:buffer";
-import { compressM3InternalSilence, decodeM3Audio, joinM3Wav, matchM3Loudness, screenM3Take, type M3Features } from "./m3-audio";
+import { assessM3Signal, compressM3InternalSilence, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
 import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
 
 type Fetcher = typeof fetch;
@@ -12,6 +12,8 @@ export type M3Audit = {
   strategy: "single"; inputTokens: number | null; ttsRequests: number; retries: number;
   transport: "generateContent" | "streamGenerateContent";
   timings: { upstreamMs: number; postprocessMs: number; totalMs: number };
+  signal: ReturnType<typeof assessM3Signal> | null;
+  pitchScreen: "reliable" | "unreliable" | null;
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
 };
 
@@ -115,6 +117,7 @@ export async function generateM3Program(options: {
   apiKey: string; model: string; voice: string; text: string; speed: number;
   streaming?: boolean;
   onAudioChunk?: (pcm: Uint8Array) => void;
+  skipWavAssembly?: boolean;
   signal?: AbortSignal; fetcher?: Fetcher; log?: (event: string, details: Record<string, unknown>) => void;
 }) {
   const { apiKey, model, voice, speed } = options;
@@ -140,6 +143,8 @@ export async function generateM3Program(options: {
     parts: [],
     transport: options.streaming ? "streamGenerateContent" : "generateContent",
     timings: { upstreamMs: 0, postprocessMs: 0, totalMs: 0 },
+    signal: null,
+    pitchScreen: null,
   };
 
   if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499);
@@ -187,6 +192,27 @@ export async function generateM3Program(options: {
   const postprocessStartedAt = Date.now();
 
   const originalPcmBytes = pcm.byteLength;
+  const activity = assessM3Signal(pcm);
+  audit.signal = activity;
+  log("M3_PCM_INTEGRITY", {
+    ...activity,
+    inputCharacters: text.length,
+    transport: audit.transport,
+  });
+
+  // Never interpret buffered PCM duration as verified spoken duration.
+  // A long silent stream and a valid voice with poor pitch tracking must
+  // produce different outcomes. No model retry or text splitting is attempted.
+  const minimumActivity = Math.max(1.0, Math.min(5, activity.rawSeconds * 0.02));
+  if (activity.activeSeconds < minimumActivity) {
+    throw new M3Error(
+      "M3_INSUFFICIENT_VOICED_AUDIO",
+      `Gemini 返回了约 ${activity.rawSeconds} 秒 PCM，但采样检测到的有效声音仅约 ${activity.activeSeconds} 秒。疑似大量静音或无效音频，已拒绝生成；本次不会重试或拆段。`,
+      502,
+      { audioDiagnostics: activity },
+    );
+  }
+
   const silenceCleanup = compressM3InternalSilence(pcm);
   pcm = silenceCleanup.pcm;
   if (silenceCleanup.regions) {
@@ -198,14 +224,16 @@ export async function generateM3Program(options: {
 
   const screening = screenM3Take(pcm);
   const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
-  if (screening.features.voicedFrames < minimumVoicedFrames) {
-    throw new M3Error(
-      "M3_INSUFFICIENT_VOICED_AUDIO",
-      "M3 单次整篇生成没有返回足够的有效语音。按照当前设置不会自动重试。",
-      502,
-    );
+  const reliablePitch = screening.features.voicedFrames >= minimumVoicedFrames;
+  audit.pitchScreen = reliablePitch ? "reliable" : "unreliable";
+  if (!reliablePitch) {
+    log("M3_PITCH_TRACKING_INCONCLUSIVE", {
+      voicedFrames: screening.features.voicedFrames,
+      activitySeconds: activity.activeSeconds,
+      rawSeconds: activity.rawSeconds,
+    });
   }
-  if (screening.detected) {
+  if (reliablePitch && screening.detected) {
     log("VOICE_DRIFT_DETECTED", {
       index: 0,
       attempt: 1,
@@ -227,7 +255,7 @@ export async function generateM3Program(options: {
     attempts: 1,
     features: screening.features,
     score: screening.score,
-    windowWarnings: screening.windows.filter(w => w.comparison.detected).length,
+    windowWarnings: reliablePitch ? screening.windows.filter(w => w.comparison.detected).length : 0,
     gainDb: 0,
   });
 
@@ -243,10 +271,20 @@ export async function generateM3Program(options: {
     voice,
     silenceRegionsCompressed: silenceCleanup.regions,
     silenceRemovedMs: silenceCleanup.removedMs,
+    activitySeconds: activity.activeSeconds,
+    rawPcmSeconds: activity.rawSeconds,
+    pitchScreen: audit.pitchScreen,
     upstreamMs: audit.timings.upstreamMs,
     postprocessMs: audit.timings.postprocessMs,
     totalMs: audit.timings.totalMs,
   });
 
-  return { wav: joinM3Wav([pcm]), audit, originalPcmBytes, cuts: silenceCleanup.cuts };
+  // Live clients already received the original PCM chunks. Avoid allocating
+  // another full WAV buffer in this Worker just to discard it.
+  return {
+    wav: options.skipWavAssembly ? null : joinM3Wav([pcm]),
+    audit,
+    originalPcmBytes,
+    cuts: silenceCleanup.cuts,
+  };
 }
