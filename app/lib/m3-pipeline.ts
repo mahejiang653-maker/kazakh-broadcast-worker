@@ -63,19 +63,21 @@ export async function countM3Tokens(apiKey: string, model: string, text: string,
 async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number, diagnosticMode: M3DiagnosticMode, onAudioChunk?: (pcm: Uint8Array) => void) {
   const requestStarted = Date.now();
   const interactions = diagnosticMode === "interactions-default";
+  // Interactions always streams, even if a caller omits the legacy streaming flag.
+  const useStreaming = streaming || interactions;
   const requestBody = interactions
     ? m3InteractionsRequestBody(text, voice, style, model)
     : m3RequestBody(text, voice, style, m3Temperature(diagnosticMode));
   const { response, timer } = await googleRequest(fetcher, apiKey, model,
     interactions ? "interactions" : streaming ? "streamGenerateContent?alt=sse" : "generateContent",
-    requestBody, signal, streaming ? 540000 : 230000);
+    requestBody, signal, useStreaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
   const rawHash = createHash("sha256");
   const chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }> = [];
   let completed = false, bytes = 0, rawCrc32 = 0, firstAudioMs: number | null = null;
   // Fail fast on sustained clearly-invalid audio while preserving every
   // original PCM byte received so far for the diagnostic WAV.
-  const streamGuard = streaming ? new M3StreamingAnomalyGuard() : null;
+  const streamGuard = useStreaming ? new M3StreamingAnomalyGuard() : null;
   const started = requestStarted;
   let previousPcm: Uint8Array | null = null, previousVaried = false;
   const recentHashes = new Set<string>();
@@ -137,18 +139,37 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
     if (candidate.finishReason && candidate.finishReason !== "STOP") throw new M3Error("M3_INCOMPLETE_AUDIO", `Gemini 没有完成全文生成（${candidate.finishReason}）。`, 502, { integrity: partialIntegrity() });
     if (candidate.finishReason === "STOP") completed = true;
   };
-  if (streaming) {
+  if (useStreaming) {
     if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body) throw new M3Error("M3_INVALID_STREAM", "Gemini 没有返回预期的音频流。", 502);
     const reader = response.body.getReader(), decoder = new TextDecoder();
     let pending = "";
+    let streamDone = false;
+    const outputSteps = new Set<number>();
+    const stoppedOutputSteps = new Set<number>();
     const frame = (block: string) => {
       const data = block.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
-      if (!data || data === "[DONE]") return;
+      if (!data) return;
+      if (data === "[DONE]") {
+        if (!interactions) return;
+        if (streamDone || !completed) throw new M3Error("M3_INCOMPLETE_AUDIO", "Interactions 结束帧出现过早或重复。", 502);
+        streamDone = true;
+        return;
+      }
+      if (interactions && streamDone) throw new M3Error("M3_AUDIO_AFTER_STOP", "Interactions 已结束后仍收到事件。", 502);
       const payload = JSON.parse(data);
       if (!interactions) { consume(payload); return; }
-      // Interactions emits step.delta audio data rather than candidates[].parts[].
-      // Only interaction.completed(status=completed) marks an accepted full take.
-      if (payload.event_type === "step.delta" && payload.delta?.type === "audio") {
+      // The REST Interactions protocol is step-based. A delta must be from
+      // an open model_output step, not a cumulative snapshot or another step.
+      if (completed) throw new M3Error("M3_AUDIO_AFTER_STOP", "Interactions 完成之后仍收到事件。", 502);
+      if (payload.event_type === "step.start" && payload.step?.type === "model_output") {
+        if (!Number.isSafeInteger(payload.index) || outputSteps.has(payload.index))
+          throw new M3Error("M3_INVALID_STREAM", "Interactions 音频步骤编号无效或重复。", 502);
+        outputSteps.add(payload.index);
+      } else if (payload.event_type === "step.stop") {
+        if (outputSteps.has(payload.index)) stoppedOutputSteps.add(payload.index);
+      } else if (payload.event_type === "step.delta" && payload.delta?.type === "audio") {
+        if (!outputSteps.has(payload.index) || stoppedOutputSteps.has(payload.index))
+          throw new M3Error("M3_INVALID_STREAM", "Interactions 音频块没有对应的活动输出步骤。", 502);
         const delta = payload.delta as { data?: string; mime_type?: string; sample_rate?: number; channels?: number };
         if (!delta.data || (delta.mime_type && !/^audio\/l16(?:;|$)/i.test(delta.mime_type)) ||
             (delta.sample_rate !== undefined && delta.sample_rate !== 24000) ||
@@ -159,14 +180,17 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
           data: delta.data, mimeType: delta.mime_type ?? "audio/l16;rate=24000",
         } }] } }] });
       } else if (payload.event_type === "interaction.completed") {
-        if (payload.interaction?.status !== "completed")
-          throw new M3Error("M3_INCOMPLETE_AUDIO", "Interactions 没有确认完整生成。", 502, { integrity: partialIntegrity() });
+        if (payload.interaction?.status !== "completed" ||
+            [...outputSteps].some(i => !stoppedOutputSteps.has(i)))
+          throw new M3Error("M3_INCOMPLETE_AUDIO", "Interactions 未确认所有音频步骤完整结束。", 502, { integrity: partialIntegrity() });
         consume({ candidates: [{ index: 0, finishReason: "STOP" }] });
       } else if (payload.event_type === "interaction.failed" ||
                  payload.event_type === "error" ||
-                 payload.event_type === "interaction.cancelled") {
+                 payload.event_type === "interaction.cancelled" ||
+                 (payload.event_type === "interaction.status_update" && ["failed", "cancelled"].includes(payload.status))) {
         throw new M3Error("M3_STREAM_ERROR", "Interactions 返回生成失败或取消事件。", 502, { integrity: partialIntegrity() });
       }
+      // Unknown event/delta types are ignored per Google's protocol guidance.
     };
     try {
       while (true) {
@@ -188,6 +212,8 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
       throw new M3Error(signal.aborted ? "M3_CANCELLED" : timer.aborted ? "M3_TIMEOUT" : "M3_STREAM_ERROR", "Gemini 音频流中断，未交付部分音频。", signal.aborted ? 499 : timer.aborted ? 504 : 502);
     } finally { reader.releaseLock(); }
   } else consume(await response.json());
+  if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499, { integrity: partialIntegrity() });
+  if (interactions && !streamDone) throw new M3Error("M3_INCOMPLETE_AUDIO", "Interactions 缺少最终 [DONE] 事件，不交付可能截断的 WAV。", 502, { integrity: partialIntegrity() });
   if (!completed) throw new M3Error("M3_INCOMPLETE_AUDIO", "Gemini 音频没有完整结束标记，未交付部分音频。", 502, { integrity: partialIntegrity() });
   if (!audio.length) throw new M3Error("M3_NO_AUDIO", "Gemini 没有返回可用音频。", 502);
   const total = audio.reduce((sum, p) => sum + p.length, 0);
