@@ -215,3 +215,65 @@ export function unresolvedM3Low(scan: M3SignalScan, gains: M3Gain[]) {
   }
   return merged;
 }
+
+
+/**
+ * Optional, fail-closed protection for a single long-form Gemini audio stream.
+ * The upstream output is not changed. Inspect only completed four-second PCM
+ * windows, irrespective of how Google splits the incoming SSE chunks.
+ *
+ * A single quiet phrase or a normal pause must not stop generation:
+ * consecutive anomaly windows are required before declaring a defect.
+ */
+export class M3StreamingAnomalyGuard {
+  private readonly window = new Uint8Array(4 * RATE * 2);
+  private buffered = 0;
+  private scannedSeconds = 0;
+  private highFrequencyRun = 0;
+  private lowFrequencyRun = 0;
+  private digitalSilenceRun = 0;
+
+  observe(chunk: Uint8Array): null | {
+    kind: "high-frequency" | "low-frequency" | "digital-silence";
+    startSeconds: number;
+    endSeconds: number;
+    totalScannedSeconds: number;
+  } {
+    if (chunk.byteLength % 2) throw new Error("M3_PCM_ALIGNMENT");
+    let offset = 0;
+    while (offset < chunk.byteLength) {
+      const take = Math.min(this.window.length - this.buffered, chunk.length - offset);
+      this.window.set(chunk.subarray(offset, offset + take), this.buffered);
+      this.buffered += take;
+      offset += take;
+      if (this.buffered < this.window.length) continue;
+
+      const stats = scanM3Signal(this.window).summary;
+      this.buffered = 0;
+      this.scannedSeconds += 4;
+
+      const highFrequency = stats.highFrequencySeconds >= 3.2 && stats.speechEvidenceSeconds < 0.4;
+      const lowFrequency = stats.lowFrequencyDominatedSeconds >= 3.0 && stats.speechEvidenceSeconds < 0.4;
+      const digitalSilence = stats.digitalSilenceRegions.some(r => r.seconds >= 3.5);
+
+      this.highFrequencyRun = highFrequency ? this.highFrequencyRun + 4 : 0;
+      this.lowFrequencyRun = lowFrequency ? this.lowFrequencyRun + 4 : 0;
+      this.digitalSilenceRun = digitalSilence ? this.digitalSilenceRun + 4 : 0;
+
+      let kind: "high-frequency" | "low-frequency" | "digital-silence" | null = null;
+      let run = 0;
+      if (this.highFrequencyRun >= 8) { kind = "high-frequency"; run = this.highFrequencyRun; }
+      else if (this.lowFrequencyRun >= 16) { kind = "low-frequency"; run = this.lowFrequencyRun; }
+      else if (this.digitalSilenceRun >= 32) { kind = "digital-silence"; run = this.digitalSilenceRun; }
+      if (kind) {
+        return {
+          kind,
+          startSeconds: this.scannedSeconds - run,
+          endSeconds: this.scannedSeconds,
+          totalScannedSeconds: this.scannedSeconds,
+        };
+      }
+    }
+    return null;
+  }
+}

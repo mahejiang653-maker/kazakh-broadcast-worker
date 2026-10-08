@@ -1858,7 +1858,7 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V12 · 支持边生成边试听</strong>
+                  <strong>M3 单次整篇 V13 · 支持边生成边试听</strong>
                   <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
@@ -1954,7 +1954,7 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V12 · 连续文本 + 实时试听</strong>
+                  <strong>M3 · 单次整篇 V13 · 连续文本 + 实时试听</strong>
                   <p>整篇只调用 Google 一次。先检查每批音频再允许试听；遇到持续高频异常会暂停试听并保留原始诊断音频。微弱讲话不会按静音删除，只有确认的数字静音可缩短。声学检查不能代替全文逐字核对，也不能保证模型始终保持同一声线。</p>
                 </div>
               </div>

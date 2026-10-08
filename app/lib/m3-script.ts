@@ -1,5 +1,5 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-single-request-v12-hum-integrity";
+export const M3_VERSION = "m3-single-request-v13-stream-anomaly";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;
 export const M3_TEMPERATURE = 0.5;
