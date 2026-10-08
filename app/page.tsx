@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
+import { M3LivePreview, receiveM3LiveAudio } from "./lib/m3-live-client";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -349,6 +350,9 @@ export default function Home() {
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
+  const [m3ReceivedSeconds, setM3ReceivedSeconds] = useState(0);
+  const [m3PreviewPlaying, setM3PreviewPlaying] = useState(false);
+  const m3PreviewRef = useRef<M3LivePreview | null>(null);
   const generationController = useRef<AbortController | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -432,6 +436,8 @@ export default function Home() {
     return () => {
       generationController.current?.abort();
       generationController.current = null;
+      m3PreviewRef.current?.stop();
+      m3PreviewRef.current = null;
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     };
   }, []);
@@ -491,6 +497,10 @@ export default function Home() {
   }, [text, engine, preset]);
 
   function resetAudio() {
+    m3PreviewRef.current?.stop();
+    m3PreviewRef.current = null;
+    setM3PreviewPlaying(false);
+    setM3ReceivedSeconds(0);
     if (generationController.current) {
       generationController.current.abort();
       generationController.current = null;
@@ -771,6 +781,11 @@ export default function Home() {
     generationController.current?.abort();
     const controller = new AbortController();
     generationController.current = controller;
+    m3PreviewRef.current?.stop();
+    m3PreviewRef.current = engine === "gemini" ? new M3LivePreview() : null;
+    setM3PreviewPlaying(false);
+    setM3ReceivedSeconds(0);
+    setM3Timing(null);
 
     try {
       // Emotion preflight is best-effort UI feedback only. Never block TTS on it:
@@ -802,7 +817,7 @@ export default function Home() {
                 }))
               : [],
       };
-      const requestPath = engine === "gemini" ? "/api/gemini-tts" : "/api/synthesize";
+      const requestPath = engine === "gemini" ? "/api/gemini-tts-live" : "/api/synthesize";
       const requestPayload =
         engine === "gemini"
           ? {
@@ -830,17 +845,22 @@ export default function Home() {
           throw new Error(failure?.error || "语音生成失败，请稍后再试。");
         }
 
-        if (engine === "gemini") {
-          const upstreamMs = Number(response.headers.get("X-M3-Upstream-Ms") || 0);
-          const postprocessMs = Number(response.headers.get("X-M3-Postprocess-Ms") || 0);
-          const totalMs = Number(response.headers.get("X-M3-Total-Ms") || 0);
-          if ([upstreamMs, postprocessMs, totalMs].every(Number.isFinite) && totalMs > 0) {
-            setM3Timing({ upstreamMs, postprocessMs, totalMs });
-          }
-        }
-
         const optimizedStream = audioTools && response.headers.get("Content-Type")?.includes("application/x-daulet-pcm");
-        if (optimizedStream) {
+        if (engine === "gemini") {
+          const preview = m3PreviewRef.current;
+          if (!preview) throw new Error("M3 实时音频会话未初始化。");
+          const live = await receiveM3LiveAudio(response, preview, (seconds, elapsedMs) => {
+            if (controller.signal.aborted) return;
+            setM3ReceivedSeconds(Math.floor(seconds));
+            const minutes = Math.floor(seconds / 60);
+            const remainder = String(Math.floor(seconds % 60)).padStart(2, "0");
+            setAudioProgress(seconds > 0
+              ? `Google 已传来 ${minutes}:${remainder} 音频 · 可边生成边试听`
+              : `等待 Google 开始输出声音 · 已等待 ${Math.round(elapsedMs / 1000)} 秒`);
+          });
+          audioBlob = live.audioBlob;
+          setM3Timing(live.timings);
+        } else if (optimizedStream) {
           try {
             audioBlob = await audioTools.processDauletResponse(response, controller.signal, setAudioProgress);
           } catch (processingError) {
@@ -2010,6 +2030,34 @@ export default function Home() {
             </span>
             <span className="button-arrow" aria-hidden="true">→</span>
           </button>
+
+          {engine === "gemini" && m3ReceivedSeconds > 0 ? (
+            <div className="broadcast-note" aria-live="polite">
+              <div className="broadcast-index">LIVE</div>
+              <div>
+                <strong>已经收到 {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")} 的播音</strong>
+                <p>仍是整篇一次 Google 请求。可以先试听已生成的部分；完整 WAV 将在全篇完成并通过检查后出现。</p>
+                <button
+                  className="text-action"
+                  type="button"
+                  onClick={() => {
+                    const preview = m3PreviewRef.current;
+                    if (!preview) return;
+                    if (m3PreviewPlaying) {
+                      preview.stop();
+                      setM3PreviewPlaying(false);
+                    } else {
+                      void preview.start().then(() => setM3PreviewPlaying(true)).catch(() => {
+                        setError("当前浏览器无法开始实时试听，请等待完整 WAV。");
+                      });
+                    }
+                  }}
+                >
+                  {m3PreviewPlaying ? "停止实时试听" : "边生成边试听"}
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           <div className={`result-panel ${audioUrl ? "has-audio" : ""}`} aria-live="polite">
             <div className="result-topline">
