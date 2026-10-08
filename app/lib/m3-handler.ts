@@ -1,3 +1,4 @@
+import { m3Crc32 } from "./m3-signal";
 import { Buffer } from "node:buffer";
 import { generateM3Program, M3Error } from "./m3-pipeline";
 import { M3_VERSION } from "./m3-script";
@@ -214,7 +215,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
       const stream = new ReadableStream<Uint8Array>({
         start(controller) {
           let closed = false;
-          let sentBytes = 0;
+          let sentBytes = 0, sequence = 0;
           const startedAt = Date.now();
           const send = (event: string, payload: unknown) => {
             if (closed) return;
@@ -234,13 +235,14 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               // Bound event size to avoid large base64 strings on Android.
               for (let at = 0; at < chunk.length; at += 192000) {
                 const piece = chunk.subarray(at, Math.min(chunk.length, at + 192000));
+                const offset = sentBytes;
                 sentBytes += piece.length;
-                send("audio", { data: Buffer.from(piece).toString("base64"), receivedSeconds: sentBytes / 48000 });
+                send("audio", { sequence: sequence++, offset, crc32: m3Crc32(piece), data: Buffer.from(piece).toString("base64"), receivedSeconds: sentBytes / 48000 });
               }
             },
-          }).then(({ audit, cuts, originalPcmBytes }) => {
+          }).then(({ audit, cuts, gains, originalPcmBytes }) => {
             send("done", {
-              cuts, originalPcmBytes, timings: audit.timings, voice, model,
+              cuts, gains, originalPcmBytes, timings: audit.timings, voice, model, integrity: audit.integrity,
               audioDiagnostics: audit.signal,
               pitchScreen: audit.pitchScreen,
             });
@@ -249,6 +251,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               code: error instanceof M3Error ? error.code : "M3_STREAM_ERROR",
               error: error instanceof Error ? error.message : "Gemini 音频流生成失败。",
               diagnostics: error instanceof M3Error ? error.details?.audioDiagnostics : undefined,
+              integrity: error instanceof M3Error ? error.details?.integrity : undefined,
             });
           }).finally(() => {
             clearInterval(heartbeat);
@@ -291,6 +294,10 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
         "X-M3-Strategy": audit.strategy,
         "X-M3-TTS-Requests": String(audit.ttsRequests),
         "X-M3-Retries": String(audit.retries),
+        "X-M3-Content-Verified": "false",
+        "X-M3-Raw-SHA256": audit.integrity?.rawSha256 ?? "",
+        "X-M3-Processed-SHA256": audit.integrity?.processedSha256 ?? "",
+        "X-M3-First-Audio-Ms": String(audit.timings.firstAudioMs ?? ""),
         "X-M3-Upstream-Ms": String(audit.timings.upstreamMs),
         "X-M3-Postprocess-Ms": String(audit.timings.postprocessMs),
         "X-M3-Total-Ms": String(audit.timings.totalMs),

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
-import { M3LivePreview, receiveM3LiveAudio } from "./lib/m3-live-client";
+import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -357,7 +357,18 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
-  const [m3Timing, setM3Timing] = useState<{ upstreamMs: number; postprocessMs: number; totalMs: number } | null>(null);
+  const [m3Timing, setM3Timing] = useState<M3LiveTimings | null>(null);
+  const [m3PreviewWarning, setM3PreviewWarning] = useState("");
+  const [m3SafeSeconds, setM3SafeSeconds] = useState(0);
+  const [m3Diagnostic, setM3Diagnostic] = useState<{ audio: string | null; json: string } | null>(null);
+  const m3DiagnosticRef = useRef<{ audio: string | null; json: string } | null>(null);
+  function saveM3Diagnostic(raw: Blob | null, details: unknown) {
+    const previous = m3DiagnosticRef.current;
+    if (previous?.audio) URL.revokeObjectURL(previous.audio);
+    if (previous?.json) URL.revokeObjectURL(previous.json);
+    const urls = { audio: raw ? URL.createObjectURL(raw) : null, json: URL.createObjectURL(new Blob([JSON.stringify(details, null, 2)], { type: "application/json" })) };
+    m3DiagnosticRef.current = urls; setM3Diagnostic(urls);
+  }
   const [audioSettingsDirty, setAudioSettingsDirty] = useState(false);
   const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
   const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
@@ -439,6 +450,8 @@ export default function Home() {
       m3PreviewRef.current?.stop();
       m3PreviewRef.current = null;
       if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+      if (m3DiagnosticRef.current?.audio) URL.revokeObjectURL(m3DiagnosticRef.current.audio);
+      if (m3DiagnosticRef.current?.json) URL.revokeObjectURL(m3DiagnosticRef.current.json);
     };
   }, []);
 
@@ -501,6 +514,8 @@ export default function Home() {
     m3PreviewRef.current = null;
     setM3PreviewPlaying(false);
     setM3ReceivedSeconds(0);
+    setM3SafeSeconds(0);
+    setM3PreviewWarning("");
     if (generationController.current) {
       generationController.current.abort();
       generationController.current = null;
@@ -785,6 +800,8 @@ export default function Home() {
     m3PreviewRef.current = engine === "gemini" ? new M3LivePreview() : null;
     setM3PreviewPlaying(false);
     setM3ReceivedSeconds(0);
+    setM3SafeSeconds(0);
+    setM3PreviewWarning("");
     setM3Timing(null);
 
     try {
@@ -852,6 +869,9 @@ export default function Home() {
           const live = await receiveM3LiveAudio(response, preview, (seconds, elapsedMs) => {
             if (controller.signal.aborted) return;
             setM3ReceivedSeconds(Math.floor(seconds));
+            setM3SafeSeconds(Math.floor(preview.safeSeconds));
+            setM3PreviewWarning(preview.warning);
+            if (preview.warning) setM3PreviewPlaying(false);
             const minutes = Math.floor(seconds / 60);
             const remainder = String(Math.floor(seconds % 60)).padStart(2, "0");
             setAudioProgress(seconds > 0
@@ -860,6 +880,8 @@ export default function Home() {
           });
           audioBlob = live.audioBlob;
           setM3Timing(live.timings);
+          setM3PreviewPlaying(false);
+          saveM3Diagnostic(live.rawAudioBlob, live.diagnostics);
         } else if (optimizedStream) {
           try {
             audioBlob = await audioTools.processDauletResponse(response, controller.signal, setAudioProgress);
@@ -906,11 +928,14 @@ export default function Home() {
       );
     } catch (caught) {
       if (controller.signal.aborted) return;
+      if (caught instanceof M3LiveError) saveM3Diagnostic(caught.rawAudioBlob, caught.diagnostics);
       if (engine === "gemini") {
         m3PreviewRef.current?.stop();
         m3PreviewRef.current = null;
         setM3PreviewPlaying(false);
         setM3ReceivedSeconds(0);
+        setM3SafeSeconds(0);
+        setM3PreviewWarning("");
       }
       setError(
         caught instanceof Error
@@ -1833,7 +1858,7 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 V10 · 支持边生成边试听</strong>
+                  <strong>M3 单次整篇 V11 · 支持边生成边试听</strong>
                   <p>Gemini 3.8 Flash TTS 和 Flash-Lite TTS 都保留 15,000 字符输入上限。整篇仍只发送 1 次请求；送入 Gemini 前会把所有自然段换行拍平成普通空格，只保留正常标点与新闻编号短停顿，避免模型把下一自然段当成重新起势。</p>
                 </div>
               </div>
@@ -1929,8 +1954,8 @@ export default function Home() {
               <div className="broadcast-note">
                 <div className="broadcast-index">G</div>
                 <div>
-                  <strong>M3 · 单次整篇 V10 · 连续文本 + 实时试听</strong>
-                  <p>仍然整篇只调用 Google 一次。第一批 PCM 到达手机后即可点击“边生成边试听”；下载版完整 WAV 会继续进行独立语音活动检查、声纹启发式筛查与超过 4 秒的异常静音压缩；避免只因音高检测不可靠而错误拒绝有效声音。这样能更早听到声音，但不会改变 Google 完成全文的总生成时长。</p>
+                  <strong>M3 · 单次整篇 V11 · 连续文本 + 实时试听</strong>
+                  <p>整篇只调用 Google 一次。先检查每批音频再允许试听；遇到持续高频异常会暂停试听并保留原始诊断音频。微弱讲话不会按静音删除，只有确认的数字静音可缩短。声学检查不能代替全文逐字核对，也不能保证模型始终保持同一声线。</p>
                 </div>
               </div>
             </>
@@ -2041,11 +2066,13 @@ export default function Home() {
             <div className="broadcast-note" aria-live="polite">
               <div className="broadcast-index">LIVE</div>
               <div>
-                <strong>已缓冲原始 PCM {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")}（未验证）</strong>
-                <p>仍是整篇一次 Google 请求。此时显示的是原始 PCM 时长，不代表都是真实朗读；可先试听，只有整篇完成并通过语音活动和声线检查后才提供 WAV。</p>
+                <strong>已缓冲原始 PCM {Math.floor(m3ReceivedSeconds / 60)}:{String(m3ReceivedSeconds % 60).padStart(2, "0")}（全文未核验）</strong>
+                <p>通过初步信号检查的试听缓冲：{m3SafeSeconds} 秒。仍为一次 Google 请求；声音活动不代表全文内容已核验。</p>
+                {m3PreviewWarning ? <p role="status">{m3PreviewWarning}</p> : null}
                 <button
                   className="text-action"
                   type="button"
+                  disabled={Boolean(m3PreviewWarning)}
                   onClick={() => {
                     const preview = m3PreviewRef.current;
                     if (!preview) return;
@@ -2061,6 +2088,17 @@ export default function Home() {
                 >
                   {m3PreviewPlaying ? "停止实时试听" : "边生成边试听"}
                 </button>
+              </div>
+            </div>
+          ) : null}
+
+          {engine === "gemini" && m3Diagnostic ? (
+            <div className="broadcast-note">
+              <div className="broadcast-index">QA</div>
+              <div>
+                <p>本次原始音频仅供故障诊断，可能含异常信号或未完成内容；不会上传保存到服务器。</p>
+                {m3Diagnostic.audio ? <a className="text-action" href={m3Diagnostic.audio} download="m3-original-diagnostic.wav">下载原始诊断 WAV</a> : null}
+                {" · "}<a className="text-action" href={m3Diagnostic.json} download="m3-diagnostics.json">下载诊断数据</a>
               </div>
             </div>
           ) : null}
@@ -2082,7 +2120,7 @@ export default function Home() {
 
             {audioUrl && engine === "gemini" && m3Timing ? (
               <p style={{ margin: "10px 0 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
-                M3 耗时：Google 生成 {(m3Timing.upstreamMs / 1000).toFixed(1)} 秒 · 本站后处理 {(m3Timing.postprocessMs / 1000).toFixed(1)} 秒 · 总计 {(m3Timing.totalMs / 1000).toFixed(1)} 秒
+                M3 耗时：首批音频 {m3Timing.firstAudioMs == null ? "未知" : (m3Timing.firstAudioMs / 1000).toFixed(1) + " 秒"} · Google 生成 {(m3Timing.upstreamMs / 1000).toFixed(1)} 秒 · 本站后处理 {(m3Timing.postprocessMs / 1000).toFixed(1)} 秒 · 总计 {(m3Timing.totalMs / 1000).toFixed(1)} 秒
               </p>
             ) : null}
 
