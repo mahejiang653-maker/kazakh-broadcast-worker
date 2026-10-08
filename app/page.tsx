@@ -5,6 +5,7 @@ import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
 import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
 import { M3_VERSION, prepareM3Text, type M3TextMode, type M3DiagnosticMode } from "./lib/m3-script";
+import { auditM3Transcript, type M3TranscriptAudit } from "./lib/m3-transcript-audit";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -379,6 +380,9 @@ export default function Home() {
   const [m3PreviewWarning, setM3PreviewWarning] = useState("");
   const [m3SafeSeconds, setM3SafeSeconds] = useState(0);
   const [m3Diagnostic, setM3Diagnostic] = useState<{ audio: string | null; json: string; filename: string } | null>(null);
+  const [m3ActualTextForQa, setM3ActualTextForQa] = useState<string | null>(null);
+  const [m3ExternalTranscript, setM3ExternalTranscript] = useState("");
+  const [m3TranscriptAudit, setM3TranscriptAudit] = useState<M3TranscriptAudit | null>(null);
   const m3DiagnosticRef = useRef<{ audio: string | null; json: string; filename: string } | null>(null);
   function saveM3Diagnostic(raw: Blob | null, details: unknown) {
     const previous = m3DiagnosticRef.current;
@@ -558,6 +562,9 @@ export default function Home() {
     setGeneratedAt("");
     setM3Timing(null);
     setM3VoiceTimeline(null);
+    setM3ActualTextForQa(null);
+    setM3ExternalTranscript("");
+    setM3TranscriptAudit(null);
     setAudioSettingsDirty(false);
   }
 
@@ -825,6 +832,9 @@ export default function Home() {
     generationController.current?.abort();
     const controller = new AbortController();
     generationController.current = controller;
+    setM3ActualTextForQa(engine === "gemini" ? prepareM3Text(cleanText, m3TextMode) : null);
+    setM3ExternalTranscript("");
+    setM3TranscriptAudit(null);
     m3PreviewRef.current?.stop();
     m3PreviewRef.current = engine === "gemini" ? new M3LivePreview() : null;
     setM3PreviewPlaying(false);
@@ -2206,6 +2216,73 @@ export default function Home() {
                 <p>本次原始音频仅供故障诊断，可能含异常信号或未完成内容；不会上传保存到服务器。文件名含接口模式和生成时间，便于比较 A/B/C。请在下一次生成前保存本次文件。</p>
                 {m3Diagnostic.audio ? <a className="text-action" href={m3Diagnostic.audio} download={`${m3Diagnostic.filename}-original.wav`}>下载原始诊断 WAV</a> : null}
                 {" · "}<a className="text-action" href={m3Diagnostic.json} download={`${m3Diagnostic.filename}-diagnostics.json`}>下载诊断数据</a>
+              </div>
+            </div>
+          ) : null}
+
+          {engine === "gemini" && m3ActualTextForQa && (m3Diagnostic || audioUrl) ? (
+            <div className="broadcast-note" style={{ marginTop: 12 }}>
+              <div className="broadcast-index">TXT</div>
+              <div style={{ minWidth: 0, width: "100%" }}>
+                <strong>全文漏读／重复初筛（本地文字对照 · 0 次 Google 请求）</strong>
+                <p>将另一套语音识别得到的哈萨克语转写文字粘贴到下方，与本次真正发送给 Google 的文本核对 13 条编号及内容近似程度。原稿和识别文字仅在浏览器内计算，不会发送至服务器；不能把文字匹配误当成声音逐字核验。</p>
+                <textarea
+                  aria-label="独立哈萨克语转写文字"
+                  value={m3ExternalTranscript}
+                  onChange={(e) => { setM3ExternalTranscript(e.target.value); setM3TranscriptAudit(null); }}
+                  placeholder="粘贴独立语音识别得到的全文。不要粘贴原稿本身。"
+                  rows={5}
+                  style={{ width: "100%", marginTop: 8, padding: 10, borderRadius: 8, border: "1px solid var(--line)", background: "var(--paper)", color: "var(--ink)", font: "inherit" }}
+                />
+                <button
+                  type="button"
+                  className="text-action"
+                  style={{ marginTop: 8 }}
+                  disabled={!m3ExternalTranscript.trim()}
+                  onClick={() => setM3TranscriptAudit(auditM3Transcript(m3ActualTextForQa, m3ExternalTranscript))}
+                >
+                  核对 13 条新闻（不生成语音）
+                </button>
+                {m3TranscriptAudit ? (
+                  <div style={{ marginTop: 10 }} aria-live="polite">
+                    <p>
+                      识别到 {m3TranscriptAudit.presentHeadings}/13 个不同编号 ·
+                      缺少 {m3TranscriptAudit.missingHeadings.length} 个 ·
+                      重复 {m3TranscriptAudit.duplicatedHeadings.length} 个 ·
+                      内容疑似差异 {m3TranscriptAudit.reviewSections.length} 条 ·
+                      需复听句子 {m3TranscriptAudit.sentenceReviewCount} 处。
+                      开场：{m3TranscriptAudit.introLikelyPresent ? "存在文字" : "未能确认"}；
+                      结尾：{m3TranscriptAudit.endingLikelyPresent ? "有告别关键词" : "未能确认"}。
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                      {m3TranscriptAudit.sections.map(s => (
+                        <span key={s.index} style={{ border: "1px solid var(--line)", borderRadius: 6, padding: "4px 7px", fontSize: 12 }}>
+                          {s.index}：
+                          {s.status === "present" ? "已对照" : s.status === "review-text" ? "需复核" : s.status === "missing-heading" ? "缺编号" : s.status === "duplicate-heading" ? "重复编号" : "原稿缺编号"}
+                          {s.similarity != null ? ` · ${Math.round(s.similarity * 100)}%` : ""}
+                        </span>
+                      ))}
+                    </div>
+                    {m3TranscriptAudit.sentenceReviewCount > 0 ? (
+                      <div style={{ marginTop: 10, fontSize: 12 }}>
+                        <strong>优先人工复听（最多显示前 20 处，均非确定漏读）：</strong>
+                        <ul style={{ paddingLeft: 20, marginTop: 6 }}>
+                          {m3TranscriptAudit.sections.flatMap(section =>
+                            section.sentenceWarnings.map(item => ({
+                              index: section.index, ...item,
+                            }))
+                          ).slice(0, 20).map((warning, i) => (
+                            <li key={i}>
+                              第 {warning.index} 条第 {warning.sentenceNumber} 句 · 字形近似 {Math.round(warning.bestSimilarity * 100)}%：
+                              <span style={{ overflowWrap: "anywhere" }}>{warning.sourceExcerpt}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <p style={{ fontSize: 12, opacity: 0.8, marginTop: 10 }}>{m3TranscriptAudit.notice}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
           ) : null}
