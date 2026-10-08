@@ -1,6 +1,6 @@
 import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
-import { scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
+import { M3StreamingAnomalyGuard, scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
 import { assessM3Signal, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
 import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text } from "./m3-script";
 
@@ -64,6 +64,9 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
   const rawHash = createHash("sha256");
   const chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }> = [];
   let completed = false, bytes = 0, rawCrc32 = 0, firstAudioMs: number | null = null;
+  // Fail fast on sustained clearly-invalid audio while preserving every
+  // original PCM byte received so far for the diagnostic WAV.
+  const streamGuard = streaming ? new M3StreamingAnomalyGuard() : null;
   const started = requestStarted;
   let previousPcm: Uint8Array | null = null, previousVaried = false;
   const recentHashes = new Set<string>();
@@ -105,6 +108,20 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
         previousPcm = pcm; previousVaried = varied;
         audio.push(pcm);
         onAudioChunk?.(pcm);
+        const anomaly = streamGuard?.observe(pcm);
+        if (anomaly) {
+          const labels = {
+            "high-frequency": "持续异常高频噪声",
+            "low-frequency": "持续低频嗡声／非语音信号",
+            "digital-silence": "持续数字静音",
+          };
+          throw new M3Error(
+            "M3_STREAM_AUDIO_ANOMALY",
+            `Gemini 已返回异常音频（约 ${anomaly.startSeconds}–${anomaly.endSeconds} 秒：${labels[anomaly.kind]}）。为了避免持续产生无效音频，已停止本次单一请求；不会自动重试、拆段或把不完整音频标记为完成。原始接收数据保留供诊断。`,
+            502,
+            { streamingAnomaly: anomaly, integrity: partialIntegrity() },
+          );
+        }
       }
     }
     if (candidate.finishReason === "MAX_TOKENS") throw new M3Error("M3_OUTPUT_LIMIT", "Gemini 输出达到模型单次长度上限。", 502, { integrity: partialIntegrity() });
