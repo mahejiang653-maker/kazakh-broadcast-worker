@@ -353,6 +353,7 @@ export default function Home() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [generatedAt, setGeneratedAt] = useState("");
+  const [m3Timing, setM3Timing] = useState<{ upstreamMs: number; postprocessMs: number; totalMs: number } | null>(null);
   const [audioSettingsDirty, setAudioSettingsDirty] = useState(false);
   const [emotionAnalysisStatus, setEmotionAnalysisStatus] = useState<EmotionAnalysisStatus>("idle");
   const [emotionSentenceCount, setEmotionSentenceCount] = useState(0);
@@ -502,6 +503,7 @@ export default function Home() {
     }
     setAudioUrl(null);
     setGeneratedAt("");
+    setM3Timing(null);
     setAudioSettingsDirty(false);
   }
 
@@ -826,6 +828,15 @@ export default function Home() {
           | { error?: string }
           | null;
           throw new Error(failure?.error || "语音生成失败，请稍后再试。");
+        }
+
+        if (engine === "gemini") {
+          const upstreamMs = Number(response.headers.get("X-M3-Upstream-Ms") || 0);
+          const postprocessMs = Number(response.headers.get("X-M3-Postprocess-Ms") || 0);
+          const totalMs = Number(response.headers.get("X-M3-Total-Ms") || 0);
+          if ([upstreamMs, postprocessMs, totalMs].every(Number.isFinite) && totalMs > 0) {
+            setM3Timing({ upstreamMs, postprocessMs, totalMs });
+          }
         }
 
         const optimizedStream = audioTools && response.headers.get("Content-Type")?.includes("application/x-daulet-pcm");
@@ -2012,6 +2023,12 @@ export default function Home() {
             {audioUrl && audioSettingsDirty ? (
               <p style={{ margin: "10px 0 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
                 参数已修改 · 当前播放器仍保留上一次生成结果；重新生成后才会应用新参数。
+              </p>
+            ) : null}
+
+            {audioUrl && engine === "gemini" && m3Timing ? (
+              <p style={{ margin: "10px 0 0", fontSize: 12, lineHeight: 1.6, opacity: 0.72 }}>
+                M3 耗时：Google 生成 {(m3Timing.upstreamMs / 1000).toFixed(1)} 秒 · 本站后处理 {(m3Timing.postprocessMs / 1000).toFixed(1)} 秒 · 总计 {(m3Timing.totalMs / 1000).toFixed(1)} 秒
               </p>
             ) : null}
 
