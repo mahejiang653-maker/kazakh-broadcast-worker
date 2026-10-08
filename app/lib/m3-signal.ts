@@ -1,7 +1,7 @@
 /** PCM16/24 kHz analysis only. Filters never touch delivered audio. No model or network calls. */
 export type M3Cut = { start: number; end: number };
 export type M3Gain = { start: number; end: number; gainDb: number; rampSamples: number };
-type Frame = { start: number; end: number; rms: number; peak: number; bandRms: number; bandRatio: number; zcr: number; speech: boolean; digital: boolean; artifact: boolean };
+type Frame = { start: number; end: number; rms: number; peak: number; bandRms: number; bandRatio: number; zcr: number; speech: boolean; speechEvidence: boolean; voiceBandRatio: number; digital: boolean; artifact: boolean };
 export type M3SignalScan = ReturnType<typeof scanM3Signal>;
 const RATE = 24000, FRAME = 480;
 const db = (v: number) => 20 * Math.log10(Math.max(v, 1 / 32768 / 100));
@@ -36,28 +36,38 @@ export function scanM3Signal(pcm: Uint8Array) {
   if (pcm.byteLength % 2) throw new Error("M3_PCM_ALIGNMENT");
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength), count = pcm.byteLength / 2;
   const hp = biquad(80, Math.SQRT1_2, true), lp1 = biquad(3800, 0.5411961), lp2 = biquad(3800, 1.306563);
+  // Independent 180–3800 Hz evidence channel. The older 80–3800 Hz passband
+  // counts 50–100 Hz electrical hum as "speech" in very quiet sections.
+  // This metric is diagnostic only: it never removes or fabricates samples.
+  const evidenceHp = biquad(180, Math.SQRT1_2, true);
+  const evidenceLp1 = biquad(3800, 0.5411961), evidenceLp2 = biquad(3800, 1.306563);
   const frames: Frame[] = [];
-  let allEnergy = 0, peak = 0, previous = 0, speechSamples = 0, artifactSamples = 0;
+  let allEnergy = 0, peak = 0, previous = 0, speechSamples = 0, evidenceSamples = 0, artifactSamples = 0;
   for (let start = 0; start < count; start += FRAME) {
     const end = Math.min(count, start + FRAME), n = end - start;
-    let energy = 0, bandEnergy = 0, max = 0, crossings = 0;
+    let energy = 0, bandEnergy = 0, evidenceEnergy = 0, max = 0, crossings = 0;
     for (let i = start; i < end; i++) {
       const x = view.getInt16(i * 2, true) / 32768;
       const band = lp2(lp1(hp(x)));
-      energy += x * x; bandEnergy += band * band; max = Math.max(max, Math.abs(x));
+      const evidenceBand = evidenceLp2(evidenceLp1(evidenceHp(x)));
+      energy += x * x; bandEnergy += band * band;
+      evidenceEnergy += evidenceBand * evidenceBand; max = Math.max(max, Math.abs(x));
       if ((x < 0) !== (previous < 0)) crossings++;
       previous = x;
     }
     const rms = Math.sqrt(energy / n), bandRms = Math.sqrt(bandEnergy / n);
     const bandRatio = bandEnergy / Math.max(energy, 1e-20), zcr = crossings / n;
-    // Amplitude-independent activity evidence, not transcript verification or a neural VAD.
-    // Keep extremely quiet speech. An unvoiced consonant is protected by context, never cut.
+    const voiceBandRatio = evidenceEnergy / Math.max(energy, 1e-20);
+    // Preserve legacy broad-band activity as a candidate signal, NOT verified
+    // speaking time. A steady low-frequency hum can satisfy this predicate.
     const speech = bandRms >= 2 / 32768 && bandRatio >= 0.06 && zcr < 0.35;
+    const speechEvidence = speech && Math.sqrt(evidenceEnergy / n) >= 2 / 32768 && voiceBandRatio >= 0.20;
     const digital = max <= 1 / 32768;
     const artifact = rms > 2 / 32768 && bandRatio < 0.012 && zcr > 0.35;
-    frames.push({ start, end, rms, peak: max, bandRms, bandRatio, zcr, speech, digital, artifact });
+    frames.push({ start, end, rms, peak: max, bandRms, bandRatio, voiceBandRatio, zcr, speech, speechEvidence, digital, artifact });
     allEnergy += energy; peak = Math.max(peak, max);
     if (speech) speechSamples += n;
+    if (speechEvidence) evidenceSamples += n;
     if (artifact) artifactSamples += n;
   }
   const inactive = intervals(frames, f => !f.speech);
@@ -67,18 +77,27 @@ export function scanM3Signal(pcm: Uint8Array) {
   const levels = frames.filter(f => f.speech).map(f => db(f.rms));
   const referenceDb = Math.min(-20, Math.max(-28, percentile(levels, 0.75)));
   const uncertainLow = intervals(frames, f => !f.digital && db(f.rms) < referenceDb - 30 && db(f.peak) < referenceDb - 18, 4);
+  const lowFrequencyDominated = intervals(frames, f =>
+    !f.digital && f.rms > 2 / 32768 && f.voiceBandRatio < 0.12 &&
+    db(f.rms) < referenceDb - 12, 4);
   const lowSpeech = intervals(frames, f => f.speech && db(f.rms) < referenceDb - 14, 0.08);
   const blocks = [];
   for (let i = 0; i < frames.length; i += 50) {
     const block = frames.slice(i, i + 50), active = block.filter(f => f.speech);
     blocks.push({ start: block[0].start / RATE, end: block[block.length - 1].end / RATE,
       rmsDb: round(db(Math.sqrt(block.reduce((s, f) => s + f.rms ** 2, 0) / block.length))),
-      speechFrames: active.length, artifactFrames: block.filter(f => f.artifact).length,
+      speechFrames: active.length, speechEvidenceFrames: block.filter(f => f.speechEvidence).length,
+      artifactFrames: block.filter(f => f.artifact).length,
       speechRmsDb: active.length ? round(percentile(active.map(f => db(f.rms)), 0.7)) : null });
   }
   const summary = {
     rawSeconds: round(count / RATE), sampledFrames: frames.length,
     activeSeconds: round(speechSamples / RATE), activeRatio: round(speechSamples / Math.max(1, count)),
+    // These are acoustic heuristics; neither field verifies words or speaker.
+    speechEvidenceSeconds: round(evidenceSamples / RATE),
+    speechEvidenceRatio: round(evidenceSamples / Math.max(1, count)),
+    lowFrequencyDominatedSeconds: round(lowFrequencyDominated.reduce((n, r) => n + r.seconds, 0)),
+    lowFrequencyDominatedRegions: lowFrequencyDominated.slice(0, 32),
     longestInactiveSeconds: round(Math.max(0, ...inactive.map(r => r.seconds))),
     trailingInactiveSeconds: round(inactive.at(-1)?.end === count / RATE ? inactive.at(-1)!.seconds : 0),
     maxPeak: peak, meanRms: Math.sqrt(allEnergy / Math.max(1, count)), rmsDb: round(db(Math.sqrt(allEnergy / Math.max(1, count)))),
@@ -87,7 +106,7 @@ export function scanM3Signal(pcm: Uint8Array) {
     digitalSilenceRegions: digitalSilence.filter(r => r.seconds >= 4).slice(0, 32),
     uncertainLowRegions: uncertainLow.slice(0, 32),
     lowSpeechSeconds: round(lowSpeech.reduce((s, r) => s + r.seconds, 0)), referenceDb: round(referenceDb),
-    evidence: "spectral-and-temporal-activity-only; transcript-and-speaker-identity-unverified",
+    evidence: "candidate-activity-and-voice-band-evidence-only; no-transcription-or-speaker-verification",
   };
   return { frames, blocks, summary };
 }
@@ -105,7 +124,9 @@ export function planM3Repair(scan: M3SignalScan, minSilenceMs = 4000, keepMs = 6
   // Sustained low-level speech with real syllabic modulation: a constant scalar gain per region,
   // not per-frame AGC. No gain on stationary noise or on uncertain activity.
   for (let i = 0; i < scan.blocks.length;) {
-    const eligible = (b: typeof scan.blocks[number]) => b.speechFrames >= 8 && b.artifactFrames === 0 && b.speechRmsDb !== null && b.speechRmsDb < scan.summary.referenceDb - 12;
+    const eligible = (b: typeof scan.blocks[number]) => b.speechFrames >= 8 &&
+      b.speechEvidenceFrames >= 8 && b.artifactFrames === 0 &&
+      b.speechRmsDb !== null && b.speechRmsDb < scan.summary.referenceDb - 12;
     if (!eligible(scan.blocks[i])) { i++; continue; }
     let j = i + 1;
     while (j < scan.blocks.length && eligible(scan.blocks[j])) j++;
@@ -174,5 +195,23 @@ export function isM3Base64(text: unknown): text is string {
 }
 
 export function unresolvedM3Low(scan: M3SignalScan, gains: M3Gain[]) {
-  return scan.summary.uncertainLowRegions.filter(r => !gains.some(g => g.start / 48000 <= r.start + 0.12 && g.end / 48000 >= r.end - 0.12 && g.gainDb >= 12));
+  // A sustained 50–100 Hz hum may be loud enough to escape the old absolute
+  // low-level test while remaining completely unlike speech. Fail closed.
+  // Neither class is ever automatically deleted or amplified.
+  const suspect = [
+    ...scan.summary.uncertainLowRegions,
+    ...scan.summary.lowFrequencyDominatedRegions,
+  ].filter(r => !gains.some(g =>
+    g.start / 48000 <= r.start + 0.12 &&
+    g.end / 48000 >= r.end - 0.12 && g.gainDb >= 12,
+  )).sort((a, b) => a.start - b.start);
+  const merged: typeof suspect = [];
+  for (const r of suspect) {
+    const previous = merged[merged.length - 1];
+    if (previous && r.start <= previous.end + 0.02) {
+      previous.end = Math.max(previous.end, r.end);
+      previous.seconds = previous.end - previous.start;
+    } else merged.push({ ...r });
+  }
+  return merged;
 }
