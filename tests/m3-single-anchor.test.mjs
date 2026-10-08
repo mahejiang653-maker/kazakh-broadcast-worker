@@ -82,18 +82,40 @@ test("an upstream full-program timeout fails after exactly one full-program requ
 test("all 13 ordinal periods and one supported pause survive; names and quotations remain text", () => {
   for (const opener of script.NUMBERED_OPENERS) {
     const prepared = script.prepareM3Text(`${opener}.\nДоналд Трамп: «Бұл маңызды», деді.`);
-    assert.ok(prepared.startsWith(`${opener}. <short pause>\n`));
+    assert.ok(prepared.startsWith(`${opener}. <short pause> `));
     assert.ok(prepared.includes('Доналд Трамп: «Бұл маңызды», деді.'));
     assert.equal(script.prepareM3Text(prepared), prepared);
   }
-  assert.equal(script.prepareM3Text("Төртінші. <angry>Мәлімет. [sad] [短停顿]"), "Төртінші. <short pause>\nМәлімет.  <short pause>");
+  assert.equal(script.prepareM3Text("Төртінші. <angry>Мәлімет. [sad] [短停顿]"), "Төртінші. <short pause> Мәлімет. <short pause>");
 });
 
-test("copy-paste blank paragraphs collapse to one newline before Gemini", () => {
+test("copy-paste paragraph breaks are flattened before Gemini", () => {
   const prepared = script.prepareM3Text("Алғы сөз.\n\n\nКелесі сөйлем.\n   \n\t\nСоңы.");
-  assert.equal(prepared, "Алғы сөз.\nКелесі сөйлем.\nСоңы.");
-  assert.equal(prepared.includes("\n\n"), false);
+  assert.equal(prepared, "Алғы сөз. Келесі сөйлем. Соңы.");
+  assert.equal(prepared.includes("\n"), false);
 });
+test("abnormal internal silence is compressed without altering speech samples", () => {
+  const first = tone(160, 2), gap = new Uint8Array(6 * 48000), last = tone(160, 2);
+  const pcm = new Uint8Array(first.length + gap.length + last.length);
+  pcm.set(first, 0); pcm.set(gap, first.length); pcm.set(last, first.length + gap.length);
+  const result = audio.compressM3InternalSilence(pcm);
+  assert.equal(result.regions, 1);
+  assert.ok(result.removedMs >= 5300 && result.removedMs <= 5400, result.removedMs);
+  assert.deepEqual(result.pcm.slice(0, first.length), first);
+  assert.deepEqual(result.pcm.slice(-last.length), last);
+  assert.ok(result.pcm.length < pcm.length);
+});
+
+test("normal sub-four-second pauses are preserved", () => {
+  const first = tone(160, 1), gap = new Uint8Array(3 * 48000), last = tone(160, 1);
+  const pcm = new Uint8Array(first.length + gap.length + last.length);
+  pcm.set(first); pcm.set(gap, first.length); pcm.set(last, first.length + gap.length);
+  const result = audio.compressM3InternalSilence(pcm);
+  assert.equal(result.regions, 0);
+  assert.equal(result.removedMs, 0);
+  assert.deepEqual(result.pcm, pcm);
+});
+
 test("the full 13-item script is kept whole and 1.00x sends no style metadata", async () => {
   const calls = []; const result = await run({ text: fixture(), fetcher: mock(calls) });
   const tts = calls.filter(x => x.url.endsWith(":generateContent"));
