@@ -364,11 +364,38 @@ export async function generateM3Program(options: {
   // Preserve the original bytes/diagnostics and fail instead of hiding gaps
   // through silence compression or gain adjustment.
   if (silenceCleanup.cuts.length || silenceCleanup.gains.length) {
+    // These are proposed edits, NOT proof that Google omitted any words.
+    // Report what was observed instead of collapsing distinct failures into
+    // one undifferentiated message or repairing them into an alleged full take.
+    const seconds = (byteOffset: number) => Math.round(byteOffset / 48000 * 100) / 100;
+    const proposedSilenceRegions = silenceCleanup.cuts.map(c => ({
+      startSeconds: seconds(c.start), endSeconds: seconds(c.end),
+      seconds: seconds(c.end - c.start),
+    }));
+    const proposedLowVolumeRegions = silenceCleanup.gains.map(g => ({
+      startSeconds: seconds(g.start), endSeconds: seconds(g.end),
+      gainDb: g.gainDb,
+    }));
+    const description: string[] = [];
+    if (proposedSilenceRegions.length) {
+      const first = proposedSilenceRegions[0];
+      description.push(`数字静音裁剪候选 ${proposedSilenceRegions.length} 处，第一处约 ${first.startSeconds}–${first.endSeconds} 秒`);
+    }
+    if (proposedLowVolumeRegions.length) {
+      const first = proposedLowVolumeRegions[0];
+      description.push(`异常低音量增益候选 ${proposedLowVolumeRegions.length} 处，第一处约 ${first.startSeconds}–${first.endSeconds} 秒（拟补偿 ${first.gainDb} dB）`);
+    }
     throw new M3Error(
       "M3_UNVERIFIED_AUDIO_REPAIR",
-      "原始音频含需要裁剪的长静音或需要增益补偿的异常低音量区间。为避免掩盖漏读，本次保留原始诊断证据，不会把修补后的音频标记为全文完成。",
+      `原始 PCM 质量检查未通过：${description.join("；")}。这只是声学风险检测，不能据此证明漏读。为避免掩盖问题，已拒绝将修补后音频标记为全文完成；请下载原始 WAV 与诊断 JSON。`,
       502,
-      { integrity: audit.integrity, audioDiagnostics: activity, proposedCuts: silenceCleanup.cuts, proposedGains: silenceCleanup.gains },
+      {
+        stage: "postprocess-repair-gate", diagnosticMode, transport: audit.transport,
+        temperature: audit.temperature, model, voice, textMode, textSha256,
+        integrity: audit.integrity, audioDiagnostics: activity,
+        proposedCuts: silenceCleanup.cuts, proposedGains: silenceCleanup.gains,
+        proposedSilenceRegions, proposedLowVolumeRegions,
+      },
     );
   }
   pcm = applyM3Plan(pcm, silenceCleanup.cuts, silenceCleanup.gains);
