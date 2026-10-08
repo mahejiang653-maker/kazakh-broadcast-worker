@@ -111,9 +111,22 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
         if (chunkTrace.length < 24) chunkTrace.push({ index: audio.length, offset: bytes, bytes: pcm.length, sha256: hash });
         firstAudioMs ??= Date.now() - started;
         if (previousPcm && previousVaried && varied && previousPcm.length >= 48000 && pcm.length >= 48000) {
-          const tail = createHash("sha256").update(previousPcm.subarray(previousPcm.length - 24000)).digest("hex");
-          const head = createHash("sha256").update(pcm.subarray(0, 24000)).digest("hex");
-          if (tail === head) throw new M3Error("M3_OVERLAPPING_PCM", "相邻音频块存在重复字节区间，已停止拼接而未猜测删除。", 502);
+          const tailBytes = previousPcm.subarray(previousPcm.length - 24000);
+          const headBytes = pcm.subarray(0, 24000);
+          // An exact 0.5s zero-filled pause at both sides of an SSE
+          // boundary is NOT replayed narration. Require variation *within*
+          // each compared window, not merely elsewhere inside its chunks.
+          const windowVaries = (window: Uint8Array) => {
+            for (let at = 2; at < window.length; at += 2) {
+              if (window[at] !== window[0] || window[at + 1] !== window[1]) return true;
+            }
+            return false;
+          };
+          if (windowVaries(tailBytes) && windowVaries(headBytes)) {
+            const tail = createHash("sha256").update(tailBytes).digest("hex");
+            const head = createHash("sha256").update(headBytes).digest("hex");
+            if (tail === head) throw new M3Error("M3_OVERLAPPING_PCM", "相邻音频块存在重复字节区间，已停止拼接而未猜测删除。", 502);
+          }
         }
         rawHash.update(pcm); rawCrc32 = m3Crc32(pcm, rawCrc32); bytes += pcm.length;
         previousPcm = pcm; previousVaried = varied;
