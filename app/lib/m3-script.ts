@@ -21,6 +21,11 @@ export function prepareM3Text(input: string) {
     .trim();
 }
 
+export function m3Style(speed: number) {
+  if (Math.abs(speed - 1) < 0.005) return "";
+  return `Speaking rate: ${Math.round(speed * 100)}% of normal.`;
+}
+
 export function estimatedM3Seconds(text: string, speed: number) {
   const words = text.replace(/<[^>]+>/g, "").match(/\S+/g)?.length ?? 0;
   // Deliberately conservative; this is planning, never proof of complete recitation.
