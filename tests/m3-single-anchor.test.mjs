@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
 const dir = await mkdtemp(join(tmpdir(), "m3-test-"));
-for (const name of ["script", "audio", "signal", "pipeline", "handler"]) await build({ input: `app/lib/m3-${name}.ts`, platform: "node", output: { file: join(dir, `${name}.mjs`), format: "esm", codeSplitting: false } });
+for (const name of ["script", "audio", "signal", "pipeline", "handler", "transcript-audit"]) await build({ input: `app/lib/m3-${name}.ts`, platform: "node", output: { file: join(dir, `${name}.mjs`), format: "esm", codeSplitting: false } });
 const script = await import(pathToFileURL(join(dir, "script.mjs")));
+const transcriptAudit = await import(pathToFileURL(join(dir, "transcript-audit.mjs")));
 const audio = await import(pathToFileURL(join(dir, "audio.mjs")));
 const signalTools = await import(pathToFileURL(join(dir, "signal.mjs")));
 const { generateM3Program, M3Error } = await import(pathToFileURL(join(dir, "pipeline.mjs")));
@@ -1063,4 +1064,50 @@ test("V15 exposes waveform-independent voice audit across pipeline, SSE and user
   assert.ok(page.includes("captureM3VoiceTimeline(live.diagnostics)"));
   assert.ok(page.includes("长篇主播一致性声学检查"));
   assert.ok(pipeline.includes("M3_VOICE_CONTINUITY_AUDIT"));
+});
+
+test("M3 local transcript audit detects all 13 sections with real Kazakh heading structures", () => {
+  const story = "Елімізде маңызды жаңалықтар жарияланды. Халықаралық ынтымақтастық туралы жаңа мәліметтер белгілі болды.";
+  const source = "Сәлем тораптастар, баршаңызға қайырлы таң. " +
+    script.NUMBERED_OPENERS.map((label, index) => `${label}. ${story} ${index}.`).join(" ") +
+    " Осымен бүгінгі кескіннің барлық мазмұны айақталды. Ертең қайта кездескенше сау сәлемет болыңыздар.";
+  const report = transcriptAudit.auditM3Transcript(source, source);
+  assert.equal(report.presentHeadings, 13);
+  assert.equal(report.referenceHeadings, 13);
+  assert.deepEqual(report.missingHeadings, []);
+  assert.deepEqual(report.duplicatedHeadings, []);
+  assert.deepEqual(report.reviewSections, []);
+  assert.ok(report.introLikelyPresent && report.endingLikelyPresent);
+  assert.ok(report.sections.every(section => section.similarity === 1));
+  assert.equal(report.transcriptVerified, false, "never claim audio verification from text alone");
+});
+test("M3 audit distinguishes absent, duplicated and changed sections without altering Kazakh source", () => {
+  const sections = script.NUMBERED_OPENERS.map((name, i) =>
+    `${name}. ${i + 1} жаңалықтың ерекше мазмұны және нақты хабарлары жарияланды, мәліметтер тарады.`);
+  const source = "Қайырлы таң, ардақты тораптастар. " + sections.join(" ") + " Осымен бүгінгі кескін аяқталды.";
+  const target = [sections[0], sections[1], sections[1], ...sections.slice(2, 6), ...sections.slice(7)].join(" ") +
+    " Осымен бүгінгі кескін аяқталды.";
+  const sourceCopy = source;
+  const result = transcriptAudit.auditM3Transcript(source, target);
+  assert.deepEqual(result.missingHeadings, [7]);
+  assert.deepEqual(result.duplicatedHeadings, [2]);
+  assert.equal(result.presentHeadings, 12);
+  assert.equal(source, sourceCopy);
+  assert.equal(result.transcriptVerified, false);
+});
+test("M3 audit treats orthographic variation as review, never proven omitted speech", () => {
+  const reference = "Бірінші. елімізде Шинжиаңдағы тасжолы бекітілді, шөферлер мен сайахатшылар ескертілді.";
+  const recognized = "Бірінші. елімізде Шыңжаңдағы тас жолы бекітілді, шөпірлер мен саяхатшылар ескертілді.";
+  const result = transcriptAudit.auditM3Transcript(reference, recognized);
+  assert.equal(result.sections[0].recognizedCount, 1);
+  assert.ok(result.sections[0].similarity > 0.55, "minor ASR spelling differences must not equate to missing article");
+  assert.equal(result.transcriptVerified, false);
+  assert.match(result.notice, /ASR/);
+});
+test("M3 web keeps transcript audit local, optional and tied to frozen Google request text", async () => {
+  const page = await readFile("app/page.tsx", "utf8");
+  assert.match(page, /setM3ActualTextForQa\(engine === "gemini" \? prepareM3Text\(cleanText, m3TextMode\)/);
+  assert.ok(page.includes("auditM3Transcript(m3ActualTextForQa, m3ExternalTranscript)"));
+  assert.ok(page.includes("不会发送至服务器"));
+  assert.ok(page.includes("不生成语音"));
 });
