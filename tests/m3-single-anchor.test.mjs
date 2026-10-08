@@ -623,3 +623,61 @@ test("uploaded V11 WAV must preserve bytes and reveal bass-hum evidence", { skip
   assert.ok(unresolved.some(r => r.seconds >= 40));
   assert.equal(plan.cuts.some(c => unresolved.some(r => c.start / 48000 < r.end && c.end / 48000 > r.start)), false);
 });
+
+test("V13 detects long HF artifacts during SSE streaming before waiting for STOP", async () => {
+  const pcm = concat(modulated(160, 4, 0.12), tone(7100, 12, 0.009));
+  const guard = new signalTools.M3StreamingAnomalyGuard();
+  let detected = null;
+  for (let at = 0; at < pcm.length; at += 16000) {
+    detected = guard.observe(pcm.subarray(at, Math.min(at + 16000, pcm.length)));
+    if (detected) break;
+  }
+  assert.equal(detected?.kind, "high-frequency");
+  assert.ok(detected.endSeconds < 20);
+});
+
+test("V13 detects sustained 90 Hz hum without counting it as spoken news", () => {
+  const pcm = concat(modulated(160, 4, 0.12), tone(90, 24, 0.0008));
+  const guard = new signalTools.M3StreamingAnomalyGuard();
+  let detected = null;
+  for (let at = 0; at < pcm.length; at += 47002) {
+    detected = guard.observe(pcm.subarray(at, Math.min(at + 47002, pcm.length)));
+    if (detected) break;
+  }
+  assert.equal(detected?.kind, "low-frequency");
+  assert.ok(detected.endSeconds <= 28);
+});
+
+test("V13 only treats extended true digital silence as a stream anomaly", () => {
+  const guard = new signalTools.M3StreamingAnomalyGuard();
+  assert.equal(guard.observe(new Uint8Array(20 * 48000)), null);
+  const triggered = guard.observe(new Uint8Array(16 * 48000));
+  assert.equal(triggered?.kind, "digital-silence");
+});
+
+test("V13 retains normal 2–3s news pauses and genuine low-level voice", () => {
+  const lead = modulated(160, 10, 0.12), pause = new Uint8Array(3 * 48000);
+  const quiet = modulated(160, 22, 0.006);
+  const guard = new signalTools.M3StreamingAnomalyGuard();
+  const pcm = concat(lead, pause, quiet, pause, lead);
+  for (let at = 0; at < pcm.length; at += 32000) {
+    assert.equal(guard.observe(pcm.subarray(at, at + 32000)), null);
+  }
+});
+
+test("V13 stops one defective upstream request and preserves received original PCM for diagnostics", async () => {
+  const pcm = concat(modulated(160, 4, 0.12), tone(7100, 16, 0.009));
+  const trace = [], collected = [];
+  await assert.rejects(run({
+    streaming: true,
+    onAudioChunk(piece) { collected.push(piece.slice()); },
+    fetcher: async (url) => {
+      trace.push(url);
+      return sseResponse(streamEvents(pcm));
+    },
+  }), e => e.code === "M3_STREAM_AUDIO_ANOMALY" &&
+    e.details?.streamingAnomaly?.kind === "high-frequency" &&
+    e.details?.integrity?.rawBytes > 0);
+  assert.equal(trace.length, 1, "never retry or split the one generation request");
+  assert.ok(collected.length > 0, "the original, unmodified PCM was relayed first");
+});
