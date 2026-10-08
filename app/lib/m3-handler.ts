@@ -1,7 +1,7 @@
 import { m3Crc32 } from "./m3-signal";
 import { Buffer } from "node:buffer";
 import { generateM3Program, M3Error } from "./m3-pipeline";
-import { M3_VERSION } from "./m3-script";
+import { M3_VERSION, type M3TextMode } from "./m3-script";
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
 const MAX_CHARACTERS = 15000;
 
@@ -201,6 +201,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
     typeof body.speed === "number" && Number.isFinite(body.speed)
       ? clamp(body.speed, 0.7, 1.2)
       : 1;
+  const textMode: M3TextMode = body.textMode === "verbatim" ? "verbatim" : "clean";
 
   try {
     // Resolve one supported male voice once. M3 sends the entire manuscript
@@ -229,7 +230,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
             12000,
           );
           void generateM3Program({
-            apiKey, model, voice, text: rawText, speed, streaming: true, signal,
+            apiKey, model, voice, text: rawText, textMode, speed, streaming: true, signal,
             skipWavAssembly: true,
             onAudioChunk(chunk) {
               // Bound event size to avoid large base64 strings on Android.
@@ -271,7 +272,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
       });
     }
 
-    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, speed, signal: request.signal, streaming: true });
+    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, textMode, speed, signal: request.signal, streaming: true });
     if (!wav) throw new M3Error("M3_INTERNAL_WAV_MISSING", "M3 完整 WAV 组装失败。", 502);
 
     return new Response(wav.buffer as ArrayBuffer, {

@@ -1,23 +1,27 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-single-request-v13-stream-anomaly";
+export const M3_VERSION = "m3-single-request-v14-text-audit";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;
 export const M3_TEMPERATURE = 0.5;
 export const NUMBERED_OPENERS = ["Бірінші", "Екінші", "Үшінші", "Төртінші", "Бесінші", "Алтыншы", "Жетінші", "Сегізінші", "Тоғызыншы", "Оныншы", "Он бірінші", "Он екінші", "Он үшінші"];
 const openerPattern = NUMBERED_OPENERS.map(x => x.replaceAll(" ", "[ \\t]+" )).join("|");
 
-export function prepareM3Text(input: string) {
-  return input.replace(/\r\n?/g, "\n")
-    .replaceAll("[短停顿]", "<short pause>").replaceAll("[长停顿]", "<long pause>")
-    .replace(/\[(?:叹气|轻笑|清嗓|sad|happy|angry|whispering|excited|laughs|sighs)[^\]]*\]/giu, "")
-    // Only pause controls survive in strict news mode. Words/names/quotes remain verbatim.
-    .replace(/<(?!short pause>|long pause>)[^>\n]{1,100}>/giu, "")
-    .replace(/[|｜]/g, " ")
-    .replace(new RegExp(`(^|\\n)([ \\t]*(?:${openerPattern}))[ \\t]*[.。](?:[ \\t]*<short pause>)?[ \\t\\n]*`, "giu"), "$1$2. <short pause> ")
-    // Paragraph boundaries are presentation-only for M3. Flatten all line
-    // breaks to spaces so Gemini receives one continuous narration stream.
-    .replace(/[ \t]*\n+[ \t]*/g, " ")
-    .replace(/[ \t]{2,}/g, " ")
+export type M3TextMode = "clean" | "verbatim";
+
+/**
+ * M3 input-side A/B control. Neither mode inserts pause tags, rewrites
+ * punctuation, substitutes words or adds instructions. The clean mode
+ * normalizes only copy/paste whitespace and invisible format characters.
+ *
+ * "verbatim" preserves the provided interior text exactly (the user-facing
+ * form and API handler already trim leading/trailing whitespace).
+ */
+export function prepareM3Text(input: string, mode: M3TextMode = "clean") {
+  if (mode === "verbatim") return input;
+  return input
+    .replace(/[\u200B\u200C\u200D\u2060\uFEFF]/gu, "")
+    .replace(/[\r\n\t\u00A0\u202F\u3000]+/gu, " ")
+    .replace(/ {2,}/g, " ")
     .trim();
 }
 
