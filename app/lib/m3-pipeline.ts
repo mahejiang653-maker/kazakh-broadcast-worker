@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { M3StreamingAnomalyGuard, scanM3Signal, planM3Repair, applyM3Plan, isM3Base64, unresolvedM3Low, m3Crc32 } from "./m3-signal";
 import { assessM3Signal, decodeM3Audio, joinM3Wav, screenM3Take, type M3Features } from "./m3-audio";
-import { M3_VERSION, M3_TEMPERATURE, m3RequestBody, m3Style, prepareM3Text, type M3TextMode } from "./m3-script";
+import { M3_VERSION, m3RequestBody, m3InteractionsRequestBody, m3Temperature, m3Style, prepareM3Text, type M3TextMode, type M3DiagnosticMode } from "./m3-script";
 
 type Fetcher = typeof fetch;
 type AudioCandidate = { index?: number; finishReason?: string; content?: { parts?: Array<{ inlineData?: { data?: string; mimeType?: string }; inline_data?: { data?: string; mime_type?: string } }> } };
@@ -10,9 +10,9 @@ export class M3Error extends Error {
   constructor(public code: string, message: string, public status = 502, public details?: Record<string, unknown>) { super(message); }
 }
 export type M3Audit = {
-  version: string; model: string; voice: string; style: string; temperature: number;
+  version: string; model: string; voice: string; style: string; temperature: number | null; diagnosticMode: M3DiagnosticMode;
   strategy: "single"; inputTokens: number | null; ttsRequests: number; retries: number;
-  transport: "generateContent" | "streamGenerateContent";
+  transport: "generateContent" | "streamGenerateContent" | "interactions";
   timings: { upstreamMs: number; firstAudioMs: number | null; postprocessMs: number; totalMs: number };
   integrity: { rawSha256: string; processedSha256: string; rawCrc32: number; processedCrc32: number; rawBytes: number; processedBytes: number; chunks: number; chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }>; contentVerified: false } | null;
   signal: ReturnType<typeof assessM3Signal> | null;
@@ -24,8 +24,11 @@ async function googleRequest(fetcher: Fetcher, apiKey: string, model: string, me
   const timer = AbortSignal.timeout(timeoutMs);
   let response: Response;
   try {
-    response = await fetcher(`https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`, {
-      method: "POST", headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+    const endpoint = method === "interactions"
+      ? "https://generativelanguage.googleapis.com/v1beta/interactions"
+      : `https://generativelanguage.googleapis.com/v1beta/models/${model}:${method}`;
+    response = await fetcher(endpoint, {
+      method: "POST", headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json", "Accept": "text/event-stream" },
       body: JSON.stringify(body), signal: AbortSignal.any([parent, timer]),
     });
   } catch (error) {
@@ -57,9 +60,15 @@ export async function countM3Tokens(apiKey: string, model: string, text: string,
   if (!Number.isFinite(result.totalTokens) || result.totalTokens! < 0) throw new M3Error("M3_TOKEN_COUNT_FAILED", "Gemini 未返回有效的长度检查结果。", 502);
   return result.totalTokens!;
 }
-async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number, onAudioChunk?: (pcm: Uint8Array) => void) {
+async function synthesizeM3Take(apiKey: string, model: string, voice: string, text: string, style: string, signal: AbortSignal, fetcher: Fetcher, streaming: boolean, speed: number, diagnosticMode: M3DiagnosticMode, onAudioChunk?: (pcm: Uint8Array) => void) {
   const requestStarted = Date.now();
-  const { response, timer } = await googleRequest(fetcher, apiKey, model, streaming ? "streamGenerateContent?alt=sse" : "generateContent", m3RequestBody(text, voice, style), signal, streaming ? 540000 : 230000);
+  const interactions = diagnosticMode === "interactions-default";
+  const requestBody = interactions
+    ? m3InteractionsRequestBody(text, voice, style, model)
+    : m3RequestBody(text, voice, style, m3Temperature(diagnosticMode));
+  const { response, timer } = await googleRequest(fetcher, apiKey, model,
+    interactions ? "interactions" : streaming ? "streamGenerateContent?alt=sse" : "generateContent",
+    requestBody, signal, streaming ? 540000 : 230000);
   const audio: Uint8Array[] = [];
   const rawHash = createHash("sha256");
   const chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }> = [];
@@ -134,7 +143,30 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
     let pending = "";
     const frame = (block: string) => {
       const data = block.split(/\r?\n/).filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
-      if (data && data !== "[DONE]") consume(JSON.parse(data));
+      if (!data || data === "[DONE]") return;
+      const payload = JSON.parse(data);
+      if (!interactions) { consume(payload); return; }
+      // Interactions emits step.delta audio data rather than candidates[].parts[].
+      // Only interaction.completed(status=completed) marks an accepted full take.
+      if (payload.event_type === "step.delta" && payload.delta?.type === "audio") {
+        const delta = payload.delta as { data?: string; mime_type?: string; sample_rate?: number; channels?: number };
+        if (!delta.data || (delta.mime_type && !/^audio\/l16(?:;|$)/i.test(delta.mime_type)) ||
+            (delta.sample_rate !== undefined && delta.sample_rate !== 24000) ||
+            (delta.channels !== undefined && delta.channels !== 1)) {
+          throw new M3Error("M3_AUDIO_FORMAT_MISMATCH", "Interactions 返回的音频不是预期的 24kHz 单声道 PCM。", 502);
+        }
+        consume({ candidates: [{ index: 0, content: { parts: [{ inlineData: {
+          data: delta.data, mimeType: delta.mime_type ?? "audio/l16;rate=24000",
+        } }] } }] });
+      } else if (payload.event_type === "interaction.completed") {
+        if (payload.interaction?.status !== "completed")
+          throw new M3Error("M3_INCOMPLETE_AUDIO", "Interactions 没有确认完整生成。", 502, { integrity: partialIntegrity() });
+        consume({ candidates: [{ index: 0, finishReason: "STOP" }] });
+      } else if (payload.event_type === "interaction.failed" ||
+                 payload.event_type === "error" ||
+                 payload.event_type === "interaction.cancelled") {
+        throw new M3Error("M3_STREAM_ERROR", "Interactions 返回生成失败或取消事件。", 502, { integrity: partialIntegrity() });
+      }
     };
     try {
       while (true) {
@@ -169,6 +201,7 @@ async function synthesizeM3Take(apiKey: string, model: string, voice: string, te
 export async function generateM3Program(options: {
   apiKey: string; model: string; voice: string; text: string; speed: number;
   textMode?: M3TextMode;
+  diagnosticMode?: M3DiagnosticMode;
   streaming?: boolean;
   onAudioChunk?: (pcm: Uint8Array) => void;
   skipWavAssembly?: boolean;
@@ -180,6 +213,7 @@ export async function generateM3Program(options: {
   const signal = options.signal ?? new AbortController().signal;
   const log = options.log ?? ((event, details) => console.info(event, JSON.stringify(details)));
   const textMode = options.textMode ?? "clean";
+  const diagnosticMode = options.diagnosticMode ?? "legacy-05";
   const text = prepareM3Text(options.text, textMode);
   const textSha256 = createHash("sha256").update(text, "utf8").digest("hex");
   log("M3_UPSTREAM_TEXT_AUDIT", {
@@ -201,13 +235,14 @@ export async function generateM3Program(options: {
     model,
     voice,
     style,
-    temperature: M3_TEMPERATURE,
+    temperature: m3Temperature(diagnosticMode),
+    diagnosticMode,
     strategy: "single",
     inputTokens: null,
     ttsRequests: 1,
     retries: 0,
     parts: [],
-    transport: options.streaming ? "streamGenerateContent" : "generateContent",
+    transport: diagnosticMode === "interactions-default" ? "interactions" : options.streaming ? "streamGenerateContent" : "generateContent",
     timings: { upstreamMs: 0, firstAudioMs: null, postprocessMs: 0, totalMs: 0 },
     integrity: null,
     signal: null,
@@ -230,6 +265,7 @@ export async function generateM3Program(options: {
       fetcher,
       Boolean(options.streaming),
       speed,
+      diagnosticMode,
       options.onAudioChunk,
     );
     pcm = take.pcm;
