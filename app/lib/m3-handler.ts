@@ -1,7 +1,7 @@
 import { m3Crc32 } from "./m3-signal";
 import { Buffer } from "node:buffer";
 import { generateM3Program, M3Error } from "./m3-pipeline";
-import { M3_VERSION, type M3TextMode } from "./m3-script";
+import { M3_VERSION, normalizeM3DiagnosticMode, type M3TextMode } from "./m3-script";
 const GEMINI_VOICES_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/voices";
 const MAX_CHARACTERS = 15000;
 
@@ -202,6 +202,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
       ? clamp(body.speed, 0.7, 1.2)
       : 1;
   const textMode: M3TextMode = body.textMode === "verbatim" ? "verbatim" : "clean";
+  const diagnosticMode = normalizeM3DiagnosticMode(body.diagnosticMode);
 
   try {
     // Resolve one supported male voice once. M3 sends the entire manuscript
@@ -224,13 +225,13 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
             } catch { closed = true; streamAbort.abort(); }
           };
-          send("start", { voice, model, version: M3_VERSION, singleRequest: true });
+          send("start", { voice, model, version: M3_VERSION, diagnosticMode, singleRequest: true });
           const heartbeat = setInterval(
             () => send("heartbeat", { elapsedMs: Date.now() - startedAt, receivedSeconds: sentBytes / 48000 }),
             12000,
           );
           void generateM3Program({
-            apiKey, model, voice, text: rawText, textMode, speed, streaming: true, signal,
+            apiKey, model, voice, text: rawText, textMode, diagnosticMode, speed, streaming: true, signal,
             skipWavAssembly: true,
             onAudioChunk(chunk) {
               // Bound event size to avoid large base64 strings on Android.
@@ -272,7 +273,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
       });
     }
 
-    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, textMode, speed, signal: request.signal, streaming: true });
+    const { wav, audit } = await generateM3Program({ apiKey, model, voice, text: rawText, textMode, diagnosticMode, speed, signal: request.signal, streaming: true });
     if (!wav) throw new M3Error("M3_INTERNAL_WAV_MISSING", "M3 完整 WAV 组装失败。", 502);
 
     return new Response(wav.buffer as ArrayBuffer, {
@@ -288,10 +289,11 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
         "X-M3-Strict-Single-Speaker": "true",
         "X-M3-Language": "auto-detect-kazakh",
         "X-M3-Transcript": "verbatim-with-pause-tags",
-        "X-M3-TTS-API": `${audit.transport}-voiceConfig`,
+        "X-M3-TTS-API": audit.transport === "interactions" ? "interactions-speech_config" : `${audit.transport}-voiceConfig`,
         "X-M3-Voice-Source": resolvedVoice.source,
         "X-M3-Anchor": "strict-constant-v5",
         "X-M3-Version": M3_VERSION,
+        "X-M3-Diagnostic-Mode": diagnosticMode,
         "X-M3-Strategy": audit.strategy,
         "X-M3-TTS-Requests": String(audit.ttsRequests),
         "X-M3-Retries": String(audit.retries),

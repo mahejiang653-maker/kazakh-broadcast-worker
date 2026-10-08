@@ -1,5 +1,5 @@
 /** M3-only planning. No text-dependent persona, speaker, model or style changes. */
-export const M3_VERSION = "m3-single-request-v14-text-audit";
+export const M3_VERSION = "m3-single-request-v15-transport-comparison";
 export const M3_INPUT_TOKENS = 8192;
 export const M3_OUTPUT_TOKENS = 16384;
 export const M3_TEMPERATURE = 0.5;
@@ -7,6 +7,16 @@ export const NUMBERED_OPENERS = ["Бірінші", "Екінші", "Үшінші
 const openerPattern = NUMBERED_OPENERS.map(x => x.replaceAll(" ", "[ \\t]+" )).join("|");
 
 export type M3TextMode = "clean" | "verbatim";
+
+/** Manual, one-call A/B presets. Never run these modes automatically. */
+export type M3DiagnosticMode = "legacy-05" | "legacy-default" | "interactions-default";
+export function normalizeM3DiagnosticMode(value: unknown): M3DiagnosticMode {
+  return value === "legacy-default" || value === "interactions-default" ? value : "legacy-05";
+}
+export function m3Temperature(mode: M3DiagnosticMode): number | null {
+  return mode === "legacy-05" ? M3_TEMPERATURE : null;
+}
+
 
 /**
  * M3 input-side A/B control. Neither mode inserts pause tags, rewrites
@@ -71,7 +81,7 @@ export function largeM3Chunks(text: string) {
   return splitM3AtBoundary(text);
 }
 
-export function m3RequestBody(text: string, voice: string, style: string, temperature = M3_TEMPERATURE) {
+export function m3RequestBody(text: string, voice: string, style: string, temperature: number | null = M3_TEMPERATURE) {
   return {
     contents: [{
       role: "user",
@@ -82,10 +92,29 @@ export function m3RequestBody(text: string, voice: string, style: string, temper
     }],
     generationConfig: {
       responseModalities: ["AUDIO"],
-      temperature,
+      ...(temperature === null ? {} : { temperature }),
       maxOutputTokens: M3_OUTPUT_TOKENS,
       responseFormat: { audio: { mimeType: "AUDIO_L16", sampleRate: 24000 } },
       speechConfig: { voiceConfig: { voice } },
     },
+  };
+}
+
+
+/** Official Gemini Interactions TTS schema: single user_input and single voice. */
+export function m3InteractionsRequestBody(text: string, voice: string, style: string, model: string) {
+  return {
+    model,
+    input: [{
+      type: "user_input",
+      content: [{
+        type: "text",
+        text,
+        ...(style ? { annotations: [{ type: "speech_metadata", style }] } : {}),
+      }],
+    }],
+    response_format: { type: "audio", mime_type: "audio/l16", sample_rate: 24000 },
+    generation_config: { speech_config: [{ voice }] },
+    stream: true,
   };
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
 import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
-import { M3_VERSION, prepareM3Text, type M3TextMode } from "./lib/m3-script";
+import { M3_VERSION, prepareM3Text, type M3TextMode, type M3DiagnosticMode } from "./lib/m3-script";
 
 const SAMPLE_TEXT =
   "Сәлем тораптастар! Бүгінгі маңызды жаңалықтарға назар аударайық. Ел ішінде және әлемде болған басты оқиғаларды бірге шоламыз.";
@@ -352,6 +352,7 @@ export default function Home() {
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [m3ServerVersion, setM3ServerVersion] = useState<string | null>(null);
   const [m3TextMode, setM3TextMode] = useState<M3TextMode>("clean");
+  const [m3DiagnosticMode, setM3DiagnosticMode] = useState<M3DiagnosticMode>("legacy-05");
   const m3PreparedPreview = useMemo(() => prepareM3Text(text.trim(), m3TextMode), [text, m3TextMode]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
@@ -855,6 +856,7 @@ export default function Home() {
               voice,
               speed,
               textMode: m3TextMode,
+              diagnosticMode: m3DiagnosticMode,
             }
           : payload;
       const audioTools = isDauletNews ? await import("./lib/daulet-audio-client") : null;
@@ -1880,9 +1882,35 @@ export default function Home() {
               <div className="broadcast-note" style={{ marginTop: 12 }}>
                 <div className="broadcast-index">M3</div>
                 <div>
-                  <strong>M3 单次整篇 {M3_PUBLIC_VERSION} · 检查 Google 输入文本</strong>
+                  <strong>M3 单次整篇 {M3_PUBLIC_VERSION} · 输入文本及生成接口诊断</strong>
                   <p>Flash / Flash-Lite 均保留 15,000 字符和一次整篇请求。V14 移除自动插入的编号停顿标签及其他隐式标点改写，可选择空格标准化或保留原文，直接核对真正发送的文字。不自动做两次 A/B 生成。</p>
                 </div>
+              </div>
+
+              <div className="field-block">
+                <div className="field-label-row">
+                  <label htmlFor="m3-diagnostic-mode">M3 接口与温度诊断（手动单选）</label>
+                </div>
+                <select
+                  id="m3-diagnostic-mode"
+                  value={m3DiagnosticMode}
+                  disabled={isGenerating}
+                  onChange={(event) => {
+                    setM3DiagnosticMode(event.target.value as M3DiagnosticMode);
+                    resetAudio();
+                    setError("");
+                  }}
+                  style={{ width: "100%", padding: 12, border: "1px solid var(--line)", borderRadius: 10, color: "var(--ink)", background: "var(--paper)" }}
+                >
+                  <option value="legacy-05">A · 原接口 GenerateContent · temperature 0.5（原配置）</option>
+                  <option value="legacy-default">B · 原接口 GenerateContent · Google 默认温度</option>
+                  <option value="interactions-default">C · 新接口 Interactions · Google 默认温度</option>
+                </select>
+                <p style={{ fontSize: 12, lineHeight: 1.7, opacity: 0.75, marginTop: 8 }}>
+                  每次只运行你手动选择的一个配置，不会自动 A/B 测试，也不会在出错后切换接口或重试。
+                  新旧接口均按整篇一次请求、一个固定角色、24 kHz 单声道 PCM 处理。
+                  C 使用 Google 官方 Interactions 流式协议，实际兼容性仍需试听验证。
+                </p>
               </div>
 
               <div className="field-block">
