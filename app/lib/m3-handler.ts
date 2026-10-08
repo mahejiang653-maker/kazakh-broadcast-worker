@@ -249,11 +249,20 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
               pitchScreen: audit.pitchScreen,
             });
           }).catch((error: unknown) => {
+            const details = error instanceof M3Error ? error.details : undefined;
+            // Carry only bounded, non-secret diagnostics to the browser's
+            // locally-downloadable JSON; never include credentials or text.
             send("error", {
               code: error instanceof M3Error ? error.code : "M3_STREAM_ERROR",
               error: error instanceof Error ? error.message : "Gemini 音频流生成失败。",
-              diagnostics: error instanceof M3Error ? error.details?.audioDiagnostics : undefined,
-              integrity: error instanceof M3Error ? error.details?.integrity : undefined,
+              version: M3_VERSION, model, voice, textMode, diagnosticMode,
+              stage: details?.stage,
+              temperature: details?.temperature,
+              textSha256: details?.textSha256,
+              proposedSilenceRegions: Array.isArray(details?.proposedSilenceRegions) ? details.proposedSilenceRegions.slice(0, 40) : undefined,
+              proposedLowVolumeRegions: Array.isArray(details?.proposedLowVolumeRegions) ? details.proposedLowVolumeRegions.slice(0, 40) : undefined,
+              diagnostics: details?.audioDiagnostics,
+              integrity: details?.integrity,
             });
           }).finally(() => {
             clearInterval(heartbeat);
