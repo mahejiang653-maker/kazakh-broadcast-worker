@@ -83,21 +83,32 @@ test("an upstream full-program timeout fails after exactly one full-program requ
   assert.equal(tts.length, 1);
 });
 
-test("all 13 ordinal periods and one supported pause survive; names and quotations remain text", () => {
+test("V14 no longer inserts pause tags or changes Kazakh punctuation around all 13 openers", () => {
   for (const opener of script.NUMBERED_OPENERS) {
-    const prepared = script.prepareM3Text(`${opener}.\nДоналд Трамп: «Бұл маңызды», деді.`);
-    assert.ok(prepared.startsWith(`${opener}. <short pause> `));
-    assert.ok(prepared.includes('Доналд Трамп: «Бұл маңызды», деді.'));
+    const original = `${opener}.\nДоналд Трамп: «Бұл маңызды», деді.`;
+    const prepared = script.prepareM3Text(original);
+    assert.equal(prepared, `${opener}. Доналд Трамп: «Бұл маңызды», деді.`);
+    assert.equal(prepared.includes("<short pause>"), false);
     assert.equal(script.prepareM3Text(prepared), prepared);
+    assert.equal(script.prepareM3Text(original, "verbatim"), original);
   }
-  assert.equal(script.prepareM3Text("Төртінші. <angry>Мәлімет. [sad] [短停顿]"), "Төртінші. <short pause> Мәлімет. <short pause>");
 });
 
-test("copy-paste paragraph breaks are flattened before Gemini", () => {
-  const prepared = script.prepareM3Text("Алғы сөз.\n\n\nКелесі сөйлем.\n   \n\t\nСоңы.");
-  assert.equal(prepared, "Алғы сөз. Келесі сөйлем. Соңы.");
-  assert.equal(prepared.includes("\n"), false);
+test("V14 cleans only copy-pasted whitespace and invisible characters", () => {
+  const raw = "Алғы сөз.\r\n\r\nКелесі сөйлем.\n   \n\t\nСоңы.";
+  assert.equal(script.prepareM3Text(raw), "Алғы сөз. Келесі сөйлем. Соңы.");
+  assert.equal(script.prepareM3Text(raw, "verbatim"), raw);
+  const mixed = "Бірінші.\u00a0жүңгө\u200b  —   еліміз!  Он үшінші. «құлжа» | «бұратала».";
+  assert.equal(script.prepareM3Text(mixed), "Бірінші. жүңгө — еліміз! Он үшінші. «құлжа» | «бұратала».");
+  assert.equal(script.prepareM3Text(mixed, "verbatim"), mixed);
 });
+
+test("V14 preserves explicitly typed pause tags but never synthesizes new ones", () => {
+  const original = "Бірінші. <short pause> Мәлімет. [短停顿] <long pause>";
+  assert.equal(script.prepareM3Text(original), original);
+  assert.equal(script.prepareM3Text("Бірінші. Мәлімет."), "Бірінші. Мәлімет.");
+});
+
 test("abnormal internal silence is compressed without altering speech samples", () => {
   const first = tone(160, 2), gap = new Uint8Array(6 * 48000), last = tone(160, 2);
   const pcm = new Uint8Array(first.length + gap.length + last.length);
@@ -303,8 +314,8 @@ test("M3 deployment pins only M3 routes to the supported EU execution jurisdicti
 
 test("M3 UI is hard-isolated from Edge emotion, VibeVoice and Fish S2 controls", async () => {
   const page = await readFile("app/page.tsx", "utf8");
-  assert.ok(page.includes('M3 干净输入模式'));
-  assert.ok(page.includes('Index 2.5 情绪强度、VibeVoice 长稿连续性、Fish S2 句内重点和 Edge 导演参数全部不参与 Gemini'));
+  assert.ok(page.includes('M3 输入文字独立检查'));
+  assert.ok(page.includes('Edge 情绪、VibeVoice 和 Fish S2 参数不会进入 Gemini'));
   assert.ok(page.includes('engine === "edge" ? ('));
   const geminiPayload = page.match(/engine === "gemini"\s*\?\s*\{([\s\S]*?)\}\s*:\s*payload;/)?.[1] ?? "";
   assert.ok(geminiPayload.includes("text: cleanText"));
@@ -609,7 +620,7 @@ test("V12 keeps single-request and diagnostic semantics explicit", async () => {
   ]);
   assert.ok(source.includes('activityDefinition: "acoustic-candidates-not-verified-speech"'));
   assert.ok(source.includes("不会放大噪声、删除区段后冒充全文完成"));
-  assert.ok(scriptSource.includes("m3-single-request-v13-stream-anomaly"));
+  assert.ok(scriptSource.includes("m3-single-request-v14-text-audit"));
 });
 
 test("uploaded V11 WAV must preserve bytes and reveal bass-hum evidence", { skip: !process.env.M3_V11_WAV }, async () => {
@@ -680,4 +691,34 @@ test("V13 stops one defective upstream request and preserves received original P
     e.details?.integrity?.rawBytes > 0);
   assert.equal(trace.length, 1, "never retry or split the one generation request");
   assert.ok(collected.length > 0, "the original, unmodified PCM was relayed first");
+});
+
+test("V14 UI can preview exactly what M3 sends to Google without billing", async () => {
+  const [page, pipeline, handler] = await Promise.all([
+    readFile("app/page.tsx", "utf8"),
+    readFile("app/lib/m3-pipeline.ts", "utf8"),
+    readFile("app/lib/m3-handler.ts", "utf8"),
+  ]);
+  assert.ok(page.includes("查看实际发送给 Google 的文本（免费预览）"));
+  assert.ok(page.includes('value={m3PreparedPreview}'));
+  assert.ok(page.includes('textMode: m3TextMode'));
+  assert.ok(page.includes('setM3TextMode(event.target.value as M3TextMode)'));
+  assert.ok(pipeline.includes('prepareM3Text(options.text, textMode)'));
+  assert.ok(pipeline.includes('M3_UPSTREAM_TEXT_AUDIT'));
+  assert.ok(handler.includes('body.textMode === "verbatim" ? "verbatim" : "clean"'));
+});
+
+test("V14 both Flash models preserve one TTS request with either text treatment", async () => {
+  const text = "Сәлем тораптастар.\n\nБірінші. «Біздің еліміз»!\nЕкінші. Мәлімет.";
+  for (const model of ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]) {
+    for (const textMode of ["clean", "verbatim"]) {
+      const calls = [];
+      const result = await run({ text, textMode, model, fetcher: mock(calls) });
+      const tts = calls.filter(x => x.url.endsWith(":generateContent"));
+      assert.equal(tts.length, 1);
+      assert.equal(tts[0].body.contents[0].parts[0].text, script.prepareM3Text(text, textMode));
+      assert.equal(result.audit.ttsRequests, 1);
+      assert.equal(result.audit.retries, 0);
+    }
+  }
 });
