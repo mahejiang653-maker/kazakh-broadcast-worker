@@ -205,11 +205,14 @@ test("silent audio cannot pass screening and is never retried", async () => {
   );
   assert.equal(calls.filter(x => x.url.endsWith(":generateContent")).length, 1);
 });
-test("long-form voice screening uses only a small fixed number of windows", () => {
+test("long-form voice screening covers every section with bounded analysis windows", () => {
   const pcm = tone(160, 180);
   const report = audio.screenM3Take(pcm);
-  assert.ok(report.windows.length <= 4, report.windows.length);
+  assert.ok(report.windows.length >= 12, report.windows.length);
+  assert.ok(report.windows.length <= Math.ceil(180 / 12) + 1, report.windows.length);
+  assert.equal(report.timeline.windowsScanned, report.windows.length);
   assert.ok(report.features.voicedFrames >= 18);
+  assert.equal(report.detected, false);
 });
 
 test("persistent large pitch/timbre changes are detected inside a single take too", () => {
@@ -1008,4 +1011,56 @@ test("M3 live preview never amplifies a low-level PCM segment", () => {
   assert.equal(preview.chunks.length, 1);
   assert.deepEqual(preview.chunks[0], original, "live listening must use unaltered raw samples");
   preview.stop();
+});
+
+
+test("V15 long-form voice audit covers the entire timeline, not just four sparse samples", () => {
+  // This 24s middle shift has only brief overlap with the old four probes.
+  const pcm = concat(tone(160, 38), tone(270, 24), tone(160, 30));
+  const check = audio.screenM3Take(pcm);
+  assert.ok(check.windows.length >= 7, "continuous 12s checks must cover the programme");
+  assert.ok(check.windows.some(w => w.start >= 36 && w.start <= 48), "middle transition must be represented");
+  assert.equal(check.timeline.windowsScanned, check.windows.length);
+  assert.ok(check.timeline.maxPitchSemitones > 6);
+  assert.ok(check.windows.every(w => w.end <= pcm.length / 48000 + 0.001));
+  assert.ok(["review-pitch-and-prosody", "sustained-multi-cue-drift-risk"].includes(check.timeline.status));
+});
+
+test("V15 voice analysis is advisory for voice-band-stable loudness changes", () => {
+  // Plain loudness changes are not biometric speaker changes.
+  const pcm = concat(tone(160, 30, 0.14), tone(160, 36, 0.025));
+  const check = audio.screenM3Take(pcm);
+  assert.equal(check.detected, false);
+  assert.ok(check.windows.length >= 5);
+  assert.equal(check.timeline.longestMultiCueRun, 0);
+  assert.ok(check.windows.every(w => w.risk !== "multi-cue"));
+});
+
+test("V15 timeline is preserved in audit without another synthesis or changing PCM", async () => {
+  const pcm = concat(tone(160, 24), tone(160, 30, 0.09));
+  const requests = [], events = [];
+  const result = await run({
+    streaming: true, diagnosticMode: "legacy-default",
+    fetcher: async (url) => { requests.push(url); return sseResponse(streamEvents(pcm)); },
+    log(event, details) { events.push({ event, details }); },
+  });
+  assert.equal(requests.length, 1);
+  assert.ok(result.audit.voiceTimeline?.windows.length >= 4);
+  assert.equal(result.audit.voiceTimeline?.windowsScanned, result.audit.voiceTimeline?.windows.length);
+  assert.ok(events.some(e => e.event === "M3_VOICE_CONTINUITY_AUDIT"));
+  assert.deepEqual(audio.decodeM3Audio(result.wav, "audio/wav"), pcm);
+  assert.equal(result.audit.integrity.rawSha256, result.audit.integrity.processedSha256);
+});
+
+test("V15 exposes waveform-independent voice audit across pipeline, SSE and user QA", async () => {
+  const [handler, page, pipeline] = await Promise.all([
+    readFile("app/lib/m3-handler.ts", "utf8"),
+    readFile("app/page.tsx", "utf8"),
+    readFile("app/lib/m3-pipeline.ts", "utf8"),
+  ]);
+  assert.ok(handler.includes("voiceTimeline: audit.voiceTimeline"));
+  assert.ok(handler.includes("voiceTimeline: details?.voiceTimeline"));
+  assert.ok(page.includes("captureM3VoiceTimeline(live.diagnostics)"));
+  assert.ok(page.includes("长篇主播一致性声学检查"));
+  assert.ok(pipeline.includes("M3_VOICE_CONTINUITY_AUDIT"));
 });

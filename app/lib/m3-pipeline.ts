@@ -17,6 +17,7 @@ export type M3Audit = {
   integrity: { rawSha256: string; processedSha256: string; rawCrc32: number; processedCrc32: number; rawBytes: number; processedBytes: number; chunks: number; chunkTrace: Array<{ index: number; offset: number; bytes: number; sha256: string }>; contentVerified: false } | null;
   signal: ReturnType<typeof assessM3Signal> | null;
   pitchScreen: "reliable" | "unreliable" | null;
+  voiceTimeline: (ReturnType<typeof screenM3Take>["timeline"] & { windows: ReturnType<typeof screenM3Take>["windows"] }) | null;
   parts: Array<{ index: number; characters: number; seconds: number; attempts: number; features: M3Features; score: number; windowWarnings: number; gainDb: number }>;
 };
 
@@ -286,6 +287,7 @@ export async function generateM3Program(options: {
     integrity: null,
     signal: null,
     pitchScreen: null,
+    voiceTimeline: null,
   };
 
   if (signal.aborted) throw new M3Error("M3_CANCELLED", "M3 生成已取消。", 499);
@@ -438,6 +440,19 @@ export async function generateM3Program(options: {
   });
 
   const screening = screenM3Take(pcm);
+  // Persist full time-indexed evidence for real 13-news samples, rather than
+  // comparing just 4 dispersed windows or interpreting F0 variation as
+  // proof of a different speaker. Never alter Google PCM.
+  audit.voiceTimeline = { ...screening.timeline, windows: screening.windows };
+  log("M3_VOICE_CONTINUITY_AUDIT", {
+    model, voice, transport: audit.transport,
+    status: screening.timeline.status,
+    windowsScanned: screening.timeline.windowsScanned,
+    multiCueWindows: screening.timeline.multiCueWindows,
+    longestMultiCueRun: screening.timeline.longestMultiCueRun,
+    firstSustainedStart: screening.timeline.firstSustainedStart,
+    maxPitchSemitones: screening.timeline.maxPitchSemitones,
+  });
   const minimumVoicedFrames = pcm.length / 48000 >= 6 ? 18 : 1;
   const reliablePitch = screening.features.voicedFrames >= minimumVoicedFrames;
   audit.pitchScreen = reliablePitch ? "reliable" : "unreliable";
@@ -450,16 +465,15 @@ export async function generateM3Program(options: {
   }
   if (reliablePitch && screening.detected) {
     log("VOICE_DRIFT_DETECTED", {
-      index: 0,
-      attempt: 1,
-      score: screening.score,
-      comparison: screening.overall,
+      index: 0, attempt: 1, score: screening.score,
+      comparison: screening.overall, timeline: screening.timeline,
     });
     throw new M3Error(
       "VOICE_DRIFT_DETECTED",
-      "M3 在这一次整篇生成内部检测到持续声线异常。按照当前设置不会分段或重试。",
+      `M3 原始音频约 ${screening.timeline.firstSustainedStart ?? 0} 秒开始出现持续多指标声线异常疑点（音高+音色频谱），已拒绝标记为同一主播稳定完成。无法仅凭声学指标证明换人，不会分段、改音色或重试。请下载原始诊断音频。`,
       502,
-      { requests: 1, acceptedChunks: 0 },
+      { requests: 1, acceptedChunks: 0, voiceTimeline: audit.voiceTimeline,
+        integrity: audit.integrity, stage: "voice-continuity-audit" },
     );
   }
 
@@ -493,6 +507,7 @@ export async function generateM3Program(options: {
     activitySeconds: activity.activeSeconds,
     rawPcmSeconds: activity.rawSeconds,
     pitchScreen: audit.pitchScreen,
+    voiceTimelineStatus: audit.voiceTimeline?.status,
     upstreamMs: audit.timings.upstreamMs,
     postprocessMs: audit.timings.postprocessMs,
     totalMs: audit.timings.totalMs,

@@ -56,10 +56,10 @@ function framePitch(s: Float64Array) {
   const delta = 0.5 * (a - c) / (a - 2 * b + c || 1);
   return ANALYSIS_RATE / (lag + Math.max(-0.5, Math.min(0.5, delta)));
 }
-export function analyzeM3Pcm(pcm: Uint8Array, startSeconds = 0, endSeconds = pcm.byteLength / 48000): M3Features {
+export function analyzeM3Pcm(pcm: Uint8Array, startSeconds = 0, endSeconds = pcm.byteLength / 48000, maxFrames = 240): M3Features {
   const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
   const total = pcm.byteLength / 2, first = Math.floor(startSeconds * 24000), end = Math.min(total, Math.floor(endSeconds * 24000));
-  const frames = Math.min(240, Math.max(1, Math.floor((end - first) / 24000 * 12)));
+  const frames = Math.min(Math.max(1, maxFrames), Math.max(1, Math.floor((end - first) / 24000 * 12)));
   const f0: number[] = [], levels: number[] = [], centroids: number[] = [], mfcc: number[][] = [];
   for (let frame = 0; frame < frames; frame++) {
     const offset = first + Math.floor(frame / Math.max(1, frames - 1) * Math.max(0, end - first - 960));
@@ -106,6 +106,18 @@ export function compareM3Voice(reference: M3Features, candidate: M3Features): M3
   const score = reliable ? pitchSemitones / 6 + centroidLogRatio / 0.8 + mfccDistance / 2.5 + Math.min(1, loudnessDb / 12) * 0.15 : 0;
   return { detected, reliable, score, pitchSemitones, pitchRangeDelta, loudnessDb, centroidLogRatio, mfccDistance };
 }
+export type M3VoiceWindow = {
+  start: number; end: number; comparison: M3Drift;
+  f0Median: number; rmsDb: number;
+  risk: "none" | "pitch-only" | "multi-cue" | "inconclusive";
+};
+/**
+ * Long-form *acoustic* voice screen. Never claims biometric identity or
+ * verifies words. A newsreader may naturally change pitch and expressivity.
+ * Two adjacent windows must exhibit multiple independent acoustic cues
+ * before rejecting the single Google response as a sustained drift risk.
+ * No pitch shifting, cloning, resynthesis, splitting or audio modification.
+ */
 export function screenM3Take(pcm: Uint8Array, reference?: M3Features) {
   const seconds = pcm.byteLength / 48000;
   const features = analyzeM3Pcm(pcm);
@@ -118,31 +130,63 @@ export function screenM3Take(pcm: Uint8Array, reference?: M3Features) {
       if (anchor.voicedFrames >= 18) break;
     }
   }
-  const windows: Array<{ start: number; end: number; comparison: M3Drift }> = [];
 
-  // Fast long-form screening: sample a few representative windows instead of
-  // running FFT/MFCC analysis every 12 seconds across a 10–15 minute program.
-  const rawStarts = reference
-    ? [0, seconds * 0.25, seconds * 0.5, seconds * 0.75, Math.max(0, seconds - 18)]
-    : [24, seconds * 0.33, seconds * 0.66, Math.max(24, seconds - 18)];
-  const starts = [...new Set(rawStarts.map(v => Math.max(0, Math.min(Math.max(0, seconds - 6), Math.round(v)))))]
-    .filter(start => start + 6 <= seconds);
-
-  for (const start of starts) {
-    const end = Math.min(seconds, start + 18);
-    windows.push({ start, end, comparison: compareM3Voice(anchor, analyzeM3Pcm(pcm, start, end)) });
+  // Unlike the older five isolated samples, scan every part of the
+  // programme. Bound FFT work to 72 frames per 18-second window so a
+  // 15-minute broadcast stays affordable on Cloudflare Workers.
+  const windowSeconds = Math.min(18, seconds), stepSeconds = 12;
+  const starts: number[] = [];
+  if (seconds > 0 && windowSeconds > 0) {
+    for (let start = 0; start + windowSeconds <= seconds + 1e-6; start += stepSeconds) starts.push(start);
+    const last = Math.max(0, seconds - windowSeconds);
+    if (starts.length === 0 || last - starts[starts.length - 1] >= 1) starts.push(last);
   }
 
+  const windows: M3VoiceWindow[] = [];
+  for (const start of starts) {
+    const end = Math.min(seconds, start + windowSeconds);
+    const measured = analyzeM3Pcm(pcm, start, end, 72);
+    const comparison = compareM3Voice(anchor, measured);
+    const multiCue = comparison.reliable &&
+      ((comparison.pitchSemitones > 3.2 &&
+        (comparison.mfccDistance > 1.65 || comparison.centroidLogRatio > 0.48)) ||
+        (comparison.mfccDistance > 1.8 && comparison.centroidLogRatio > 0.52));
+    const risk: M3VoiceWindow["risk"] = !comparison.reliable ? "inconclusive" :
+      multiCue ? "multi-cue" :
+      comparison.pitchSemitones > 3.2 ? "pitch-only" : "none";
+    windows.push({
+      start: Math.round(start * 100) / 100, end: Math.round(end * 100) / 100,
+      comparison, f0Median: measured.f0Median, rmsDb: measured.rmsDb, risk,
+    });
+  }
+
+  // Require two adjacent multi-cue windows. A temporary emotional inflection,
+  // volume change or pitch-only drop must remain a review warning, not a
+  // fabricated claim that a different speaker appeared.
+  let consecutive = 0, longest = 0, firstSustainedStart: number | null = null;
+  const candidates = windows.filter(w => w.risk === "multi-cue").length;
+  for (let i = 0; i < windows.length; i++) {
+    if (windows[i].risk === "multi-cue") {
+      consecutive += 1;
+      if (consecutive === 2 && firstSustainedStart === null) firstSustainedStart = windows[i - 1].start;
+      longest = Math.max(longest, consecutive);
+    } else consecutive = 0;
+  }
   const overall = compareM3Voice(anchor, features);
-  const detectedWindows = windows.filter(w => w.comparison.detected).length;
-  const sustained = detectedWindows >= 2;
+  const detected = longest >= 2 || (Boolean(reference) && overall.detected &&
+    (overall.mfccDistance > 1.8 || overall.centroidLogRatio > 0.52));
+  const advisoryWindows = windows.filter(w => w.risk === "pitch-only" || w.risk === "multi-cue").length;
   return {
-    features,
-    anchor,
-    overall,
-    windows,
-    detected: (Boolean(reference) && overall.detected) || sustained,
-    score: overall.score + (sustained ? 5 : 0),
+    features, anchor, overall, windows,
+    detected, score: overall.score + (detected ? 5 : 0),
+    timeline: {
+      windowSeconds, stepSeconds, windowsScanned: windows.length,
+      advisoryWindows, multiCueWindows: candidates,
+      longestMultiCueRun: longest, firstSustainedStart,
+      maxPitchSemitones: Math.round(Math.max(0, ...windows.filter(w => w.comparison.reliable).map(w => w.comparison.pitchSemitones)) * 100) / 100,
+      status: detected ? "sustained-multi-cue-drift-risk" : advisoryWindows ? "review-pitch-and-prosody" : "no-sustained-drift-detected",
+      note: "Acoustic screening only; pitch and MFCC do not prove speaker identity or transcript completeness.",
+    },
   };
 }
 /** Scalar gain only: at most 3 dB, with measured peak headroom. No pitch/EQ/resampling. */
