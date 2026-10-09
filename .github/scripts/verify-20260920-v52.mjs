@@ -56,10 +56,6 @@ async function settled(index){
   await page.waitForFunction(index=>{
     const G=window.NG14,C=window.Cesium,n=G?.news?.[G.current];
     if(!G?.viewer||G.current!==index||G.overviewMode||G.viewer.camera._currentFlight||!n)return false;
-    if(G.v52Geography?.kind(n)){
-      const geo=G.v52Geography.getDiagnostics();
-      return geo.state?.serial===G.navSerial&&geo.state.status==='ready';
-    }
     const p=C.Cartesian3.fromDegrees(+n.lon,+n.lat),xy=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,p),canvas=G.viewer.scene.canvas,t=C.JulianDate.now();
     if(!xy||Math.abs(xy.x/canvas.clientWidth-.5)>.03||Math.abs(xy.y/canvas.clientHeight-.5)>.03)return false;
     // Base/visited markers can already be visible during country highlights.
@@ -83,6 +79,9 @@ async function settled(index){
   assert.equal(state.collision?.indexedLabels,state.labelEntities,'Label index lost or retained an entity');
   assert.equal(state.collision?.disposed,false,'Collision listener disposed during an active page');
   assert.equal(state.cleanup?.pendingTimers,0,'Overview cleanup still scheduled in a story');
+  assert.equal(state.geography?.featureDisplay,'point');
+  assert.equal(state.geography?.areaActive,false);
+  assert.equal(state.geography?.depthTestAgainstTerrain,false);
   return state;
 }
 try{
@@ -124,7 +123,7 @@ try{
   assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
   assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
   assert.ok(borders.cache.some(s=>s.includes('china-border-ownership')&&s.endsWith('?v=20261007-r6-china-border-ownership')));
-  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-full-quality-r4')));
+  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-thin-points-r5')));
   report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();

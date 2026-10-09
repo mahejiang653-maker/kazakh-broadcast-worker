@@ -2,7 +2,8 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261010-r6-full-quality-r4';
+  const VERSION = '20261010-r6-thin-points-r5';
+  const FEATURE_DISPLAY = 'point';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
   let controller = null, activeSerial = null, detailEntities = [], removeMove = null, removeTerrain = null;
   const detailBands = new Map(), detailPending = new Map();
@@ -17,13 +18,13 @@
   const value = p => p?.getValue ? p.getValue(G.viewer.clock.currentTime) : p;
   function borderMaterial(color = '#e6f3ff') {
     if (!borderMaterials.has(color)) borderMaterials.set(color,new C.PolylineOutlineMaterialProperty({
-      color:C.Color.fromCssColorString(color),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.18,
+      color:C.Color.fromCssColorString(color),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.09,
     }));
     return borderMaterials.get(color);
   }
   function styleBorder(e, on = false) {
     if (!e?.polyline) return;
-    e.polyline.width = on ? 1.7 : 1.2;
+    e.polyline.width = on ? .85 : .6;
     e.polyline.material = borderMaterial(on ? '#ff6670' : '#e6f3ff');
   }
   const setCountry = G.setCountry;
@@ -154,10 +155,11 @@
     }));
   }
   if (typeof initViewer === 'function') G.initViewer = async function (...args) {
-    // Load the small local reference before expensive globe/border initialization,
-    // so a rapid first visit to the route need not compete with imagery requests.
-    void loadCatalog().catch(() => {});
+    if (FEATURE_DISPLAY === 'geometry') void loadCatalog().catch(() => {});
     const result = await initViewer.apply(this,args), layers = G.viewer.imageryLayers;
+    // Surface overlays must not fight satellite tile depth. Cesium still hides
+    // the opposite side of the globe when terrain depth testing is disabled.
+    if (G.viewer.scene?.globe) G.viewer.scene.globe.depthTestAgainstTerrain = false;
     if (layers) {
       for (let i=0;i<layers.length;i++) watchImagery(layers.get(i));
       removeImageryAdded ||= layers.layerAdded.addEventListener(watchImagery);
@@ -231,14 +233,15 @@
     }
   }
   G.v52RenderGeographicFeature = async function (n, serial) {
-    if (!kind(n)) return false;
+    // Return to the existing scene engine's red point and location camera.
+    if (FEATURE_DISPLAY === 'point' || !kind(n)) return false;
     areaActive = true; hidePoint();
     let result;
     try { result = await resolve(n, signal()); } catch (e) { if (e.name !== 'AbortError') console.warn('[R6 geography]',e.message); }
     if (!current(serial)) return true;
     const g = geometry(result?.geometry);
     if (!g) {
-      // Do not invent a circle/rectangle, or silently turn a road back into a red dot.
+      // In optional geometry mode, unresolved shapes keep their precision label.
       state = {serial, status:'unavailable', label:placeLabel(n)};
       const p = C.Cartesian3.fromDegrees(+n.lon,+n.lat,0);
       await new Promise(r => G.viewer.camera.flyToBoundingSphere(new C.BoundingSphere(p,1), {
@@ -336,7 +339,7 @@
         // Latitude packs contain coastlines far outside the small camera view.
         // Keep their source coordinates intact; only omit wholly off-screen lines.
         if (!lineInView(line,coverage)) continue;
-        const spec = ground(line,C.Color.WHITE,1.3);
+        const spec = ground(line,C.Color.WHITE,.65);
         spec.polyline.material = borderMaterial();
         const e = G.viewer.entities.add(spec);
         vertices+=line.length;
@@ -357,9 +360,10 @@
     void refreshDetails();
   };
   G.v52PlaceLabel = placeLabel;
-  G.v52Geography = {version:VERSION, geometry, explicit, kind, tileKeys,viewBounds,containsView,lineInView,
+  G.v52Geography = {version:VERSION,featureDisplay:FEATURE_DISPLAY, geometry, explicit, kind, tileKeys,viewBounds,containsView,lineInView,
     getDiagnostics:() => ({version:VERSION,areaActive,state:state && {...state},detailEntities:detailEntities.length,
       lineSurface:terrainClamping()?'terrain-clamped':'ellipsoid-surface',
+      featureDisplay:FEATURE_DISPLAY,depthTestAgainstTerrain:G.viewer?.scene?.globe?.depthTestAgainstTerrain,
       imageryRetries,
       detailBuilds,detailVertices,detailSettled:!!detailCoverage,
       detailReady:detailBands.size>0,cachedBands:detailBands.size,activeSerial,moveListener:!!removeMove})};

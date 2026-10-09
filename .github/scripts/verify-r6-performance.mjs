@@ -56,12 +56,28 @@ try{
     });
   });
   await page.locator('#timeline button').nth(11).click();
-  await page.waitForFunction(()=>NG14.current===11&&!NG14.viewer.camera._currentFlight&&NG14.v52Geography.getDiagnostics().state?.status==='ready',null,{timeout:60000});
+  await page.waitForFunction(()=>NG14.current===11&&!NG14.viewer.camera._currentFlight&&NG14.v51SceneEntities.some(e=>e.point&&e.show!==false),null,{timeout:60000});
   report.flightQuality=await page.evaluate(()=>{window.__perfRemoveFlight();return window.__perfFlightQuality;});
   await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:15000}).catch(()=>{});
   await page.waitForTimeout(1800);
-  const route=await sample('route-idle');await page.screenshot({path:dir+'/route.png',fullPage:true});
-  // A visible CallbackProperty must keep drawing; static roads must become idle.
+  const route=await sample('duku-point');await page.screenshot({path:dir+'/duku-point.png',fullPage:true});
+  assert.equal(route.geography.featureDisplay,'point');assert.equal(route.geography.areaActive,false);
+  assert.equal(route.geography.depthTestAgainstTerrain,false);
+  await page.evaluate(()=>{
+    const G=NG14,C=Cesium,n=G.news[G.current];
+    G.viewer.camera.setView({destination:C.Cartesian3.fromDegrees(n.lon,n.lat,9000000),orientation:{heading:0,pitch:-Math.PI/2,roll:0}});
+    G.viewer.camera.moveEnd.raiseEvent();G.viewer.scene.requestRender();
+  });
+  await page.waitForTimeout(600);
+  report.highBorderStyle=await page.evaluate(()=>{
+    const v=NG14.viewer,t=v.clock.currentTime;
+    return {height:v.camera.positionCartographic.height,width:NG14.borderEntities[0].polyline.width.getValue(t),scale:v.resolutionScale,detailEntities:NG14.v52Geography.getDiagnostics().detailEntities};
+  });
+  assert.equal(report.highBorderStyle.width,.6);assert.equal(report.highBorderStyle.scale,2.2);
+  assert.equal(report.highBorderStyle.detailEntities,0);assert.ok(report.highBorderStyle.height>8000000);
+  await page.screenshot({path:dir+'/high-borders.png',fullPage:true});
+  await page.locator('#all').click();await page.waitForTimeout(5500);const overview=await sample('overview-idle');
+  // Start from an idle overview so existing point pulses cannot conceal a frozen animation.
   const moving=await page.evaluate(async()=>{
     const v=NG14.viewer,C=Cesium,start=performance.now();let renders=0,finish;
     const positions=[],done=new Promise(resolve=>{finish=resolve;});
@@ -74,16 +90,15 @@ try{
     const timer=setTimeout(finish,10000);await done;clearTimeout(timer);v.entities.remove(entity);remove();
     return {frames:renders,positions,seconds:(performance.now()-start)/1000};
   });report.callbackAnimation=moving;
-  await page.locator('#all').click();await page.waitForTimeout(5500);const overview=await sample('overview-idle');
   if(!baseline){
-    assert.ok(style.width>=1&&style.width<=1.4,'Normal borders should stay thin and legible');
-    assert.ok(style.material.outlineWidth<=.25,'Border outlines should stay subtle');
+    assert.equal(style.width,.6,'Normal borders should be half of the previous 1.2 pixel width');
+    assert.equal(style.material.outlineWidth,.09,'Border outlines should also be halved');
     assert.equal(mutations,0,'An unchanged viewport must not rebuild detailed borders');
     for(const snapshot of [stockholm,route,overview])assert.deepEqual([snapshot.scale,snapshot.sse,snapshot.msaaSamples],[2.2,.75,4],'Original mobile pixel density and detail must be preserved');
     assert.ok(report.flightQuality.length>0,'Quality must also be measured while the camera moves');
     for(const quality of report.flightQuality)assert.deepEqual(quality,[2.2,.75,4],'Camera movement must not lower image quality');
     assert.ok(route.requestRenderMode,'On-demand rendering did not apply');
-    assert.ok(route.renders<=8,'A static route should stop continuously rendering');
+    assert.ok(route.renders>0,'Point pulse animations must keep drawing');
     assert.ok(moving.frames>=4&&new Set(moving.positions.map(p=>p.join(','))).size>=4,'Callback animations must render distinct moving states');
     assert.ok(overview.renders<=8,'Overview must also stop continuously rendering');
   }
