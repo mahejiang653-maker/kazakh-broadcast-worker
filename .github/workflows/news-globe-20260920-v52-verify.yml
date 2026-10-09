@@ -19,6 +19,8 @@ on:
       - 'tests/r6-overlay-lifecycle.test.mjs'
       - '.github/scripts/verify-20260920-v52.mjs'
       - '.github/scripts/verify-r6-geography.mjs'
+      - '.github/scripts/r6-imagery-recovery.mjs'
+      - 'tests/r6-imagery-recovery.test.mjs'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
   workflow_dispatch:
 permissions:
@@ -33,7 +35,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - name: Check current R6 entry
-        run: node --test tests/r6-entry.test.mjs tests/r6-overlay-lifecycle.test.mjs tests/r6-china-borders.test.mjs tests/r6-geography.test.mjs
+        run: node --test tests/r6-entry.test.mjs tests/r6-overlay-lifecycle.test.mjs tests/r6-china-borders.test.mjs tests/r6-geography.test.mjs tests/r6-imagery-recovery.test.mjs
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
       - name: Verify this commit after CI deployment
         run: node .github/scripts/verify-20260920-v52.mjs
@@ -43,6 +45,7 @@ jobs:
         run: node .github/scripts/verify-r6-geography.mjs
         env:
           GLOBE_QUICK: '1'
+          GLOBE_SIMULATE_TILE_FAILURE: '1'
       - name: Save production results and screenshots
         if: always()
         uses: actions/upload-artifact@v4

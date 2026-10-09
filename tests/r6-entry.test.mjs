@@ -51,7 +51,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v52-china-border-ownership.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261007-r6-china-border-ownership`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
-  for (const name of ['news-globe-v52-geographic-features.js', 'news-globe-v14-v51-scene-engine.js']) assert.ok(scripts.includes(`/${name}?v=20261009-r6-ground-geography`));
+  for (const name of ['news-globe-v52-geographic-features.js', 'news-globe-v14-v51-scene-engine.js']) assert.ok(scripts.includes(`/${name}?v=20261009-r6-ground-geography-r2`));
   assert.ok(names.indexOf('/news-globe-v52-locationless-marker-guard.js') < names.indexOf('/news-globe-v52-geographic-features.js'));
   assert.ok(names.indexOf('/news-globe-v52-geographic-features.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-screen-collision-hotfix.js', 'news-globe-v52-flags-overview-clean.js']) {

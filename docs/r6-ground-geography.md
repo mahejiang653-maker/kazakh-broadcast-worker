@@ -29,3 +29,5 @@
 
 - https://www.naturalearthdata.com/downloads/10m-cultural-vectors/10m-admin-0-countries/ （public domain）
 - https://map.giant.com.cn/index.php/route/ridetrail_index?id=3631
+
+卫星瓦片的瞬时错误最多自动重试两次。验收保留原始网络错误记录，仅在浏览器跨域重新请求得到有效影像后，将该瓦片标记为已恢复；应用错误、其他资源错误以及未恢复的瓦片继续使验收失败。

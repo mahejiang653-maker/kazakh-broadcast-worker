@@ -5,17 +5,19 @@ import vm from 'node:vm';
 import zlib from 'node:zlib';
 
 const source=fs.readFileSync(new URL('../public/news-globe-v52-geographic-features.js',import.meta.url),'utf8');
-function harness(fetcher){
-  const values=[],events=[];
+function harness(fetcher,options={}){
+  const values=[],events=[],handlers={};
   const G={navSerial:1,overviewMode:false,current:0,markers:[{show:true}],pulses:[{show:true}],
     validate:()=>[],updateOcclusion(){this.markers[0].show=true;this.pulses[0].show=true;},
     clearLocal(){for(const e of this.localHighlightEntities) this.viewer.entities.remove(e);this.localHighlightEntities=[];},localHighlightEntities:[],borderEntities:[],loadBorders:async()=>{},
     viewer:{clock:{currentTime:0},entities:{add:e=>{values.push(e);return e;},remove:e=>{const i=values.indexOf(e);if(i>=0)values.splice(i,1);}},
       camera:{moveEnd:{addEventListener:f=>{events.push(f);return ()=>events.splice(events.indexOf(f),1);}},positionCartographic:{height:3000000}}}};
   const C={EllipsoidTerrainProvider:class {},Math:{toDegrees:r=>r*180/Math.PI},Ellipsoid:{WGS84:{scaleToGeodeticSurface:p=>({...p,height:0})}},ArcType:{GEODESIC:1}};
-  const context=vm.createContext({window:{NG14:G,Cesium:C,addEventListener(){}},fetch:fetcher,console,
+  if(options.initViewer)G.initViewer=options.initViewer;
+  if(options.imageryLayers)G.viewer.imageryLayers=options.imageryLayers;
+  const context=vm.createContext({window:{NG14:G,Cesium:C,addEventListener(name,fn){handlers[name]=fn;}},fetch:fetcher,console,
     setTimeout,clearTimeout,AbortController,AbortSignal,DOMException,URLSearchParams,Blob,Response,DecompressionStream});
-  vm.runInContext(source,context);return {G,C,values,events};
+  vm.runInContext(source,context);return {G,C,values,events,handlers};
 }
 test('a country field cannot replace an explicit city label',()=>{
   const {G}=harness();
@@ -71,4 +73,16 @@ test('shipped Duku reference is a full WGS84 route and border tiles omit China r
   const detail=JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../public/news-globe-detail-borders-v1/14.json.gz',import.meta.url))));
   assert.equal(detail.license,'public domain');assert.match(detail.chinaOutline,/retained/);
   assert.ok(detail.tiles['19_14'].length>10,'Stockholm tile contains detailed coastlines');
+});
+test('satellite errors retry at most twice, leave metadata errors alone, and release listeners',async()=>{
+  const event=()=>({listeners:new Set(),addEventListener(fn){this.listeners.add(fn);return ()=>this.listeners.delete(fn);},emit(e){for(const fn of this.listeners)fn(e);}});
+  const errors=event(),added=event(),layer={imageryProvider:{errorEvent:errors}};
+  const {G,handlers}=harness(async()=>({ok:true,json:async()=>({features:{}})}),{
+    initViewer:async()=>42,imageryLayers:{length:1,get:()=>layer,layerAdded:added},
+  });
+  assert.equal(await G.initViewer(),42);added.emit(layer);assert.equal(errors.listeners.size,1);
+  const first={x:1,y:2,level:3,timesRetried:0};errors.emit(first);assert.equal(first.retry,true);
+  const exhausted={x:1,y:2,level:3,timesRetried:2};errors.emit(exhausted);assert.equal(exhausted.retry,false);
+  const metadata={timesRetried:0};errors.emit(metadata);assert.equal(metadata.retry,undefined);
+  handlers.pagehide({persisted:false});assert.equal(errors.listeners.size,0);assert.equal(added.listeners.size,0);
 });

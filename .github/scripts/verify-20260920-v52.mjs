@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {chromium} from 'playwright';
+import {trackConsoleHealth,assertConsoleHealth} from './r6-imagery-recovery.mjs';
 
 const context = {window:{}};
 vm.runInNewContext(fs.readFileSync('public/news-globe-data-20260920-v52-r1.js','utf8'),context);
@@ -102,7 +103,7 @@ try{
     window.__R6_QA_PENDING__=()=>Object.fromEntries(Object.entries(sets).map(([k,s])=>[k,s.size]));
   });
   page.on('pageerror',e=>report.errors.push(e.message));
-  page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());});
+  trackConsoleHealth(page,report);
   const r=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});
   assert.ok(r?.ok(),'Production page unreachable');
   report.actualURL=page.url();
@@ -123,7 +124,7 @@ try{
   assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
   assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
   assert.ok(borders.cache.some(s=>s.includes('china-border-ownership')&&s.endsWith('?v=20261007-r6-china-border-ownership')));
-  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261009-r6-ground-geography')));
+  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261009-r6-ground-geography-r2')));
   report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();
@@ -191,7 +192,7 @@ try{
   await page.screenshot({path:dir+'/china-border-mobile.png',fullPage:true});
   report.checks.push({name:'china-border-mobile',state:chinaMobile});
   assert.deepEqual(report.errors,[]);
-  assert.deepEqual(report.consoleErrors,[]);
+  await assertConsoleHealth(page,report);
   report.status='PASS';console.log('R6_PRODUCTION_13_13_PASS',expected.DAILY_LOCK);
 }catch(error){
   report.status='FAIL';report.error=error.stack||String(error);process.exitCode=1;

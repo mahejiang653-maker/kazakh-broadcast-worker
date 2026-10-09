@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {chromium} from 'playwright';
+import {trackConsoleHealth,assertConsoleHealth} from './r6-imagery-recovery.mjs';
 
 const url=process.env.GLOBE_URL || 'https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html';
 const dir=process.env.GLOBE_OUTPUT || 'globe-verify-r6-geography';fs.mkdirSync(dir,{recursive:true});
@@ -10,6 +11,16 @@ const browser=await chromium.launch({headless:true,...(process.env.HTTPS_PROXY?{
 // This opt-in is only for a managed test environment whose provided HTTPS
 // proxy certificate is absent from Chromium's trust store. CI uses strict TLS.
 const page=await browser.newPage({viewport:{width:390,height:844},ignoreHTTPSErrors:!!process.env.GLOBE_TRUST_PROXY});
+if(process.env.GLOBE_SIMULATE_TILE_FAILURE){
+  let injected=false;
+  await page.route('https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/**',route=>{
+    const url=route.request().url(),level=Number(new URL(url).pathname.match(/\/tile\/(\d+)\//)?.[1]);
+    // The provider probes its highest level before it exists as a layer.
+    // Fail a normal rendered tile, after the public error listener is installed.
+    if(!injected&&level<=19){injected=true;report.simulatedTileFailure=url;return route.abort('failed');}
+    return route.continue();
+  });
+}
 if(process.env.GLOBE_LOCAL){
   const origin=new URL(url).origin,root=path.resolve('public');
   await page.route(origin+'/**',async route=>{
@@ -23,7 +34,8 @@ if(process.env.GLOBE_LOCAL){
   });
 }
 page.on('pageerror',e=>{report.errors.push(e.message);console.error('PAGE_ERROR',e.message);});
-page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());if(m.type()==='warning'&&m.text().includes('[R6 geography]'))console.warn(m.text());});
+trackConsoleHealth(page,report);
+page.on('console',m=>{if(m.type()==='warning'&&m.text().includes('[R6 geography]'))console.warn(m.text());});
 async function settled(index){
   await page.waitForFunction(index=>{
     const G=window.NG14,C=window.Cesium;if(!G?.viewer||G.current!==index||G.overviewMode||G.viewer.camera._currentFlight)return false;
@@ -58,8 +70,9 @@ async function settled(index){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   console.log('ENTRY_LOADED');
-  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261009-r6-ground-geography'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
+  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261009-r6-ground-geography-r2'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
   console.log('BORDERS_READY');
+  if(process.env.GLOBE_SIMULATE_TILE_FAILURE)await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().imageryRetries>0,null,{timeout:15000});
   const indexes=process.env.GLOBE_INDEXES?process.env.GLOBE_INDEXES.split(',').map(Number):process.env.GLOBE_QUICK?[8,10,11,1,2]:Array.from({length:13},(_,i)=>i);
   for(const i of indexes){
     await page.locator('#timeline button').nth(i).click();
@@ -91,6 +104,7 @@ try{
   assert.equal(overview.geo.areaActive,false);assert.equal(overview.local,0);assert.equal(overview.scenes,0);
   report.checks.push({name:'overview-cleanup',state:overview});
   assert.deepEqual(report.errors,[]);
+  await assertConsoleHealth(page,report);
   report.status='PASS';console.log('R6_GEOGRAPHY_PASS');
 }catch(e){report.status='FAIL';report.error=e.stack;process.exitCode=1;console.error(e);report.lastState=await page.evaluate(()=>({current:window.NG14?.current,news:window.NG14?.news?.[NG14.current],geo:window.NG14?.v52Geography?.getDiagnostics()})).catch(()=>null);await page.screenshot({path:dir+'/failure.png',fullPage:true}).catch(()=>{});}
 finally{fs.writeFileSync(dir+'/report.json',JSON.stringify(report,null,2));await browser.close();}

@@ -2,12 +2,14 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261009-r6-ground-geography';
+  const VERSION = '20261009-r6-ground-geography-r2';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
   let controller = null, activeSerial = null, detailEntities = [], removeMove = null, removeTerrain = null;
   const detailBands = new Map(), detailPending = new Map();
   let catalog = null, catalogPromise = null;
   let detailEpoch = 0, areaActive = false, state = null;
+  const imageryWatches = new Map();
+  let removeImageryAdded = null, imageryRetries = 0;
   const current = s => s === G.navSerial && !G.overviewMode;
   const signal = () => (controller ||= new AbortController()).signal;
   const value = p => p?.getValue ? p.getValue(G.viewer.clock.currentTime) : p;
@@ -115,11 +117,28 @@
     return result;
   };
   const initViewer = G.initViewer;
-  if (typeof initViewer === 'function') G.initViewer = function (...args) {
+  function watchImagery(layer) {
+    const provider = layer?.imageryProvider;
+    if (!provider?.errorEvent || imageryWatches.has(provider)) return;
+    imageryWatches.set(provider,provider.errorEvent.addEventListener(error => {
+      // Retry transient public satellite tile errors at most twice. Metadata
+      // errors and permanent failures remain errors rather than looping.
+      if (Number.isFinite(error.x) && Number.isFinite(error.y) && Number.isFinite(error.level)) {
+        error.retry = error.timesRetried < 2;
+        if (error.retry) imageryRetries++;
+      }
+    }));
+  }
+  if (typeof initViewer === 'function') G.initViewer = async function (...args) {
     // Load the small local reference before expensive globe/border initialization,
     // so a rapid first visit to the route need not compete with imagery requests.
     void loadCatalog().catch(() => {});
-    return initViewer.apply(this,args);
+    const result = await initViewer.apply(this,args), layers = G.viewer.imageryLayers;
+    if (layers) {
+      for (let i=0;i<layers.length;i++) watchImagery(layers.get(i));
+      removeImageryAdded ||= layers.layerAdded.addEventListener(watchImagery);
+    }
+    return result;
   };
   async function json(url, sig, timeout = 5000) {
     const local = new AbortController(), stop = () => local.abort();
@@ -283,6 +302,12 @@
   G.v52Geography = {version:VERSION, geometry, explicit, kind, tileKeys,
     getDiagnostics:() => ({version:VERSION,areaActive,state:state && {...state},detailEntities:detailEntities.length,
       lineSurface:terrainClamping()?'terrain-clamped':'ellipsoid-surface',
+      imageryRetries,
       detailReady:detailBands.size>0,cachedBands:detailBands.size,activeSerial,moveListener:!!removeMove})};
-  window.addEventListener('pagehide',e => { if (!e.persisted) { cleanup(); removeTerrain?.(); removeTerrain = null; } });
+  window.addEventListener('pagehide',e => { if (!e.persisted) {
+    cleanup(); removeTerrain?.(); removeTerrain = null;
+    removeImageryAdded?.(); removeImageryAdded = null;
+    for (const remove of imageryWatches.values()) remove();
+    imageryWatches.clear();
+  } });
 })(window.NG14);
