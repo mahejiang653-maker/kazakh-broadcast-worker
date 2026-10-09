@@ -44,7 +44,7 @@ async function settled(index){
     const t=C.JulianDate.now();return G.v51SceneEntities.some(e=>e.point&&e.show!==false&&e.position&&
       C.Cartesian3.distance(C.Ellipsoid.WGS84.scaleToGeodeticSurface(e.position.getValue(t)),C.Cartesian3.fromDegrees(n.lon,n.lat))<5000);
   },index,{timeout:60000});
-  await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().detailEntities>0,null,{timeout:16000}).catch(()=>{});
+  await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().detailSettled||NG14.viewer.camera.positionCartographic.height>1800000,null,{timeout:16000}).catch(()=>{});
   await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:12000}).catch(()=>{});
   const state=await page.evaluate(()=>{
     const G=NG14,C=Cesium,t=C.JulianDate.now(),canvas=G.viewer.scene.canvas;
@@ -70,7 +70,7 @@ async function settled(index){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   console.log('ENTRY_LOADED');
-  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261009-r6-ground-geography-r2'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
+  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-clear-smooth-r3'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
   console.log('BORDERS_READY');
   if(process.env.GLOBE_SIMULATE_TILE_FAILURE)await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().imageryRetries>0,null,{timeout:15000});
   const indexes=process.env.GLOBE_INDEXES?process.env.GLOBE_INDEXES.split(',').map(Number):process.env.GLOBE_QUICK?[8,10,11,1,2]:Array.from({length:13},(_,i)=>i);

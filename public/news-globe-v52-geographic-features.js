@@ -2,17 +2,36 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261009-r6-ground-geography-r2';
+  const VERSION = '20261010-r6-clear-smooth-r3';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
   let controller = null, activeSerial = null, detailEntities = [], removeMove = null, removeTerrain = null;
   const detailBands = new Map(), detailPending = new Map();
   let catalog = null, catalogPromise = null;
   let detailEpoch = 0, areaActive = false, state = null;
+  let detailCoverage = null, detailBuilds = 0, detailVertices = 0;
+  const borderMaterials = new Map();
   const imageryWatches = new Map();
   let removeImageryAdded = null, imageryRetries = 0;
   const current = s => s === G.navSerial && !G.overviewMode;
   const signal = () => (controller ||= new AbortController()).signal;
   const value = p => p?.getValue ? p.getValue(G.viewer.clock.currentTime) : p;
+  function borderMaterial(color = '#e6f3ff') {
+    if (!borderMaterials.has(color)) borderMaterials.set(color,new C.PolylineOutlineMaterialProperty({
+      color:C.Color.fromCssColorString(color),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.55,
+    }));
+    return borderMaterials.get(color);
+  }
+  function styleBorder(e, on = false) {
+    if (!e?.polyline) return;
+    e.polyline.width = on ? 2.6 : 2;
+    e.polyline.material = borderMaterial(on ? '#ff6670' : '#e6f3ff');
+  }
+  const setCountry = G.setCountry;
+  if (typeof setCountry === 'function') G.setCountry = function (iso,on,...args) {
+    const result = setCountry.call(this,iso,on,...args);
+    for (const e of G.countries.get(String(iso || '').toUpperCase())?.entities || []) styleBorder(e,on);
+    return result;
+  };
   const terrainClamping = () => !C.EllipsoidTerrainProvider || !(G.viewer?.terrainProvider instanceof C.EllipsoidTerrainProvider);
   const pointOK = p => Array.isArray(p) && p.length >= 2 &&
     typeof p[0] === 'number' && typeof p[1] === 'number' &&
@@ -75,9 +94,13 @@
   }
   function clearDetails(restore = true) {
     detailEpoch++;
-    for (const e of detailEntities) G.viewer?.entities.remove(e);
-    detailEntities = [];
-    if (restore) restoreBorders();
+    detailCoverage = null; detailVertices = 0;
+    G.viewer?.entities.suspendEvents?.();
+    try {
+      for (const e of detailEntities) G.viewer?.entities.remove(e);
+      detailEntities = [];
+      if (restore) restoreBorders();
+    } finally { G.viewer?.entities.resumeEvents?.(); }
   }
   function cleanup() {
     controller?.abort(); controller = null; activeSerial = null; areaActive = false; state = null;
@@ -108,6 +131,7 @@
       // Enable terrain projection only when there is actual terrain to follow.
       e.polyline.clampToGround = terrainClamping();
       e.polyline.arcType = C.ArcType.GEODESIC;
+      styleBorder(e);
     }
     if (!removeTerrain && G.viewer.scene?.globe?.terrainProviderChanged) removeTerrain =
       G.viewer.scene.globe.terrainProviderChanged.addEventListener(() => {
@@ -270,25 +294,59 @@
       for (let x = Math.floor((w+180)/10); x <= Math.floor((e+180)/10); x++) keys.push(((x%36+36)%36)+'_'+y);
     return [...new Set(keys)];
   }
+  function viewBounds(rect) {
+    const w=C.Math.toDegrees(rect.west);
+    let e=C.Math.toDegrees(rect.east);if(e<w)e+=360;
+    return {w,e,s:C.Math.toDegrees(rect.south),n:C.Math.toDegrees(rect.north)};
+  }
+  function containsView(coverage,view) {
+    if(!coverage)return false;
+    const shift=360*Math.round(((coverage.w+coverage.e)-(view.w+view.e))/720);
+    return view.w+shift>=coverage.w&&view.e+shift<=coverage.e&&view.s>=coverage.s&&view.n<=coverage.n;
+  }
+  function lineInView(line,coverage) {
+    let w=Infinity,e=-Infinity,s=Infinity,n=-Infinity;
+    const center=(coverage.w+coverage.e)/2;
+    for(const p of line){const x=p[0]+360*Math.round((center-p[0])/360);w=Math.min(w,x);e=Math.max(e,x);s=Math.min(s,p[1]);n=Math.max(n,p[1]);}
+    return e>=coverage.w&&w<=coverage.e&&n>=coverage.s&&s<=coverage.n;
+  }
   async function refreshDetails() {
     const serial = activeSerial, epoch = ++detailEpoch;
     if (!current(serial)) return;
     if (G.viewer.camera.positionCartographic.height > 1800000) { clearDetails(); return; }
     const rect = G.viewer.camera.computeViewRectangle();
     if (!rect) return;
-    const keys = tileKeys(rect);
+    const view = viewBounds(rect);
+    // Reuse the installed geometry for small pans and identical moveEnd events.
+    // A margin lets normal dragging stay smooth without missing newly visible lines.
+    if (containsView(detailCoverage,view)) return;
+    const dx=Math.max(.15,(view.e-view.w)*.2),dy=Math.max(.15,(view.n-view.s)*.2);
+    const coverage={w:view.w-dx,e:view.e+dx,s:Math.max(-90,view.s-dy),n:Math.min(89.999,view.n+dy)};
+    const radians=d=>d*Math.PI/180;
+    const keys = tileKeys({west:radians(coverage.w),east:radians(coverage.e),south:radians(coverage.s),north:radians(coverage.n)});
     if (keys.length > 24) { clearDetails(); return; }
     let data;
     try { data = await loadDetail(keys); } catch { return; } // keep the clamped baseline on a failed optional download
     if (!current(serial) || activeSerial !== serial || epoch !== detailEpoch) return;
     const next = [];
-    for (const key of keys) for (const line of data.tiles[key] || []) {
-      const e = G.viewer.entities.add(ground(line,C.Color.fromCssColorString('#d8f3ff').withAlpha(.50),.75));
-      next.push(e);
-    }
-    for (const e of detailEntities) G.viewer.entities.remove(e);
-    detailEntities = next;
-    for (const e of G.borderEntities || []) e.show = !!e._chinaAuthoritativeOutline;
+    let vertices=0;
+    G.viewer.entities.suspendEvents?.();
+    try {
+      for (const key of keys) for (const line of data.tiles[key] || []) {
+        // Latitude packs contain coastlines far outside the small camera view.
+        // Keep their source coordinates intact; only omit wholly off-screen lines.
+        if (!lineInView(line,coverage)) continue;
+        const spec = ground(line,C.Color.WHITE,2.1);
+        spec.polyline.material = borderMaterial();
+        const e = G.viewer.entities.add(spec);
+        vertices+=line.length;
+        next.push(e);
+      }
+      for (const e of detailEntities) G.viewer.entities.remove(e);
+      detailEntities = next;
+      detailCoverage = coverage; detailVertices = vertices; detailBuilds++;
+      for (const e of G.borderEntities || []) e.show = !!e._chinaAuthoritativeOutline;
+    } finally { G.viewer.entities.resumeEvents?.(); }
     G.viewer.scene.requestRender();
   }
   G.v52StartDetailedBorders = function (serial) {
@@ -299,10 +357,11 @@
     void refreshDetails();
   };
   G.v52PlaceLabel = placeLabel;
-  G.v52Geography = {version:VERSION, geometry, explicit, kind, tileKeys,
+  G.v52Geography = {version:VERSION, geometry, explicit, kind, tileKeys,viewBounds,containsView,lineInView,
     getDiagnostics:() => ({version:VERSION,areaActive,state:state && {...state},detailEntities:detailEntities.length,
       lineSurface:terrainClamping()?'terrain-clamped':'ellipsoid-surface',
       imageryRetries,
+      detailBuilds,detailVertices,detailSettled:!!detailCoverage,
       detailReady:detailBands.size>0,cachedBands:detailBands.size,activeSerial,moveListener:!!removeMove})};
   window.addEventListener('pagehide',e => { if (!e.persisted) {
     cleanup(); removeTerrain?.(); removeTerrain = null;

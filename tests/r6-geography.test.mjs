@@ -12,7 +12,8 @@ function harness(fetcher,options={}){
     clearLocal(){for(const e of this.localHighlightEntities) this.viewer.entities.remove(e);this.localHighlightEntities=[];},localHighlightEntities:[],borderEntities:[],loadBorders:async()=>{},
     viewer:{clock:{currentTime:0},entities:{add:e=>{values.push(e);return e;},remove:e=>{const i=values.indexOf(e);if(i>=0)values.splice(i,1);}},
       camera:{moveEnd:{addEventListener:f=>{events.push(f);return ()=>events.splice(events.indexOf(f),1);}},positionCartographic:{height:3000000}}}};
-  const C={EllipsoidTerrainProvider:class {},Math:{toDegrees:r=>r*180/Math.PI},Ellipsoid:{WGS84:{scaleToGeodeticSurface:p=>({...p,height:0})}},ArcType:{GEODESIC:1}};
+  const C={EllipsoidTerrainProvider:class {},Math:{toDegrees:r=>r*180/Math.PI},Ellipsoid:{WGS84:{scaleToGeodeticSurface:p=>({...p,height:0})}},ArcType:{GEODESIC:1},
+    Color:{fromCssColorString:css=>({css})},PolylineOutlineMaterialProperty:class {constructor(options){Object.assign(this,options);}}};
   if(options.initViewer)G.initViewer=options.initViewer;
   if(options.imageryLayers)G.viewer.imageryLayers=options.imageryLayers;
   const context=vm.createContext({window:{NG14:G,Cesium:C,addEventListener(name,fn){handlers[name]=fn;}},fetch:fetcher,console,
@@ -73,6 +74,15 @@ test('shipped Duku reference is a full WGS84 route and border tiles omit China r
   const detail=JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../public/news-globe-detail-borders-v1/14.json.gz',import.meta.url))));
   assert.equal(detail.license,'public domain');assert.match(detail.chinaOutline,/retained/);
   assert.ok(detail.tiles['19_14'].length>10,'Stockholm tile contains detailed coastlines');
+});
+test('border viewport reuse and off-screen culling preserve dateline coverage',()=>{
+  const {G}=harness(),p=G.v52Geography;
+  const coverage={w:178,e:183,s:-5,n:5};
+  assert.equal(p.containsView(coverage,{w:-180,e:-178,s:-1,n:1}),true);
+  assert.equal(p.containsView(coverage,{w:170,e:179,s:-1,n:1}),false);
+  assert.equal(p.lineInView([[-179,0],[-178,1]],coverage),true);
+  assert.equal(p.lineInView([[140,0],[141,1]],coverage),false);
+  assert.equal(p.lineInView([[179,6],[180,7]],coverage),false);
 });
 test('satellite errors retry at most twice, leave metadata errors alone, and release listeners',async()=>{
   const event=()=>({listeners:new Set(),addEventListener(fn){this.listeners.add(fn);return ()=>this.listeners.delete(fn);},emit(e){for(const fn of this.listeners)fn(e);}});

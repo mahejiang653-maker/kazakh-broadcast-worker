@@ -11,6 +11,7 @@ on:
       - 'public/news-globe-v52-china-border-ownership.js'
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-geographic-features.js'
+      - 'public/news-globe-v52-r6-performance.js'
       - 'public/news-globe-geography-v1.json'
       - 'public/news-globe-detail-borders-v1/**'
       - 'tests/r6-geography.test.mjs'
@@ -21,6 +22,8 @@ on:
       - '.github/scripts/verify-r6-geography.mjs'
       - '.github/scripts/r6-imagery-recovery.mjs'
       - 'tests/r6-imagery-recovery.test.mjs'
+      - 'tests/r6-performance.test.mjs'
+      - '.github/scripts/verify-r6-performance.mjs'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
   workflow_dispatch:
 permissions:
@@ -35,7 +38,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: {node-version: 22}
       - name: Check current R6 entry
-        run: node --test tests/r6-entry.test.mjs tests/r6-overlay-lifecycle.test.mjs tests/r6-china-borders.test.mjs tests/r6-geography.test.mjs tests/r6-imagery-recovery.test.mjs
+        run: node --test tests/r6-entry.test.mjs tests/r6-overlay-lifecycle.test.mjs tests/r6-china-borders.test.mjs tests/r6-geography.test.mjs tests/r6-imagery-recovery.test.mjs tests/r6-performance.test.mjs
       - run: npm install --no-save playwright@1.55.0 && npx playwright install --with-deps chromium
       - name: Verify this commit after CI deployment
         run: node .github/scripts/verify-20260920-v52.mjs
@@ -46,6 +49,8 @@ jobs:
         env:
           GLOBE_QUICK: '1'
           GLOBE_SIMULATE_TILE_FAILURE: '1'
+      - name: Verify mobile rendering and animation wake-up
+        run: node .github/scripts/verify-r6-performance.mjs
       - name: Save production results and screenshots
         if: always()
         uses: actions/upload-artifact@v4
@@ -54,3 +59,4 @@ jobs:
           path: |
             globe-verify-r6
             globe-verify-r6-geography
+            globe-verify-r6-performance
