@@ -21,6 +21,10 @@
    const t=viewer.clock.currentTime,pending=[],points=[];
    for(const e of labelEntities){
      if(!visible(e,e.label,t))continue;
+     // Story/admin labels own a constant offset from creation. Moving them here
+     // would change an already-painted frame and make placement depend on whether
+     // the current red marker became visible before or after that first frame.
+     if(e.__v52FixedLabelOffset)continue;
      if(e.__v52CollisionLocked){applyOffset(e,e.__v52CollisionLocked,t);continue}
      pending.push(e);
    }

@@ -4,7 +4,7 @@ import path from 'node:path';
 import {chromium} from 'playwright';
 import {trackConsoleHealth,assertConsoleHealth} from './r6-imagery-recovery.mjs';
 
-const version='20261010-r6-stable-place-labels-r8';
+const version='20261010-r6-fixed-place-labels-r9';
 const url=process.env.GLOBE_URL||'https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html';
 const dir=process.env.GLOBE_OUTPUT||'globe-verify-r6-place-labels';fs.mkdirSync(dir,{recursive:true});
 const report={url,version,localOverrides:!!process.env.GLOBE_LOCAL,status:'RUNNING',cases:[],errors:[],consoleErrors:[]};
@@ -37,12 +37,22 @@ async function caseResult(name,serial,expected){
     const point=G.v51SceneEntities.find(e=>e.point&&C.Cartesian3.distance(e.position.getValue(t),label.position.getValue(t))<1);
     const widths=[...new Set(G.borderEntities.map(e=>e.polyline.width.getValue(t)))];
     const heights=G.borderEntities.flatMap(e=>e.polyline.positions.getValue(t).slice(0,2)).map(p=>C.Cartographic.fromCartesian(p).height);
-    return {frames:__placeLog.frames.filter(f=>f.serial===serial),navSerial:G.navSerial,anchorDistance:point?C.Cartesian3.distance(point.position.getValue(t),label.position.getValue(t)):null,
+    return {frames:__placeLog.frames.filter(f=>f.serial===serial),painted:__placeLog.painted.filter(f=>f.serial===serial),navSerial:G.navSerial,anchorDistance:point?C.Cartesian3.distance(point.position.getValue(t),label.position.getValue(t)):null,
       geo:G.v52Geography.getDiagnostics(),quality:G.v52Performance.getDiagnostics(),widths,minBorderHeight:Math.min(...heights),maxBorderHeight:Math.max(...heights),
       overflow:document.documentElement.scrollWidth>innerWidth+1};
   },serial);
   const stages=data.frames.map(f=>f.names).filter((names,i,all)=>i===0||JSON.stringify(names)!==JSON.stringify(all[i-1]));
   assert.deepEqual(stages,expected.map(s=>[s]),name+': no label reversal or empty rendered stage');
+  assert.ok(data.painted.length,'Record the Cesium labels that actually reached the renderer');
+  const placements=new Map();
+  for(const frame of data.painted){
+    assert.deepEqual(frame.drawOffset,frame.offset,'The first drawn frame must use the authored offset');
+    assert.ok(frame.fixed,'Story and province labels must own their placement before first paint');
+    const offset=JSON.stringify(frame.drawOffset);
+    if(placements.has(frame.id))assert.equal(offset,placements.get(frame.id),'The name must not flip while the camera moves');
+    else placements.set(frame.id,offset);
+    if(frame.text==='新疆')assert.deepEqual(frame.drawOffset,{x:0,y:-29},'Xinjiang must not jump below its geographic anchor');
+  }
   assert.equal(data.navSerial,serial);assert.ok(data.anchorDistance<.001,'Label and red point must share their world anchor');
   assert.equal(data.geo.featureDisplay,'point');assert.equal(data.geo.borderDisplay,'elevated');assert.equal(data.geo.detailEntities,0);
   assert.deepEqual(data.widths,[.63]);assert.ok(Math.abs(data.minBorderHeight-18000)<.01);assert.ok(Math.abs(data.maxBorderHeight-22000)<.01);
@@ -53,16 +63,26 @@ async function caseResult(name,serial,expected){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   await page.waitForFunction(version=>window.NG14?.countries?.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean&&document.querySelector('script[src*="news-globe-v52-hard-rules.js?v='+version+'"]'),version,{timeout:90000});
-  console.log('BORDERS_AND_R8_READY');
+  console.log('BORDERS_AND_R9_READY');
   await page.evaluate(()=>{
     const G=NG14,C=Cesium,read=p=>p?.getValue?p.getValue(G.viewer.clock.currentTime):p;
-    window.__placeLog={frames:[],offsets:[],originalStory:G.news[11],areaDelay:0,pending:false};
+    window.__placeLog={frames:[],offsets:[],painted:[],originalStory:G.news[11],areaDelay:0,pending:false};
     const resolve=G.resolveArea;
     G.resolveArea=async function(...args){const delay=__placeLog.areaDelay;if(delay){__placeLog.pending=true;await new Promise(r=>setTimeout(r,delay));__placeLog.pending=false;}return resolve.apply(this,args);};
-    G.viewer.scene.preRender.addEventListener(()=>{
+    G.viewer.scene.postRender.addEventListener(()=>{
       const labels=[...G.v51SceneEntities,G.localLabelEntity].filter(e=>e?.label&&e.show!==false&&G.viewer.entities.contains(e));
       const names=labels.map(e=>read(e.label.text)),serial=G.navSerial,last=__placeLog.frames.at(-1);
       if(!last||last.serial!==serial||JSON.stringify(last.names)!==JSON.stringify(names))__placeLog.frames.push({at:performance.now(),serial,names,height:G.viewer.camera.positionCartographic.height});
+      // Inspect the actual LabelVisualizer primitive, after drawing. Entity
+      // properties alone missed the old postRender relocation on the first frame.
+      const visualizers=G.viewer.dataSourceDisplay._defaultDataSource._visualizers;
+      for(const e of labels){
+        const primitive=visualizers.map(v=>v._items?.get(e.id)?.label).find(Boolean);
+        if(!primitive?.show)continue;
+        const offset=read(e.label.pixelOffset),drawOffset=primitive.pixelOffset;
+        __placeLog.painted.push({serial,id:e.id,text:read(e.label.text),fixed:!!e.__v52FixedLabelOffset,
+          offset:{x:offset.x,y:offset.y},drawOffset:{x:drawOffset.x,y:drawOffset.y}});
+      }
       for(const e of labels)if(read(e.label.text)==='独库公路'){
         const anchor=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,e.position.getValue(G.viewer.clock.currentTime)),offset=read(e.label.pixelOffset);
         if(anchor)__placeLog.offsets.push({serial,id:e.id,offset:{x:offset.x,y:offset.y},anchor:{x:anchor.x,y:anchor.y},scale:G.viewer.resolutionScale});
@@ -93,6 +113,14 @@ try{
   serial=await begin(10);await finalReady(10,'北京');await page.waitForTimeout(2000);
   await caseResult('cancel-province-to-beijing',serial,['中国','北京']);
   await page.evaluate(()=>__placeLog.areaDelay=0);
+
+  // Replay the entire country/province/road arrival at both phone widths.
+  for(const [width,height] of [[360,800],[480,1066]]){
+    await page.setViewportSize({width,height});
+    serial=await begin(11);await finalReady(11,'独库公路');
+    await caseResult('phone-arrival-'+width,serial,['中国','新疆','独库公路']);
+  }
+  await page.setViewportSize({width:390,height:844});
 
   // Interrupt several stages using the real controls, then check the survivor.
   for(let i=0;i<8;i++){await page.locator('#next').click();await page.locator('#prev').click();}

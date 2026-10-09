@@ -106,6 +106,18 @@ test('visible obstacles still move a label while its own anchor stays exempt',()
   assert.equal(alone.__v52CollisionLocked.y,-40);
 });
 
+test('a story label keeps its first painted position when its red marker is nearby',()=>{
+  const place=label(200,150,0,-29);place.__v52FixedLabelOffset={x:0,y:-29};
+  const h=collision([point(200,110),place]);
+  const firstPaint={...place.label.pixelOffset};
+  h.render();assert.deepEqual(place.label.pixelOffset,firstPaint,'postRender must not move an authored story label');
+  h.add(point(200,150));
+  place.position={x:20,y:20}; // Camera movement towards a screen edge.
+  for(let i=0;i<5;i++)h.render();
+  assert.deepEqual(place.label.pixelOffset,firstPaint);
+  assert.equal(h.projections,0,'fixed story labels do not need collision projections');
+});
+
 test('background and destroyed viewers perform no screen-space work',()=>{
   const h=collision([label(100,100),point(100,100)]);
   h.document.hidden=true;h.render();assert.equal(h.projections,0);

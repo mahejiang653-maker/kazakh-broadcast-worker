@@ -21,18 +21,11 @@ function cleanZhLabel(s){
  if(/教育部/.test(s))return'教育部';
  return s||'新闻地点';
 }
-function dynamicOffset(lon,lat){
- const pos=C.Cartesian3.fromDegrees(+lon,+lat,52000);
- return new C.CallbackProperty(()=>{
-  try{const fn=C.SceneTransforms?.worldToWindowCoordinates||C.SceneTransforms?.wgs84ToWindowCoordinates;const p=fn?.(G.viewer.scene,pos),h=G.viewer.scene.canvas.clientHeight||400,w=G.viewer.scene.canvas.clientWidth||700;if(p){if(p.y<74)return new C.Cartesian2(0,38);if(p.y>h-64)return new C.Cartesian2(0,-40);if(p.x<90)return new C.Cartesian2(48,-18);if(p.x>w-90)return new C.Cartesian2(-48,-18)}}catch{}
-  return new C.Cartesian2(0,-34);
- },false);
-}
-
-/* Every Cesium label goes through one simplified-Chinese cleanup and collision-safe offset. */
+/* Freeze the authored position before the label's first paint. Camera-edge
+   callbacks and postRender avoidance must not flip the name around its anchor. */
 if(typeof G.label==='function'){
  const oldLabel=G.label;
- G.label=(label,lon,lat,mode)=>{const e=oldLabel(cleanZhLabel(label),lon,lat,mode);try{if(e?.label)e.label.pixelOffset=dynamicOffset(lon,lat)}catch{}return e};
+ G.label=(label,lon,lat,mode)=>{const e=oldLabel(cleanZhLabel(label),lon,lat,mode);if(e?.label){const offset=new C.Cartesian2(0,-29);e.label.pixelOffset=offset;e.label.verticalOrigin=C.VerticalOrigin.CENTER;e.__v52FixedLabelOffset=offset}return e};
 }
 
 /* Remove legacy English fragments from the visible location/region chips too. */

@@ -10,6 +10,7 @@ on:
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-v52-china-border-ownership.js'
       - 'public/news-globe-v14-v51-scene-engine.js'
+      - 'public/news-globe-v14-v44-regression-guard.js'
       - 'public/news-globe-v14-ui.js'
       - 'public/news-globe-v14-highlight.js'
       - 'public/news-globe-v52-hard-rules.js'

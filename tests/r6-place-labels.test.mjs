@@ -23,6 +23,7 @@ function harness({areaDelay=0}={}){
     CallbackProperty:class{constructor(fn){this.fn=fn;}getValue(){return this.fn();}},
     ColorMaterialProperty:class{constructor(color){this.color=color;}},
     LabelStyle:{FILL_AND_OUTLINE:1},HorizontalOrigin:{CENTER:1},VerticalOrigin:{CENTER:1},
+    SceneTransforms:{worldToWindowCoordinates:()=>({x:15,y:20})},
   };
   const G={navSerial:1,current:0,started:true,overviewMode:false,playing:false,$:node,news:Array.from({length:13},story),meta:{},
     markers:[],pulses:[],borderEntities:[],chinaSpecialEntities:[],countryFillEntities:[],localHighlightEntities:[],areaCache:new Map(),
@@ -33,11 +34,12 @@ function harness({areaDelay=0}={}){
     const f={options,timer:later(()=>{if(flight===f)flight=null;options.complete?.();},100)};flight=f;
   }
   G.viewer={entities:{values,add(e){values.push(e);return e;},remove(e){const i=values.indexOf(e);if(i>=0)values.splice(i,1);}},
+    scene:{canvas:{clientWidth:390,clientHeight:210}},
     camera:{flyTo:options=>fly('point',options),flyToBoundingSphere:(_,options)=>fly('fit',options)}};
   G.countries=new Map([['CHN',{feature:{type:'Feature',geometry:{type:'Polygon',coordinates:[[[73,18],[135,18],[135,54],[73,54],[73,18]]]}},entities:[]}]]);
   const context=vm.createContext({window:{NG14:G,Cesium:C},Cesium:C,document:{getElementById:()=>null},console,
     setTimeout:later,clearTimeout:id=>timers.delete(id),clearInterval:id=>timers.delete(id),performance:{now:()=>now}});
-  for(const file of ['news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v14-v51-scene-engine.js','news-globe-v52-hard-rules.js'])vm.runInContext(source(file),context);
+  for(const file of ['news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v14-v44-regression-guard.js','news-globe-v14-v51-scene-engine.js','news-globe-v52-hard-rules.js'])vm.runInContext(source(file),context);
   G.resolveArea=async()=>{if(areaDelay)await new Promise(r=>later(r,areaDelay));return {geometry:{type:'Polygon',coordinates:[[[73,36],[96,36],[96,49],[73,49],[73,36]]]}};};
   G.drawAdminArea=()=>G.clearLocal();G.flyArea=()=>{};
   const snapshot=()=>{const names=values.filter(e=>e.label).map(e=>e.label.text);if(JSON.stringify(names)!==JSON.stringify(frames.at(-1)?.names))frames.push({at:now,names});};
@@ -60,6 +62,15 @@ test('play still starts a scene from the initial globe and from overview',()=>{
     const h=harness();Object.assign(h.G,{started,overviewMode,current});let index;
     h.G.focus=i=>{index=i;};h.G.schedule=()=>{};h.G.play();assert.equal(index,expected);
   }
+});
+
+test('a province name starts above its anchor even near the camera edge',()=>{
+  const h=harness(),e=h.G.label('新疆（Xinjiang）',85,42,'country');
+  assert.equal(e.label.text,'新疆','Chinese cleanup must remain intact');
+  const offset=e.label.pixelOffset?.getValue?.()||e.label.pixelOffset;
+  assert.equal(offset.x,0);assert.equal(offset.y,-29,'the top-edge callback must not place the name below the province');
+  assert.equal(e.label.pixelOffset.getValue,undefined,'camera movement must not recalculate the label offset');
+  assert.deepEqual({...e.__v52FixedLabelOffset},{x:0,y:-29});
 });
 
 test('country, province and road labels hand over once without a rendered empty stage',async()=>{

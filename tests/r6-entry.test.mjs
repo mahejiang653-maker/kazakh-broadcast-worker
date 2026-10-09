@@ -52,12 +52,13 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261007-r6-china-border-ownership`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
   for (const name of ['news-globe-v52-geographic-features.js', 'news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-elevated-width150-r7`));
-  for (const name of ['news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v14-v51-scene-engine.js','news-globe-v52-hard-rules.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-stable-place-labels-r8`),'Changed scene scripts must bypass their previous cache keys');
+  for (const name of ['news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v14-v51-scene-engine.js','news-globe-v52-hard-rules.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-fixed-place-labels-r9`),'Changed scene scripts must bypass their previous cache keys');
+  for (const name of ['news-globe-v14-v44-regression-guard.js','news-globe-v52-screen-collision-hotfix.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-fixed-place-labels-r9`));
   assert.ok(names.indexOf('/news-globe-v52-locationless-marker-guard.js') < names.indexOf('/news-globe-v52-geographic-features.js'));
   assert.ok(names.indexOf('/news-globe-v52-geographic-features.js') < names.indexOf('/news-globe-v14-main.js'));
   assert.ok(names.indexOf('/news-globe-v52-geographic-features.js') < names.indexOf('/news-globe-v52-r6-performance.js'));
   assert.ok(names.indexOf('/news-globe-v52-r6-performance.js') < names.indexOf('/news-globe-v14-main.js'));
-  for (const name of ['news-globe-v52-screen-collision-hotfix.js', 'news-globe-v52-flags-overview-clean.js']) {
+  for (const name of ['news-globe-v52-flags-overview-clean.js']) {
     assert.ok(scripts.includes(`/${name}?v=20261007-r6-overlay-lifecycle`),'Updated overlay must bypass its old cache key');
   }
 });
