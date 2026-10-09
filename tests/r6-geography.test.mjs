@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import zlib from 'node:zlib';
+
+const source=fs.readFileSync(new URL('../public/news-globe-v52-geographic-features.js',import.meta.url),'utf8');
+function harness(fetcher){
+  const values=[],events=[];
+  const G={navSerial:1,overviewMode:false,current:0,markers:[{show:true}],pulses:[{show:true}],
+    validate:()=>[],updateOcclusion(){this.markers[0].show=true;this.pulses[0].show=true;},
+    clearLocal(){for(const e of this.localHighlightEntities) this.viewer.entities.remove(e);this.localHighlightEntities=[];},localHighlightEntities:[],borderEntities:[],loadBorders:async()=>{},
+    viewer:{clock:{currentTime:0},entities:{add:e=>{values.push(e);return e;},remove:e=>{const i=values.indexOf(e);if(i>=0)values.splice(i,1);}},
+      camera:{moveEnd:{addEventListener:f=>{events.push(f);return ()=>events.splice(events.indexOf(f),1);}},positionCartographic:{height:3000000}}}};
+  const C={EllipsoidTerrainProvider:class {},Math:{toDegrees:r=>r*180/Math.PI},Ellipsoid:{WGS84:{scaleToGeodeticSurface:p=>({...p,height:0})}},ArcType:{GEODESIC:1}};
+  const context=vm.createContext({window:{NG14:G,Cesium:C,addEventListener(){}},fetch:fetcher,console,
+    setTimeout,clearTimeout,AbortController,AbortSignal,DOMException,URLSearchParams,Blob,Response,DecompressionStream});
+  vm.runInContext(source,context);return {G,C,values,events};
+}
+test('a country field cannot replace an explicit city label',()=>{
+  const {G}=harness();
+  assert.equal(G.v52PlaceLabel({city:'北京',focusLabel:'中国',countryIso3:'CHN'}),'北京');
+  assert.equal(G.v52PlaceLabel({focusLabel:'斯德哥尔摩',country:'瑞典'}),'斯德哥尔摩');
+  assert.equal(G.v52PlaceLabel({focusLabel:'中国',countryIso3:'CHN',lon:116.4,lat:39.9}),'中国','Do not invent Beijing from a country anchor');
+});
+test('geographic intent follows the place and geometry, not incidental headline words',()=>{
+  const {G}=harness(),kind=G.v52Geography.kind;
+  for(const [name,k] of [['独库公路','road'],['天山山脉','mountain'],['天山天池景区','scenic'],['赛里木湖','water'],['京杭运河','water']]) assert.equal(kind({location:name}),k);
+  assert.equal(kind({title:'北京公布公路建设政策',location:'北京'}),null);
+  assert.equal(kind({location:'Research Institute'}),null);
+  assert.equal(kind({location:'河内',placeType:'城市'}),null);
+  assert.equal(kind({location:'黄河'}),'water');
+  assert.equal(kind({sceneMode:'AREA',focusBounds:[170,-10,-170,10]}),'area');
+});
+test('imports reject invalid shapes while accepting polygon holes and dateline bounds',()=>{
+  const {G}=harness(),p=G.v52Geography;
+  const shell=[[0,0],[10,0],[10,10],[0,10],[0,0]],hole=[[2,2],[2,3],[3,3],[3,2],[2,2]];
+  assert.ok(p.geometry({type:'Polygon',coordinates:[shell,hole]}));
+  for(const g of [{type:'LineString',coordinates:[[181,0],[0,0]]},{type:'LineString',coordinates:[[null,0],[0,0]]},{type:'Polygon',coordinates:[shell.slice(0,-1)]}]) {
+    assert.equal(p.geometry(g),null);assert.equal(G.validate({news:[{focusGeometry:g}]}).length,1);
+  }
+  assert.ok(p.explicit({focusBounds:[170,-10,-170,10]}));
+  const keys=p.tileKeys({west:179*Math.PI/180,east:-179*Math.PI/180,south:0,north:.01});
+  assert.deepEqual([...keys],['35_9','0_9']);
+});
+test('all existing national lines move to the surface without moving attack trajectories',async()=>{
+  const {G,C}=harness();const border={polyline:{positions:[{height:18000},{height:22000}]}};
+  const attack={polyline:{positions:[{height:700000}]}};G.borderEntities=[border];
+  await G.loadBorders();assert.ok(border.polyline.positions.every(p=>p.height===0));
+  assert.equal(border.polyline.clampToGround,true);assert.equal(attack.polyline.positions[0].height,700000);
+  G.viewer.terrainProvider=new C.EllipsoidTerrainProvider();
+  await G.loadBorders();assert.equal(border.polyline.clampToGround,false,'Flat surface does not need expensive terrain projection');
+  assert.ok(border.polyline.positions.every(p=>p.height===0));
+});
+test('late geometry fetch after navigation cannot add entities or revive a road marker',async()=>{
+  let finish;
+  const {G,values}=harness(()=>new Promise(r=>{finish=r;}));
+  const task=G.v52RenderGeographicFeature({location:'测试公路',lon:80,lat:40},1);
+  G.updateOcclusion();assert.equal(G.markers[0].show,false);
+  G.navSerial++;G.clearLocal();
+  finish({ok:true,json:async()=>({approximate:false,geometry:{type:'LineString',coordinates:[[80,40],[81,41]]}})});
+  await task;assert.equal(values.length,0);assert.equal(G.v52Geography.getDiagnostics().areaActive,false);
+  G.updateOcclusion();assert.equal(G.markers[0].show,true);
+});
+test('shipped Duku reference is a full WGS84 route and border tiles omit China replacement',()=>{
+  const data=JSON.parse(fs.readFileSync(new URL('../public/news-globe-geography-v1.json',import.meta.url)));
+  const route=data.features['duku-highway'];assert.equal(route.geometry.type,'LineString');
+  assert.equal(route.precision,'reference-route');assert.match(route.sourceURL,/3631/);
+  assert.ok(route.geometry.coordinates.length>500);
+  const lat=route.geometry.coordinates.map(p=>p[1]);assert.ok(Math.max(...lat)>44.2&&Math.min(...lat)<41.8);
+  const detail=JSON.parse(zlib.gunzipSync(fs.readFileSync(new URL('../public/news-globe-detail-borders-v1/14.json.gz',import.meta.url))));
+  assert.equal(detail.license,'public domain');assert.match(detail.chinaOutline,/retained/);
+  assert.ok(detail.tiles['19_14'].length>10,'Stockholm tile contains detailed coastlines');
+});

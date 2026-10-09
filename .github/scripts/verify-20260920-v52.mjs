@@ -44,7 +44,7 @@ function inspect(){
     controlsOutside:['prev','next','play','all'].every(id=>{const r=document.getElementById(id)?.getBoundingClientRect();return r&&(r.top>=box.bottom-1||r.bottom<=box.top+1);}),
     logoOutside:(document.querySelector('.brand')?.getBoundingClientRect().bottom||Infinity)<=box.top+1,
     duplicateIds:ids.filter((id,i)=>ids.indexOf(id)!==i),overflow:document.documentElement.scrollWidth>window.innerWidth+1,
-    overview:G.overviewMode,entities:G.viewer.entities.values.length,
+    overview:G.overviewMode,entities:G.viewer.entities.values.length,geography:G.v52Geography?.getDiagnostics(),
     sceneEntities:['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'].reduce((sum,k)=>sum+(G[k]?.length||0),0),
     markersVisible:[...(G.markers||[]),...(G.pulses||[])].filter(e=>e.show!==false).length,
     collision:G.v52ScreenCollision?.getDiagnostics(),cleanup:G.v52OverviewCleanup?.getDiagnostics(),
@@ -55,6 +55,10 @@ async function settled(index){
   await page.waitForFunction(index=>{
     const G=window.NG14,C=window.Cesium,n=G?.news?.[G.current];
     if(!G?.viewer||G.current!==index||G.overviewMode||G.viewer.camera._currentFlight||!n)return false;
+    if(G.v52Geography?.kind(n)){
+      const geo=G.v52Geography.getDiagnostics();
+      return geo.state?.serial===G.navSerial&&geo.state.status==='ready';
+    }
     const p=C.Cartesian3.fromDegrees(+n.lon,+n.lat),xy=C.SceneTransforms.worldToWindowCoordinates(G.viewer.scene,p),canvas=G.viewer.scene.canvas,t=C.JulianDate.now();
     if(!xy||Math.abs(xy.x/canvas.clientWidth-.5)>.03||Math.abs(xy.y/canvas.clientHeight-.5)>.03)return false;
     // Base/visited markers can already be visible during country highlights.
@@ -118,7 +122,8 @@ try{
   assert.equal(borders.ownership?.removedGenericEdges,177,'Neighbor-side China frontier was not replaced');
   assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
   assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
-  assert.ok(borders.cache.every(s=>s.endsWith('?v=20261007-r6-china-border-ownership')));
+  assert.ok(borders.cache.some(s=>s.includes('china-border-ownership')&&s.endsWith('?v=20261007-r6-china-border-ownership')));
+  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261009-r6-ground-geography')));
   report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();

@@ -1,4 +1,4 @@
-(function(G){G.DATA_KEY='ng-20261008-v52-a1-r6-user13b';G.meta={date:'2026-10-08',version:'V52-A1-R6-daily13',source:'user-provided',verification:'some event details not independently verified'};G.demo=[
+(function(G){G.DATA_KEY='ng-20261008-v52-a1-r6-user13b-geo1';G.meta={date:'2026-10-08',version:'V52-A1-R6-daily13',source:'user-provided',verification:'some event details not independently verified'};G.demo=[
   {
     "id": 1,
     "sceneMode": "POINT",
@@ -25,7 +25,17 @@
     "lon": -90,
     "lat": 27,
     "countryIso3": "USA",
-    "focusLabel": "墨西哥湾"
+    "focusLabel": "墨西哥湾",
+    "placeType": "海域",
+    "featureKind": "water",
+    "focusBounds": [
+      -98,
+      18,
+      -80,
+      30.5
+    ],
+    "geometryApproximate": true,
+    "geometrySource": "墨西哥湾区域展示范围；不代表飓风影响边界"
   },
   {
     "id": 3,
@@ -39,7 +49,17 @@
     "lon": 56.25,
     "lat": 26.55,
     "countryIso3": "IRN",
-    "focusLabel": "霍尔木兹海峡"
+    "focusLabel": "霍尔木兹海峡",
+    "placeType": "海峡",
+    "featureKind": "water",
+    "focusBounds": [
+      55.5,
+      25.7,
+      57.2,
+      27.2
+    ],
+    "geometryApproximate": true,
+    "geometrySource": "霍尔木兹海峡区域展示范围；不代表航道或封锁边界"
   },
   {
     "id": 4,
@@ -159,11 +179,15 @@
       "finalLocation": true
     },
     "title": "我国科研团队研制核光钟，在量子精密测量领域取得突破。",
-    "location": "中国（研究机构地点待核实）",
+    "location": "北京（研究机构地点待核实）",
     "lon": 116.4074,
     "lat": 39.9042,
     "countryIso3": "CHN",
-    "focusLabel": "中国"
+    "focusLabel": "北京",
+    "city": "北京",
+    "placeType": "城市展示锚点",
+    "locationPrecision": "display-anchor",
+    "summary": "以北京作为展示锚点；研究机构的具体地点仍待核实。"
   },
   {
     "id": 12,
@@ -173,7 +197,7 @@
       "finalLocation": true
     },
     "title": "新疆独库公路10月8日起实施冬季封闭，保障山区道路安全。",
-    "location": "新疆独库公路（中段示意）",
+    "location": "新疆独库公路",
     "lon": 84.4,
     "lat": 43.15,
     "countryIso3": "CHN",
@@ -186,7 +210,11 @@
         "lon": 87.6168,
         "lat": 43.8256
       }
-    ]
+    ],
+    "placeType": "公路",
+    "featureKind": "road",
+    "featureId": "duku-highway",
+    "noPoint": true
   },
   {
     "id": 13,
