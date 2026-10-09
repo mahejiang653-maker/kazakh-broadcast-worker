@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import OmniVoiceStudio from "./components/OmniVoiceStudio";
 import PiperLocalStudio from "./components/PiperLocalStudio";
+import FishS21TestStudio from "./components/FishS21TestStudio";
 import { M3LivePreview, M3LiveError, receiveM3LiveAudio, type M3LiveTimings } from "./lib/m3-live-client";
 import { M3_VERSION, prepareM3Text, type M3TextMode, type M3DiagnosticMode } from "./lib/m3-script";
 import { auditM3Transcript, type M3TranscriptAudit } from "./lib/m3-transcript-audit";
@@ -2359,6 +2360,7 @@ export default function Home() {
 
       <OmniVoiceStudio sourceText={text} />
       <PiperLocalStudio sourceText={text} />
+      <FishS21TestStudio sourceText={text} />
 
       <footer>
         <p>QAZAQ RADIO VOICE · 哈萨克语播音生成器</p>
