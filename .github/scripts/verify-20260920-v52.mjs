@@ -88,8 +88,10 @@ async function settled(index){
 try{
   await waitForDeployment();
   // Normal defaults: no security flags and no forced WebGL backend.
-  browser=await chromium.launch({headless:true});
-  page=await browser.newPage({viewport:{width:412,height:915}});
+  browser=await chromium.launch({headless:true,...(process.env.HTTPS_PROXY?{proxy:{server:process.env.HTTPS_PROXY,bypass:'127.0.0.1,localhost'}}:{})});
+  // This opt-in is only for the managed QA proxy's certificate. CI retains
+  // Chromium's normal certificate checks, as do all production page requests.
+  page=await browser.newPage({viewport:{width:412,height:915},ignoreHTTPSErrors:!!process.env.GLOBE_TRUST_PROXY});
   await page.addInitScript(()=>{
     const sets={timeout:new Set(),interval:new Set(),raf:new Set()};
     const st=window.setTimeout,si=window.setInterval,raf=window.requestAnimationFrame;
@@ -124,7 +126,7 @@ try{
   assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
   assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
   assert.ok(borders.cache.some(s=>s.includes('china-border-ownership')&&s.endsWith('?v=20261007-r6-china-border-ownership')));
-  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-elevated-width150-r7')));
+  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-stable-place-labels-r8')));
   report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();
