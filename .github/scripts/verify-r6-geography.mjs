@@ -77,7 +77,7 @@ async function settled(index){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   console.log('ENTRY_LOADED');
-  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-elevated-points-r6'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
+  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-elevated-width150-r7'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
   console.log('BORDERS_READY');
   if(process.env.GLOBE_SIMULATE_TILE_FAILURE)await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().imageryRetries>0,null,{timeout:15000});
   if(!process.env.GLOBE_VISIBILITY_ONLY){
@@ -127,7 +127,7 @@ try{
     const make=(positions,width,material)=>v.scene.primitives.add(new C.Primitive({show:false,cull:false,allowPicking:false,asynchronous:false,
       geometryInstances:new C.GeometryInstance({geometry:new C.PolylineGeometry({positions,width,arcType:C.ArcType.GEODESIC,vertexFormat:C.PolylineMaterialAppearance.VERTEX_FORMAT})}),
       appearance:new C.PolylineMaterialAppearance({material,translucent:false})}));
-    window.__borderProbe={samples,make,front:make(positions,.65,material)};
+    window.__borderProbe={samples,make,front:make(positions,.63,material)};
   });
   const frame=async()=>{
     await page.evaluate(()=>new Promise(resolve=>{const v=NG14.viewer,remove=v.scene.postRender.addEventListener(()=>{remove();resolve();});v.scene.requestRender();}));

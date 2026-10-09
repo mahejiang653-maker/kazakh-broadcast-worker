@@ -76,7 +76,7 @@ try{
     const v=NG14.viewer,t=v.clock.currentTime;
     return {height:v.camera.positionCartographic.height,width:NG14.borderEntities[0].polyline.width.getValue(t),scale:v.resolutionScale,detailEntities:NG14.v52Geography.getDiagnostics().detailEntities};
   });
-  assert.equal(report.highBorderStyle.width,.6);assert.equal(report.highBorderStyle.scale,2.2);
+  assert.equal(report.highBorderStyle.width,.63);assert.equal(report.highBorderStyle.scale,2.2);
   assert.equal(report.highBorderStyle.detailEntities,0);assert.ok(report.highBorderStyle.height>8000000);
   await page.screenshot({path:dir+'/high-borders.png',fullPage:true});
   await page.locator('#all').click();await page.waitForTimeout(5500);const overview=await sample('overview-idle');
@@ -94,8 +94,8 @@ try{
     return {frames:renders,positions,seconds:(performance.now()-start)/1000};
   });report.callbackAnimation=moving;
   if(!baseline){
-    assert.equal(style.width,.6,'Normal borders should be half of the previous 1.2 pixel width');
-    assert.equal(style.material.outlineWidth,.09,'Border outlines should also be halved');
+    assert.equal(style.width,.63,'Normal borders should be 150% of the original 0.42 pixel width');
+    assert.equal(style.material.outlineWidth,.09,'The light border outline should remain unchanged');
     assert.equal(mutations,0,'An unchanged viewport must not rebuild detailed borders');
     for(const snapshot of [stockholm,route,overview])assert.deepEqual([snapshot.scale,snapshot.sse,snapshot.msaaSamples],[2.2,.75,4],'Original mobile pixel density and detail must be preserved');
     assert.ok(report.flightQuality.length>0,'Quality must also be measured while the camera moves');

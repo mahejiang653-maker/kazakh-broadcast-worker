@@ -2,7 +2,7 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261010-r6-elevated-points-r6';
+  const VERSION = '20261010-r6-elevated-width150-r7';
   const FEATURE_DISPLAY = 'point';
   const BORDER_DISPLAY = 'elevated';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
@@ -25,7 +25,7 @@
   }
   function styleBorder(e, on = false) {
     if (!e?.polyline) return;
-    e.polyline.width = on ? .85 : .6;
+    e.polyline.width = on ? 1.2 : .63;
     e.polyline.material = borderMaterial(on ? '#ff6670' : '#e6f3ff');
   }
   const setCountry = G.setCountry;
