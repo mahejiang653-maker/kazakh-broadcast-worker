@@ -2,10 +2,11 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261010-r6-thin-points-r5';
+  const VERSION = '20261010-r6-elevated-points-r6';
   const FEATURE_DISPLAY = 'point';
+  const BORDER_DISPLAY = 'elevated';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
-  let controller = null, activeSerial = null, detailEntities = [], removeMove = null, removeTerrain = null;
+  let controller = null, activeSerial = null, detailEntities = [], removeMove = null;
   const detailBands = new Map(), detailPending = new Map();
   let catalog = null, catalogPromise = null;
   let detailEpoch = 0, areaActive = false, state = null;
@@ -126,19 +127,12 @@
     for (const e of G.borderEntities || []) {
       const positions = value(e.polyline?.positions);
       if (!positions) continue;
-      e.polyline.positions = positions.map(p => C.Ellipsoid.WGS84.scaleToGeodeticSurface(p));
-      // The current globe has an ellipsoid surface. Zero-height geodesic lines
-      // already sit on it; projecting 8,000 segments adds avoidable GPU work.
-      // Enable terrain projection only when there is actual terrain to follow.
-      e.polyline.clampToGround = terrainClamping();
+      // Keep the original 18 km borders and 22 km authoritative China outline.
+      // Terrain projection would discard those existing elevated coordinates.
+      e.polyline.clampToGround = false;
       e.polyline.arcType = C.ArcType.GEODESIC;
       styleBorder(e);
     }
-    if (!removeTerrain && G.viewer.scene?.globe?.terrainProviderChanged) removeTerrain =
-      G.viewer.scene.globe.terrainProviderChanged.addEventListener(() => {
-        for (const e of [...(G.borderEntities || []),...detailEntities,...(G.localHighlightEntities || [])])
-          if (e.polyline) e.polyline.clampToGround = terrainClamping();
-      });
     return result;
   };
   const initViewer = G.initViewer;
@@ -157,9 +151,6 @@
   if (typeof initViewer === 'function') G.initViewer = async function (...args) {
     if (FEATURE_DISPLAY === 'geometry') void loadCatalog().catch(() => {});
     const result = await initViewer.apply(this,args), layers = G.viewer.imageryLayers;
-    // Surface overlays must not fight satellite tile depth. Cesium still hides
-    // the opposite side of the globe when terrain depth testing is disabled.
-    if (G.viewer.scene?.globe) G.viewer.scene.globe.depthTestAgainstTerrain = false;
     if (layers) {
       for (let i=0;i<layers.length;i++) watchImagery(layers.get(i));
       removeImageryAdded ||= layers.layerAdded.addEventListener(watchImagery);
@@ -353,22 +344,23 @@
     G.viewer.scene.requestRender();
   }
   G.v52StartDetailedBorders = function (serial) {
-    if (!current(serial)) return;
+    // The restored display uses the original elevated geometry at every zoom.
+    if (BORDER_DISPLAY === 'elevated' || !current(serial)) return;
     activeSerial = serial;
     removeMove?.();
     removeMove = G.viewer.camera.moveEnd.addEventListener(refreshDetails);
     void refreshDetails();
   };
   G.v52PlaceLabel = placeLabel;
-  G.v52Geography = {version:VERSION,featureDisplay:FEATURE_DISPLAY, geometry, explicit, kind, tileKeys,viewBounds,containsView,lineInView,
+  G.v52Geography = {version:VERSION,featureDisplay:FEATURE_DISPLAY,borderDisplay:BORDER_DISPLAY, geometry, explicit, kind, tileKeys,viewBounds,containsView,lineInView,
     getDiagnostics:() => ({version:VERSION,areaActive,state:state && {...state},detailEntities:detailEntities.length,
-      lineSurface:terrainClamping()?'terrain-clamped':'ellipsoid-surface',
+      lineSurface:BORDER_DISPLAY,borderDisplay:BORDER_DISPLAY,
       featureDisplay:FEATURE_DISPLAY,depthTestAgainstTerrain:G.viewer?.scene?.globe?.depthTestAgainstTerrain,
       imageryRetries,
-      detailBuilds,detailVertices,detailSettled:!!detailCoverage,
+      detailBuilds,detailVertices,detailSettled:BORDER_DISPLAY === 'elevated' || !!detailCoverage,
       detailReady:detailBands.size>0,cachedBands:detailBands.size,activeSerial,moveListener:!!removeMove})};
   window.addEventListener('pagehide',e => { if (!e.persisted) {
-    cleanup(); removeTerrain?.(); removeTerrain = null;
+    cleanup();
     removeImageryAdded?.(); removeImageryAdded = null;
     for (const remove of imageryWatches.values()) remove();
     imageryWatches.clear();

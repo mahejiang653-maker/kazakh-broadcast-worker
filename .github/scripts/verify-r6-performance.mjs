@@ -36,7 +36,7 @@ try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   await page.waitForFunction(()=>window.NG14?.__v52FlagsOverviewClean&&NG14.countries.get('CHN')?.authoritativeOutline,null,{timeout:90000});
   await page.locator('#timeline button').nth(8).click();
-  await page.waitForFunction(()=>NG14.current===8&&!NG14.viewer.camera._currentFlight&&NG14.v52Geography.getDiagnostics().detailEntities>0,null,{timeout:60000});
+  await page.waitForFunction(()=>NG14.current===8&&!NG14.viewer.camera._currentFlight&&NG14.v51SceneEntities.some(e=>e.point&&e.show!==false),null,{timeout:60000});
   await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:15000}).catch(()=>{});
   await page.screenshot({path:dir+'/stockholm.png',fullPage:true});
   const style=await page.evaluate(()=>{
@@ -62,7 +62,10 @@ try{
   await page.waitForTimeout(1800);
   const route=await sample('duku-point');await page.screenshot({path:dir+'/duku-point.png',fullPage:true});
   assert.equal(route.geography.featureDisplay,'point');assert.equal(route.geography.areaActive,false);
-  assert.equal(route.geography.depthTestAgainstTerrain,false);
+  assert.equal(route.geography.depthTestAgainstTerrain,true);
+  assert.equal(route.geography.borderDisplay,'elevated');
+  assert.equal(route.geography.detailEntities,0);
+  assert.equal(route.geography.cachedBands,0);
   await page.evaluate(()=>{
     const G=NG14,C=Cesium,n=G.news[G.current];
     G.viewer.camera.setView({destination:C.Cartesian3.fromDegrees(n.lon,n.lat,9000000),orientation:{heading:0,pitch:-Math.PI/2,roll:0}});

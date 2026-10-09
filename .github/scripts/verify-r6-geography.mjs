@@ -54,18 +54,22 @@ async function settled(index){
     const labels=G.viewer.entities.values.filter(e=>e.label&&e.show!==false).map(e=>e.label.text.getValue(t));
     const point=G.v51SceneEntities.find(e=>e.point&&e.show!==false&&e.position&&C.Cartesian3.distance(C.Ellipsoid.WGS84.scaleToGeodeticSurface(e.position.getValue(t)),C.Cartesian3.fromDegrees(G.news[G.current].lon,G.news[G.current].lat))<5000);
     const color=point?.point.color.getValue(t);
+    const heights=G.borderEntities.flatMap(e=>e.polyline.positions.getValue(t).slice(0,2)).map(p=>C.Cartographic.fromCartesian(p).height);
     return {index:G.current,label:G.news[G.current].focusLabel,labels,geo:G.v52Geography.getDiagnostics(),
       aspect:canvas.clientWidth/canvas.clientHeight,overflow:document.documentElement.scrollWidth>innerWidth+1,
       redPoint:!!color&&color.red>.8&&color.green<.4&&color.blue<.4,
       localShapes:G.localHighlightEntities.filter(e=>e.polyline||e.polygon).length,
       baseMarker:G.markers[G.current]?.show,basePulse:G.pulses[G.current]?.show,
-      borders:G.borderEntities.length,surfaceModeMatches:G.borderEntities.every(e=>e.polyline.clampToGround.getValue(t)===!(G.viewer.terrainProvider instanceof C.EllipsoidTerrainProvider)),
-      maxBorderHeight:Math.max(...G.borderEntities.flatMap(e=>e.polyline.positions.getValue(t).slice(0,2)).map(p=>Math.abs(C.Cartographic.fromCartesian(p).height))),
+      borders:G.borderEntities.length,elevatedModeMatches:G.borderEntities.every(e=>!e.polyline.clampToGround.getValue(t)),
+      minBorderHeight:Math.min(...heights),maxBorderHeight:Math.max(...heights),
       primitives:G.viewer.scene.groundPrimitives.length,entities:G.viewer.entities.values.length};
   });
   assert.ok(Math.abs(state.aspect-16/9)<.01);assert.equal(state.overflow,false);
-  assert.equal(state.surfaceModeMatches,true);assert.ok(state.maxBorderHeight<.01);assert.equal(state.borders,7955);
-  assert.equal(state.geo.featureDisplay,'point');assert.equal(state.geo.depthTestAgainstTerrain,false);
+  assert.equal(state.elevatedModeMatches,true);assert.equal(state.borders,7955);
+  assert.ok(Math.abs(state.minBorderHeight-18000)<.01);assert.ok(Math.abs(state.maxBorderHeight-22000)<.01);
+  assert.equal(state.geo.featureDisplay,'point');assert.equal(state.geo.depthTestAgainstTerrain,true);
+  assert.equal(state.geo.borderDisplay,'elevated');assert.equal(state.geo.detailEntities,0);
+  assert.equal(state.geo.cachedBands,0);assert.equal(state.geo.moveListener,false);
   assert.equal(state.geo.areaActive,false);assert.equal(state.localShapes,0);
   assert.equal(state.redPoint,true,'The news location must have a red point');
   return state;
@@ -73,7 +77,7 @@ async function settled(index){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   console.log('ENTRY_LOADED');
-  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-thin-points-r5'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
+  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-elevated-points-r6'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
   console.log('BORDERS_READY');
   if(process.env.GLOBE_SIMULATE_TILE_FAILURE)await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().imageryRetries>0,null,{timeout:15000});
   if(!process.env.GLOBE_VISIBILITY_ONLY){
@@ -104,8 +108,8 @@ try{
   assert.equal(overview.geo.areaActive,false);assert.equal(overview.local,0);assert.equal(overview.scenes,0);
   report.checks.push({name:'overview-cleanup',state:overview});
   }else{await page.locator('#all').click();await page.waitForTimeout(5500);}
-  // Render a zero-height line in isolation and sample its actual pixels. Also
-  // verify that ignoring terrain depth does not expose the far side of Earth.
+  // Render the restored 18 km line and sample its actual pixels. Verify that
+  // the original depth setting still hides the far side of Earth.
   await page.setViewportSize({width:390,height:844});
   await page.evaluate(()=>{
     const v=NG14.viewer,C=Cesium;
@@ -114,8 +118,9 @@ try{
   });
   await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:12000}).catch(()=>{});
   await page.evaluate(()=>{
-    const v=NG14.viewer,C=Cesium,positions=C.Cartesian3.fromDegreesArray([32,50,36,50]);
-    const arc=C.Cartesian3.unpackArray(C.PolylinePipeline.generateArc({positions})),samples=[];
+    const v=NG14.viewer,C=Cesium,positions=C.Cartesian3.fromDegreesArrayHeights([32,50,18000,36,50,18000]);
+    const elevated=p=>{const c=C.Cartographic.fromCartesian(p);return C.Cartesian3.fromRadians(c.longitude,c.latitude,18000);};
+    const arc=C.Cartesian3.unpackArray(C.PolylinePipeline.generateArc({positions})).map(elevated),samples=[];
     for(let i=1;i<arc.length;i++)for(const f of [.2,.5,.8])samples.push(C.Cartesian3.lerp(arc[i-1],arc[i],f,new C.Cartesian3()));
     const material=C.Material.fromType('PolylineOutline',{color:C.Color.fromCssColorString('#e6f3ff'),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.09});
     // A synchronous primitive isolates depth behavior from entity updater startup.
@@ -142,20 +147,19 @@ try{
   const magenta=frame=>{const data=frame.png.data;let hits=0;for(let i=0;i<data.length;i+=4)if(data[i]>160&&data[i+1]<80&&data[i+2]>160)hits++;return hits;};
   const base=await frame();await page.evaluate(()=>{window.__borderProbe.front.show=true;});const visible=await frame();
   fs.writeFileSync(dir+'/border-near-proof.png',visible.buffer);
-  await page.evaluate(()=>{NG14.viewer.scene.globe.depthTestAgainstTerrain=true;});const terrain=await frame();
   await page.evaluate(()=>{
     const v=NG14.viewer,C=Cesium,q=window.__borderProbe;
-    v.scene.globe.depthTestAgainstTerrain=false;v.scene.primitives.remove(q.front);
+    v.scene.primitives.remove(q.front);
     v.camera.setView({destination:C.Cartesian3.fromDegrees(95,22,16000000),orientation:{heading:0,pitch:-Math.PI/2,roll:0}});
-    q.back=q.make(C.Cartesian3.fromDegreesArray([-86,-22,-84,-22]),3,C.Material.fromType('Color',{color:C.Color.MAGENTA}));q.back.show=true;
+    q.back=q.make(C.Cartesian3.fromDegreesArrayHeights([-86,-22,18000,-84,-22,18000]),3,C.Material.fromType('Color',{color:C.Color.MAGENTA}));q.back.show=true;
   });
   const back=await frame();
   await page.evaluate(()=>{const v=NG14.viewer;v.camera.setView({destination:Cesium.Cartesian3.fromDegrees(-85,-22,16000000),orientation:{heading:0,pitch:-Math.PI/2,roll:0}});});
   const frontControl=await frame();
-  report.borderVisibility={samples:base.samples.length,visibleSamples:hits(visible,base),terrainTestSamples:hits(terrain,base),backsidePixels:magenta(back),frontControlPixels:magenta(frontControl)};
+  report.borderVisibility={samples:base.samples.length,visibleSamples:hits(visible,base),backsidePixels:magenta(back),frontControlPixels:magenta(frontControl)};
   await page.evaluate(()=>{NG14.viewer.scene.primitives.remove(window.__borderProbe.back);delete window.__borderProbe;});
   assert.ok(report.borderVisibility.samples>=6);
-  assert.ok(report.borderVisibility.visibleSamples/report.borderVisibility.samples>=.9,'A surface border must draw continuously over the satellite tiles');
+  assert.ok(report.borderVisibility.visibleSamples/report.borderVisibility.samples>=.9,'The restored elevated border must draw continuously over the satellite tiles');
   assert.equal(report.borderVisibility.backsidePixels,0,'Borders on the far side of Earth must remain hidden');
   assert.ok(report.borderVisibility.frontControlPixels>0,'The hidden test line must render when the camera turns toward it');
   console.log('BORDER_VISIBILITY_PASS',JSON.stringify(report.borderVisibility));

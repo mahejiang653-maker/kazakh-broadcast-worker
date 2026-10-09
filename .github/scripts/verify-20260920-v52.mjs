@@ -81,7 +81,8 @@ async function settled(index){
   assert.equal(state.cleanup?.pendingTimers,0,'Overview cleanup still scheduled in a story');
   assert.equal(state.geography?.featureDisplay,'point');
   assert.equal(state.geography?.areaActive,false);
-  assert.equal(state.geography?.depthTestAgainstTerrain,false);
+  assert.equal(state.geography?.depthTestAgainstTerrain,true);
+  assert.equal(state.geography?.borderDisplay,'elevated');
   return state;
 }
 try{
@@ -123,7 +124,7 @@ try{
   assert.equal(borders.ownership?.authoritativeRings,514,'Authoritative territory/island rings were lost');
   assert.equal(borders.count,7955);assert.equal(borders.canonical,true);assert.equal(borders.stale,false);
   assert.ok(borders.cache.some(s=>s.includes('china-border-ownership')&&s.endsWith('?v=20261007-r6-china-border-ownership')));
-  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-thin-points-r5')));
+  assert.ok(borders.cache.some(s=>s.includes('v51-scene-engine')&&s.endsWith('?v=20261010-r6-elevated-points-r6')));
   report.checks.push({name:'single-authoritative-china-boundary',state:borders});
   for(let i=0;i<13;i++){
     await page.locator('#next').click();

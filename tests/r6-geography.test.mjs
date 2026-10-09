@@ -46,14 +46,17 @@ test('imports reject invalid shapes while accepting polygon holes and dateline b
   const keys=p.tileKeys({west:179*Math.PI/180,east:-179*Math.PI/180,south:0,north:.01});
   assert.deepEqual([...keys],['35_9','0_9']);
 });
-test('all existing national lines move to the surface without moving attack trajectories',async()=>{
+test('national lines retain their original elevation without changing attack trajectories',async()=>{
   const {G,C}=harness();const border={polyline:{positions:[{height:18000},{height:22000}]}};
+  const positions=border.polyline.positions;
   const attack={polyline:{positions:[{height:700000}]}};G.borderEntities=[border];
-  await G.loadBorders();assert.ok(border.polyline.positions.every(p=>p.height===0));
-  assert.equal(border.polyline.clampToGround,true);assert.equal(attack.polyline.positions[0].height,700000);
+  await G.loadBorders();assert.equal(border.polyline.positions,positions);
+  assert.equal(border.polyline.clampToGround,false);assert.equal(attack.polyline.positions[0].height,700000);
   G.viewer.terrainProvider=new C.EllipsoidTerrainProvider();
-  await G.loadBorders();assert.equal(border.polyline.clampToGround,false,'Flat surface does not need expensive terrain projection');
-  assert.ok(border.polyline.positions.every(p=>p.height===0));
+  await G.loadBorders();assert.equal(border.polyline.clampToGround,false);
+  assert.equal(border.polyline.positions,positions);
+  assert.deepEqual(positions.map(p=>p.height),[18000,22000]);
+  assert.equal(G.v52Geography.getDiagnostics().lineSurface,'elevated');
 });
 test('roads, bays, water and scenic places use red points without any shape query',async()=>{
   let queries=0;
@@ -66,11 +69,15 @@ test('roads, bays, water and scenic places use red points without any shape quer
   assert.equal(G.v52Geography.getDiagnostics().featureDisplay,'point');
   assert.equal(G.v52Geography.getDiagnostics().areaActive,false);
 });
-test('surface lines ignore tile depth while preserving the original rendering quality',async()=>{
+test('restored borders preserve original depth and quality without downloading replacements',async()=>{
   let queries=0;
   const {G}=harness(()=>{queries++;throw new Error('No reference route preload in point mode');},{initViewer:async()=>42});
   assert.equal(await G.initViewer(),42);
-  assert.equal(G.viewer.scene.globe.depthTestAgainstTerrain,false);
+  assert.equal(G.viewer.scene.globe.depthTestAgainstTerrain,true);
+  G.v52StartDetailedBorders(1);
+  const geo=G.v52Geography.getDiagnostics();
+  assert.equal(geo.detailEntities,0);assert.equal(geo.moveListener,false);
+  assert.equal(geo.activeSerial,null);assert.equal(geo.borderDisplay,'elevated');
   assert.deepEqual([G.viewer.resolutionScale,G.viewer.scene.globe.maximumScreenSpaceError,G.viewer.scene.msaaSamples],[2.2,.75,4]);
   assert.equal(queries,0);
 });

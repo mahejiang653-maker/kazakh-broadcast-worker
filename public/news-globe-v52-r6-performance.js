@@ -97,7 +97,7 @@
   }
   function pagehide(e){if(!e.persisted)dispose();}
   window.addEventListener('pagehide',pagehide);
-  G.v52Performance={version:'20261010-r6-thin-points-r5',dispose,getDiagnostics:()=>({
+  G.v52Performance={version:'20261010-r6-elevated-points-r6',dispose,getDiagnostics:()=>({
     disposed,moving,animatedEntities:animated.size,occlusionChecks,requestRenderMode:viewer?.scene.requestRenderMode,
     scale:viewer?.resolutionScale,sse:viewer?.scene.globe.maximumScreenSpaceError,
     msaaSamples:viewer?.scene.msaaSamples,targetFrameRate:viewer?.targetFrameRate,
