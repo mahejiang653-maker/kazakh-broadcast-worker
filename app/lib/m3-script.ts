@@ -11,7 +11,7 @@ export type M3TextMode = "clean" | "verbatim";
 /** Manual, one-call A/B presets. Never run these modes automatically. */
 export type M3DiagnosticMode = "legacy-05" | "legacy-default" | "interactions-default";
 export function normalizeM3DiagnosticMode(value: unknown): M3DiagnosticMode {
-  return value === "legacy-default" || value === "interactions-default" ? value : "legacy-05";
+  return value === "legacy-05" || value === "interactions-default" ? value : "legacy-default";
 }
 export function m3Temperature(mode: M3DiagnosticMode): number | null {
   return mode === "legacy-05" ? M3_TEMPERATURE : null;

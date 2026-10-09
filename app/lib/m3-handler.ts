@@ -193,7 +193,7 @@ export async function handleM3Request(request: Request, suppliedApiKey: string, 
   const requestedModel =
     typeof body.model === "string" && ALLOWED_MODELS.has(body.model)
       ? body.model
-      : "gemini-3.8-flash-tts";
+      : "gemini-3.8-flash-lite-tts";
   const model = requestedModel;
   if (typeof body.voice === "string" && body.voice.trim() && !sanitizeVoiceId(body.voice)) return jsonError("所选 Gemini 角色格式无效。", 400);
   const requestedVoice = sanitizeVoiceId(body.voice) || M3_ANCHOR_TOKEN;

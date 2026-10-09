@@ -836,7 +836,7 @@ test("V15 manual transport selectors do not trigger automatic additional API cal
   assert.ok(page.includes("diagnosticMode: m3DiagnosticMode"));
   assert.ok(handler.includes('normalizeM3DiagnosticMode(body.diagnosticMode)'));
   assert.ok(scriptSrc.includes('m3-single-request-v15-transport-comparison'));
-  assert.equal(script.normalizeM3DiagnosticMode("bad input"), "legacy-05");
+  assert.equal(script.normalizeM3DiagnosticMode("bad input"), "legacy-default");
   assert.equal(script.m3Temperature("legacy-default"), null);
   assert.equal(script.m3Temperature("legacy-05"), 0.5);
 });
