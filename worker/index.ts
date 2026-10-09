@@ -1,5 +1,6 @@
 /** Cloudflare Worker entry point for the Kazakh broadcast site. */
 import handler from "vinext/server/app-router-entry";
+import { fishStatus, handleFishTest } from "./fish-test";
 export { M3RegionalSession } from "./m3-regional-session";
 
 type M3Namespace = {
@@ -28,6 +29,8 @@ function withM2IsolationHeaders(response: Response) {
 export default {
   async fetch(request: Request, env: Parameters<typeof handler.fetch>[1], ctx: Parameters<typeof handler.fetch>[2]) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/fish-s21-status" && request.method === "GET") return withM2IsolationHeaders(fishStatus(env));
+    if (url.pathname === "/api/fish-s21-test" && request.method === "POST") return withM2IsolationHeaders(await handleFishTest(request, env));
     const m3Generation = (url.pathname === "/api/gemini-tts" || url.pathname === "/api/gemini-tts-live") && request.method === "POST";
     if (m3Generation || (url.pathname === "/api/gemini-status" && request.method === "GET")) {
       const namespace = (env as { M3_SESSIONS?: M3Namespace }).M3_SESSIONS;
