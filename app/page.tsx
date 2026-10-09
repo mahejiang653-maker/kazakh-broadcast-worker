@@ -342,7 +342,7 @@ export default function Home() {
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [geminiModel, setGeminiModel] = useState<(typeof GEMINI_MODELS)[number]["id"]>(
-    "gemini-3.8-flash-tts",
+    "gemini-3.8-flash-lite-tts",
   );
   const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
     ...GEMINI_NAMED_MALE_VOICES,
@@ -354,7 +354,7 @@ export default function Home() {
   const [geminiConfigured, setGeminiConfigured] = useState<boolean | null>(null);
   const [m3ServerVersion, setM3ServerVersion] = useState<string | null>(null);
   const [m3TextMode, setM3TextMode] = useState<M3TextMode>("clean");
-  const [m3DiagnosticMode, setM3DiagnosticMode] = useState<M3DiagnosticMode>("legacy-05");
+  const [m3DiagnosticMode, setM3DiagnosticMode] = useState<M3DiagnosticMode>("legacy-default");
   const m3PreparedPreview = useMemo(() => prepareM3Text(text.trim(), m3TextMode), [text, m3TextMode]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [audioProgress, setAudioProgress] = useState("");
