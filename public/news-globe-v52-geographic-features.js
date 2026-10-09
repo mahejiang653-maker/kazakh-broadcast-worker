@@ -2,7 +2,7 @@
   'use strict';
   if (!G || G.v52Geography || !window.Cesium) return;
   const C = window.Cesium;
-  const VERSION = '20261010-r6-clear-smooth-r3';
+  const VERSION = '20261010-r6-full-quality-r4';
   const areaTypes = new Set(['LineString', 'MultiLineString', 'Polygon', 'MultiPolygon']);
   let controller = null, activeSerial = null, detailEntities = [], removeMove = null, removeTerrain = null;
   const detailBands = new Map(), detailPending = new Map();
@@ -17,13 +17,13 @@
   const value = p => p?.getValue ? p.getValue(G.viewer.clock.currentTime) : p;
   function borderMaterial(color = '#e6f3ff') {
     if (!borderMaterials.has(color)) borderMaterials.set(color,new C.PolylineOutlineMaterialProperty({
-      color:C.Color.fromCssColorString(color),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.55,
+      color:C.Color.fromCssColorString(color),outlineColor:C.Color.fromCssColorString('#06121e'),outlineWidth:.18,
     }));
     return borderMaterials.get(color);
   }
   function styleBorder(e, on = false) {
     if (!e?.polyline) return;
-    e.polyline.width = on ? 2.6 : 2;
+    e.polyline.width = on ? 1.7 : 1.2;
     e.polyline.material = borderMaterial(on ? '#ff6670' : '#e6f3ff');
   }
   const setCountry = G.setCountry;
@@ -336,7 +336,7 @@
         // Latitude packs contain coastlines far outside the small camera view.
         // Keep their source coordinates intact; only omit wholly off-screen lines.
         if (!lineInView(line,coverage)) continue;
-        const spec = ground(line,C.Color.WHITE,2.1);
+        const spec = ground(line,C.Color.WHITE,1.3);
         spec.polyline.material = borderMaterial();
         const e = G.viewer.entities.add(spec);
         vertices+=line.length;

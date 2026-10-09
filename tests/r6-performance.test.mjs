@@ -12,7 +12,7 @@ function harness(load=async()=>{}){
   const collectionChanged=event(),postUpdate=event(),moveStart=event(),moveEnd=event();
   const values=[...Array.from({length:8000},()=>({polyline:{positions:{isConstant:true}}}))];
   let reads=0;
-  const viewer={clock:{currentTime:0},scene:{globe:{},requestRender(){renders++;},postUpdate},camera:{moveStart,moveEnd,
+  const viewer={resolutionScale:2.2,clock:{currentTime:0},scene:{globe:{maximumScreenSpaceError:.75},msaaSamples:4,requestRender(){renders++;},postUpdate},camera:{moveStart,moveEnd,
       positionWC:{x:0,y:0,z:1000000},directionWC:{x:0,y:0,z:-1},upWC:{x:0,y:1,z:0}},
     entities:{get values(){reads++;return values;},collectionChanged,suspendEvents(){suspends++;},resumeEvents(){resumes++;}}};
   const G={viewer,current:0,navSerial:1,started:true,overviewMode:false,initViewer:async()=>42,loadBorders:load,updateOcclusion(){checks++;}};
@@ -29,15 +29,19 @@ function harness(load=async()=>{}){
     drain(){const pending=[...timers.values()];timers.clear();for(const fn of pending)fn();},
   };
 }
-test('mobile pixel budget changes during movement and restores after the last movement',async()=>{
+test('original pixels, imagery detail and antialiasing stay unchanged during movement and resize',async()=>{
   const h=harness();assert.equal(await h.G.initViewer(),42);
-  assert.equal(h.viewer.resolutionScale,1.3);assert.equal(h.viewer.targetFrameRate,30);
+  const quality=()=>[h.viewer.resolutionScale,h.viewer.scene.globe.maximumScreenSpaceError,h.viewer.scene.msaaSamples];
+  const original=[2.2,.75,4];
+  assert.deepEqual(quality(),original);assert.equal(h.viewer.targetFrameRate,30);
   assert.equal(h.viewer.scene.requestRenderMode,true);assert.equal(h.viewer.scene.maximumRenderTimeChange,Infinity);
-  h.tick();h.viewer.camera.positionWC.x+=10;h.tick();assert.equal(h.viewer.resolutionScale,1);
-  h.tick(120);h.viewer.camera.positionWC.x+=10;h.tick(120);assert.equal(h.viewer.resolutionScale,1);
-  h.tick(300);assert.equal(h.viewer.resolutionScale,1.3);
-  h.moveStart.raise();h.tick(300);assert.equal(h.viewer.resolutionScale,1.3,'Resolution-only move events do not lower quality again');
-  h.window.innerWidth=1280;h.fire('resize');h.drain();assert.equal(h.viewer.resolutionScale,1.5);assert.equal(h.viewer.targetFrameRate,45);
+  h.tick();h.viewer.camera.positionWC.x+=10;h.tick();assert.deepEqual(quality(),original);
+  h.tick(120);h.viewer.camera.positionWC.x+=10;h.tick(120);assert.deepEqual(quality(),original);
+  h.tick(300);assert.deepEqual(quality(),original);
+  h.moveStart.raise();h.tick(300);assert.deepEqual(quality(),original);
+  h.window.innerWidth=1280;h.fire('resize');h.drain();assert.deepEqual(quality(),original);assert.equal(h.viewer.targetFrameRate,45);
+  h.viewer.resolutionScale=1.75;h.viewer.scene.globe.maximumScreenSpaceError=.6;h.viewer.scene.msaaSamples=8;
+  h.window.innerWidth=390;h.fire('resize');h.drain();assert.deepEqual(quality(),[1.75,.6,8],'The performance module must preserve later quality settings too');
 });
 test('static scenes become idle but visible, added and later-assigned animations keep drawing',async()=>{
   const h=harness();await h.G.initViewer();h.tick();const idle=h.renders;

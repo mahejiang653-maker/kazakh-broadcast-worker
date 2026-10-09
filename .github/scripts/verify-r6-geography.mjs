@@ -70,7 +70,7 @@ async function settled(index){
 try{
   const response=await page.goto(url,{waitUntil:'domcontentloaded',timeout:60000});assert.ok(response.ok());
   console.log('ENTRY_LOADED');
-  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-clear-smooth-r3'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
+  await page.waitForFunction(()=>window.NG14?.v52Geography?.version==='20261010-r6-full-quality-r4'&&NG14.countries.get('CHN')?.authoritativeOutline&&NG14.__v52FlagsOverviewClean,null,{timeout:90000});
   console.log('BORDERS_READY');
   if(process.env.GLOBE_SIMULATE_TILE_FAILURE)await page.waitForFunction(()=>NG14.v52Geography.getDiagnostics().imageryRetries>0,null,{timeout:15000});
   const indexes=process.env.GLOBE_INDEXES?process.env.GLOBE_INDEXES.split(',').map(Number):process.env.GLOBE_QUICK?[8,10,11,1,2]:Array.from({length:13},(_,i)=>i);

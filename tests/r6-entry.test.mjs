@@ -51,7 +51,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v52-china-border-ownership.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261007-r6-china-border-ownership`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
-  for (const name of ['news-globe-v52-geographic-features.js', 'news-globe-v14-v51-scene-engine.js', 'news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-clear-smooth-r3`));
+  for (const name of ['news-globe-v52-geographic-features.js', 'news-globe-v14-v51-scene-engine.js', 'news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-full-quality-r4`));
   assert.ok(names.indexOf('/news-globe-v52-locationless-marker-guard.js') < names.indexOf('/news-globe-v52-geographic-features.js'));
   assert.ok(names.indexOf('/news-globe-v52-geographic-features.js') < names.indexOf('/news-globe-v14-main.js'));
   assert.ok(names.indexOf('/news-globe-v52-geographic-features.js') < names.indexOf('/news-globe-v52-r6-performance.js'));

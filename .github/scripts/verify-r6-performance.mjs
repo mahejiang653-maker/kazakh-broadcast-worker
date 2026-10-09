@@ -27,7 +27,7 @@ async function sample(name){
     const start=performance.now();await new Promise(r=>setTimeout(r,4000));
     removeRender();removeUpdate();
     return {seconds:(performance.now()-start)/1000,renders,updates,pixels:v.scene.canvas.width*v.scene.canvas.height,
-      scale:v.resolutionScale,sse:v.scene.globe.maximumScreenSpaceError,requestRenderMode:v.scene.requestRenderMode,
+      scale:v.resolutionScale,sse:v.scene.globe.maximumScreenSpaceError,msaaSamples:v.scene.msaaSamples,requestRenderMode:v.scene.requestRenderMode,
       performance:G.v52Performance?.getDiagnostics(),geography:G.v52Geography.getDiagnostics()};
   });
   report.checks.push({name,...result});console.log(name,JSON.stringify(result));return result;
@@ -47,26 +47,44 @@ try{
   for(let i=0;i<4;i++){await page.evaluate(()=>NG14.viewer.camera.moveEnd.raiseEvent());await page.waitForTimeout(600);}
   mutations=await page.evaluate(()=>{window.__perfRemove();return window.__perfBorderMutations;});
   report.repeatedViewportMutations=mutations;
-  await sample('stockholm-settled');
+  const stockholm=await sample('stockholm-settled');
+  await page.evaluate(()=>{
+    window.__perfFlightQuality=[];
+    window.__perfRemoveFlight=NG14.viewer.scene.postUpdate.addEventListener(()=>{
+      const v=NG14.viewer;
+      if(v.camera._currentFlight)window.__perfFlightQuality.push([v.resolutionScale,v.scene.globe.maximumScreenSpaceError,v.scene.msaaSamples]);
+    });
+  });
   await page.locator('#timeline button').nth(11).click();
   await page.waitForFunction(()=>NG14.current===11&&!NG14.viewer.camera._currentFlight&&NG14.v52Geography.getDiagnostics().state?.status==='ready',null,{timeout:60000});
+  report.flightQuality=await page.evaluate(()=>{window.__perfRemoveFlight();return window.__perfFlightQuality;});
   await page.waitForFunction(()=>NG14.viewer.scene.globe.tilesLoaded,null,{timeout:15000}).catch(()=>{});
   await page.waitForTimeout(1800);
   const route=await sample('route-idle');await page.screenshot({path:dir+'/route.png',fullPage:true});
   // A visible CallbackProperty must keep drawing; static roads must become idle.
   const moving=await page.evaluate(async()=>{
-    const v=NG14.viewer,C=Cesium,start=performance.now();let renders=0;
-    const remove=v.scene.postRender.addEventListener(()=>renders++);
+    const v=NG14.viewer,C=Cesium,start=performance.now();let renders=0,finish;
+    const positions=[],done=new Promise(resolve=>{finish=resolve;});
     const entity=v.entities.add({position:new C.CallbackProperty(()=>C.Cartesian3.fromDegrees(84+(performance.now()-start)/30000,43,0),false),point:{pixelSize:9,color:C.Color.YELLOW}});
-    await new Promise(r=>setTimeout(r,1500));v.entities.remove(entity);remove();return renders;
-  });report.callbackAnimationFrames=moving;
+    const remove=v.scene.postRender.addEventListener(()=>{
+      renders++;const p=entity.position.getValue(v.clock.currentTime);positions.push([p.x,p.y,p.z]);
+      if(renders>=4)finish();
+    });
+    // Check distinct rendered animation states; GPU speed is not a correctness requirement.
+    const timer=setTimeout(finish,10000);await done;clearTimeout(timer);v.entities.remove(entity);remove();
+    return {frames:renders,positions,seconds:(performance.now()-start)/1000};
+  });report.callbackAnimation=moving;
   await page.locator('#all').click();await page.waitForTimeout(5500);const overview=await sample('overview-idle');
   if(!baseline){
-    assert.ok(style.width>=1.5,'Normal borders must be legible');
+    assert.ok(style.width>=1&&style.width<=1.4,'Normal borders should stay thin and legible');
+    assert.ok(style.material.outlineWidth<=.25,'Border outlines should stay subtle');
     assert.equal(mutations,0,'An unchanged viewport must not rebuild detailed borders');
-    assert.ok(route.scale<=1.35&&route.requestRenderMode,'Mobile rendering profile did not apply');
+    for(const snapshot of [stockholm,route,overview])assert.deepEqual([snapshot.scale,snapshot.sse,snapshot.msaaSamples],[2.2,.75,4],'Original mobile pixel density and detail must be preserved');
+    assert.ok(report.flightQuality.length>0,'Quality must also be measured while the camera moves');
+    for(const quality of report.flightQuality)assert.deepEqual(quality,[2.2,.75,4],'Camera movement must not lower image quality');
+    assert.ok(route.requestRenderMode,'On-demand rendering did not apply');
     assert.ok(route.renders<=8,'A static route should stop continuously rendering');
-    assert.ok(moving>=8,'Callback animations froze in request rendering mode');
+    assert.ok(moving.frames>=4&&new Set(moving.positions.map(p=>p.join(','))).size>=4,'Callback animations must render distinct moving states');
     assert.ok(overview.renders<=8,'Overview must also stop continuously rendering');
   }
   assert.deepEqual(report.errors,[]);await assertConsoleHealth(page,report);report.status='PASS';console.log('R6_PERFORMANCE_PASS');

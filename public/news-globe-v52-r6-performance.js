@@ -27,14 +27,13 @@
   }
   function profile(){
     const mobile=!!window.matchMedia?.('(pointer: coarse)')?.matches||window.innerWidth<=900;
-    const dpr=Math.max(1,Number(window.devicePixelRatio)||1);
-    return {mobile,scale:Math.min(dpr,moving?1:mobile?1.3:1.5),sse:moving?1.8:mobile?1.2:1.05,frameRate:mobile?30:45};
+    return {frameRate:mobile?30:45};
   }
   function apply(){
     if(disposed||!viewer)return;
-    const p=profile();viewer.resolutionScale=p.scale;
-    viewer.scene.globe.maximumScreenSpaceError=p.sse;
-    viewer.targetFrameRate=p.frameRate;
+    // Keep the core viewer's pixel density, imagery detail and antialiasing.
+    // Performance comes from skipping redundant work, including while moving.
+    viewer.targetFrameRate=profile().frameRate;
     viewer.scene.requestRender();dirty=true;
   }
   function resized(){clearTimeout(resizeTimer);resizeTimer=setTimeout(apply,140);}
@@ -46,9 +45,8 @@
     const changed=lastPose&&pose.some((v,i)=>Math.abs(v-lastPose[i])>(i<3?.02:1e-8));
     lastPose=pose;
     if(changed){
-      lastMoved=now;dirty=true;
-      if(!moving){moving=true;apply();}
-    }else if(moving&&now-lastMoved>=250){moving=false;apply();}
+      lastMoved=now;dirty=true;moving=true;
+    }else if(moving&&now-lastMoved>=250){moving=false;dirty=true;}
   }
   const initViewer=G.initViewer;
   G.initViewer=async function(...args){
@@ -56,16 +54,14 @@
     const scene=viewer.scene;
     scene.requestRenderMode=true;
     scene.maximumRenderTimeChange=Infinity;
-    // Thicker outlined borders remain crisp without a costly 4-sample framebuffer.
-    scene.msaaSamples=1;scene.globe.preloadSiblings=false;
+    scene.globe.preloadSiblings=false;
     for(const e of viewer.entities.values)index(e);
     removeCollection=viewer.entities.collectionChanged.addEventListener((_,added,removed,changed)=>{
       for(const e of removed)animated.delete(e);
       for(const e of added)index(e);for(const e of changed)index(e);
       dirty=true;scene.requestRender();
     });
-    // Canvas resolution changes also trigger camera move events. Compare the public
-    // camera pose instead, so restoring sharpness cannot start a resize/move loop.
+    // Compare the public camera pose; canvas resize events do not imply movement.
     // Cesium requests frames for camera/tile changes. Explicitly keep CallbackProperty
     // effects moving, including missiles, carriers and pulses, without redrawing static routes.
     removers.push(scene.postUpdate.addEventListener(()=>{
@@ -101,8 +97,9 @@
   }
   function pagehide(e){if(!e.persisted)dispose();}
   window.addEventListener('pagehide',pagehide);
-  G.v52Performance={version:'20261010-r6-clear-smooth-r3',dispose,getDiagnostics:()=>({
+  G.v52Performance={version:'20261010-r6-full-quality-r4',dispose,getDiagnostics:()=>({
     disposed,moving,animatedEntities:animated.size,occlusionChecks,requestRenderMode:viewer?.scene.requestRenderMode,
-    scale:viewer?.resolutionScale,targetFrameRate:viewer?.targetFrameRate,
+    scale:viewer?.resolutionScale,sse:viewer?.scene.globe.maximumScreenSpaceError,
+    msaaSamples:viewer?.scene.msaaSamples,targetFrameRate:viewer?.targetFrameRate,
   })};
 })(window.NG14);
