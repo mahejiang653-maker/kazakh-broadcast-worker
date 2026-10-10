@@ -91,6 +91,7 @@ type GeminiVoice = {
 };
 
 const GEMINI_NAMED_MALE_VOICES: GeminiVoice[] = [
+  { id: "m3-persistent-anchor", name: "M3 固定哈萨克男主播（Voice Design 实验）", gender: "male", type: "prompted", description: "持久 voice_ ID · 与 Iapetus 对比 · 首次使用需初始化" },
   { id: "Iapetus", name: "Iapetus", gender: "male", type: "prebuilt", description: "Clear · 清晰，建议先试" },
   { id: "Schedar", name: "Schedar", gender: "male", type: "prebuilt", description: "Even · 平稳，建议先试" },
   { id: "Achird", name: "Achird", gender: "male", type: "prebuilt", description: "Friendly · 亲和，建议先试" },
@@ -723,7 +724,7 @@ export default function Home() {
       if (!response.ok) throw new Error(payload?.error || "无法读取 Gemini 命名男角色。");
 
       const catalog = Array.isArray(payload?.voices) && payload.voices.length
-        ? payload.voices
+        ? [...GEMINI_NAMED_MALE_VOICES.filter((item) => item.id === "m3-persistent-anchor"), ...payload.voices]
         : GEMINI_NAMED_MALE_VOICES;
       const seen = new Set<string>();
       const voices = [...catalog].filter((item) => {
