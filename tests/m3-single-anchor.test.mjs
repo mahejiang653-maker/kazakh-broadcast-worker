@@ -289,6 +289,48 @@ test("invalid/non-male voice and oversized manuscripts fail before synthesis", a
   const result = await handleM3Request(new Request("https://test/api/gemini-tts", { method: "POST", body: JSON.stringify({ text: "а".repeat(15001), voice: "Puck" }) }), "fake-test-key");
   assert.equal(result.status, 400);
 });
+test("live quota errors preserve safe retry diagnostics without retrying or exposing credentials", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    return Response.json({ error: {
+      message: "quota exceeded for secret-project and fake-test-key",
+      details: [
+        { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "62.5s" },
+        { "@type": "type.googleapis.com/google.rpc.QuotaFailure", violations: [{
+          quotaMetric: "generativelanguage.googleapis.com/generate_content_paid_tier_requests",
+          quotaId: "GenerateRequestsPerMinutePerProjectPerModel", quotaValue: "10",
+          subject: "projects/secret-project", description: "fake-test-key",
+        }] },
+      ],
+    } }, { status: 429 });
+  };
+  try {
+    const response = await handleM3Request(new Request("https://test/api/gemini-tts-live", {
+      method: "POST", body: JSON.stringify({
+        text: "Бірінші. Мәлімет.", voice: "Iapetus", model: "gemini-3.8-flash-lite-tts",
+        diagnosticMode: "legacy-default", speed: 1,
+      }),
+    }), "fake-test-key", "test", true);
+    const stream = await response.text();
+    const frame = stream.split(/\r?\n\r?\n/).find(block => block.startsWith("event: error\n"));
+    assert.ok(frame, stream);
+    const error = JSON.parse(frame.split("\ndata: ")[1]);
+    assert.equal(error.code, "GEMINI_QUOTA_LIMIT");
+    assert.equal(error.retryAfterSeconds, 63);
+    assert.deepEqual(error.quotas, [{
+      metric: "generativelanguage.googleapis.com/generate_content_paid_tier_requests",
+      id: "GenerateRequestsPerMinutePerProjectPerModel", limit: "10",
+    }]);
+    assert.equal(error.model, "gemini-3.8-flash-lite-tts");
+    assert.equal(error.diagnosticMode, "legacy-default");
+    assert.equal(error.voice, "Iapetus");
+    assert.equal(calls.length, 1);
+    assert.ok(!stream.includes("secret-project"));
+    assert.ok(!stream.includes("fake-test-key"));
+  } finally { globalThis.fetch = originalFetch; }
+});
 test("Flash and Flash-Lite both accept 15,000 characters and issue exactly one TTS request", async () => {
   for (const model of ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts"]) {
     const calls = [];
