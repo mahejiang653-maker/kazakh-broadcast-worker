@@ -1,4 +1,4 @@
-(function(G){G.DATA_KEY='ng-20261008-v52-a1-r6-user13b-geo1';G.meta={date:'2026-10-08',version:'V52-A1-R6-daily13',source:'user-provided',verification:'some event details not independently verified'};G.demo=[
+(function(G){G.DATA_KEY='ng-20261010-v52-a1-r6-lock13';G.meta={"date":"2026-10-10","version":"V52-A1-R6-daily13","source":"2026-10-10 locked daily 13","verification":"mixed; refer to news source audit; locations 8 and 11 approximate","locationPolicy":"No fabricated strike origins or flight trajectories"};G.demo=[
   {
     "id": 1,
     "sceneMode": "POINT",
@@ -6,7 +6,7 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "国庆假期我国跨区域人员流动达21.42亿人次，假日出行规模庞大。",
+    "title": "我国宣布开展适应人工智能发展的促就业行动，加强职业技能培训。",
     "location": "中国北京",
     "lon": 116.4074,
     "lat": 39.9042,
@@ -20,46 +20,26 @@
       "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "飓风Isaias逼近美国墨西哥湾，油气企业撤离人员并减产。",
-    "location": "美国墨西哥湾",
-    "lon": -90,
-    "lat": 27,
+    "title": "飓风伊赛亚斯登陆美国佛罗里达州，造成大规模停电。",
+    "location": "美国佛罗里达州德斯廷",
+    "lon": -86.4958,
+    "lat": 30.3935,
     "countryIso3": "USA",
-    "focusLabel": "墨西哥湾",
-    "placeType": "海域",
-    "featureKind": "water",
-    "focusBounds": [
-      -98,
-      18,
-      -80,
-      30.5
-    ],
-    "geometryApproximate": true,
-    "geometrySource": "墨西哥湾区域展示范围；不代表飓风影响边界"
+    "focusLabel": "德斯廷"
   },
   {
     "id": 3,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "IRN",
+      "primaryIso3": "IND",
       "finalLocation": true
     },
-    "title": "中东航运风险叠加美国飓风，国际油价大幅波动。",
-    "location": "霍尔木兹海峡",
-    "lon": 56.25,
-    "lat": 26.55,
-    "countryIso3": "IRN",
-    "focusLabel": "霍尔木兹海峡",
-    "placeType": "海峡",
-    "featureKind": "water",
-    "focusBounds": [
-      55.5,
-      25.7,
-      57.2,
-      27.2
-    ],
-    "geometryApproximate": true,
-    "geometrySource": "霍尔木兹海峡区域展示范围；不代表航道或封锁边界"
+    "title": "印度新德里发生青年抗议，警方拘留多名示威者。",
+    "location": "印度新德里",
+    "lon": 77.209,
+    "lat": 28.6139,
+    "countryIso3": "IND",
+    "focusLabel": "新德里"
   },
   {
     "id": 4,
@@ -68,7 +48,7 @@
       "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "美国国务卿鲁比奥称俄乌战争陷入危险僵局，呼吁推动谈判。",
+    "title": "特朗普宣布俄罗斯柴油供应安排，美国暂时放松相关限制。",
     "location": "美国华盛顿",
     "lon": -77.0365,
     "lat": 38.8977,
@@ -79,115 +59,104 @@
     "id": 5,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "ITA",
+      "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "意大利议会最终批准梅洛尼政府推动的选举制度改革。",
-    "location": "意大利罗马",
-    "lon": 12.4964,
-    "lat": 41.9028,
-    "countryIso3": "ITA",
-    "focusLabel": "罗马"
+    "title": "特朗普成立委员会调查美联储理事丽莎·库克。",
+    "location": "美国华盛顿",
+    "lon": -77.0365,
+    "lat": 38.8977,
+    "countryIso3": "USA",
+    "focusLabel": "华盛顿"
   },
   {
     "id": 6,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "ZMB",
+      "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "美国与赞比亚签署24.9亿美元卫生融资协议，删除争议条款。",
-    "location": "赞比亚卢萨卡",
-    "lon": 28.3228,
-    "lat": -15.3875,
-    "countryIso3": "ZMB",
-    "focusLabel": "卢萨卡"
+    "title": "特朗普批评诺贝尔和平奖评选，诺奖委员会回应。",
+    "location": "美国纽约州锡拉丘兹",
+    "lon": -76.1474,
+    "lat": 43.0481,
+    "countryIso3": "USA",
+    "focusLabel": "锡拉丘兹"
   },
   {
     "id": 7,
-    "sceneMode": "ATTACK",
-    "attackType": "missile",
+    "sceneMode": "POINT",
     "scenePlan": {
       "primaryIso3": "UKR",
-      "attackerIso3": "RUS",
-      "victimIso3": "UKR",
-      "contextCountries": [
-        "RUS"
-      ],
-      "finalLocation": true,
-      "targetLabel": "克拉马托尔斯克"
+      "finalLocation": true
     },
-    "title": "乌克兰克拉马托尔斯克遭空袭，至少30人死亡、18人受伤。",
-    "location": "乌克兰克拉马托尔斯克",
-    "lon": 37.5563,
-    "lat": 48.7389,
+    "title": "俄罗斯空袭乌克兰扎波罗热，住宅楼受损并造成平民伤亡。",
+    "location": "乌克兰扎波罗热",
+    "lon": 35.1396,
+    "lat": 47.8388,
     "countryIso3": "UKR",
-    "focusLabel": "克拉马托尔斯克",
-    "secondaryCountryIso3": "RUS",
-    "targetCountryIso3": "UKR",
-    "sourceCountryIso3": "RUS",
-    "sourceLon": 37.6173,
-    "sourceLat": 55.7558
+    "focusLabel": "扎波罗热"
   },
   {
     "id": 8,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "TUR",
+      "primaryIso3": "SDN",
       "finalLocation": true
     },
-    "title": "土耳其警告俄乌黑海袭击升级，商船及粮食运输安全受到威胁。",
-    "location": "土耳其安卡拉",
-    "lon": 32.8597,
-    "lat": 39.9334,
-    "countryIso3": "TUR",
-    "focusLabel": "安卡拉"
+    "title": "苏丹青尼罗河州流离失所者聚集区遭无人机袭击。",
+    "location": "苏丹青尼罗河州（区域展示锚点）",
+    "lon": 34.1,
+    "lat": 11.2,
+    "countryIso3": "SDN",
+    "focusLabel": "青尼罗河州",
+    "locationPrecision": "regional-display-anchor",
+    "geometryApproximate": true,
+    "summary": "青尼罗河州区域展示锚点，非袭击现场精确坐标；未核实无人机起飞点，不绘制轨迹。"
   },
   {
     "id": 9,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "SWE",
+      "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "加拿大作家安妮·卡森获得2026年诺贝尔文学奖。",
-    "location": "瑞典斯德哥尔摩",
-    "lon": 18.0686,
-    "lat": 59.3293,
-    "countryIso3": "SWE",
-    "focusLabel": "斯德哥尔摩"
+    "title": "2026中国计算机大会公布人工智能和智能计算等议题。",
+    "location": "中国北京",
+    "lon": 116.4074,
+    "lat": 39.9042,
+    "countryIso3": "CHN",
+    "focusLabel": "北京"
   },
   {
     "id": 10,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "POL",
+      "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "波兰一所学校发生袭击，造成1人死亡、2人受伤。",
-    "location": "波兰（具体学校待核实）",
-    "lon": 21.0122,
-    "lat": 52.2297,
-    "countryIso3": "POL",
-    "focusLabel": "波兰"
+    "title": "赖清德在台北发表讲话，国务院台办作出回应。",
+    "location": "中国台湾台北",
+    "lon": 121.5654,
+    "lat": 25.033,
+    "countryIso3": "CHN",
+    "focusLabel": "台北"
   },
   {
     "id": 11,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "CHN",
+      "primaryIso3": "UKR",
       "finalLocation": true
     },
-    "title": "我国科研团队研制核光钟，在量子精密测量领域取得突破。",
-    "location": "北京（研究机构地点待核实）",
-    "lon": 116.4074,
-    "lat": 39.9042,
-    "countryIso3": "CHN",
-    "focusLabel": "北京",
-    "city": "北京",
-    "placeType": "城市展示锚点",
-    "locationPrecision": "display-anchor",
-    "summary": "以北京作为展示锚点；研究机构的具体地点仍待核实。"
+    "title": "乌克兰学者呼吁保护卡霍夫卡水坝溃决后显露的遗址。",
+    "location": "乌克兰卡霍夫卡水坝附近",
+    "lon": 33.38,
+    "lat": 46.78,
+    "countryIso3": "UKR",
+    "focusLabel": "卡霍夫卡",
+    "locationPrecision": "approximate-landmark",
+    "summary": "卡霍夫卡水坝附近地理展示位置，不代表遗址具体坐标。"
   },
   {
     "id": 12,
@@ -196,25 +165,12 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "新疆独库公路10月8日起实施冬季封闭，保障山区道路安全。",
-    "location": "新疆独库公路",
-    "lon": 84.4,
-    "lat": 43.15,
+    "title": "新疆审议通过数字新疆建设规划。",
+    "location": "中国新疆乌鲁木齐",
+    "lon": 87.6168,
+    "lat": 43.8256,
     "countryIso3": "CHN",
-    "focusLabel": "独库公路",
-    "adminChain": [
-      {
-        "location": "新疆维吾尔自治区",
-        "focusLabel": "新疆",
-        "placeType": "自治区",
-        "lon": 87.6168,
-        "lat": 43.8256
-      }
-    ],
-    "placeType": "公路",
-    "featureKind": "road",
-    "featureId": "duku-highway",
-    "noPoint": true
+    "focusLabel": "乌鲁木齐"
   },
   {
     "id": 13,
@@ -223,20 +179,11 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "乌鲁木齐国际陆港区“天山号”班列累计发运764列，对外物流持续发展。",
-    "location": "新疆乌鲁木齐国际陆港区",
-    "lon": 87.5,
-    "lat": 43.88,
+    "title": "新疆大学纺织科学与工程学科世界排名取得进展。",
+    "location": "中国新疆乌鲁木齐新疆大学",
+    "lon": 87.61,
+    "lat": 43.82,
     "countryIso3": "CHN",
-    "focusLabel": "乌鲁木齐",
-    "adminChain": [
-      {
-        "location": "新疆维吾尔自治区",
-        "focusLabel": "新疆",
-        "placeType": "自治区",
-        "lon": 87.6168,
-        "lat": 43.8256
-      }
-    ]
+    "focusLabel": "新疆大学"
   }
-];G.DAILY_LOCK='20261008-LOCK13-B';})(window.NG14=window.NG14||{});
+];G.DAILY_LOCK='20261010-LOCK13';})(window.NG14=window.NG14||{});
