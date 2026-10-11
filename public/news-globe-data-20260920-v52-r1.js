@@ -1,4 +1,4 @@
-(function(G){G.DATA_KEY='ng-20261010-v52-a1-r6-lock13';G.meta={"date":"2026-10-10","version":"V52-A1-R6-daily13","source":"2026-10-10 locked daily 13","verification":"mixed; refer to news source audit; locations 8 and 11 approximate","locationPolicy":"No fabricated strike origins or flight trajectories"};G.demo=[
+(function(G){G.DATA_KEY='ng-20261011-v52-a1-r6-lock13';G.meta={"date":"2026-10-11","version":"V52-A1-R6-daily13","source":"news audit","verification":"mixed"};G.demo=[
   {
     "id": 1,
     "sceneMode": "POINT",
@@ -6,40 +6,40 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "我国宣布开展适应人工智能发展的促就业行动，加强职业技能培训。",
-    "location": "中国北京",
-    "lon": 116.4074,
-    "lat": 39.9042,
+    "title": "中法举行第28次战略对话，聚焦航空航天、核能、人工智能及经贸合作。",
+    "location": "中国山西大同",
+    "lon": 113.2953,
+    "lat": 40.0903,
     "countryIso3": "CHN",
-    "focusLabel": "北京"
+    "focusLabel": "大同"
   },
   {
     "id": 2,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "USA",
+      "primaryIso3": "SAU",
       "finalLocation": true
     },
-    "title": "飓风伊赛亚斯登陆美国佛罗里达州，造成大规模停电。",
-    "location": "美国佛罗里达州德斯廷",
-    "lon": -86.4958,
-    "lat": 30.3935,
-    "countryIso3": "USA",
-    "focusLabel": "德斯廷"
+    "title": "沙特利雅得机场袭击致12人死亡，机场停运延长至11日晚。",
+    "location": "沙特利雅得",
+    "lon": 46.6988,
+    "lat": 24.9576,
+    "countryIso3": "SAU",
+    "focusLabel": "利雅得"
   },
   {
     "id": 3,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "IND",
+      "primaryIso3": "OMN",
       "finalLocation": true
     },
-    "title": "印度新德里发生青年抗议，警方拘留多名示威者。",
-    "location": "印度新德里",
-    "lon": 77.209,
-    "lat": 28.6139,
-    "countryIso3": "IND",
-    "focusLabel": "新德里"
+    "title": "美军称在阿曼湾击停一艘试图突破对伊封锁的商船，船员未伤。",
+    "location": "阿曼湾",
+    "lon": 58.3,
+    "lat": 24.2,
+    "countryIso3": "OMN",
+    "focusLabel": "阿曼湾"
   },
   {
     "id": 4,
@@ -48,12 +48,12 @@
       "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "特朗普宣布俄罗斯柴油供应安排，美国暂时放松相关限制。",
-    "location": "美国华盛顿",
-    "lon": -77.0365,
-    "lat": 38.8977,
+    "title": "特朗普公开呼吁民主党参议员费特曼转投共和党。",
+    "location": "美国马里兰州",
+    "lon": -76.867,
+    "lat": 38.8108,
     "countryIso3": "USA",
-    "focusLabel": "华盛顿"
+    "focusLabel": "安德鲁斯基地"
   },
   {
     "id": 5,
@@ -62,7 +62,7 @@
       "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "特朗普成立委员会调查美联储理事丽莎·库克。",
+    "title": "美国司法部调查五家电视台暂停白宫联合采访是否违反反垄断法。",
     "location": "美国华盛顿",
     "lon": -77.0365,
     "lat": 38.8977,
@@ -76,12 +76,12 @@
       "primaryIso3": "USA",
       "finalLocation": true
     },
-    "title": "特朗普批评诺贝尔和平奖评选，诺奖委员会回应。",
-    "location": "美国纽约州锡拉丘兹",
-    "lon": -76.1474,
-    "lat": 43.0481,
+    "title": "世界银行称正与30至40个国家讨论应对能源与物价冲击的危机援助。",
+    "location": "美国华盛顿",
+    "lon": -77.0426,
+    "lat": 38.8993,
     "countryIso3": "USA",
-    "focusLabel": "锡拉丘兹"
+    "focusLabel": "世界银行"
   },
   {
     "id": 7,
@@ -90,73 +90,68 @@
       "primaryIso3": "UKR",
       "finalLocation": true
     },
-    "title": "俄罗斯空袭乌克兰扎波罗热，住宅楼受损并造成平民伤亡。",
-    "location": "乌克兰扎波罗热",
-    "lon": 35.1396,
-    "lat": 47.8388,
+    "title": "泽连斯基表示，若俄停止攻击乌能源设施，乌愿停止袭击俄炼油厂。",
+    "location": "乌克兰基辅",
+    "lon": 30.5234,
+    "lat": 50.4501,
     "countryIso3": "UKR",
-    "focusLabel": "扎波罗热"
+    "focusLabel": "基辅"
   },
   {
     "id": 8,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "SDN",
+      "primaryIso3": "RUS",
       "finalLocation": true
     },
-    "title": "苏丹青尼罗河州流离失所者聚集区遭无人机袭击。",
-    "location": "苏丹青尼罗河州（区域展示锚点）",
-    "lon": 34.1,
-    "lat": 11.2,
-    "countryIso3": "SDN",
-    "focusLabel": "青尼罗河州",
-    "locationPrecision": "regional-display-anchor",
-    "geometryApproximate": true,
-    "summary": "青尼罗河州区域展示锚点，非袭击现场精确坐标；未核实无人机起飞点，不绘制轨迹。"
+    "title": "俄罗斯弗拉基米尔州一处Yandex数据中心遭无人机袭击后停运。",
+    "location": "俄罗斯弗拉基米尔州",
+    "lon": 40.4,
+    "lat": 56.13,
+    "countryIso3": "RUS",
+    "focusLabel": "弗拉基米尔州"
   },
   {
     "id": 9,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "CHN",
+      "primaryIso3": "THA",
       "finalLocation": true
     },
-    "title": "2026中国计算机大会公布人工智能和智能计算等议题。",
-    "location": "中国北京",
-    "lon": 116.4074,
-    "lat": 39.9042,
-    "countryIso3": "CHN",
-    "focusLabel": "北京"
+    "title": "IMF与世界银行曼谷年会前夕，能源冲击和高债务成为全球经济焦点。",
+    "location": "泰国曼谷",
+    "lon": 100.5018,
+    "lat": 13.7563,
+    "countryIso3": "THA",
+    "focusLabel": "曼谷"
   },
   {
     "id": 10,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "CHN",
+      "primaryIso3": "MEX",
       "finalLocation": true
     },
-    "title": "赖清德在台北发表讲话，国务院台办作出回应。",
-    "location": "中国台湾台北",
-    "lon": 121.5654,
-    "lat": 25.033,
-    "countryIso3": "CHN",
-    "focusLabel": "台北"
+    "title": "飓风西蒙逼近墨西哥太平洋沿岸，强风暴雨和洪灾风险持续上升。",
+    "location": "墨西哥曼萨尼约",
+    "lon": -104.32,
+    "lat": 19.05,
+    "countryIso3": "MEX",
+    "focusLabel": "曼萨尼约"
   },
   {
     "id": 11,
     "sceneMode": "POINT",
     "scenePlan": {
-      "primaryIso3": "UKR",
+      "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "乌克兰学者呼吁保护卡霍夫卡水坝溃决后显露的遗址。",
-    "location": "乌克兰卡霍夫卡水坝附近",
-    "lon": 33.38,
-    "lat": 46.78,
-    "countryIso3": "UKR",
-    "focusLabel": "卡霍夫卡",
-    "locationPrecision": "approximate-landmark",
-    "summary": "卡霍夫卡水坝附近地理展示位置，不代表遗址具体坐标。"
+    "title": "我国食品安全法修订草案公开征求意见，新增校园和网络食品监管要求。",
+    "location": "中国北京",
+    "lon": 116.4074,
+    "lat": 39.9042,
+    "countryIso3": "CHN",
+    "focusLabel": "北京"
   },
   {
     "id": 12,
@@ -165,12 +160,12 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "新疆审议通过数字新疆建设规划。",
-    "location": "中国新疆乌鲁木齐",
-    "lon": 87.6168,
-    "lat": 43.8256,
+    "title": "新疆哈密举办第四届农特产品交易会，200多家企业参展。",
+    "location": "中国新疆哈密",
+    "lon": 93.5154,
+    "lat": 42.8332,
     "countryIso3": "CHN",
-    "focusLabel": "乌鲁木齐"
+    "focusLabel": "哈密"
   },
   {
     "id": 13,
@@ -179,11 +174,11 @@
       "primaryIso3": "CHN",
       "finalLocation": true
     },
-    "title": "新疆大学纺织科学与工程学科世界排名取得进展。",
-    "location": "中国新疆乌鲁木齐新疆大学",
-    "lon": 87.61,
-    "lat": 43.82,
+    "title": "新疆公布能源战略保障基地建设进展，新能源装机突破1.8亿千瓦。",
+    "location": "中国新疆乌鲁木齐",
+    "lon": 87.6168,
+    "lat": 43.8256,
     "countryIso3": "CHN",
-    "focusLabel": "新疆大学"
+    "focusLabel": "乌鲁木齐"
   }
-];G.DAILY_LOCK='20261010-LOCK13';})(window.NG14=window.NG14||{});
+];G.DAILY_LOCK='20261011-LOCK13';})(window.NG14=window.NG14||{});
