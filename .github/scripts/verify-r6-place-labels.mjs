@@ -66,6 +66,14 @@ try{
   console.log('BORDERS_AND_R9_READY');
   await page.evaluate(()=>{
     const G=NG14,C=Cesium,read=p=>p?.getValue?p.getValue(G.viewer.clock.currentTime):p;
+    // These regression scenarios must remain available when daily headlines change.
+    // They live only in this test page; no stored or published news is changed.
+    G.news=G.news.map(n=>({...n}));
+    G.news[11]={id:12,title:'道路定位示例',location:'新疆独库公路',focusLabel:'独库公路',placeType:'公路',
+      countryIso3:'CHN',lon:84.4,lat:43.15,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true},
+      adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区',lon:87.6,lat:43.8}]};
+    G.news[10]={id:11,title:'城市定位示例',location:'北京',focusLabel:'北京',city:'北京',placeType:'城市',
+      countryIso3:'CHN',lon:116.4,lat:39.9,sceneMode:'POINT',scenePlan:{primaryIso3:'CHN',finalLocation:true}};
     window.__placeLog={frames:[],offsets:[],painted:[],originalStory:G.news[11],areaDelay:0,pending:false};
     const resolve=G.resolveArea;
     G.resolveArea=async function(...args){const delay=__placeLog.areaDelay;if(delay){__placeLog.pending=true;await new Promise(r=>setTimeout(r,delay));__placeLog.pending=false;}return resolve.apply(this,args);};

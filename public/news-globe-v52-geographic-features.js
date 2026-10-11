@@ -92,6 +92,7 @@
     if (G.pulses?.[G.current]) G.pulses[G.current].show = false;
   }
   function restoreBorders() {
+    if (G.applyStoryBorders) { G.applyStoryBorders(); return; }
     for (const e of G.borderEntities || []) e.show = !G.overviewMode;
   }
   function clearDetails(restore = true) {
