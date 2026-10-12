@@ -59,6 +59,7 @@ function harness({news = Array.from({length:13},(_,i)=>story(i+1,modes[i%modes.l
     setTimeout(fn){const id=++nextId;timers.set(id,fn);return id;},
     clearTimeout(id){timers.delete(id)},console});
   vm.runInContext(ui,context);
+  G.runSequence=n=>{visited.push(n.id);sceneKinds.push(n.sceneMode);};
   G.restyle=()=>{};G.overlays=()=>{};G.showArc=(a,b)=>arcs.push([a,b]);
   G.buildScene=()=>{};
   G.storyDuration=()=>20;
@@ -108,7 +109,7 @@ test('a valid ten-story import takes effect in order and restores in the same Be
   h.G.applySettings();
   assert.match(h.node('msg').textContent,/已保存/);
   assert.equal(h.G.news.length,10);
-  assert.deepEqual(h.G.news.map(n=>n.id),[1,2,3,4,5,6,7,8,9,10]);
+  assert.deepEqual(Array.from(h.G.news, n=>n.id),[1,2,3,4,5,6,7,8,9,10]);
   assert.equal(h.node('timeline').children.length,10);
   assert.ok(h.lastSaved);
   const again=harness({saved:pack});
