@@ -1,9 +1,24 @@
 name: CI
 
+# Do not rebuild/deploy the shared Kazakh TTS Worker for a maintenance-
+# documentation or news-only regression workflow edit. App code changes still
+# use the established full production CI and deployment process.
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/NEWS_GLOBE_PROJECT_STATUS.md'
+      - 'docs/DAILY_DATA_LOCK_PROJECT_STATUS.md'
+      - 'docs/NEWS_SYSTEM_RECOVERY.md'
+      - '.github/workflows/news-globe-contract-lite.yml'
+      - '.github/workflows/news-globe-20260920-v52-verify.yml'
   pull_request:
+    paths-ignore:
+      - 'docs/NEWS_GLOBE_PROJECT_STATUS.md'
+      - 'docs/DAILY_DATA_LOCK_PROJECT_STATUS.md'
+      - 'docs/NEWS_SYSTEM_RECOVERY.md'
+      - '.github/workflows/news-globe-contract-lite.yml'
+      - '.github/workflows/news-globe-20260920-v52-verify.yml'
 
 jobs:
   build-and-test:
