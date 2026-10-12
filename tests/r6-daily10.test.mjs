@@ -203,7 +203,7 @@ test('one v1 DATA LOCK imports with V52 native fields and retains separate repor
 test('v1 format rejects wrong country label, duplicate ids, out-of-window timestamps, missing event fields and fabricated HTTP URLs',()=>{
   const h=harness();
   const p=daily(Array.from({length:10},(_,i)=>({
-    ...story(i+1),title:'北京新闻'+(i+1),summary:'北京新闻'+(i+1)+'报道详细情况',
+    ...story(i+1),title:'北京新闻'+(i+1),summary:'北京新闻'+(i+1)+'报道详细情况与具体事件核验结果',
     eventType:'policy',placeType:'城市',relatedCountryIso3s:['CHN'],
     sources:[{name:'新华社'}],articleUrls:[],reportedAt:'2026-10-12T12:02:34+08:00'
   })));
