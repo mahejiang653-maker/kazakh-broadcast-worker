@@ -57,7 +57,7 @@ function harness({news = Array.from({length:13},(_,i)=>story(i+1,modes[i%modes.l
   const context=vm.createContext({window:{NG14:G},Cesium:C,document,Date:FixedDate,
     localStorage:{getItem:k=>storage.get(k)||null,setItem(k,v){storage.set(k,v);lastSaved=v},removeItem:k=>storage.delete(k)},
     setTimeout(fn){const id=++nextId;timers.set(id,fn);return id;},
-    clearTimeout(id){timers.delete(id)},console});
+    clearTimeout(id){timers.delete(id)},URL,console});
   vm.runInContext(ui,context);
   G.runSequence=n=>{visited.push(n.id);sceneKinds.push(n.sceneMode);};
   G.restyle=()=>{};G.overlays=()=>{};G.showArc=(a,b)=>arcs.push([a,b]);
@@ -172,4 +172,55 @@ test('the original historical 13-item data asset is not modified or silently rel
   assert.equal(G.DAILY_LOCK,'20261011-LOCK13');
   assert.equal(G.meta.date,'2026-10-11');
   assert.equal(G.demo[12].id,13);
+});
+
+
+test('one v1 DATA LOCK imports with V52 native fields and retains separate report-link associations',()=>{
+  const h=harness();
+  const p=daily(Array.from({length:10},(_,i)=>({
+    ...story(i+1),
+    summary:'北京新闻'+(i+1)+'的具体事件事实已核实并披露',
+    title:'北京新闻'+(i+1),
+    eventType:'policy',placeType:'城市',focusLabel:'北京',
+    relatedCountryIso3s:['CHN'],
+    sources:[{name:'新华社'}],
+    articleUrls:i===0?['https://news.example.org/story','https://news.example.org/followup','https://news.example.org/gallery']:[],
+    reportedAt:'2026-10-12T12:02:34+08:00',
+    publishedAt:'2026-10-12T12:02:34+08:00'
+  })));
+  Object.assign(p.meta,{schemaVersion:'news-data-lock/v1',timeZone:'Asia/Shanghai',newsCount:10,imagesPerNews:3});
+  assert.deepEqual(Array.from(h.G.validate(p)),[]);
+  assert.equal(p.news[0].articleUrls.length,3);
+  assert.equal(h.G.daily10Warnings(p).length,9);
+  h.node('jsonInput').value=JSON.stringify(p);
+  h.G.applySettings();
+  assert.match(h.node('msg').textContent,/已保存/);
+  assert.equal(h.G.news.length,10);
+  assert.equal(h.G.news[0].focusLabel,'北京');
+  assert.equal(h.G.news[0].articleUrls[0],'https://news.example.org/story');
+  assert.equal(h.G.news[9].id,10);
+});
+test('v1 format rejects wrong country label, duplicate ids, out-of-window timestamps, missing event fields and fabricated HTTP URLs',()=>{
+  const h=harness();
+  const p=daily(Array.from({length:10},(_,i)=>({
+    ...story(i+1),title:'北京新闻'+(i+1),summary:'北京新闻'+(i+1)+'报道详细情况',
+    eventType:'policy',placeType:'城市',relatedCountryIso3s:['CHN'],
+    sources:[{name:'新华社'}],articleUrls:[],reportedAt:'2026-10-12T12:02:34+08:00'
+  })));
+  Object.assign(p.meta,{schemaVersion:'news-data-lock/v1',timeZone:'Asia/Shanghai'});
+  assert.equal(h.G.validate(p).length,0);
+  const mutate=[
+    x=>{x.news[0].focusLabel='中国';},
+    x=>{x.news[1].id=1;},
+    x=>{x.news[3].reportedAt='2026-10-12T13:00:00+08:00';},
+    x=>{delete x.news[6].eventType;},
+    x=>{x.news[2].scenePlan.primaryIso3='USA';},
+    x=>{x.news[3].articleUrls=['http://example.com/fake'];},
+    x=>{x.news[1].summary='没有相同地名的叙事内容';},
+    x=>{x.news[4].sources=[];}
+  ];
+  for(const change of mutate){
+    const q=JSON.parse(JSON.stringify(p));change(q);
+    assert.ok(h.G.validate(q).length,change.toString());
+  }
 });
