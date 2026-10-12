@@ -1,0 +1,48 @@
+name: News Globe Top10 contract (offline)
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'public/news-globe-data-20260920-v52-r1.js'
+      - 'public/news-globe-v14-ui.js'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-story-borders.js'
+      - 'public/news-globe-v52-china-border-ownership.js'
+      - 'tests/r6-*.test.mjs'
+      - '.github/workflows/news-globe-contract-lite.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'public/news-globe-data-20260920-v52-r1.js'
+      - 'public/news-globe-v14-ui.js'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-story-borders.js'
+      - 'public/news-globe-v52-china-border-ownership.js'
+      - 'tests/r6-*.test.mjs'
+      - '.github/workflows/news-globe-contract-lite.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ten-story data, navigation, archive, borders and label invariants (mock only)
+        run: |
+          node --test \
+            tests/r6-daily10.test.mjs \
+            tests/r6-entry.test.mjs \
+            tests/r6-story-borders.test.mjs \
+            tests/r6-overlay-lifecycle.test.mjs \
+            tests/r6-china-borders.test.mjs \
+            tests/r6-place-labels.test.mjs
