@@ -12,6 +12,7 @@ on:
       - 'docs/NEWS_SYSTEM_RECOVERY.md'
       - '.github/workflows/news-globe-contract-lite.yml'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
+      - '.github/workflows/daily-news-image-pack.yml'
   pull_request:
     paths-ignore:
       - 'docs/NEWS_GLOBE_PROJECT_STATUS.md'
@@ -19,6 +20,7 @@ on:
       - 'docs/NEWS_SYSTEM_RECOVERY.md'
       - '.github/workflows/news-globe-contract-lite.yml'
       - '.github/workflows/news-globe-20260920-v52-verify.yml'
+      - '.github/workflows/daily-news-image-pack.yml'
 
 jobs:
   build-and-test:
