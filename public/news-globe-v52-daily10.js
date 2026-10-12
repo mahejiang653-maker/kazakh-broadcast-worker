@@ -170,6 +170,28 @@
   const baseBind = G.bind;
   G.bind = function(...args){
     const result = baseBind.apply(this, args);
+    // Import the SAME JSON file used by the news report and image website.
+    // The existing Apply button performs the final validation and save.
+    const area=G.$('jsonInput'),parent=area?.parentElement;
+    if(parent && !document.getElementById('dailyLockFile')){
+      const label=document.createElement('label');
+      label.textContent='导入统一10条 DATA LOCK JSON：';
+      label.style.display='block';
+      const input=document.createElement('input');
+      input.type='file';input.id='dailyLockFile';input.accept='.json,application/json';
+      input.onchange=async()=>{
+        try{
+          const file=input.files?.[0];if(!file)return;
+          const contents=await file.text();
+          const payload=JSON.parse(contents);
+          const errors=G.validate(payload);
+          if(errors.length){G.$('msg').textContent='未通过：'+errors.join('；');return;}
+          area.value=JSON.stringify(payload,null,2);
+          G.$('msg').textContent='JSON已读取，请点击保存并应用。'+G.daily10Warnings(payload).join('；');
+        }catch(e){G.$('msg').textContent='无法读取JSON：'+e.message;}
+      };
+      label.appendChild(input);parent.appendChild(label);
+    }
     G.$('sampleBtn').onclick = ()=>{
       const day = editionDay(),win = windowFor(day);
       G.$('jsonInput').value = JSON.stringify({
