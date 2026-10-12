@@ -1,18 +1,10 @@
 name: Daily News Image Pack
 
+# Legacy image pack performs actual web searches and launches Chromium.
+# Keep it available for explicit one-time use, but never run automatically:
+# news are locked only at 13:00 Beijing; the old 12:20 cron used stale content.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - 'daily-news-image-pack/news.json'
-      - 'daily-news-image-pack/curated_pool.json'
-      - 'daily-news-image-pack/full_web_pack_v15.py'
-      - 'daily-news-image-pack/fill_search_thumbnails_v19.py'
-      - 'daily-news-image-pack/requirements.txt'
-  schedule:
-    - cron: '20 4 * * *'  # 12:20 Beijing time
 
 jobs:
   build-image-pack:
