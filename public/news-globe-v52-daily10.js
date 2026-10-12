@@ -53,8 +53,53 @@
       if (n.lon == null || !Number.isFinite(lon) || lon < -180 || lon > 180) errors.push(at + ' 经度无效');
       if (n.lat == null || !Number.isFinite(lat) || lat < -90 || lat > 90) errors.push(at + ' 纬度无效');
     });
+    // New canonical JSON augments the existing V52 data model; legacy ten-item
+    // imports continue to work, but v1 imports undergo the full offline contract.
+    if (meta.schemaVersion === 'news-data-lock/v1') {
+      if (meta.timeZone !== 'Asia/Shanghai') errors.push('时区必须为 Asia/Shanghai');
+      if (meta.edition !== 'daily-10') errors.push('统一格式必须是 daily-10');
+      if (meta.newsCount != null && meta.newsCount !== COUNT) errors.push('newsCount 必须为10');
+      if (meta.imagesPerNews != null && meta.imagesPerNews !== 3) errors.push('每条应有3张合格图片');
+      const modes = new Set(['POINT','COUNTRY','ADMIN_REGION','REGION','DUAL_COUNTRY','DIPLOMACY_2','DIPLOMACY_MULTI','ORGANIZATION','ATTACK','POTENTIAL_ATTACK','MISSILE_ATTACK','DRONE_ATTACK','BORDER_CONFLICT']);
+      const countryNames = {CHN:'中国', USA:'美国', RUS:'俄罗斯', PAN:'巴拿马', PSE:'巴勒斯坦'};
+      const windows = validDay(String(meta.date || '')) ? windowFor(meta.date) : null;
+      p.news.forEach((n,i)=>{
+        const label = 'Top' + (i+1);
+        if (!n || typeof n !== 'object') return;
+        if (!String(n.summary||'').trim() || String(n.summary).trim().length < 12) errors.push(label+' 缺少事实摘要');
+        else {
+          const runs = String(n.title||'').match(/[\u3400-\u9fff]{2,}/g)||[];
+          const consistent = runs.some(r=>Array.from({length:r.length-1},(_,j)=>r.slice(j,j+2)).some(token=>String(n.summary).includes(token)));
+          if (!consistent) errors.push(label+' 标题与事实摘要缺少共同事件关键词');
+        }
+        if (!String(n.eventType||'').trim()) errors.push(label+' 缺少事件类型eventType');
+        if (!String(n.focusLabel||'').trim() || !String(n.placeType||'').trim()) errors.push(label+' 缺少实际地点标签或地点类型');
+        if (!/^[A-Z]{3}$/.test(String(n.countryIso3||''))) errors.push(label+' countryIso3无效');
+        if (!modes.has(n.sceneMode) || n.scenePlan?.primaryIso3 !== n.countryIso3) errors.push(label+' V52 sceneMode/scenePlan不兼容');
+        if (n.placeType === '城市' && n.focusLabel === countryNames[n.countryIso3]) errors.push(label+' 城市被错误标成国家');
+        if (!Array.isArray(n.relatedCountryIso3s) || !n.relatedCountryIso3s.includes(n.countryIso3) || n.relatedCountryIso3s.some(x=>!/^[A-Z]{3}$/.test(x))) errors.push(label+' 涉事国家列表无效');
+        if (!Array.isArray(n.sources) || !n.sources.length || n.sources.some(x=>!String(x?.name||'').trim())) errors.push(label+' 缺少新闻来源');
+        if (!Array.isArray(n.articleUrls) || n.articleUrls.length > 3 || n.articleUrls.some(u=>{try{const x=new URL(u);return x.protocol!=='https:';}catch{return true;}})) errors.push(label+' articleUrls应为新闻报道HTTPS网址数组');
+        else if (new Set(n.articleUrls).size!==n.articleUrls.length) errors.push(label+' 报道链接重复');
+        const time=String(n.reportedAt||'');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
+          if (time !== meta.date) errors.push(label+' 日期不属本期');
+        } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+08:00$/.test(time)) {
+          if (windows && (Date.parse(time)<Date.parse(windows.start) || Date.parse(time)>=Date.parse(windows.end))) errors.push(label+' 报道时间不在北京时间窗口内');
+        } else errors.push(label+' 缺少合法reportedAt');
+        if(n.publishedAt && n.publishedAt!==n.reportedAt) errors.push(label+' 报道时间字段不一致');
+      });
+    } else if (meta.schemaVersion) {
+      errors.push('不支持的 schemaVersion：' + meta.schemaVersion);
+    }
     return errors;
   };
+  G.daily10Warnings = p => Array.isArray(p?.news) ? p.news.flatMap((n,i)=>{
+    const w=[];
+    if(Array.isArray(n.articleUrls) && n.articleUrls.length<3)w.push('Top'+(i+1)+' 新闻报道链接不足3条');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||'')))w.push('Top'+(i+1)+' 只有日期，13:00截止时间未精确核实');
+    return w;
+  }) : [];
 
   const legacy = oldNews.length === 13;
   if (legacy) {
