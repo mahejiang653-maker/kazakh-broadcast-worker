@@ -57,7 +57,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(html.includes('0 / 10'));
   assert.ok(names.indexOf(dataPath) < names.indexOf('/news-globe-v14-main.js'));
   assert.ok(names.indexOf('/news-globe-v52-china-border-ownership.js') < names.indexOf('/news-globe-v14-main.js'));
-  for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261007-r6-china-border-ownership`));
+  for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261013-r6-foreign-frontier-r14`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
   for (const name of ['news-globe-v14-core.js','news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v52-geographic-features.js','news-globe-v52-story-borders.js']) assert.ok(scripts.includes(`/${name}?v=20261013-r6-foreign-frontier-r14`));
   assert.ok(names.indexOf('/news-globe-v52-r6-performance.js') < names.indexOf('/news-globe-v52-story-borders.js'));
