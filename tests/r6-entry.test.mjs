@@ -63,7 +63,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v52-r6-performance.js') < names.indexOf('/news-globe-v52-story-borders.js'));
   assert.ok(names.indexOf('/news-globe-v52-story-borders.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-elevated-width150-r7`));
-  assert.ok(scripts.includes('/news-globe-v14-v51-scene-engine.js?v=20261013-r6-viewport-flags-r20'));
+  assert.ok(scripts.includes('/news-globe-v14-v51-scene-engine.js?v=20261013-r6-projection-flags-r21'));
   assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261010-r6-fixed-place-labels-r9'));
   for (const name of ['news-globe-v14-v44-regression-guard.js','news-globe-v52-screen-collision-hotfix.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-fixed-place-labels-r9`));
   assert.ok(names.indexOf('/news-globe-v52-locationless-marker-guard.js') < names.indexOf('/news-globe-v52-geographic-features.js'));
