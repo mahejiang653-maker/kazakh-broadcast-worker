@@ -10,11 +10,12 @@ test('final POINT location preserves the primary-country flag after scene cleanu
   assert.match(code,/if\(G\.v52RenderGeographicFeature&&await G\.v52RenderGeographicFeature\(n,s\)\)\{if\(s===G\.navSerial\)flag/);
 });
 
-test('selected national border gets stronger contrast without changing elevation',()=>{
-  const code=source('news-globe-v14-highlight.js');
-  assert.match(code,/scoped\?\.63:\.42/);
-  assert.match(code,/scoped\?\.88:\.38/);
+test('shared China–Kazakhstan edges remain available to Kazakhstan while China uses its own canonical outline',()=>{
   const core=source('news-globe-v14-core.js');
+  assert.match(core,/some\(iso=>iso!=='CHN'\)/);
+  assert.match(core,/e\._countryIsos\.delete\('CHN'\)/);
   assert.match(core,/G\.positions\(\[a,b\],18000\)/);
   assert.match(core,/G\.positions\(r,22000\)/);
+  const highlight=source('news-globe-v14-highlight.js');
+  assert.match(highlight,/const width=on\?\.80:\.42/);
 });
