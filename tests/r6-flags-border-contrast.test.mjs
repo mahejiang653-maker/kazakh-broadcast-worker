@@ -25,5 +25,5 @@ test('China ownership cleanup cannot delete foreign-owned edges',()=>{
  assert.match(code,/e\._countryIsos\?\.has\('CHN'\) && e\._edgeAB\.every\(index\.matches\)/);
  const engine=source('news-globe-v14-v51-scene-engine.js');
  assert.match(engine,/https:\/\/flagcdn\.com\/w40\//);
- assert.match(engine,/billboard:\{image:`https:\/\/flagcdn\.com\/w40\/\$\{cc\}\.png`/);
+ assert.match(engine,/canvas\.toDataURL\('image\/png'\)/);
 });
