@@ -6,7 +6,7 @@ const source = name => fs.readFileSync(new URL('../public/' + name, import.meta.
 test('final POINT location preserves the primary-country flag after scene cleanup',()=>{
   const code=source('news-globe-v14-v51-scene-engine.js');
   assert.match(code,/flag\(flagIso\|\|n\.scenePlan\?\.primaryIso3\|\|n\.countryIso3,\+n\.lon,\+n\.lat/);
-  assert.match(code,/const cc=ISO2\[key\]\|\|String\(G\.countries\?\.get\(key\)\?\.iso2/);
+  assert.match(code,/cc=ISO2\[key\]\|\|String\(G\.countries\?\.get\(key\)\?\.iso2/);
   assert.match(code,/if\(G\.v52RenderGeographicFeature&&await G\.v52RenderGeographicFeature\(n,s\)\)\{if\(s===G\.navSerial\)flag/);
 });
 
