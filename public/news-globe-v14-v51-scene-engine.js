@@ -80,4 +80,19 @@ async function renderDiplomacy(n,iso,s){const p=n.scenePlan||{},arr=(p.participa
 async function renderOrg(n,iso,s){const p=n.scenePlan||{},org=String(p.organization||n.alliance||n.location||'');if(org!=='OPEC+')return fallbackRun(n,iso,s);clearScene();hideBase();let ps=[];for(const m of OPEC){drawCountry(m,COLOR.org,.12,2.0);ps.push(...carts(m))}await flyFit(ps,s,{factor:2.5,min:7600000,max:19000000,duration:1.2});await wait(1150,s);if(s!==G.navSerial)return;for(const group of OPEC_GROUPS){clearScene();hideBase();let q=[];for(const m of group){drawCountry(m,COLOR.org,.14,2.1);q.push(...carts(m))}if(q.length)await flyFit(q,s,{factor:2.25,min:1700000,max:9000000,duration:.85});await wait(600,s);if(s!==G.navSerial)return}const keys=(p.keyCountries||[]).map(x=>String(x).toUpperCase());if(keys.length){for(const k of keys){await countryStage(k,s,{color:COLOR.main,hold:1900});if(s!==G.navSerial)return}}}
 G.runSequence=async(n,iso,s)=>{if(s!==G.navSerial)return false;const mode=String(n.sceneMode||'').toUpperCase();if(!n.scenePlan?.hierarchyPresented){clearScene();hideBase()}if(mode==='ATTACK'||mode==='POTENTIAL_ATTACK')return renderAttack(n,iso,s);if(mode==='CARRIER_PORT'||n.scenePlan?.carrierDocking)return renderCarrier(n,iso,s);if(mode==='ORGANIZATION')return renderOrg(n,iso,s);if(mode==='DIPLOMACY_2')return renderDiplomacy(n,iso,s);if(mode==='POINT'||mode==='ADMIN'||mode==='DIPLOMACY_MULTI'||(mode!=='COUNTRY'&&G.v52Geography?.kind(n)))return renderPoint(n,iso,s);if(mode==='COUNTRY'){const p=String(n.scenePlan?.primaryIso3||n.countryIso3||iso||'').toUpperCase();return countryStage(p,s,{color:COLOR.main,hold:1900})}return fallbackRun(n,iso,s)};
 G.storyDuration=n=>{const m=String(n.sceneMode||'').toUpperCase();if(m==='ATTACK'||m==='POTENTIAL_ATTACK')return 17000;if(m==='CARRIER_PORT')return 17000;if(m==='ORGANIZATION')return 21000;if(m==='DIPLOMACY_MULTI')return 18500;if(m==='DIPLOMACY_2')return 12500;if(m==='POINT'||m==='ADMIN')return 15500+(G.adminSteps?.(n)?.length||0)*1500;return typeof fallbackDuration==='function'?fallbackDuration(n):15000};
+
+// Opt-in on-screen audit for Android devices without remote DevTools.
+// Open the globe with ?flagdebug=1; normal visitors see no extra UI.
+if(typeof window!=='undefined' && /(?:[?&])flagdebug=1(?:&|$)/.test(String(window.location?.search||''))){
+ const showAudit=()=>{
+  if(!document.body)return;
+  let el=document.getElementById('v52-flag-debug');
+  if(!el){el=document.createElement('div');el.id='v52-flag-debug';el.style.cssText='position:fixed;left:8px;bottom:70px;z-index:2147483647;background:rgba(0,0,0,.88);color:#fff;font:12px/1.5 monospace;padding:8px;border:1px solid #ffd447;max-width:94vw;pointer-events:none;white-space:pre-wrap';document.body.appendChild(el)}
+  const d=G.v52FlagAudit?.snapshot?.();
+  if(!d){el.textContent='Flag audit: not initialized';return}
+  const last=d.items?.slice(-3).map(x=>x.iso+':'+(x.stillInScene?'present':'removed')+'/'+String(x.imageType)).join(' ');
+  el.textContent='FLAG R18 created='+d.created+' active='+d.active+' removed='+d.removed+' invalid='+d.invalid+' CDN ok='+d.loadSuccess+' fail='+d.loadError+'\n'+last;
+ };
+ setInterval(showAudit,1500);setTimeout(showAudit,500);
+}
 })(window.NG14);
