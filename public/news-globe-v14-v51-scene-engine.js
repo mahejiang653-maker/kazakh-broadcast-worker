@@ -67,7 +67,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
       scene.postRender.removeEventListener(update);el.remove();G.v52FlagAudit.domRemoved=(G.v52FlagAudit.domRemoved||0)+1;return;
      }
      const p=entity.position?.getValue?.(G.viewer.clock.currentTime);
-     const xy=p&&C.SceneTransforms.wgs84ToWindowCoordinates(scene,p);
+     const project=C.SceneTransforms?.worldToWindowCoordinates||C.SceneTransforms?.wgs84ToWindowCoordinates;const xy=p&&typeof project==='function'&&project(scene,p);
      const rect=scene.canvas?.getBoundingClientRect?.();
      if(!xy||!rect||!Number.isFinite(xy.x)||!Number.isFinite(xy.y)||xy.x<0||xy.y<0||xy.x>rect.width||xy.y>rect.height){
       el.style.display='none';G.v52FlagAudit.domOffscreen=(G.v52FlagAudit.domOffscreen||0)+1;return;
@@ -118,7 +118,7 @@ if(typeof window!=='undefined' && /(?:[?&])flagdebug=1(?:&|$)/.test(String(windo
   const d=G.v52FlagAudit?.snapshot?.();
   if(!d){el.textContent='Flag audit: not initialized';return}
   const last=d.items?.slice(-3).map(x=>x.iso+':'+(x.stillInScene?'present':'removed')+'/'+String(x.imageType)).join(' ');
-  el.textContent='FLAG R20 created='+d.created+' active='+d.active+' removed='+d.removed+' invalid='+d.invalid+' CDN ok='+d.loadSuccess+' fail='+d.loadError+'\nDOM created='+(G.v52FlagAudit.domCreated||0)+' visibleFrames='+(G.v52FlagAudit.domVisible||0)+' offscreen='+(G.v52FlagAudit.domOffscreen||0)+' error='+(G.v52FlagAudit.domError||'-')+'\n'+last;
+  el.textContent='FLAG R21 created='+d.created+' active='+d.active+' removed='+d.removed+' invalid='+d.invalid+' CDN ok='+d.loadSuccess+' fail='+d.loadError+'\nDOM created='+(G.v52FlagAudit.domCreated||0)+' visibleFrames='+(G.v52FlagAudit.domVisible||0)+' offscreen='+(G.v52FlagAudit.domOffscreen||0)+' error='+(G.v52FlagAudit.domError||'-')+'\n'+last;
  };
  setInterval(showAudit,1500);setTimeout(showAudit,500);
 }
