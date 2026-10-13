@@ -52,6 +52,31 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
   }
  }catch{}
  const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+
+// DOM-backed flag fallback: keep a flag visible when Cesium billboard sprites fail to render.
+// Position is recalculated in scene postRender, so the flag follows globe rotation and zoom.
+ try{
+  const host=G.viewer?.container;
+  if(host&&typeof document?.createElement==='function'&&G.viewer?.scene?.postRender){
+   const el=document.createElement('img');el.alt=key+' flag';el.src=remote;
+   el.style.cssText='position:absolute;z-index:12;width:'+w+'px;height:'+h+'px;object-fit:fill;pointer-events:none;display:none;transform:translate(-50%,-50%)';
+   if(getComputedStyle(host).position==='static')host.style.position='relative';
+   host.appendChild(el);
+   const update=()=>{
+    try{
+     if(!G.viewer?.entities?.contains?.(entity)){G.viewer?.scene?.postRender?.removeEventListener(update);el.remove();return}
+     const p=entity.position?.getValue?.(G.viewer.clock.currentTime);
+     const xy=p&&C.SceneTransforms.wgs84ToWindowCoordinates(G.viewer.scene,p);
+     const camera=G.viewer.camera;
+     const behind=p&&C.Cartesian3.dot(C.Cartesian3.subtract(p,camera.positionWC,new C.Cartesian3()),camera.directionWC)<0;
+     if(!xy||behind||!Number.isFinite(xy.x)||!Number.isFinite(xy.y)){el.style.display='none';return}
+     el.style.display='block';el.style.left=(xy.x+dx)+'px';el.style.top=(xy.y+dy)+'px';
+    }catch{el.style.display='none'}
+   };
+   G.viewer.scene.postRender.addEventListener(update);
+   update();
+  }
+ }catch{}
  G.v52FlagAudit.created++;G.v52FlagAudit.events.push({iso:key,at:Date.now(),entity});if(G.v52FlagAudit.events.length>40)G.v52FlagAudit.events.shift();
  if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
 }
