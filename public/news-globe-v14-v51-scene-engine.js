@@ -53,30 +53,32 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  }catch{}
  const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
 
-// DOM-backed flag fallback: keep a flag visible when Cesium billboard sprites fail to render.
-// Position is recalculated in scene postRender, so the flag follows globe rotation and zoom.
+// Viewport-level fallback avoids Cesium container stacking and clipping.
  try{
-  const host=G.viewer?.container;
-  if(host&&typeof document?.createElement==='function'&&G.viewer?.scene?.postRender){
+  const scene=G.viewer?.scene;
+  if(scene?.postRender&&typeof document?.createElement==='function'&&document.body){
    const el=document.createElement('img');el.alt=key+' flag';el.src=remote;
-   el.style.cssText='position:absolute;z-index:12;width:'+w+'px;height:'+h+'px;object-fit:fill;pointer-events:none;display:none;transform:translate(-50%,-50%)';
-   if(getComputedStyle(host).position==='static')host.style.position='relative';
-   host.appendChild(el);
+   el.style.cssText='position:fixed;z-index:2147483000;width:'+Math.max(30,w)+'px;height:'+Math.max(20,h)+'px;object-fit:fill;pointer-events:none;display:none;transform:translate(-50%,-50%)';
+   document.body.appendChild(el);
+   G.v52FlagAudit.domCreated=(G.v52FlagAudit.domCreated||0)+1;
    const update=()=>{
     try{
-     if(!G.viewer?.entities?.contains?.(entity)){G.viewer?.scene?.postRender?.removeEventListener(update);el.remove();return}
+     if(!G.viewer?.entities?.contains?.(entity)){
+      scene.postRender.removeEventListener(update);el.remove();G.v52FlagAudit.domRemoved=(G.v52FlagAudit.domRemoved||0)+1;return;
+     }
      const p=entity.position?.getValue?.(G.viewer.clock.currentTime);
-     const xy=p&&C.SceneTransforms.wgs84ToWindowCoordinates(G.viewer.scene,p);
-     const camera=G.viewer.camera;
-     const behind=p&&C.Cartesian3.dot(C.Cartesian3.subtract(p,camera.positionWC,new C.Cartesian3()),camera.directionWC)<0;
-     if(!xy||behind||!Number.isFinite(xy.x)||!Number.isFinite(xy.y)){el.style.display='none';return}
-     el.style.display='block';el.style.left=(xy.x+dx)+'px';el.style.top=(xy.y+dy)+'px';
-    }catch{el.style.display='none'}
+     const xy=p&&C.SceneTransforms.wgs84ToWindowCoordinates(scene,p);
+     const rect=scene.canvas?.getBoundingClientRect?.();
+     if(!xy||!rect||!Number.isFinite(xy.x)||!Number.isFinite(xy.y)||xy.x<0||xy.y<0||xy.x>rect.width||xy.y>rect.height){
+      el.style.display='none';G.v52FlagAudit.domOffscreen=(G.v52FlagAudit.domOffscreen||0)+1;return;
+     }
+     el.style.left=(rect.left+xy.x+dx)+'px';el.style.top=(rect.top+xy.y+dy)+'px';el.style.display='block';
+     G.v52FlagAudit.domVisible=(G.v52FlagAudit.domVisible||0)+1;
+    }catch(e){el.style.display='none';G.v52FlagAudit.domError=String(e?.message||e)}
    };
-   G.viewer.scene.postRender.addEventListener(update);
-   update();
-  }
- }catch{}
+   scene.postRender.addEventListener(update);update();
+  }else{G.v52FlagAudit.domError='scene/postRender/body unavailable'}
+ }catch(e){G.v52FlagAudit.domError=String(e?.message||e)}
  G.v52FlagAudit.created++;G.v52FlagAudit.events.push({iso:key,at:Date.now(),entity});if(G.v52FlagAudit.events.length>40)G.v52FlagAudit.events.shift();
  if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
 }
@@ -116,7 +118,7 @@ if(typeof window!=='undefined' && /(?:[?&])flagdebug=1(?:&|$)/.test(String(windo
   const d=G.v52FlagAudit?.snapshot?.();
   if(!d){el.textContent='Flag audit: not initialized';return}
   const last=d.items?.slice(-3).map(x=>x.iso+':'+(x.stillInScene?'present':'removed')+'/'+String(x.imageType)).join(' ');
-  el.textContent='FLAG R18 created='+d.created+' active='+d.active+' removed='+d.removed+' invalid='+d.invalid+' CDN ok='+d.loadSuccess+' fail='+d.loadError+'\n'+last;
+  el.textContent='FLAG R20 created='+d.created+' active='+d.active+' removed='+d.removed+' invalid='+d.invalid+' CDN ok='+d.loadSuccess+' fail='+d.loadError+'\nDOM created='+(G.v52FlagAudit.domCreated||0)+' visibleFrames='+(G.v52FlagAudit.domVisible||0)+' offscreen='+(G.v52FlagAudit.domOffscreen||0)+' error='+(G.v52FlagAudit.domError||'-')+'\n'+last;
  };
  setInterval(showAudit,1500);setTimeout(showAudit,500);
 }
