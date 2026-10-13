@@ -7,7 +7,7 @@ const source = name => fs.readFileSync(new URL('../public/' + name, import.meta.
 // Snapshot of the same WORLD URL the production core already uses, not a new map source.
 const world = JSON.parse(fs.readFileSync(new URL('./fixtures/r6-world-borders-20261007.geojson', import.meta.url)));
 const outline = JSON.parse(source('news-globe-china-outline-v52.geojson'));
-const expected = {AFG:1,BTN:5,IND:18,KAZ:11,KGZ:10,LAO:4,MMR:15,MNG:45,NPL:9,PAK:3,PRK:9,RUS:33,TJK:5,VNM:9};
+const expected = {}; // Foreign national borders must never be erased.
 const ownershipSource = source('news-globe-v52-china-border-ownership.js');
 
 function harness() {
@@ -46,13 +46,13 @@ test('mixed-resolution world frontiers reproduce the actual double-line bug',asy
   assert.ok(legacy);assert.deepEqual([...legacy._countryIsos],['KAZ']);
 });
 
-test('canonical China replaces 177 neighbor-side frontiers without changing other borders',async()=>{
+test('canonical China retains all neighbor-side frontiers without changing other borders',async()=>{
   const h=harness();await h.G.loadBorders();
   const before=new Map([...h.G.countries].map(([iso,c])=>[iso,[...c.entities]]));
   const shared=h.G.borderEntities.filter(e=>e._countryIsos.size>1);
   const china=[...before.get('CHN')];h.install();
-  assert.equal(h.G.v52ChinaBoundaryOwnership.reconcile(),177);
-  assert.equal(h.G.borderEntities.length,8132-177);
+  assert.equal(h.G.v52ChinaBoundaryOwnership.reconcile(),0);
+  assert.equal(h.G.borderEntities.length,8132);
   const removed={};
   for(const [iso,old]of before){const count=old.length-h.G.countries.get(iso).entities.length;if(count)removed[iso]=count;}
   assert.deepEqual(removed,expected);
@@ -70,14 +70,14 @@ test('coastal continuations and shared tripoint borders stay visible',async()=>{
   assert.ok(matches('PRK',[124.27,39.93],[124.74,39.66]));
   assert.ok(matches('PRK',[130.78,42.22],[130.4,42.28]));
   assert.ok(matches('RUS',[130.78,42.22],[130.64,42.4]));
-  assert.ok(!matches('KAZ',[87.36,49.21],[86.6,48.55]));
+  assert.ok(matches('KAZ',[87.36,49.21],[86.6,48.55]));
 });
 
 test('load wrapper runs once after borders exist and introduces no timer or RAF',async()=>{
   const h=harness();h.install();const wrapped=h.G.loadBorders;h.install();
   assert.equal(h.G.loadBorders,wrapped);await h.G.loadBorders();
   const state=h.G.v52ChinaBoundaryOwnership.getDiagnostics();
-  assert.equal(state.removedGenericEdges,177);assert.equal(state.authoritativeRings,514);
+  assert.equal(state.removedGenericEdges,0);assert.equal(state.authoritativeRings,514);
   assert.deepEqual([...state.neighborIsos],Object.keys(expected).sort());
   assert.ok(!/setTimeout|setInterval|requestAnimationFrame|addEventListener/.test(ownershipSource));
 });

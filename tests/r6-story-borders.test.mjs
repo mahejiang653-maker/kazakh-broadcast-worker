@@ -73,7 +73,7 @@ test('switching stories and repeated scene cleanup never restore every country',
     const iso=i%2?'CHN':'USA';G.focus(i%2);G.clearLocal();G.setCountry(iso==='CHN'?'USA':'CHN',true);
     assertScope(G,[iso]);
   }
-  assert.equal(G.borderEntities.length,7955);
+  assert.equal(G.borderEntities.length,8132);
   for(const e of G.borderEntities) {
     assert.equal(e.polyline.positions,positions.get(e));assert.equal(e.polyline.clampToGround,false);
     assert.ok(e.polyline.positions.every(p=>p.height===(e._chinaAuthoritativeOutline?22000:18000)));

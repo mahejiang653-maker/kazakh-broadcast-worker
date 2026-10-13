@@ -80,7 +80,10 @@
       // Keep every authoritative island/territory ring and every shared foreign
       // border. Testing BOTH endpoints also preserves coasts leaving a tripoint.
       if (e._chinaAuthoritativeOutline || e._countryIsos?.size !== 1 || !e._edgeAB) continue;
-      if (e._edgeAB.every(index.matches)) {
+      // Foreign countries own their complete national outline, including any frontier
+      // coincident with China. Never delete a foreign-owned edge here: China's
+      // duplicate WORLD edges were already removed by the core loader.
+      if (e._countryIsos?.has('CHN') && e._edgeAB.every(index.matches)) {
         obsolete.add(e);
         for (const iso of e._countryIsos) neighborIsos.add(iso);
       }
