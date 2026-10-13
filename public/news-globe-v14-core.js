@@ -41,7 +41,10 @@ const ch=G.countries.get('CHN');
 if(ch){
  /* R31: WORLD/CHN is the unwanted mainland-style outline. Remove it completely and NEVER rebuild a China line from WORLD geometry. */
  const old=new Set(ch.entities||[]);
- for(const e of old){try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1);for(const cc of G.countries.values()){if(Array.isArray(cc?.entities))cc.entities=cc.entities.filter(x=>x!==e)}}
+ // The shared world edge belongs to both countries. Keep it for the
+ // non-China neighbor (e.g. KAZ) when removing the generic China outline.
+ // Only China-exclusive segments may be deleted from the global collection.
+ for(const e of old){if([...e._countryIsos||[]].some(iso=>iso!=='CHN')){e._countryIsos.delete('CHN');ch.entities=ch.entities.filter(x=>x!==e);continue}try{G.viewer.entities.remove(e)}catch{}const i=G.borderEntities.indexOf(e);if(i>=0)G.borderEntities.splice(i,1);for(const cc of G.countries.values()){if(Array.isArray(cc?.entities))cc.entities=cc.entities.filter(x=>x!==e)}}
  ch.entities=[];
 }
 try{
