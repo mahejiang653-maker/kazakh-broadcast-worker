@@ -32,7 +32,26 @@ function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[1
 /* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
 function drawCountry(iso,color,alpha=.14,width=2.35){const col=C.Color.fromCssColorString(color),outline=String(iso).toUpperCase()==='CHN'?G.countries?.get('CHN')?.authoritativeOutline:null;for(const f of outline?[outline]:viewFeatures(iso))for(const p of polygons(f)){const r=p?.[0]||[];if(r.length<3)continue;add(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(r.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000))),height:5000,material:col.withAlpha(alpha),outline:false}}))}}
 function label(text,lon,lat,{dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(0,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(0,dy);return e}
-function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){const key=String(iso||'').toUpperCase();const cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();if(!/^[a-z]{2}$/.test(cc)||!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:`https://flagcdn.com/w40/${cc}.png`,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}))}
+function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
+ const key=String(iso||'').toUpperCase(),cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();
+ if(!/^[a-z]{2}$/.test(cc)||!good(lon,lat))return;
+ const remote='https://flagcdn.com/w40/'+cc+'.png';
+ // Always render a local PNG immediately. Android/Chrome supports Unicode flag emoji in canvas.
+ // A remote PNG can replace it after loading, but a blocked CDN never leaves an empty billboard.
+ let initial=remote;
+ try{
+  if(typeof document?.createElement==='function'){
+   const canvas=document.createElement('canvas');canvas.width=64;canvas.height=40;
+   const ctx=canvas.getContext('2d');
+   if(ctx){ctx.fillStyle='#f3f5f8';ctx.fillRect(0,0,64,40);
+    const emoji=[...cc.toUpperCase()].map(c=>String.fromCodePoint(127397+c.charCodeAt(0))).join('');
+    ctx.font='34px "Noto Color Emoji","Apple Color Emoji",sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(emoji,32,21);initial=canvas.toDataURL('image/png')}
+  }
+ }catch{}
+ const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+ if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.src=remote}
+}
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
 async function flyPoint(lon,lat,height,s,duration=1.0){if(s!==G.navSerial||!good(lon,lat))return false;await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,+height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,complete:r,cancel:r}));return s===G.navSerial}
 async function flyFit(ps,s,{factor=2.15,min=450000,max=15000000,duration=1.0}={}){if(s!==G.navSerial||!ps.length)return false;const sp=C.BoundingSphere.fromPoints(ps),range=Math.max(min,Math.min(max,sp.radius*factor));await new Promise(r=>G.viewer.camera.flyToBoundingSphere(sp,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-89),range),duration,complete:r,cancel:r}));return s===G.navSerial}
