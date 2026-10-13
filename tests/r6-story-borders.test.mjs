@@ -134,3 +134,19 @@ test('async border loading honors the latest selection and starts all new geomet
   G.focus(1);release();await pending;assertScope(G,['CHN']);
   assert.ok(G.countries.get('CHN').entities.every(e=>e._chinaAuthoritativeOutline));
 });
+
+
+test('POINT diplomatic story highlights only its primary country despite headline and related-country metadata',async()=>{
+  const {G}=harness();await G.loadBorders();
+  const n={...story('CHN','中越就人工智能、清洁能源和数字经济合作深入交换意见'),
+    sceneMode:'POINT',location:'中国北京',focusLabel:'北京',lon:116.4,lat:39.9,
+    summary:'中国与越南在北京就合作交换意见。',
+    relatedCountryIso3s:['CHN','VNM'],
+    scenePlan:{primaryIso3:'CHN',participants:['CHN','VNM']}};
+  installNews(G,[n]);G.focus(0);
+  assert.deepEqual(visibleCountries(G),['CHN']);
+  assertScope(G,['CHN']);
+  assert.equal(n.relatedCountryIso3s.length,2,'keep the true related countries in news data');
+  G.overview();assert.ok(G.borderEntities.every(e=>!e.show));
+  G.focus(0);assertScope(G,['CHN']);
+});
