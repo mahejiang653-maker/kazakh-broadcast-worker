@@ -26,6 +26,10 @@
     if (!n) return result;
     add(n.countryIso3 || G.resolveIso?.(n));
     add(p.primaryIso3);
+    // A POINT story describes one actual location. Countries mentioned in the
+    // headline, summary, or metadata remain context, not extra white borders.
+    // Explicit multi-country scene modes continue through the existing logic.
+    if (String(n.sceneMode || '').toUpperCase() === 'POINT') return result;
     for (const value of p.participants || []) add(value);
     if (!p.registryOnly) {
       add(n.secondaryCountryIso3);
