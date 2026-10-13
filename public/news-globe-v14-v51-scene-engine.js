@@ -83,7 +83,7 @@ G.storyDuration=n=>{const m=String(n.sceneMode||'').toUpperCase();if(m==='ATTACK
 
 // Opt-in on-screen audit for Android devices without remote DevTools.
 // Open the globe with ?flagdebug=1; normal visitors see no extra UI.
-if(new URLSearchParams(window.location.search).get('flagdebug')==='1'){
+if(typeof window!=='undefined' && /(?:[?&])flagdebug=1(?:&|$)/.test(String(window.location?.search||''))){
  const showAudit=()=>{
   if(!document.body)return;
   let el=document.getElementById('v52-flag-debug');
