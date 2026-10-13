@@ -13,9 +13,11 @@ const good=(a,b)=>Number.isFinite(+a)&&Number.isFinite(+b);
 const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 const countryLabel=iso=>{iso=String(iso||'').toUpperCase();const v=G.countryNameZh?.(iso)||G.countryName?.(iso)||N[iso];return v&&!/^[A-Z]{3}$/.test(String(v))?String(v):(N[iso]||'未知国家')};
 G.v51SceneEntities=[];
+G.v52FlagAudit={created:0,removed:0,loadSuccess:0,loadError:0,invalid:0,events:[],snapshot(){const v=G.viewer;return {created:this.created,removed:this.removed,loadSuccess:this.loadSuccess,loadError:this.loadError,invalid:this.invalid,active:this.events.filter(x=>x.entity&&v?.entities?.contains?.(x.entity)).length,items:this.events.slice(-12).map(x=>({iso:x.iso,createdAt:x.at,stillInScene:!!v?.entities?.contains?.(x.entity),imageType:typeof x.entity?.billboard?.image?.getValue?.(C.JulianDate.now()),show:x.entity?.show}))}}};
+
 const add=e=>{if(e)G.v51SceneEntities.push(e);return e};
 function purgeList(k){const a=G[k];if(!Array.isArray(a))return;for(const e of a.splice(0))try{G.viewer.entities.remove(e)}catch{}}
-function clearScene(){for(const e of G.v51SceneEntities.splice(0))try{G.viewer.entities.remove(e)}catch{};for(const k of ['v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'])purgeList(k);try{G.clearInteractionEffects?.()}catch{}try{G.clearSecondaryCountry?.()}catch{}try{G.clearLocal?.()}catch{}try{G.clearCountry?.()}catch{}try{G.clearArc?.()}catch{}const h=document.getElementById('scenePlanHud');if(h){h.style.display='none';h.innerHTML=''}}
+function clearScene(){for(const e of G.v51SceneEntities.splice(0))try{if(G.v52FlagAudit.events.some(x=>x.entity===e))G.v52FlagAudit.removed++;G.viewer.entities.remove(e)}catch{};for(const k of ['v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'])purgeList(k);try{G.clearInteractionEffects?.()}catch{}try{G.clearSecondaryCountry?.()}catch{}try{G.clearLocal?.()}catch{}try{G.clearCountry?.()}catch{}try{G.clearArc?.()}catch{}const h=document.getElementById('scenePlanHud');if(h){h.style.display='none';h.innerHTML=''}}
 function hideBase(){try{if(G.markers?.[G.current])G.markers[G.current].show=false;if(G.pulses?.[G.current])G.pulses[G.current].show=false}catch{}}
 // Replace the preceding stage only after the next admin geometry is ready.
 G.v51PrepareAdmin=()=>{clearScene();hideBase()};
@@ -34,7 +36,7 @@ function drawCountry(iso,color,alpha=.14,width=2.35){const col=C.Color.fromCssCo
 function label(text,lon,lat,{dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(0,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(0,dy);return e}
 function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  const key=String(iso||'').toUpperCase(),cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();
- if(!/^[a-z]{2}$/.test(cc)||!good(lon,lat))return;
+ if(!/^[a-z]{2}$/.test(cc)||!good(lon,lat)){G.v52FlagAudit.invalid++;return;}
  const remote='https://flagcdn.com/w40/'+cc+'.png';
  // Always render a local PNG immediately. Android/Chrome supports Unicode flag emoji in canvas.
  // A remote PNG can replace it after loading, but a blocked CDN never leaves an empty billboard.
@@ -50,7 +52,8 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
   }
  }catch{}
  const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
- if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.src=remote}
+ G.v52FlagAudit.created++;G.v52FlagAudit.events.push({iso:key,at:Date.now(),entity});if(G.v52FlagAudit.events.length>40)G.v52FlagAudit.events.shift();
+ if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
 }
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
 async function flyPoint(lon,lat,height,s,duration=1.0){if(s!==G.navSerial||!good(lon,lat))return false;await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,+height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,complete:r,cancel:r}));return s===G.navSerial}
