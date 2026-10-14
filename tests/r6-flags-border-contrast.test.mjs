@@ -41,3 +41,21 @@ test('all attack modes use one scene renderer and unknown launch sites do not cr
  assert.match(engine,/if\(!a\.source\)return finalLocation\(n,s/);
  assert.doesNotMatch(engine,/基辅|Kyiv|Kiev|Київ/);
 });
+
+
+test('scene cleanup removes old entities and navigation guards asynchronous attack effects',()=>{
+ const code=source('news-globe-v14-v51-scene-engine.js');
+ assert.match(code,/function clearScene\(\)\{for\(const e of G\.v51SceneEntities\.splice\(0\)\)/);
+ for(const group of ['v50Entities','v49Entities','v48Entities','v47Entities'])assert.ok(code.includes("'"+group+"'"));
+ assert.match(code,/G\.clearInteractionEffects\?\.\(\)/);
+ assert.match(code,/G\.clearSecondaryCountry\?\.\(\)/);
+ assert.match(code,/G\.clearArc\?\.\(\)/);
+ assert.match(code,/setTimeout\(\(\)=>\{if\(s===G\.navSerial\)impact/);
+ assert.match(code,/if\(s!==G\.navSerial\)return/);
+});
+
+test('daily DATA LOCK rejects missing location labels and place types instead of silently guessing',()=>{
+ const code=source('news-globe-v52-daily10.js');
+ assert.match(code,/!String\(n\.focusLabel\|\|''\)\.trim\(\) \|\| !String\(n\.placeType\|\|''\)\.trim\(\)/);
+ assert.match(code,/缺少实际地点标签或地点类型/);
+});
