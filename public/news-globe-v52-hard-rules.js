@@ -20,5 +20,27 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  if(p.nonStateActor){await runCountry(primary,n,s,1200);if(s!==G.navSerial)return false;await showActorStage(n,s);if(s!==G.navSerial)return false;const q={...n,adminChain:[],scenePlan:{...p,participants:[],contextCountries:[],adminChain:[]}};return oldRun?oldRun.call(this,q,iso,s):false}
  const adminResult=await runAdminHierarchy(n,primary,s);if(adminResult!==null){if(!adminResult)return false;const chain=p.adminChain.slice(),q={...n,forceAdminChain:false,adminChain:[],scenePlan:{...p,adminChain:[],forceAdminChain:false,participants:[],contextCountries:[],hierarchyPresented:true}};let r=true;G.__v52SuppressAdminTrace=true;try{r=oldRun?await oldRun.call(this,q,iso,s):true}finally{G.__v52SuppressAdminTrace=false}if(s===G.navSerial)canonicalizeAdminTrace(chain,s);return r}
  const ctx=p.contextDisplay===false?[]:[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];if(ctx.length){const eventCountry=primary;for(const x of ctx){await runCountry(x,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false}if(eventCountry){await runCountry(eventCountry,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false}const q={...n,countryIso3:null,secondaryCountryIso3:null,adminChain:[],scenePlan:{...p,primaryIso3:'',participants:[],contextCountries:[],adminChain:[]}};trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});return oldRun?oldRun.call(this,q,'',s):false}
+ // Kyiv-only final frame. Preserve the legacy missile animation, then replace
+ // its misleading local administrative outline with a precise city marker.
+ if(primary==='UKR' && /基辅|Kyiv|Kiev|Київ/i.test(String(n.focusLabel||n.location||'')) && /MISSILE_ATTACK|ATTACK/.test(mode)){
+   let result=false;
+   try{result=typeof oldRun==='function'?await oldRun.call(this,n,iso,s):false}catch(e){console.warn('Kyiv scene',e)}
+   if(s!==G.navSerial)return false;
+   try{
+     for(const key of ['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities']){
+       const a=G[key];if(Array.isArray(a))for(const e of a.splice(0))try{G.viewer.entities.remove(e)}catch(_){}
+     }
+     G.clearLocal?.();
+     const C=window.Cesium,lon=+n.lon,lat=+n.lat;
+     if(C&&Number.isFinite(lon)&&Number.isFinite(lat)){
+       const pos=C.Cartesian3.fromDegrees(lon,lat,40000);
+       G.viewer.entities.add({position:pos,point:{pixelSize:13,color:C.Color.RED,outlineColor:C.Color.WHITE,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:'基辅',font:'bold 17px sans-serif',showBackground:true,backgroundColor:C.Color.fromCssColorString('#06111f').withAlpha(.88),fillColor:C.Color.WHITE,pixelOffset:new C.Cartesian2(0,-31),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+       const ua='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><path fill="#0057b7" d="M0 0h48v16H0z"/><path fill="#ffd700" d="M0 16h48v16H0z"/></svg>');
+       G.viewer.entities.add({position:pos,billboard:{image:ua,width:27,height:18,pixelOffset:new C.Cartesian2(35,-7),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+       await new Promise(done=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(lon,lat,530000),orientation:{heading:0,pitch:C.Math.toRadians(-80),roll:0},duration:1.1,complete:done,cancel:done}));
+     }
+   }catch(e){console.warn('Kyiv final frame',e)}
+   return s===G.navSerial?result:false;
+ }
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}return false};
 })(window.NG14);
