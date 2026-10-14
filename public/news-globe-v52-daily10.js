@@ -87,7 +87,8 @@
           // edition window. A date alone cannot establish whether it belongs.
           // Do not mislabel it as out-of-window or invent a 13:00 timestamp.
           if (windows && (time === windows.start.slice(0,10) || time === meta.date)) {
-            errors.push(label+' 只有报道日期，缺少北京时间时分秒，无法核实13:00时窗');
+            // Date-only news can be previewed, but remains explicitly unverified.
+            // Never infer or fabricate a publication time.
           } else {
             errors.push(label+' 报道日期不在本期涉及的两个自然日内');
           }
@@ -104,7 +105,7 @@
   G.daily10Warnings = p => Array.isArray(p?.news) ? p.news.flatMap((n,i)=>{
     const w=[];
     if(Array.isArray(n.articleUrls) && n.articleUrls.length<3)w.push('Top'+(i+1)+' 新闻报道链接不足3条');
-    if(/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||'')))w.push('Top'+(i+1)+' 只有日期，13:00截止时间未精确核实');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||'')))w.push('Top'+(i+1)+' 仅供预览：只有报道日期，13:00时窗尚未核实');
     return w;
   }) : [];
 
