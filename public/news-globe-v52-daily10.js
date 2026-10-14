@@ -213,8 +213,9 @@
       };
       label.id='daily10FileImport';label.appendChild(input);const buttons=parent.querySelector('.drawer-buttons');if(buttons)parent.insertBefore(label,buttons);else parent.appendChild(label);
     }
-    // Keep provisional status visible after Save & Apply; never present
-    // date-only news as fully verified.
+    // Successful imports should expose the globe instead of leaving the mobile
+    // settings dialog covering the entire viewport. Keep all verification gaps
+    // visible in a persistent, non-blocking status banner.
     const apply=G.$('applyBtn');
     if(apply && !apply.__daily10WarningBound){
       apply.__daily10WarningBound=true;
@@ -222,10 +223,33 @@
       apply.onclick=function(...args){
         const result=original?.apply(this,args);
         try{
-          const p=JSON.parse(area.value),warnings=G.daily10Warnings(p);
-          if(!G.validate(p).length && warnings.length){
-            G.$('msg').textContent='已保存并应用（待核验预览，非全部通过）\n'+warnings.join('\n');
+          const p=JSON.parse(area.value);
+          if(G.validate(p).length)return result;
+          const warnings=G.daily10Warnings(p);
+          let banner=document.getElementById('daily10VerificationBanner');
+          if(!banner){
+            banner=document.createElement('div');
+            banner.id='daily10VerificationBanner';
+            banner.setAttribute('role','status');
+            banner.style.cssText='position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;max-height:24dvh;overflow:auto;padding:10px 38px 10px 12px;border:1px solid #53738c;border-radius:8px;background:#081824ed;color:#e7f5ff;font:12px/1.5 sans-serif;box-shadow:0 4px 18px #0008';
+            const close=document.createElement('button');
+            close.textContent='×';
+            close.setAttribute('aria-label','关闭核验提示');
+            close.style.cssText='position:absolute;right:8px;top:5px;background:transparent;color:white;border:0;font-size:23px;cursor:pointer';
+            close.onclick=()=>banner.remove();
+            banner.appendChild(close);
+            const content=document.createElement('span');
+            content.id='daily10VerificationText';
+            banner.appendChild(content);
+            document.body.appendChild(banner);
           }
+          document.getElementById('daily10VerificationText').textContent=warnings.length
+            ?'已导入10条新闻，可预览；资料仍待核验：'+warnings.join('；')
+            :'已导入10条新闻；结构检查通过。';
+          G.$('msg').textContent=warnings.length
+            ?'已保存并应用（待核验预览，非全部通过）\\n'+warnings.join('\\n')
+            :'已保存并应用。';
+          G.closeSettings?.();
         }catch(_){}
         return result;
       };
