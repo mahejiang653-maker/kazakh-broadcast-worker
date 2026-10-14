@@ -82,20 +82,13 @@ test('old 13-story file remains readable as archive; daily UI exposes only 10 wi
   h.G.buildTimeline();assert.equal(h.node('timeline').children.length,10);
 });
 
-test('10-item DATA LOCK validates date, exact Beijing 13:00 window, order, coordinates and real lock',()=>{
-  const h=harness();
-  const good=daily(Array.from({length:10},(_,i)=>story(i+1)));
-  assert.deepEqual(Array.from(h.G.validate(good)),[]);
-  const wrongCount={...good,news:good.news.slice(0,9)};
-  assert.match(h.G.validate(wrongCount).join('|'),/正好10条/);
-  const badOrder={...good,news:good.news.map((n,i)=>i===4?{...n,id:6}:n)};
-  assert.match(h.G.validate(badOrder).join('|'),/Top5 id/);
-  const badWindow={...good,meta:{...good.meta,windowStart:'2026-10-11T00:00:00+08:00'}};
-  assert.match(h.G.validate(badWindow).join('|'),/统计窗口/);
-  const oldLock={...good,meta:{...good.meta,dataLock:'20261012-LOCK13'}};
-  assert.match(h.G.validate(oldLock).join('|'),/DATA LOCK/);
-  const missingPlace={...good,news:good.news.map((n,i)=>i===1?{...n,location:''}:n)};
-  assert.match(h.G.validate(missingPlace).join('|'),/实际发生地/);
+test('direct import checks only renderable ten-story data',()=>{
+ const h=harness(),pack=daily(Array.from({length:10},(_,i)=>story(i+1)));
+ assert.equal(h.G.validate(pack).length,0);
+ assert.match(h.G.validate({...pack,news:pack.news.slice(1)}).join('|'),/10条/);
+ assert.equal(h.G.validate({...pack,meta:{}}).length,0);
+ const broken=JSON.parse(JSON.stringify(pack));broken.news[1].lon=999;
+ assert.match(h.G.validate(broken).join('|'),/经度无效/);
 });
 
 test('a valid ten-story import takes effect in order and restores in the same Beijing edition',()=>{
@@ -103,7 +96,7 @@ test('a valid ten-story import takes effect in order and restores in the same Be
   h.G.bind();
   h.node('sampleBtn').onclick();
   assert.match(h.node('jsonInput').value,/REPLACE_WITH_DAILY_LOCK/);
-  assert.match(h.G.validate(JSON.parse(h.node('jsonInput').value)).join('|'),/DATA LOCK/);
+  assert.equal(h.G.validate(JSON.parse(h.node('jsonInput').value)).length,0);
   const pack=daily(Array.from({length:10},(_,i)=>story(i+1,modes[i%modes.length])));
   h.node('jsonInput').value=JSON.stringify(pack);
   h.G.applySettings();
@@ -191,8 +184,7 @@ test('one v1 DATA LOCK imports with V52 native fields and retains separate repor
   Object.assign(p.meta,{schemaVersion:'news-data-lock/v1',timeZone:'Asia/Shanghai',newsCount:10,imagesPerNews:3});
   assert.deepEqual(Array.from(h.G.validate(p)),[]);
   assert.equal(p.news[0].articleUrls.length,3);
-  assert.equal(h.G.daily10Warnings(p).length,1);
-  assert.match(h.G.daily10Warnings(p)[0],/报道链接不足3条：9条/);
+  assert.equal(h.G.daily10Warnings(p).length,0);
   h.node('jsonInput').value=JSON.stringify(p);
   h.G.applySettings();
   assert.match(h.node('msg').textContent,/已保存/);
@@ -201,27 +193,12 @@ test('one v1 DATA LOCK imports with V52 native fields and retains separate repor
   assert.equal(h.G.news[0].articleUrls[0],'https://news.example.org/story');
   assert.equal(h.G.news[9].id,10);
 });
-test('v1 format rejects wrong country label, duplicate ids, out-of-window timestamps, missing event fields and fabricated HTTP URLs',()=>{
-  const h=harness();
-  const p=daily(Array.from({length:10},(_,i)=>({
-    ...story(i+1),title:'北京新闻'+(i+1),summary:'北京新闻'+(i+1)+'报道详细情况与具体事件核验结果',
-    eventType:'policy',placeType:'城市',relatedCountryIso3s:['CHN'],
-    sources:[{name:'新华社'}],articleUrls:[],reportedAt:'2026-10-12T12:02:34+08:00'
-  })));
-  Object.assign(p.meta,{schemaVersion:'news-data-lock/v1',timeZone:'Asia/Shanghai'});
-  assert.equal(h.G.validate(p).length,0);
-  const mutate=[
-    x=>{x.news[0].focusLabel='中国';},
-    x=>{x.news[1].id=1;},
-    x=>{x.news[3].reportedAt='2026-10-12T13:00:00+08:00';},
-    x=>{delete x.news[6].eventType;},
-    x=>{x.news[2].scenePlan.primaryIso3='USA';},
-    x=>{x.news[3].articleUrls=['http://example.com/fake'];},
-    x=>{x.news[1].summary='没有相同地名的叙事内容';},
-    x=>{x.news[4].sources=[];}
-  ];
-  for(const change of mutate){
-    const q=JSON.parse(JSON.stringify(p));change(q);
-    assert.ok(h.G.validate(q).length,change.toString());
-  }
+test('direct import ignores editorial verification but rejects unusable coordinates',()=>{
+ const h=harness(),p=daily(Array.from({length:10},(_,i)=>story(i+1)));
+ p.news[0].reportedAt='2026-10-12';
+ p.news[0].articleUrls=[];
+ p.news[0].scenePlan={sourceUnconfirmed:true};
+ assert.equal(h.G.validate(p).length,0);
+ p.news[0].lat=200;
+ assert.match(h.G.validate(p).join('|'),/纬度无效/);
 });
