@@ -26,91 +26,23 @@
   const invalidLock = lock => !lock || /^REPLACE_|^请填写|LOCK13/i.test(lock);
 
   // Only a complete, ordered DATA LOCK may be imported/published as daily-10.
+  // Import is a display operation, not an editorial fact-check.
+  // Reject only JSON that cannot safely drive the 10-item globe.
   G.validate = function(p){
-    if (!p || typeof p !== 'object' || Array.isArray(p)) return ['JSON根对象无效'];
-    if (!Array.isArray(p.news)) return ['缺少 news 数组'];
-    const errors = [];
-    if (p.news.length !== COUNT) errors.push('DATA LOCK 必须正好10条，当前' + p.news.length + '条');
-    const meta = p.meta || {};
-    if (!validDay(String(meta.date || ''))) errors.push('meta.date 必须是有效的北京时间日期 YYYY-MM-DD');
-    if (meta.edition && meta.edition !== 'daily-10') errors.push('meta.edition 必须为 daily-10');
-    if (invalidLock(lockOf(p))) errors.push('必须提供真实的 meta.dataLock（当日统一 DATA LOCK 编号）');
-    if (validDay(String(meta.date || ''))) {
-      const win = windowFor(meta.date);
-      if (meta.windowStart !== win.start || meta.windowEnd !== win.end) {
-        errors.push('统计窗口必须是昨天北京时间13:00至当天北京时间13:00');
-      }
-    }
+    if(!p || typeof p!=='object' || Array.isArray(p))return ['JSON根对象无效'];
+    if(!Array.isArray(p.news) || p.news.length!==COUNT)return ['news必须正好包含10条新闻'];
+    const errors=[];
     p.news.forEach((n,i)=>{
-      const at = 'Top' + (i + 1);
-      if (!n || typeof n !== 'object') {errors.push(at + ' 无效');return;}
-      if (Number(n.id) !== i + 1 || !Number.isInteger(Number(n.id))) {
-        errors.push(at + ' id必须严格等于' + (i + 1));
-      }
-      if (!String(n.title || '').trim()) errors.push(at + ' 缺少标题');
-      if (!String(n.location || '').trim()) errors.push(at + ' 缺少实际发生地');
-      const lon = Number(n.lon),lat = Number(n.lat);
-      if (n.lon == null || !Number.isFinite(lon) || lon < -180 || lon > 180) errors.push(at + ' 经度无效');
-      if (n.lat == null || !Number.isFinite(lat) || lat < -90 || lat > 90) errors.push(at + ' 纬度无效');
+      if(!n || typeof n!=='object'){errors.push('Top'+(i+1)+' 不是有效对象');return;}
+      if(!String(n.title||'').trim())errors.push('Top'+(i+1)+' 缺少标题');
+      if(!String(n.location||n.focusLabel||'').trim())errors.push('Top'+(i+1)+' 缺少定位名称');
+      const lon=Number(n.lon),lat=Number(n.lat);
+      if(n.lon==null || !Number.isFinite(lon) || lon < -180 || lon > 180)errors.push('Top'+(i+1)+' 经度无效');
+      if(n.lat==null || !Number.isFinite(lat) || lat < -90 || lat > 90)errors.push('Top'+(i+1)+' 纬度无效');
     });
-    // New canonical JSON augments the existing V52 data model; legacy ten-item
-    // imports continue to work, but v1 imports undergo the full offline contract.
-    if (meta.schemaVersion === 'news-data-lock/v1') {
-      if (meta.timeZone !== 'Asia/Shanghai') errors.push('时区必须为 Asia/Shanghai');
-      if (meta.edition !== 'daily-10') errors.push('统一格式必须是 daily-10');
-      if (meta.newsCount != null && meta.newsCount !== COUNT) errors.push('newsCount 必须为10');
-      if (meta.imagesPerNews != null && meta.imagesPerNews !== 3) errors.push('每条应有3张合格图片');
-      const modes = new Set(['POINT','COUNTRY','ADMIN_REGION','REGION','DUAL_COUNTRY','DIPLOMACY_2','DIPLOMACY_MULTI','ORGANIZATION','ATTACK','POTENTIAL_ATTACK','MISSILE_ATTACK','DRONE_ATTACK','BORDER_CONFLICT']);
-      const countryNames = {CHN:'中国', USA:'美国', RUS:'俄罗斯', PAN:'巴拿马', PSE:'巴勒斯坦'};
-      const windows = validDay(String(meta.date || '')) ? windowFor(meta.date) : null;
-      p.news.forEach((n,i)=>{
-        const label = 'Top' + (i+1);
-        if (!n || typeof n !== 'object') return;
-        if (!String(n.summary||'').trim() || String(n.summary).trim().length < 12) errors.push(label+' 缺少事实摘要');
-        else {
-          const runs = String(n.title||'').match(/[\u3400-\u9fff]{2,}/g)||[];
-          const consistent = runs.some(r=>Array.from({length:r.length-1},(_,j)=>r.slice(j,j+2)).some(token=>String(n.summary).includes(token)));
-          if (!consistent) errors.push(label+' 标题与事实摘要缺少共同事件关键词');
-        }
-        if (!String(n.eventType||'').trim()) errors.push(label+' 缺少事件类型eventType');
-        if (!String(n.focusLabel||'').trim() || !String(n.placeType||'').trim()) errors.push(label+' 缺少实际地点标签或地点类型');
-        if (!/^[A-Z]{3}$/.test(String(n.countryIso3||''))) errors.push(label+' countryIso3无效');
-        if (!modes.has(n.sceneMode) || n.scenePlan?.primaryIso3 !== n.countryIso3) errors.push(label+' V52 sceneMode/scenePlan不兼容');
-        if (n.placeType === '城市' && n.focusLabel === countryNames[n.countryIso3]) errors.push(label+' 城市被错误标成国家');
-        if (!Array.isArray(n.relatedCountryIso3s) || !n.relatedCountryIso3s.includes(n.countryIso3) || n.relatedCountryIso3s.some(x=>!/^[A-Z]{3}$/.test(x))) errors.push(label+' 涉事国家列表无效');
-        if (!Array.isArray(n.sources) || !n.sources.length || n.sources.some(x=>!String(x?.name||'').trim())) errors.push(label+' 缺少新闻来源');
-        if (!Array.isArray(n.articleUrls) || n.articleUrls.length > 3 || n.articleUrls.some(u=>{try{const x=new URL(u);return x.protocol!=='https:';}catch{return true;}})) errors.push(label+' articleUrls应为新闻报道HTTPS网址数组');
-        else if (new Set(n.articleUrls).size!==n.articleUrls.length) errors.push(label+' 报道链接重复');
-        const time=String(n.reportedAt||'');
-        if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
-          // The previous Beijing calendar day overlaps the 13:00-to-13:00
-          // edition window. A date alone cannot establish whether it belongs.
-          // Do not mislabel it as out-of-window or invent a 13:00 timestamp.
-          if (windows && (time === windows.start.slice(0,10) || time === meta.date)) {
-            // Date-only news can be previewed, but remains explicitly unverified.
-            // Never infer or fabricate a publication time.
-          } else {
-            errors.push(label+' 报道日期不在本期涉及的两个自然日内');
-          }
-        } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+08:00$/.test(time)) {
-          if (windows && (Date.parse(time)<Date.parse(windows.start) || Date.parse(time)>=Date.parse(windows.end))) errors.push(label+' 报道时间不在北京时间窗口内');
-        } else errors.push(label+' 缺少合法reportedAt');
-        if(n.publishedAt && n.publishedAt!==n.reportedAt) errors.push(label+' 报道时间字段不一致');
-      });
-    } else if (meta.schemaVersion) {
-      errors.push('不支持的 schemaVersion：' + meta.schemaVersion);
-    }
     return errors;
   };
-  G.daily10Warnings = p => {
-    if(!Array.isArray(p?.news))return [];
-    const undated=p.news.map((n,i)=>/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||''))?i+1:null).filter(Boolean);
-    const shortLinks=p.news.map((n,i)=>!Array.isArray(n.articleUrls)||n.articleUrls.length<3?i+1:null).filter(Boolean);
-    const warnings=[];
-    if(undated.length)warnings.push('待核验时窗：Top'+undated.join('、Top')+'（只有日期，不代表已通过13:00核验）');
-    if(shortLinks.length)warnings.push('报道链接不足3条：'+shortLinks.length+'条（Top'+shortLinks.join('、Top')+'）');
-    return warnings;
-  };
+  G.daily10Warnings = () => [];
 
   const legacy = oldNews.length === 13;
   if (legacy) {
@@ -131,7 +63,7 @@
   // Never use a legacy 13-item localStorage payload for the new daily flow.
   G.DATA_KEY = 'news-globe-v52-daily10-current';
   const stored = G.loadStored?.();
-  if (stored && !G.validate(stored).length && stored.meta.date === editionDay()) {
+  if (stored && !G.validate(stored).length) {
     G.payload = stored;
     G.news = stored.news;
     G.meta = stored.meta;
@@ -203,53 +135,25 @@
           // validation. Otherwise the old legacy preview remains visible and
           // users cannot tell which payload was actually checked.
           area.value=JSON.stringify(payload,null,2);
-          const errors=G.validate(payload);
-          if(errors.length){
-            G.$('msg').textContent='已载入所选文件，但尚未应用：'+errors.join('；');
-            return;
-          }
-          G.$('msg').textContent='JSON已读取，请点击保存并应用。'+(G.daily10Warnings(payload).length?'\n'+G.daily10Warnings(payload).join('\n'):'');
+          // Selecting a valid file immediately imports it; no extra save step.
+          G.applySettings();
         }catch(e){G.$('msg').textContent='无法读取JSON：'+e.message;}
       };
       label.id='daily10FileImport';label.appendChild(input);const buttons=parent.querySelector('.drawer-buttons');if(buttons)parent.insertBefore(label,buttons);else parent.appendChild(label);
     }
-    // Successful imports should expose the globe instead of leaving the mobile
-    // settings dialog covering the entire viewport. Keep all verification gaps
-    // visible in a persistent, non-blocking status banner.
     const apply=G.$('applyBtn');
-    if(apply && !apply.__daily10WarningBound){
-      apply.__daily10WarningBound=true;
+    if(apply && !apply.__daily10DirectImportBound){
+      apply.__daily10DirectImportBound=true;
       const original=apply.onclick;
       apply.onclick=function(...args){
         const result=original?.apply(this,args);
         try{
           const p=JSON.parse(area.value);
-          if(G.validate(p).length)return result;
-          const warnings=G.daily10Warnings(p);
-          let banner=document.getElementById('daily10VerificationBanner');
-          if(!banner){
-            banner=document.createElement('div');
-            banner.id='daily10VerificationBanner';
-            banner.setAttribute('role','status');
-            banner.style.cssText='position:fixed;left:12px;right:12px;bottom:max(12px,env(safe-area-inset-bottom));z-index:2147482000;max-height:24dvh;overflow:auto;padding:10px 38px 10px 12px;border:1px solid #53738c;border-radius:8px;background:#081824ed;color:#e7f5ff;font:12px/1.5 sans-serif;box-shadow:0 4px 18px #0008';
-            const close=document.createElement('button');
-            close.textContent='×';
-            close.setAttribute('aria-label','关闭核验提示');
-            close.style.cssText='position:absolute;right:8px;top:5px;background:transparent;color:white;border:0;font-size:23px;cursor:pointer';
-            close.onclick=()=>banner.remove();
-            banner.appendChild(close);
-            const content=document.createElement('span');
-            content.id='daily10VerificationText';
-            banner.appendChild(content);
-            document.body.appendChild(banner);
+          if(!G.validate(p).length){
+            document.getElementById('daily10VerificationBanner')?.remove();
+            G.$('msg').textContent='已直接导入10条新闻。';
+            G.closeSettings?.();
           }
-          document.getElementById('daily10VerificationText').textContent=warnings.length
-            ?'已导入10条新闻，可预览；资料仍待核验：'+warnings.join('；')
-            :'已导入10条新闻；结构检查通过。';
-          G.$('msg').textContent=warnings.length
-            ?'已保存并应用（待核验预览，非全部通过）\\n'+warnings.join('\\n')
-            :'已保存并应用。';
-          G.closeSettings?.();
         }catch(_){}
         return result;
       };
