@@ -208,10 +208,10 @@
             G.$('msg').textContent='已载入所选文件，但尚未应用：'+errors.join('；');
             return;
           }
-          G.$('msg').textContent='JSON已读取，请点击保存并应用。'+G.daily10Warnings(payload).join('；');
+          G.$('msg').textContent='JSON已读取，请点击保存并应用。'+(G.daily10Warnings(payload).length?'\n'+G.daily10Warnings(payload).join('\n'):'');
         }catch(e){G.$('msg').textContent='无法读取JSON：'+e.message;}
       };
-      label.appendChild(input);parent.appendChild(label);
+      label.id='daily10FileImport';label.appendChild(input);const buttons=parent.querySelector('.drawer-buttons');if(buttons)parent.insertBefore(label,buttons);else parent.appendChild(label);
     }
     // Keep provisional status visible after Save & Apply; never present
     // date-only news as fully verified.
@@ -224,7 +224,7 @@
         try{
           const p=JSON.parse(area.value),warnings=G.daily10Warnings(p);
           if(!G.validate(p).length && warnings.length){
-            G.$('msg').textContent='已保存并应用（待核验预览，非全部通过）：'+warnings.join('；');
+            G.$('msg').textContent='已保存并应用（待核验预览，非全部通过）\n'+warnings.join('\n');
           }
         }catch(_){}
         return result;
