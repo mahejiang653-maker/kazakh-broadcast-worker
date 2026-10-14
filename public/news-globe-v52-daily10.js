@@ -83,7 +83,14 @@
         else if (new Set(n.articleUrls).size!==n.articleUrls.length) errors.push(label+' 报道链接重复');
         const time=String(n.reportedAt||'');
         if (/^\d{4}-\d{2}-\d{2}$/.test(time)) {
-          if (time !== meta.date) errors.push(label+' 日期不属本期');
+          // The previous Beijing calendar day overlaps the 13:00-to-13:00
+          // edition window. A date alone cannot establish whether it belongs.
+          // Do not mislabel it as out-of-window or invent a 13:00 timestamp.
+          if (windows && (time === windows.start.slice(0,10) || time === meta.date)) {
+            errors.push(label+' 只有报道日期，缺少北京时间时分秒，无法核实13:00时窗');
+          } else {
+            errors.push(label+' 报道日期不在本期涉及的两个自然日内');
+          }
         } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?\+08:00$/.test(time)) {
           if (windows && (Date.parse(time)<Date.parse(windows.start) || Date.parse(time)>=Date.parse(windows.end))) errors.push(label+' 报道时间不在北京时间窗口内');
         } else errors.push(label+' 缺少合法reportedAt');
