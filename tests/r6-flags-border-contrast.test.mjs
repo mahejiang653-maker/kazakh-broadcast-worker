@@ -27,3 +27,17 @@ test('China ownership cleanup cannot delete foreign-owned edges',()=>{
  assert.match(engine,/https:\/\/flagcdn\.com\/w40\//);
  assert.match(engine,/canvas\.toDataURL\('image\/png'\)/);
 });
+
+
+test('all attack modes use one scene renderer and unknown launch sites do not create inferred trajectories',()=>{
+ const engine=source('news-globe-v14-v51-scene-engine.js');
+ const rules=source('news-globe-v52-hard-rules.js');
+ for(const mode of ['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK']){
+   assert.ok(engine.includes("mode==='"+mode+"'"),'missing engine mode '+mode);
+   assert.ok(rules.includes("'"+mode+"'"),'missing hard-rule mode '+mode);
+ }
+ assert.match(engine,/p\.sourceUnconfirmed!==true/);
+ assert.match(engine,/\['direction','directional','approximate'\]\.includes/);
+ assert.match(engine,/if\(!a\.source\)return finalLocation\(n,s/);
+ assert.doesNotMatch(engine,/基辅|Kyiv|Kiev|Київ/);
+});
