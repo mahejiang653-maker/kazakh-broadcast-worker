@@ -191,7 +191,8 @@ test('one v1 DATA LOCK imports with V52 native fields and retains separate repor
   Object.assign(p.meta,{schemaVersion:'news-data-lock/v1',timeZone:'Asia/Shanghai',newsCount:10,imagesPerNews:3});
   assert.deepEqual(Array.from(h.G.validate(p)),[]);
   assert.equal(p.news[0].articleUrls.length,3);
-  assert.equal(h.G.daily10Warnings(p).length,9);
+  assert.equal(h.G.daily10Warnings(p).length,1);
+  assert.match(h.G.daily10Warnings(p)[0],/报道链接不足3条：9条/);
   h.node('jsonInput').value=JSON.stringify(p);
   h.G.applySettings();
   assert.match(h.node('msg').textContent,/已保存/);
