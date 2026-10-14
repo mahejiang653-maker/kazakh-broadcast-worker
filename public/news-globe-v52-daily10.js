@@ -184,9 +184,15 @@
           const file=input.files?.[0];if(!file)return;
           const contents=await file.text();
           const payload=JSON.parse(contents);
-          const errors=G.validate(payload);
-          if(errors.length){G.$('msg').textContent='未通过：'+errors.join('；');return;}
+          // Always show the selected file in the editor, even when it fails
+          // validation. Otherwise the old legacy preview remains visible and
+          // users cannot tell which payload was actually checked.
           area.value=JSON.stringify(payload,null,2);
+          const errors=G.validate(payload);
+          if(errors.length){
+            G.$('msg').textContent='已载入所选文件，但尚未应用：'+errors.join('；');
+            return;
+          }
           G.$('msg').textContent='JSON已读取，请点击保存并应用。'+G.daily10Warnings(payload).join('；');
         }catch(e){G.$('msg').textContent='无法读取JSON：'+e.message;}
       };
