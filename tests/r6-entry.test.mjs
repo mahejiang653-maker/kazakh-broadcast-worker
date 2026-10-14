@@ -49,7 +49,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v14-v52-camera-breathing-room.js') < names.indexOf(dataPath));
   assert.ok(names.indexOf(dataPath) < names.indexOf('/news-globe-v52-daily10.js'));
   assert.ok(names.indexOf('/news-globe-v52-daily10.js') < names.indexOf('/news-globe-v14-main.js'));
-  assert.ok(scripts.some(src => /^\/news-globe-v52-daily10\.js\?v=2026\d{4}-r6-daily10-(?:r\d+|import-r\d+|time-r\d+|preview-r\d+|warnings-r\d+)$/.test(src)));
+  assert.ok(scripts.some(src => /^\/news-globe-v52-daily10\.js\?v=2026\d{4}-r6-daily10-(?:r\d+|import-r\d+|time-r\d+|preview-r\d+|warnings-r\d+|direct-r\d+)$/.test(src)));
   assert.ok(html.includes('10 STORIES · ONE WORLD'));
   assert.ok(html.includes('今日10条新闻 DATA LOCK JSON'));
   assert.ok(html.includes('repeat(10,1fr)'));
