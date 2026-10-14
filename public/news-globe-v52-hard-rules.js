@@ -34,9 +34,9 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
      const C=window.Cesium,lon=+n.lon,lat=+n.lat;
      if(C&&Number.isFinite(lon)&&Number.isFinite(lat)){
        const pos=C.Cartesian3.fromDegrees(lon,lat,40000);
-       G.viewer.entities.add({position:pos,point:{pixelSize:13,color:C.Color.RED,outlineColor:C.Color.WHITE,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:'基辅',font:'bold 17px sans-serif',showBackground:true,backgroundColor:C.Color.fromCssColorString('#06111f').withAlpha(.88),fillColor:C.Color.WHITE,pixelOffset:new C.Cartesian2(0,-31),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+       (G.v51SceneEntities ||= []).push(G.viewer.entities.add({position:pos,point:{pixelSize:13,color:C.Color.RED,outlineColor:C.Color.WHITE,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:'基辅',font:'bold 17px sans-serif',showBackground:true,backgroundColor:C.Color.fromCssColorString('#06111f').withAlpha(.88),fillColor:C.Color.WHITE,pixelOffset:new C.Cartesian2(0,-31),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
        const ua='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><path fill="#0057b7" d="M0 0h48v16H0z"/><path fill="#ffd700" d="M0 16h48v16H0z"/></svg>');
-       G.viewer.entities.add({position:pos,billboard:{image:ua,width:27,height:18,pixelOffset:new C.Cartesian2(35,-7),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+       (G.v51SceneEntities ||= []).push(G.viewer.entities.add({position:pos,billboard:{image:ua,width:27,height:18,pixelOffset:new C.Cartesian2(35,-7),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
        await new Promise(done=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(lon,lat,530000),orientation:{heading:0,pitch:C.Math.toRadians(-80),roll:0},duration:1.1,complete:done,cancel:done}));
      }
    }catch(e){console.warn('Kyiv final frame',e)}
