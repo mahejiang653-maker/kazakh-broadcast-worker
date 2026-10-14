@@ -57,8 +57,11 @@ test('scene cleanup removes old entities and navigation guards asynchronous atta
  assert.match(code,/if\(s!==G\.navSerial\)return/);
 });
 
-test('daily DATA LOCK rejects missing location labels and place types instead of silently guessing',()=>{
+test('daily JSON import requires only renderable data and auto-applies selected files',()=>{
  const code=source('news-globe-v52-daily10.js');
- assert.match(code,/!String\(n\.focusLabel\|\|''\)\.trim\(\) \|\| !String\(n\.placeType\|\|''\)\.trim\(\)/);
- assert.match(code,/缺少实际地点标签或地点类型/);
+ assert.match(code,/p\.news\.length!==COUNT/);
+ assert.match(code,/缺少定位名称/);
+ assert.match(code,/G\.applySettings\(\)/);
+ assert.match(code,/G\.daily10Warnings = \(\) => \[\]/);
+ assert.doesNotMatch(code,/报道链接不足3条/);
 });
