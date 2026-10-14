@@ -7,7 +7,7 @@ test('final POINT location preserves the primary-country flag after scene cleanu
   const code=source('news-globe-v14-v51-scene-engine.js');
   assert.match(code,/flag\(flagIso\|\|n\.scenePlan\?\.primaryIso3\|\|n\.countryIso3,\+n\.lon,\+n\.lat/);
   assert.match(code,/cc=ISO2\[key\]\|\|String\(G\.countries\?\.get\(key\)\?\.iso2/);
-  assert.match(code,/if\(!\['city','town','village'\]\.includes\(String\(n\.placeType\|\|''\)\.toLowerCase\(\)\) && G\.v52RenderGeographicFeature&&await G\.v52RenderGeographicFeature\(n,s\)\)\{if\(s===G\.navSerial\)flag/);
+  assert.match(code,/if\(!\['city','town','village','城市','城镇','乡镇','村庄','市','县城'\]\.includes\(String\(n\.placeType\|\|''\)\.trim\(\)\.toLowerCase\(\)\) && G\.v52RenderGeographicFeature&&await G\.v52RenderGeographicFeature\(n,s\)\)\{if\(s===G\.navSerial\)flag/);
 });
 
 test('shared China–Kazakhstan edges remain available to Kazakhstan while China uses its own canonical outline',()=>{
