@@ -179,9 +179,13 @@
       label.style.display='block';
       const input=document.createElement('input');
       input.type='file';input.id='dailyLockFile';input.accept='.json,application/json';
+      // Android file pickers may not emit change when the same filename is
+      // selected twice. Reset before opening so every selection is processed.
+      input.addEventListener('click',()=>{input.value='';});
       input.onchange=async()=>{
         try{
           const file=input.files?.[0];if(!file)return;
+          G.$('msg').textContent='正在读取：'+file.name;
           const contents=await file.text();
           const payload=JSON.parse(contents);
           // Always show the selected file in the editor, even when it fails
