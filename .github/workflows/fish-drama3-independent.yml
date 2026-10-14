@@ -1,0 +1,64 @@
+name: Fish Drama 3 independent test
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fish-drama3-independent
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       contains(github.event.workflow_run.head_commit.message, '[Drama3 test]'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate bounded fixture
+        run: node scripts/fish-independent-run.mjs --validate-fixture
+      - name: Enable short-lived operator access
+        id: enable
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module -e 'import {randomBytes} from "node:crypto"; process.stdout.write(`${Date.now()+15*60_000}.${randomBytes(32).toString("hex")}`)' > "$RUNNER_TEMP/fish-drama3-run-token"
+          fish_run_token="$(cat "$RUNNER_TEMP/fish-drama3-run-token")"
+          echo "::add-mask::$fish_run_token"
+          echo "FISH_DRAMA3_RUN_TOKEN=$fish_run_token" >> "$GITHUB_ENV"
+          npx wrangler secret put FISH_DRAMA3_RUN_TOKEN < "$RUNNER_TEMP/fish-drama3-run-token"
+      - name: Generate two Drama 3 takes and one S2.1 Pro control
+        run: node scripts/fish-independent-run.mjs
+      - name: Save audio and transparent diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fish-drama3-independent-${{ github.run_id }}
+          path: work/fish-drama3/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove temporary operator access
+        if: always() && steps.enable.outcome != 'skipped'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler secret delete FISH_DRAMA3_RUN_TOKEN
