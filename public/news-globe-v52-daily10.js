@@ -210,6 +210,23 @@
       };
       label.appendChild(input);parent.appendChild(label);
     }
+    // Keep provisional status visible after Save & Apply; never present
+    // date-only news as fully verified.
+    const apply=G.$('applyBtn');
+    if(apply && !apply.__daily10WarningBound){
+      apply.__daily10WarningBound=true;
+      const original=apply.onclick;
+      apply.onclick=function(...args){
+        const result=original?.apply(this,args);
+        try{
+          const p=JSON.parse(area.value),warnings=G.daily10Warnings(p);
+          if(!G.validate(p).length && warnings.length){
+            G.$('msg').textContent='已保存并应用（待核验预览，非全部通过）：'+warnings.join('；');
+          }
+        }catch(_){}
+        return result;
+      };
+    }
     G.$('sampleBtn').onclick = ()=>{
       const day = editionDay(),win = windowFor(day);
       G.$('jsonInput').value = JSON.stringify({
