@@ -102,12 +102,15 @@
     }
     return errors;
   };
-  G.daily10Warnings = p => Array.isArray(p?.news) ? p.news.flatMap((n,i)=>{
-    const w=[];
-    if(Array.isArray(n.articleUrls) && n.articleUrls.length<3)w.push('Top'+(i+1)+' 新闻报道链接不足3条');
-    if(/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||'')))w.push('Top'+(i+1)+' 仅供预览：只有报道日期，13:00时窗尚未核实');
-    return w;
-  }) : [];
+  G.daily10Warnings = p => {
+    if(!Array.isArray(p?.news))return [];
+    const undated=p.news.map((n,i)=>/^\d{4}-\d{2}-\d{2}$/.test(String(n.reportedAt||''))?i+1:null).filter(Boolean);
+    const shortLinks=p.news.map((n,i)=>!Array.isArray(n.articleUrls)||n.articleUrls.length<3?i+1:null).filter(Boolean);
+    const warnings=[];
+    if(undated.length)warnings.push('待核验时窗：Top'+undated.join('、Top')+'（只有日期，不代表已通过13:00核验）');
+    if(shortLinks.length)warnings.push('报道链接不足3条：'+shortLinks.length+'条（Top'+shortLinks.join('、Top')+'）');
+    return warnings;
+  };
 
   const legacy = oldNews.length === 13;
   if (legacy) {
