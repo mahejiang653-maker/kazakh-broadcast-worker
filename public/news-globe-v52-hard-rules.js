@@ -15,27 +15,10 @@ async function showActorStage(n,s){const p=n.scenePlan||{},actor=String(p.nonSta
 async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(primary!=='CHN'||!chain.length||!oldFlashAdmin)return null;await runCountry('CHN',n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){if(s!==G.navSerial)return false;await G.flashAdmin(step,'CHN',s);if(s!==G.navSerial)return false}trace('admin-hierarchy-complete',{chain:chain.slice()});return true}
 function canonicalizeAdminTrace(chain,s){if(!Array.isArray(chain)||!chain.length)return;const keep=[];for(const e of G.v52SceneTrace){if(e.serial===s&&e.type==='admin')continue;keep.push(e)}const now=Date.now(),idx=(G.current??0)+1;chain.forEach((step,i)=>keep.push({type:'admin',serial:s,index:idx,at:now+i,name:String(step?.name||step?.location||step?.focusLabel||step||''),iso:'CHN',visible:true}));G.v52SceneTrace=keep.slice(-300)}
 G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(n);removeLegacyActorCard();const p=n.scenePlan||{},mode=String(n.sceneMode||'').toUpperCase(),primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();trace('sequence',{mode,primary,title:String(n.title||'')});
- // Kyiv-only final frame. Preserve the legacy missile animation, then replace
- // its misleading local administrative outline with a precise city marker.
- if(primary==='UKR' && /基辅|Kyiv|Kiev|Київ/i.test(String(n.focusLabel||n.location||'')) && /MISSILE_ATTACK|ATTACK/.test(mode)){
-   let result=false;
-   try{result=typeof oldRun==='function'?await oldRun.call(this,n,iso,s):false}catch(e){console.warn('Kyiv scene',e)}
-   if(s!==G.navSerial)return false;
-   try{
-     for(const key of ['v51SceneEntities','v50Entities','v49Entities','v48Entities','v47Entities']){
-       const a=G[key];if(Array.isArray(a))for(const e of a.splice(0))try{G.viewer.entities.remove(e)}catch(_){}
-     }
-     G.clearLocal?.();
-     const C=window.Cesium,lon=+n.lon,lat=+n.lat;
-     if(C&&Number.isFinite(lon)&&Number.isFinite(lat)){
-       const pos=C.Cartesian3.fromDegrees(lon,lat,40000);
-       (G.v51SceneEntities ||= []).push(G.viewer.entities.add({position:pos,point:{pixelSize:13,color:C.Color.RED,outlineColor:C.Color.WHITE,outlineWidth:2,disableDepthTestDistance:Number.POSITIVE_INFINITY},label:{text:'基辅',font:'bold 17px sans-serif',showBackground:true,backgroundColor:C.Color.fromCssColorString('#06111f').withAlpha(.88),fillColor:C.Color.WHITE,pixelOffset:new C.Cartesian2(0,-31),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
-       const ua='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="32"><path fill="#0057b7" d="M0 0h48v16H0z"/><path fill="#ffd700" d="M0 16h48v16H0z"/></svg>');
-       (G.v51SceneEntities ||= []).push(G.viewer.entities.add({position:pos,billboard:{image:ua,width:27,height:18,pixelOffset:new C.Cartesian2(35,-7),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
-       await new Promise(done=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(lon,lat,530000),orientation:{heading:0,pitch:C.Math.toRadians(-80),roll:0},duration:1.1,complete:done,cancel:done}));
-     }
-   }catch(e){console.warn('Kyiv final frame',e)}
-   return s===G.navSerial?result:false;
+ // Attack modes share one renderer for every country and city. Do not let
+ // regional/admin context branches swallow missile or drone stories.
+ if(['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
+   return typeof oldRun==='function'?oldRun.call(this,n,iso,s):false;
  }
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
