@@ -38,7 +38,10 @@ test('all attack modes use one scene renderer and unknown launch sites do not cr
  }
  assert.match(engine,/p\.sourceUnconfirmed!==true/);
  assert.match(engine,/\['direction','directional','approximate'\]\.includes/);
- assert.match(engine,/if\(!a\.source\)\{clearScene\(\);hideBase\(\)/);\n assert.match(engine,/drawCountry\(a\.att,COLOR\.attack/);\n assert.match(engine,/flag\(a\.att,attackerCenter\[0\],attackerCenter\[1\]/);\n assert.match(engine,/impact\(a\.target\.lon,a\.target\.lat\)/);
+ assert.match(engine,/if\(!a\.source\)\{clearScene\(\);hideBase\(\)/);
+ assert.match(engine,/drawCountry\(a\.att,COLOR\.attack/);
+ assert.match(engine,/flag\(a\.att,attackerCenter\[0\],attackerCenter\[1\]/);
+ assert.match(engine,/impact\(a\.target\.lon,a\.target\.lat\)/);
  assert.doesNotMatch(engine,/基辅|Kyiv|Kiev|Київ/);
 });
 
