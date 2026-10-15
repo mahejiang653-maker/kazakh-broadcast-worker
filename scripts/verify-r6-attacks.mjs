@@ -119,8 +119,10 @@ try{
    await select(2);await ordinaryReady(2);await page.waitForTimeout(4000);
    const clean=await state();assert.equal(clean.attack,null);assert.equal(clean.staleAttackEntities,0);assert.ok(clean.flags.every(f=>f.iso==='IRN'));log('rapid-switch-cancellation',clean);
    for(let i=0;i<10;i++){
-    await select(i);if(i===1){await settled();verifyTop2(await state());}else await ordinaryReady(i);
+    await select(i);if(i===1){await settled();verifyTop2(await state());}else {await ordinaryReady(i);await flagsReady([payload.news[i].scenePlan?.primaryIso3||payload.news[i].countryIso3]);}
     const s=await state();assert.equal(s.index,i);assert.equal(s.title,payload.news[i].title);assert.equal(s.invalidBorders,0);assert.equal(s.staleAttackEntities,0);
+    const primary=payload.news[i].scenePlan?.primaryIso3||payload.news[i].countryIso3;
+    assert.ok(s.flags.some(f=>f.iso===primary&&f.source==='bundled'&&f.complete&&f.naturalWidth>0&&f.visible),'actual Top'+(i+1)+' primary flag must render');
     await page.screenshot({path:path.join(dir,'edition-top'+(i+1)+'.png')});log('actual-edition-top'+(i+1),s);
    }
   }
@@ -132,6 +134,7 @@ try{
  const base={id:2,title:'通用攻击渲染验收',location:'目标地点',focusLabel:'目标地点',placeType:'city',sceneMode:'MISSILE_ATTACK',eventType:'missile_attack'};
  for(const [name,att,vic,lon,lat,source] of [
   ['israel-iran-unknown','ISR','IRN',51.39,35.69,null],
+  ['congo-uganda-unknown','COD','UGA',32.58,.35,null],
   ['india-pakistan-missile','IND','PAK',73.04,33.69,[74.86,31.63]],
   ['israel-iran-drone','ISR','IRN',51.39,35.69,[34.78,32.08]],
   ['dateline-known','USA','JPN',139.69,35.68,[-157.85,21.3]]]){

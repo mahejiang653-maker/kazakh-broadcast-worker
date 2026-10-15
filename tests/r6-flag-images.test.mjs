@@ -20,3 +20,14 @@ test('local flag resources cover arbitrary country pairs and contain actual mult
  }
  assert.match(fs.readFileSync(new URL('../public/news-globe-v52-flag-images.LICENSE.txt',import.meta.url),'utf8'),/MIT/);
 });
+
+// Many world GeoJSON variants omit iso_a2; flag identity must not depend on that optional field.
+test('ISO3 flag lookup covers the complete country table and every imported news country',()=>{
+ const engine=fs.readFileSync(new URL('../public/news-globe-v14-v51-scene-engine.js',import.meta.url),'utf8');
+ const table=JSON.parse(engine.match(/const ISO2=(\{[^\n]*\});/)[1]);
+ assert.ok(Object.keys(table).length>=249);
+ for(const [iso,cc] of Object.entries(table)){assert.match(iso,/^[A-Z]{3}$/);assert.ok(images[cc],iso+' must resolve to a bundled flag');}
+ const fixture=JSON.parse(fs.readFileSync(new URL('./fixtures/r6-daily10-20261014.json',import.meta.url)));
+ for(const story of fixture.news)for(const iso of story.relatedCountryIso3s||[story.countryIso3])assert.ok(images[table[iso]],'Top'+story.id+' '+iso+' flag missing');
+ assert.equal(table.COD,'cd');assert.equal(table.UGA,'ug');
+});
