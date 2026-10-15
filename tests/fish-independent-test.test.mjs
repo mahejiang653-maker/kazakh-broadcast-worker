@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
 import { decode } from "@msgpack/msgpack";
-import { waitForIndependentReady } from "../scripts/fish-independent-run.mjs";
+import { waitForIndependentReady, sendAuthorizedFishRequest } from "../scripts/fish-independent-run.mjs";
 const dir = await mkdtemp(join(tmpdir(), "fish-test-"));
 await build({ input: "worker/fish-independent-test.ts", platform: "node", output: { file: join(dir, "handler.mjs"), format: "esm", codeSplitting: false } });
 const { handleIndependentFishTest, independentFishStatus } = await import(pathToFileURL(join(dir, "handler.mjs")));
@@ -74,7 +74,7 @@ test("read-only status exposes readiness but no credential values", async () => 
 test("a newly published operator binding can become ready before any generation request", async () => {
   const urls = [], observations = [];
   await waitForIndependentReady({ fetcher: async url => {
-    urls.push(url); return Response.json({ version: "fish-drama3-independent-v2-readiness", keyConfigured: true, operatorRunActive: urls.length === 3 });
+    urls.push(url); return Response.json({ version: "fish-drama3-independent-v3-preflight", keyConfigured: true, operatorRunActive: urls.length === 3 });
   }, wait: async () => {}, onStatus: state => observations.push(state), attempts: 3 });
   assert.equal(urls.length, 3); assert.ok(urls.every(url => url.endsWith("/api/fish-independent-status")));
   assert.deepEqual(observations.map(x => x.operatorRunActive), [false, false, true]);
@@ -82,4 +82,27 @@ test("a newly published operator binding can become ready before any generation 
   assert.equal((await independentFishStatus(padded).json()).operatorRunActive, true);
   const response = await handleIndependentFishTest(req(), padded, async () => new Response(wav()));
   assert.equal(response.status, 200);
+});
+test("authenticated POST preflight validates the dedicated token without contacting Fish", async () => {
+  let calls = 0;
+  const request = new Request("https://example.test/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", "X-Fish-Test-Token": token }, body: JSON.stringify({ preflight: true }) });
+  const response = await handleIndependentFishTest(request, env, async () => { calls++; throw Error("must not run"); });
+  assert.equal(response.status, 200); assert.equal((await response.json()).authorized, true); assert.equal(calls, 0);
+});
+test("readiness waits for the actual POST authorization path", async () => {
+  let posts = 0;
+  await waitForIndependentReady({ token, wait: async () => {}, attempts: 2, fetcher: async (url, init) => {
+    if (url.endsWith("-status")) return Response.json({ version: "fish-drama3-independent-v3-preflight", keyConfigured: true, operatorRunActive: true });
+    assert.equal(init.headers["X-Fish-Test-Token"], token); assert.deepEqual(JSON.parse(init.body), { preflight: true });
+    return ++posts === 1 ? Response.json({ code: "FISH_TEST_UNAUTHORIZED" }, { status: 403 }) : Response.json({ authorized: true, version: "fish-drama3-independent-v3-preflight" });
+  } });
+  assert.equal(posts, 2);
+});
+test("only explicit local authorization rejections retry; provider failures never retry", async () => {
+  let calls = 0;
+  const success = await sendAuthorizedFishRequest(body, token, { wait: async () => {}, fetcher: async () => ++calls === 1 ? Response.json({ code: "FISH_TEST_UNAUTHORIZED" }, { status: 403 }) : new Response(wav()) });
+  assert.equal(success.status, 200); assert.equal(calls, 2);
+  calls = 0;
+  const failure = await sendAuthorizedFishRequest(body, token, { wait: async () => {}, fetcher: async () => { calls++; return Response.json({ code: "FISH_UPSTREAM_ERROR", upstreamStatus: 402 }, { status: 502 }); } });
+  assert.equal(failure.status, 502); assert.equal(calls, 1);
 });

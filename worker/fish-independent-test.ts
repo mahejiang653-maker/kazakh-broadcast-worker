@@ -1,7 +1,7 @@
 import { encode } from "@msgpack/msgpack";
 
 type TestEnv = { FISH_AUDIO_API_KEY?: string; FISH_DRAMA3_RUN_TOKEN?: string };
-const VERSION = "fish-drama3-independent-v2-readiness";
+const VERSION = "fish-drama3-independent-v3-preflight";
 const MODELS = new Set(["drama-3", "s2.1-pro-free"]);
 const MAX_BODY = 3_000_000;
 const MAX_AUDIO = 20_000_000;
@@ -39,9 +39,14 @@ export function independentFishStatus(env: TestEnv) {
 
 export async function handleIndependentFishTest(request: Request, env: TestEnv, fetcher: typeof fetch = fetch) {
   const token = env.FISH_DRAMA3_RUN_TOKEN?.trim();
-  const supplied = request.headers.get("Authorization")?.replace(/^Bearer /, "");
+  const dedicated = request.headers.get("X-Fish-Test-Token");
+  const supplied = (dedicated ?? request.headers.get("Authorization")?.replace(/^Bearer\s+/i, ""))?.trim();
   if (!activeToken(token) || !supplied || supplied.length > 100 || !await sameToken(supplied, token!)) {
-    return json({ error: "独立测试未授权或已过期。", code: "FISH_TEST_UNAUTHORIZED" }, 403);
+    return json({ error: "独立测试未授权或已过期。", code: "FISH_TEST_UNAUTHORIZED", diagnostics: {
+      operatorRunActive: activeToken(token), credentialHeaderPresent: Boolean(supplied),
+      credentialTransport: dedicated ? "test-header" : "bearer", suppliedLength: supplied?.length ?? 0,
+      suppliedFormatValid: Boolean(supplied && /^\d{13}\.[a-f0-9]{64}$/.test(supplied)),
+    } }, 403);
   }
   const key = env.FISH_AUDIO_API_KEY?.trim();
   if (!key) return json({ error: "Fish 服务端密钥尚未配置。", code: "FISH_CONFIG_MISSING" }, 503);
@@ -54,6 +59,7 @@ export async function handleIndependentFishTest(request: Request, env: TestEnv, 
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return json({ error: "请求格式错误。" }, 400);
     data = parsed as Record<string, unknown>;
   } catch { return json({ error: "请求格式错误。" }, 400); }
+  if (data.preflight === true) return json({ version: VERSION, authorized: true, upstreamRequests: 0 });
   if (typeof data.model !== "string" || !MODELS.has(data.model)) return json({ error: "请选择 Drama 3 或 S2.1 Pro 测试模型。", code: "FISH_TEST_MODEL_INVALID" }, 400);
   if (typeof data.text !== "string" || !data.text.trim() || data.text.length > 1200) return json({ error: "请输入 1–1200 字符。" }, 400);
   const reference = data.reference as { audioBase64?: unknown; text?: unknown } | undefined;

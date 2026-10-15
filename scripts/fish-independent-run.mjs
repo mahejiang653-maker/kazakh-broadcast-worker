@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const site = "https://kazakh-broadcast-worker.mahejiang653.workers.dev";
-const VERSION = "fish-drama3-independent-v2-readiness";
+const VERSION = "fish-drama3-independent-v3-preflight";
 const directory = resolve("work/fish-drama3");
 const referenceText = "Сәлем тораптастар, баршаңызға қайырлы таң. Алдімен төмендегі тораптастардың жақында белсенді қолдағанына көптен-көп рахімет. Енді өткен жиырма төрт сағат ішінде елімізде және әлемде болған маңызды жаңалықтарға бірге назар аударайық.";
 // Deliberate pronunciation/numbering fixture, not a report of today's news.
@@ -12,7 +12,7 @@ const text = "Сәлем тораптастар, баршаңызға қайыр
 const variants = [{ name: "Drama3_run1", model: "drama-3" }, { name: "Drama3_run2", model: "drama-3" }, { name: "S21_control", model: "s2.1-pro-free" }];
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
-export async function waitForIndependentReady({ fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onStatus = () => {}, attempts = 12 } = {}) {
+export async function waitForIndependentReady({ token, fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onStatus = () => {}, attempts = 12 } = {}) {
   let observation;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
@@ -21,12 +21,33 @@ export async function waitForIndependentReady({ fetcher = fetch, wait = ms => ne
       observation = { attempt, httpStatus: response.status, version: status.version, keyConfigured: Boolean(status.keyConfigured),
         operatorRunActive: Boolean(status.operatorRunActive), operatorTokenConfigured: Boolean(status.operatorTokenConfigured),
         operatorTokenFormatValid: Boolean(status.operatorTokenFormatValid), operatorTokenSecondsRemaining: status.operatorTokenSecondsRemaining, serverTime: status.serverTime };
-      onStatus(observation);
-      if (response.ok && status.version === VERSION && status.keyConfigured && status.operatorRunActive) return status;
+      if (response.ok && status.version === VERSION && status.keyConfigured && status.operatorRunActive) {
+        if (!token) { onStatus(observation); return status; }
+        const check = await fetcher(site + "/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", "X-Fish-Test-Token": token }, body: JSON.stringify({ preflight: true }), signal: AbortSignal.timeout(5_000) });
+        const auth = await check.json();
+        observation.preflightHttpStatus = check.status; observation.preflightAuthorized = Boolean(auth.authorized);
+        if (auth.diagnostics) observation.authorizationDiagnostics = auth.diagnostics;
+        onStatus(observation);
+        if (check.ok && auth.version === VERSION && auth.authorized === true) return status;
+      } else onStatus(observation);
     } catch { observation = { attempt, error: "Status request failed" }; onStatus(observation); }
     if (attempt < attempts) await wait(2_000);
   }
   throw Error("Independent readiness check failed: " + JSON.stringify(observation));
+}
+
+// A local authentication rejection happens before any Fish request. Only that
+// explicit, unbilled rejection can be retried; never retry a provider call.
+export async function sendAuthorizedFishRequest(request, token, { fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onAuthorization = () => {}, attempts = 5 } = {}) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const response = await fetcher(site + "/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", "X-Fish-Test-Token": token }, body: JSON.stringify(request), signal: AbortSignal.timeout(150_000) });
+    if (response.status !== 403) return response;
+    const result = await response.clone().json().catch(() => ({}));
+    if (result.code !== "FISH_TEST_UNAUTHORIZED") return response;
+    onAuthorization({ attempt, diagnostics: result.diagnostics });
+    if (attempt === attempts) return response;
+    await wait(2_000);
+  }
 }
 
 export function inspectWav(bytes) {
@@ -75,14 +96,14 @@ async function run() {
   await mkdir(directory, { recursive: true });
   const report = { version: VERSION, startedAt: new Date().toISOString(), textCharacters: text.length,
     textSha256: hash(text), referenceTextSha256: hash(referenceText), variants: [],
-    protocol: "Same text, fresh Edge Daulet reference, sampling parameters and sample rate; two Drama 3 repetitions and one S2.1 Pro free-tier control. No automatic retries. No audio post-processing.",
+    protocol: "Same text, fresh Edge Daulet reference, sampling parameters and sample rate; two Drama 3 repetitions and one S2.1 Pro free-tier control. No provider retries or audio post-processing. Only explicit local authorization rejections before any provider request may be retried.",
     subjectiveReview: "Pending listener review: Kazakh pronunciation, same-speaker identity, age/tone changes, numbering pauses and vocal fry. Signal metrics cannot settle these judgments.",
     productionDefaultsChanged: false };
   await writeFile(resolve(directory, "test_text.txt"), text);
   await writeFile(resolve(directory, "reference_text.txt"), referenceText);
   try {
     report.readiness = [];
-    await waitForIndependentReady({ onStatus: status => { report.readiness.push(status); console.log(JSON.stringify({ event: "readiness", ...status })); } });
+    await waitForIndependentReady({ token, onStatus: status => { report.readiness.push(status); console.log(JSON.stringify({ event: "readiness", ...status })); } });
     const referenceRequest = { text: referenceText, engine: "edge", voice: "kk-KZ-DauletNeural", preset: "news", speed: 1,
       edgePitch: 0, edgeVolume: 0, stability: 0.5, similarityBoost: 0.75, style: 0, speakerBoost: true };
     await writeFile(resolve(directory, "reference_request.json"), JSON.stringify(referenceRequest, null, 2));
@@ -98,7 +119,10 @@ async function run() {
       await writeFile(resolve(directory, "report.json"), JSON.stringify(report, null, 2));
       const request = { model: variant.model, text, reference: { audioBase64: reference.toString("base64"), text: referenceText } };
       const started = performance.now();
-      const response = await fetch(site + "/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(request), signal: AbortSignal.timeout(150_000) });
+      const response = await sendAuthorizedFishRequest(request, token, { onAuthorization: state => {
+        entry.authorizationRejections ??= []; entry.authorizationRejections.push(state);
+        console.log(JSON.stringify({ name: variant.name, event: "local-authorization-rejection", ...state }));
+      } });
       entry.httpStatus = response.status;
       if (!response.ok) {
         const error = await response.json().catch(() => ({})); entry.status = "FAILED";

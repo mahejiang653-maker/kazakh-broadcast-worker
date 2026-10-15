@@ -9,7 +9,7 @@ This experiment uses the existing Fish API credential in the production Worker. 
 - Generate exactly three short samples: Drama 3 take 1, Drama 3 take 2, S2.1 Pro free-tier control.
 - Use the same text and reference bytes in all three requests, with `temperature=0.7`, `top_p=0.7`, `sample_rate=24000`, `chunk_length=300`, `condition_on_previous_chunks=true` and normal latency. Do not post-process the generated audio.
 - The text is a pronunciation and numbering fixture, not a report of current news. It includes the user's Xinjiang Kazakh terminology.
-- The upstream `model` header is explicit and allowlisted. No fallback or automatic retry is implemented. Record an upstream model confirmation only if the provider actually returns it.
+- The upstream `model` header is explicit and allowlisted. Provider calls never fall back or automatically retry. Explicit local authorization rejections before any provider request can be retried. Record an upstream model confirmation only if the provider actually returns it.
 - The S2.1 free tier uses the same model but a different service tier; one run does not justify performance conclusions.
 
 ## Execution and credentials
@@ -25,5 +25,6 @@ Outputs are a Daulet reference, three WAV files, exact transcripts, a request ma
 - Existing S2.1 route hardcodes `s2.1-pro-free` and cannot test Drama 3.
 - Drama 3 generation results are pending the independent workflow; no quality outcome is claimed here.
 - The initial workflow `38558897751` stopped at its immediate readiness check before generating a reference or sending any Fish request. Its temporary token was removed successfully. V2 records non-secret readiness diagnostics and waits for the freshly published binding using read-only status calls; audio requests are still never automatically retried.
+- Workflow `38808897856` generated the Daulet reference and observed a ready token on GET, but its first generation POST was rejected locally before any Fish request. V3 validates the actual POST authorization path, uses a dedicated operator header and retries only explicit local authentication rejections. Temporary access was removed after both failed runs.
 
 Official interfaces: https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech and https://beta.fish.audio/zh-CN/blog/fish-audio-drama-3/.
