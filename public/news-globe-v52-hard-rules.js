@@ -20,6 +20,17 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  if(['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    return typeof oldRun==='function'?oldRun.call(this,n,iso,s):false;
  }
+ // A precise locality story must never terminate at a whole-country fill.
+ // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
+ const locality=/县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(String(n.focusLabel||n.location||'')) || /^(city|county|town|village|point)$/i.test(String(n.placeType||''));
+ if(locality && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) && n.lon!=null && n.lat!=null && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
+   const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
+     adminChain:[],forceAdminChain:false,
+     scenePlan:{...p,regionalContext:false,contextCountries:[],participants:[],adminChain:[],
+       forceAdminChain:false,finalLocation:true,nonStateActor:null,hierarchyPresented:false}};
+   trace('locality-point',{name:q.focusLabel||q.location,lon:+q.lon,lat:+q.lat});
+   return typeof oldRun==='function'?oldRun.call(this,q,iso,s):false;
+ }
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true}
  if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
  if(p.nonStateActor){await runCountry(primary,n,s,1200);if(s!==G.navSerial)return false;await showActorStage(n,s);if(s!==G.navSerial)return false;const q={...n,adminChain:[],scenePlan:{...p,participants:[],contextCountries:[],adminChain:[]}};return oldRun?oldRun.call(this,q,iso,s):false}
