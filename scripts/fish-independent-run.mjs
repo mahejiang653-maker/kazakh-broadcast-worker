@@ -4,12 +4,30 @@ import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const site = "https://kazakh-broadcast-worker.mahejiang653.workers.dev";
+const VERSION = "fish-drama3-independent-v2-readiness";
 const directory = resolve("work/fish-drama3");
 const referenceText = "Сәлем тораптастар, баршаңызға қайырлы таң. Алдімен төмендегі тораптастардың жақында белсенді қолдағанына көптен-көп рахімет. Енді өткен жиырма төрт сағат ішінде елімізде және әлемде болған маңызды жаңалықтарға бірге назар аударайық.";
 // Deliberate pronunciation/numbering fixture, not a report of today's news.
 const text = "Сәлем тораптастар, баршаңызға қайырлы таң.\n\nБірінші. Бұл сөйлемде бірлескен мемлекеттер ұйымы және халықаралық жағдай деген сөздер оқылады.\n\nЕкінші. Келесі сөйлемде енергийә құрылғылары, халықтық нысаналар және адамсыз ұшақтар деген сөздер оқылады.\n\nҮшінші. Шинжиаңда, құлжа, бұратала және тәңіртәу боғда көлі деген атауларды анық айтайық.\n\nОсымен бүгінгі кескіннің барлық мазмұны айақталды. Ертең қайта кездескенше сау сәлемет болыңыздар.";
 const variants = [{ name: "Drama3_run1", model: "drama-3" }, { name: "Drama3_run2", model: "drama-3" }, { name: "S21_control", model: "s2.1-pro-free" }];
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
+
+export async function waitForIndependentReady({ fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onStatus = () => {}, attempts = 12 } = {}) {
+  let observation;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      const response = await fetcher(site + "/api/fish-independent-status", { signal: AbortSignal.timeout(5_000), cache: "no-store" });
+      const status = await response.json();
+      observation = { attempt, httpStatus: response.status, version: status.version, keyConfigured: Boolean(status.keyConfigured),
+        operatorRunActive: Boolean(status.operatorRunActive), operatorTokenConfigured: Boolean(status.operatorTokenConfigured),
+        operatorTokenFormatValid: Boolean(status.operatorTokenFormatValid), operatorTokenSecondsRemaining: status.operatorTokenSecondsRemaining, serverTime: status.serverTime };
+      onStatus(observation);
+      if (response.ok && status.version === VERSION && status.keyConfigured && status.operatorRunActive) return status;
+    } catch { observation = { attempt, error: "Status request failed" }; onStatus(observation); }
+    if (attempt < attempts) await wait(2_000);
+  }
+  throw Error("Independent readiness check failed: " + JSON.stringify(observation));
+}
 
 export function inspectWav(bytes) {
   if (bytes.toString("ascii", 0, 4) !== "RIFF" || bytes.toString("ascii", 8, 12) !== "WAVE") throw Error("Invalid WAV signature");
@@ -55,7 +73,7 @@ async function run() {
   const token = process.env.FISH_DRAMA3_RUN_TOKEN;
   if (!token) throw Error("Authorized operator run token is required");
   await mkdir(directory, { recursive: true });
-  const report = { version: "fish-drama3-independent-v1", startedAt: new Date().toISOString(), textCharacters: text.length,
+  const report = { version: VERSION, startedAt: new Date().toISOString(), textCharacters: text.length,
     textSha256: hash(text), referenceTextSha256: hash(referenceText), variants: [],
     protocol: "Same text, fresh Edge Daulet reference, sampling parameters and sample rate; two Drama 3 repetitions and one S2.1 Pro free-tier control. No automatic retries. No audio post-processing.",
     subjectiveReview: "Pending listener review: Kazakh pronunciation, same-speaker identity, age/tone changes, numbering pauses and vocal fry. Signal metrics cannot settle these judgments.",
@@ -63,9 +81,8 @@ async function run() {
   await writeFile(resolve(directory, "test_text.txt"), text);
   await writeFile(resolve(directory, "reference_text.txt"), referenceText);
   try {
-    const ready = await fetch(site + "/api/fish-independent-status", { signal: AbortSignal.timeout(30_000) });
-    const status = await ready.json();
-    if (!ready.ok || status.version !== report.version || !status.keyConfigured || !status.operatorRunActive) throw Error("Independent test deployment/readiness check failed");
+    report.readiness = [];
+    await waitForIndependentReady({ onStatus: status => { report.readiness.push(status); console.log(JSON.stringify({ event: "readiness", ...status })); } });
     const referenceRequest = { text: referenceText, engine: "edge", voice: "kk-KZ-DauletNeural", preset: "news", speed: 1,
       edgePitch: 0, edgeVolume: 0, stability: 0.5, similarityBoost: 0.75, style: 0, speakerBoost: true };
     await writeFile(resolve(directory, "reference_request.json"), JSON.stringify(referenceRequest, null, 2));
