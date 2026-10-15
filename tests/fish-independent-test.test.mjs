@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "rolldown";
 import { decode } from "@msgpack/msgpack";
+import { waitForIndependentReady } from "../scripts/fish-independent-run.mjs";
 const dir = await mkdtemp(join(tmpdir(), "fish-test-"));
 await build({ input: "worker/fish-independent-test.ts", platform: "node", output: { file: join(dir, "handler.mjs"), format: "esm", codeSplitting: false } });
 const { handleIndependentFishTest, independentFishStatus } = await import(pathToFileURL(join(dir, "handler.mjs")));
@@ -69,4 +70,16 @@ test("read-only status exposes readiness but no credential values", async () => 
   const text = await independentFishStatus(env).text();
   assert.equal(text.includes(env.FISH_AUDIO_API_KEY), false); assert.equal(text.includes(token), false);
   const status = JSON.parse(text); assert.equal(status.changesProductionDefaults, false); assert.equal(status.operatorRunActive, true);
+});
+test("a newly published operator binding can become ready before any generation request", async () => {
+  const urls = [], observations = [];
+  await waitForIndependentReady({ fetcher: async url => {
+    urls.push(url); return Response.json({ version: "fish-drama3-independent-v2-readiness", keyConfigured: true, operatorRunActive: urls.length === 3 });
+  }, wait: async () => {}, onStatus: state => observations.push(state), attempts: 3 });
+  assert.equal(urls.length, 3); assert.ok(urls.every(url => url.endsWith("/api/fish-independent-status")));
+  assert.deepEqual(observations.map(x => x.operatorRunActive), [false, false, true]);
+  const padded = { ...env, FISH_DRAMA3_RUN_TOKEN: ` ${token}\n` };
+  assert.equal((await independentFishStatus(padded).json()).operatorRunActive, true);
+  const response = await handleIndependentFishTest(req(), padded, async () => new Response(wav()));
+  assert.equal(response.status, 200);
 });

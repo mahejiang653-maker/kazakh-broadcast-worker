@@ -24,5 +24,6 @@ Outputs are a Daulet reference, three WAV files, exact transcripts, a request ma
 - Production `/api/fish-s21-status` returned `keyConfigured=true`, `pinConfigured=true` on 2026-10-14.
 - Existing S2.1 route hardcodes `s2.1-pro-free` and cannot test Drama 3.
 - Drama 3 generation results are pending the independent workflow; no quality outcome is claimed here.
+- The initial workflow `38558897751` stopped at its immediate readiness check before generating a reference or sending any Fish request. Its temporary token was removed successfully. V2 records non-secret readiness diagnostics and waits for the freshly published binding using read-only status calls; audio requests are still never automatically retried.
 
 Official interfaces: https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech and https://beta.fish.audio/zh-CN/blog/fish-audio-drama-3/.

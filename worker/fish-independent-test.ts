@@ -1,7 +1,7 @@
 import { encode } from "@msgpack/msgpack";
 
 type TestEnv = { FISH_AUDIO_API_KEY?: string; FISH_DRAMA3_RUN_TOKEN?: string };
-const VERSION = "fish-drama3-independent-v1";
+const VERSION = "fish-drama3-independent-v2-readiness";
 const MODELS = new Set(["drama-3", "s2.1-pro-free"]);
 const MAX_BODY = 3_000_000;
 const MAX_AUDIO = 20_000_000;
@@ -12,6 +12,7 @@ const json = (body: object, status = 200) => Response.json(body, {
 // The authorized QA workflow installs a new random token for at most 15 minutes,
 // then removes it. Existing Fish credentials and the user's access PIN stay intact.
 function activeToken(token: string | undefined) {
+  token = token?.trim();
   if (!token || !/^\d{13}\.[a-f0-9]{64}$/.test(token)) return false;
   const expires = Number(token.split(".")[0]);
   const remaining = expires - Date.now();
@@ -28,12 +29,16 @@ async function sameToken(left: string, right: string) {
 }
 
 export function independentFishStatus(env: TestEnv) {
+  const token = env.FISH_DRAMA3_RUN_TOKEN?.trim();
+  const validFormat = Boolean(token && /^\d{13}\.[a-f0-9]{64}$/.test(token));
   return json({ version: VERSION, models: [...MODELS], keyConfigured: Boolean(env.FISH_AUDIO_API_KEY?.trim()),
-    operatorRunActive: activeToken(env.FISH_DRAMA3_RUN_TOKEN), changesProductionDefaults: false });
+    operatorRunActive: activeToken(token), operatorTokenConfigured: Boolean(token), operatorTokenFormatValid: validFormat,
+    operatorTokenSecondsRemaining: validFormat ? Math.floor((Number(token!.split(".")[0]) - Date.now()) / 1000) : null,
+    serverTime: new Date().toISOString(), changesProductionDefaults: false });
 }
 
 export async function handleIndependentFishTest(request: Request, env: TestEnv, fetcher: typeof fetch = fetch) {
-  const token = env.FISH_DRAMA3_RUN_TOKEN;
+  const token = env.FISH_DRAMA3_RUN_TOKEN?.trim();
   const supplied = request.headers.get("Authorization")?.replace(/^Bearer /, "");
   if (!activeToken(token) || !supplied || supplied.length > 100 || !await sameToken(supplied, token!)) {
     return json({ error: "独立测试未授权或已过期。", code: "FISH_TEST_UNAUTHORIZED" }, 403);
