@@ -7,7 +7,7 @@ const root=path.resolve('public'),fixture=path.resolve('tests/fixtures/r6-daily1
 const payload=JSON.parse(fs.readFileSync(fixture));
 const url=process.env.GLOBE_URL||'https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html';
 const dir=path.resolve(process.env.GLOBE_OUTPUT||'globe-verify-r6-attacks');fs.mkdirSync(dir,{recursive:true});
-const report={url,localOverrides:!!process.env.GLOBE_LOCAL,fixture:path.basename(fixture),fixtureSHA256:crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex'),checks:[],pageErrors:[],consoleErrors:[],requests:[],status:'RUNNING'};
+const report={url,localOverrides:!!process.env.GLOBE_LOCAL,flagCDNBlocked:!!process.env.GLOBE_BLOCK_FLAG_CDN,fixture:path.basename(fixture),fixtureSHA256:crypto.createHash('sha256').update(fs.readFileSync(fixture)).digest('hex'),checks:[],pageErrors:[],consoleErrors:[],requests:[],status:'RUNNING'};
 const browser=await chromium.launch({headless:true,
  ...(process.env.GLOBE_CHROMIUM_PATH?{executablePath:process.env.GLOBE_CHROMIUM_PATH}:{}),
  args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],
@@ -26,7 +26,7 @@ async function state(){return page.evaluate(()=>{
   return {iso,exists:!!c,coordinates:coords.length,inside:projected.filter(within).length,screenInside:projected.filter(p=>p&&rect.left+p.x>=0&&rect.left+p.x<=innerWidth&&rect.top+p.y>=0&&rect.top+p.y<=innerHeight).length,borderPoints,
    fills:G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e)).length};
  });
- const flags=[...document.querySelectorAll('img[alt$=" flag"]')].map(e=>({iso:e.alt.split(' ')[0],visible:getComputedStyle(e).display!=='none',complete:e.complete,naturalWidth:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()}));
+ const flags=[...document.querySelectorAll('img[alt$=" flag"]')].map(e=>({iso:e.alt.split(' ')[0],source:e.dataset.flagSource,visible:getComputedStyle(e).display!=='none',complete:e.complete,naturalWidth:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()}));
  const target=a?.target||{lon:+current.lon,lat:+current.lat};
  const p=project(C.Cartesian3.fromDegrees(target.lon,target.lat,30000));
  const selected=new Set(G.v52StoryBorders.getDiagnostics().countries);
@@ -49,7 +49,7 @@ function verifyTop2(s){
  assert.deepEqual(s.scope.countries,['RUS','UKR']);assert.equal(s.invalidBorders,0);
  for(const iso of ['RUS','UKR']){
   const c=s.countries.find(c=>c.iso===iso);assert.ok(c?.exists&&c.fills>0&&c.borderPoints>10,iso+' must be rendered in the viewport');
-  const f=s.flags.find(f=>f.iso===iso);assert.ok(f?.visible&&f.complete&&f.naturalWidth>0,iso+' flag image must be visible');
+  const f=s.flags.find(f=>f.iso===iso);assert.equal(f?.source,'bundled',iso+' must not depend on the remote flag CDN');assert.ok(f?.visible&&f.complete&&f.naturalWidth>0,iso+' flag image must be visible');
   assert.ok(f.rect.left>=s.canvas.left&&f.rect.right<=s.canvas.right&&f.rect.top>=s.canvas.top&&f.rect.bottom<=s.canvas.bottom,iso+' flag must remain inside globe');
   assert.ok(!(s.target.x>=f.rect.left-6&&s.target.x<=f.rect.right+6&&s.target.y>=f.rect.top-6&&s.target.y<=f.rect.bottom+6),iso+' flag must not cover the target');
  }
@@ -70,6 +70,7 @@ async function start(viewport,name){
  videoStart=Date.now();page=await context.newPage();page.on('pageerror',e=>report.pageErrors.push(e.stack));
  page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());});
  page.on('response',r=>{if(r.url().includes('news-globe-v52-attack-model')||r.url().includes('news-globe-v14-v51-scene-engine'))report.requests.push({url:r.url(),status:r.status()});});
+ if(process.env.GLOBE_BLOCK_FLAG_CDN)await page.route('https://flagcdn.com/**',route=>route.abort());
  if(process.env.GLOBE_LOCAL)await page.route(new URL(url).origin+'/**',route=>{
   const file=path.resolve(root,'.'+new URL(route.request().url()).pathname);
   if(file.startsWith(root+path.sep)&&fs.existsSync(file)&&fs.statSync(file).isFile())return route.fulfill({body:fs.readFileSync(file),contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.html')?'text/html':file.endsWith('.gz')?'application/gzip':'application/json'});

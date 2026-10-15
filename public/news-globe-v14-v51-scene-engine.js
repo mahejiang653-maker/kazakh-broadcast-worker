@@ -40,8 +40,9 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  const remote='https://flagcdn.com/w40/'+cc+'.png';
  // Always render a local PNG immediately. Android/Chrome supports Unicode flag emoji in canvas.
  // A remote PNG can replace it after loading, but a blocked CDN never leaves an empty billboard.
- let initial=remote;
- try{
+ const local=G.v52FlagImages?.[cc];
+ let initial=local||remote;
+ if(!local)try{
   if(typeof document?.createElement==='function'){
    const canvas=document.createElement('canvas');canvas.width=64;canvas.height=40;
    const ctx=canvas.getContext('2d');
@@ -57,7 +58,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  try{
   const scene=G.viewer?.scene;
   if(scene?.postRender&&typeof document?.createElement==='function'&&document.body){
-   const el=document.createElement('img');el.alt=key+' flag';el.src=remote;
+   const el=document.createElement('img');el.alt=key+' flag';el.src=initial;el.dataset.flagSource=local?'bundled':'remote';
    el.style.cssText='position:fixed;z-index:2147483000;width:'+Math.max(30,w)+'px;height:'+Math.max(20,h)+'px;object-fit:fill;pointer-events:none;display:none;transform:translate(-50%,-50%)';
    document.body.appendChild(el);
    G.v52FlagAudit.domCreated=(G.v52FlagAudit.domCreated||0)+1;
@@ -80,7 +81,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
   }else{G.v52FlagAudit.domError='scene/postRender/body unavailable'}
  }catch(e){G.v52FlagAudit.domError=String(e?.message||e)}
  G.v52FlagAudit.created++;G.v52FlagAudit.events.push({iso:key,at:Date.now(),entity});if(G.v52FlagAudit.events.length>40)G.v52FlagAudit.events.shift();
- if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
+ if(!local&&typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
  return entity;
 }
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
@@ -140,7 +141,7 @@ function stopAttack(){
  for(const id of activeAttack.timers)clearTimeout(id);
  activeAttack.timers.clear();activeAttack.removeResize?.();activeAttack=null;
 }
-G.v52Attack={clear:stopAttack,getDiagnostics:()=>activeAttack?{
+G.v52Attack={version:'20261015-attack-v2',clear:stopAttack,getDiagnostics:()=>activeAttack?{
  serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
  source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
  anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,

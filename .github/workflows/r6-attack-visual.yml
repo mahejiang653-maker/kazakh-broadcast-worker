@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'public/news-globe-v52-attack-model.js'
+      - 'public/news-globe-v52-flag-images*'
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
       - 'public/news-globe-v52-story-borders.js'
@@ -10,12 +11,14 @@ on:
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
       - '.github/workflows/r6-attack-visual.yml'
   push:
     branches: [main]
     paths:
       - 'public/news-globe-v52-attack-model.js'
+      - 'public/news-globe-v52-flag-images*'
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
       - 'public/news-globe-v52-story-borders.js'
@@ -23,6 +26,7 @@ on:
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
       - '.github/workflows/r6-attack-visual.yml'
   workflow_dispatch:
@@ -43,6 +47,7 @@ jobs:
         run: node scripts/verify-r6-attacks.mjs
         env:
           GLOBE_LOCAL: '1'
+          GLOBE_BLOCK_FLAG_CDN: '1'
           GLOBE_RECORD: '1'
       - name: Save rendered screenshots, video and runtime evidence
         if: always()
