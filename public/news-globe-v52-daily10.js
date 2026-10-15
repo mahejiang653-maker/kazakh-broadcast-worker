@@ -88,7 +88,12 @@
   G.navigate = function(target){
     if (!G.started) {G.focus(0, true); return;}
     const from = G.current, to = normalized(target);
-    if (from !== to) G.showArc(from, to);
+    // A navigation arc is NOT an attack trajectory. For threat stories it
+    // misleadingly suggests the previous story's location launched an attack.
+    const next = G.news?.[to];
+    const threat = /^(threat|warning|threatened_attack)$/i.test(String(next?.eventType || ''));
+    if (from !== to && !threat) G.showArc(from, to);
+    else if (threat) G.clearArc?.();
     G.focus(to, true);
   };
   const baseStoryUI = G.storyUI;
