@@ -1,0 +1,52 @@
+name: R6 attack scenes rendered verification
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-v52-attack-model.js'
+      - 'public/news-globe-v14-v51-scene-engine.js'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-story-borders.js'
+      - 'public/news-globe-v52-flags-overview-clean.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'scripts/verify-r6-attacks.mjs'
+      - 'tests/r6-attack-model.test.mjs'
+      - 'tests/fixtures/r6-daily10-20261014.json'
+      - '.github/workflows/r6-attack-visual.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'public/news-globe-v52-attack-model.js'
+      - 'public/news-globe-v14-v51-scene-engine.js'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-story-borders.js'
+      - 'public/news-globe-v52-flags-overview-clean.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'scripts/verify-r6-attacks.mjs'
+      - 'tests/r6-attack-model.test.mjs'
+      - 'tests/fixtures/r6-daily10-20261014.json'
+      - '.github/workflows/r6-attack-visual.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rendered-scenes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+      - name: Verify actual imported ten-story fixture, navigation and generic attacks
+        run: node scripts/verify-r6-attacks.mjs
+        env:
+          GLOBE_LOCAL: '1'
+          GLOBE_RECORD: '1'
+      - name: Save rendered screenshots, video and runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-attack-visual-${{ github.sha }}
+          path: globe-verify-r6-attacks

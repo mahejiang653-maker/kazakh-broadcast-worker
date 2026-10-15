@@ -1,7 +1,7 @@
 (function (G) {
   'use strict';
   if (!G || G.v52StoryBorders) return;
-  const VERSION = '20261011-r6-story-borders-r10';
+  const VERSION = '20261015-r6-attack-scope-r11';
   const shortNames = {中:'CHN',美:'USA',俄:'RUS',乌:'UKR',英:'GBR',法:'FRA',德:'DEU',日:'JPN',
     印:'IND',韩:'KOR',朝:'PRK',伊:'IRN',以:'ISR',沙:'SAU'};
   const aliases = {CHN:['中华人民共和国','中国'],USA:['美国'],RUS:['俄罗斯'],UKR:['乌克兰'],
@@ -26,6 +26,8 @@
     if (!n) return result;
     add(n.countryIso3 || G.resolveIso?.(n));
     add(p.primaryIso3);
+    const attack=G.v52AttackModel?.resolve(n);
+    if(attack){add(attack.att);add(attack.vic);return result;}
     // A POINT story describes one actual location. Countries mentioned in the
     // headline, summary, or metadata remain context, not extra white borders.
     // Explicit multi-country scene modes continue through the existing logic.

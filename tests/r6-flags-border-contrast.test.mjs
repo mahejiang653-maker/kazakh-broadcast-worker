@@ -36,24 +36,23 @@ test('all attack modes use one scene renderer and unknown launch sites do not cr
    assert.ok(engine.includes("mode==='"+mode+"'"),'missing engine mode '+mode);
    assert.ok(rules.includes("'"+mode+"'"),'missing hard-rule mode '+mode);
  }
- assert.match(engine,/p\.sourceUnconfirmed!==true/);
- assert.match(engine,/\['direction','directional','approximate'\]\.includes/);
- assert.match(engine,/if\(!a\.source\)\{clearScene\(\);hideBase\(\)/);
- assert.match(engine,/drawCountry\(a\.att,COLOR\.attack/);
- assert.match(engine,/flag\(a\.att,attackerCenter\[0\],attackerCenter\[1\]/);
- assert.match(engine,/impact\(a\.target\.lon,a\.target\.lat\)/);
+ assert.match(engine,/G\.v52AttackModel\?\.resolve\(n\)/);
+ assert.match(engine,/function renderAttack\(n,iso,s\)/);
+ assert.match(engine,/C\.EllipsoidGeodesic/);
+ assert.match(engine,/showImpacts\(ctx\)/);
+ assert.match(engine,/flag\(a\.att,lon,lat/);
  assert.doesNotMatch(engine,/基辅|Kyiv|Kiev|Київ/);
 });
 
 
 test('scene cleanup removes old entities and navigation guards asynchronous attack effects',()=>{
  const code=source('news-globe-v14-v51-scene-engine.js');
- assert.match(code,/function clearScene\(\)\{for\(const e of G\.v51SceneEntities\.splice\(0\)\)/);
+ assert.match(code,/function clearScene\(\)\{G\.v52Attack\?\.clear\(\);for\(const e of G\.v51SceneEntities\.splice\(0\)\)/);
  for(const group of ['v50Entities','v49Entities','v48Entities','v47Entities'])assert.ok(code.includes("'"+group+"'"));
  assert.match(code,/G\.clearInteractionEffects\?\.\(\)/);
  assert.match(code,/G\.clearSecondaryCountry\?\.\(\)/);
  assert.match(code,/G\.clearArc\?\.\(\)/);
- assert.match(code,/setTimeout\(\(\)=>\{if\(s===G\.navSerial\)impact/);
+ assert.match(code,/activeAttack===ctx&&ctx\.serial===G\.navSerial&&!G\.overviewMode/);
  assert.match(code,/if\(s!==G\.navSerial\)return/);
 });
 

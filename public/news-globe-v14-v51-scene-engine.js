@@ -17,7 +17,7 @@ G.v52FlagAudit={created:0,removed:0,loadSuccess:0,loadError:0,invalid:0,events:[
 
 const add=e=>{if(e)G.v51SceneEntities.push(e);return e};
 function purgeList(k){const a=G[k];if(!Array.isArray(a))return;for(const e of a.splice(0))try{G.viewer.entities.remove(e)}catch{}}
-function clearScene(){for(const e of G.v51SceneEntities.splice(0))try{if(G.v52FlagAudit.events.some(x=>x.entity===e))G.v52FlagAudit.removed++;G.viewer.entities.remove(e)}catch{};for(const k of ['v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'])purgeList(k);try{G.clearInteractionEffects?.()}catch{}try{G.clearSecondaryCountry?.()}catch{}try{G.clearLocal?.()}catch{}try{G.clearCountry?.()}catch{}try{G.clearArc?.()}catch{}const h=document.getElementById('scenePlanHud');if(h){h.style.display='none';h.innerHTML=''}}
+function clearScene(){G.v52Attack?.clear();for(const e of G.v51SceneEntities.splice(0))try{if(G.v52FlagAudit.events.some(x=>x.entity===e))G.v52FlagAudit.removed++;G.viewer.entities.remove(e)}catch{};for(const k of ['v50Entities','v49Entities','v48Entities','v47Entities','v45bEntities','v44Entities','v38Entities','v37Entities','v36Entities'])purgeList(k);try{G.clearInteractionEffects?.()}catch{}try{G.clearSecondaryCountry?.()}catch{}try{G.clearLocal?.()}catch{}try{G.clearCountry?.()}catch{}try{G.clearArc?.()}catch{}const h=document.getElementById('scenePlanHud');if(h){h.style.display='none';h.innerHTML=''}}
 function hideBase(){try{if(G.markers?.[G.current])G.markers[G.current].show=false;if(G.pulses?.[G.current])G.pulses[G.current].show=false}catch{}}
 // Replace the preceding stage only after the next admin geometry is ready.
 G.v51PrepareAdmin=()=>{clearScene();hideBase()};
@@ -33,7 +33,7 @@ function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1]
 function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[103.8,35.4];return centroid(mainRing(iso))||G.countries?.get?.(iso)?.center||null}
 /* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
 function drawCountry(iso,color,alpha=.14,width=2.35){const col=C.Color.fromCssColorString(color),outline=String(iso).toUpperCase()==='CHN'?G.countries?.get('CHN')?.authoritativeOutline:null;for(const f of outline?[outline]:viewFeatures(iso))for(const p of polygons(f)){const r=p?.[0]||[];if(r.length<3)continue;add(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(r.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000))),height:5000,material:col.withAlpha(alpha),outline:false}}))}}
-function label(text,lon,lat,{dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(0,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(0,dy);return e}
+function label(text,lon,lat,{dx=0,dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(dx,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(dx,dy);return e}
 function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  const key=String(iso||'').toUpperCase(),cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();
  if(!/^[a-z]{2}$/.test(cc)||!good(lon,lat)){G.v52FlagAudit.invalid++;return;}
@@ -51,7 +51,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
     ctx.fillText(emoji,32,21);initial=canvas.toDataURL('image/png')}
   }
  }catch{}
- const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,72000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+ const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
 
 // Viewport-level fallback avoids Cesium container stacking and clipping.
  try{
@@ -72,7 +72,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
      if(!xy||!rect||!Number.isFinite(xy.x)||!Number.isFinite(xy.y)||xy.x<0||xy.y<0||xy.x>rect.width||xy.y>rect.height){
       el.style.display='none';G.v52FlagAudit.domOffscreen=(G.v52FlagAudit.domOffscreen||0)+1;return;
      }
-     el.style.left=(rect.left+xy.x+dx)+'px';el.style.top=(rect.top+xy.y+dy)+'px';el.style.display='block';
+     const offset=entity.billboard.pixelOffset.getValue(G.viewer.clock.currentTime);el.style.left=(rect.left+xy.x+offset.x)+'px';el.style.top=(rect.top+xy.y+offset.y)+'px';el.style.display='block';
      G.v52FlagAudit.domVisible=(G.v52FlagAudit.domVisible||0)+1;
     }catch(e){el.style.display='none';G.v52FlagAudit.domError=String(e?.message||e)}
    };
@@ -80,7 +80,8 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
   }else{G.v52FlagAudit.domError='scene/postRender/body unavailable'}
  }catch(e){G.v52FlagAudit.domError=String(e?.message||e)}
  G.v52FlagAudit.created++;G.v52FlagAudit.events.push({iso:key,at:Date.now(),entity});if(G.v52FlagAudit.events.length>40)G.v52FlagAudit.events.shift();
- if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
+ if(typeof Image!=='undefined'&&initial!==remote){const img=new Image();img.crossOrigin='anonymous';img.onload=()=>{G.v52FlagAudit.loadSuccess++;try{if(G.viewer?.entities?.contains?.(entity))entity.billboard.image=img}catch{}};img.onerror=()=>{G.v52FlagAudit.loadError++};img.src=remote}
+ return entity;
 }
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
 async function flyPoint(lon,lat,height,s,duration=1.0){if(s!==G.navSerial||!good(lon,lat))return false;await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,+height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,complete:r,cancel:r}));return s===G.navSerial}
@@ -96,16 +97,178 @@ function eventHeight(n){const t=String(n.scenePlan?.finalType||n.placeType||'').
 async function finalLocation(n,s,{text=null,flagIso=null}={}){if(s!==G.navSerial)return false;clearScene();hideBase();if(!['city','town','village','城市','城镇','乡镇','村庄','市','县城'].includes(String(n.placeType||'').trim().toLowerCase()) && G.v52RenderGeographicFeature&&await G.v52RenderGeographicFeature(n,s)){if(s===G.navSerial)flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});return s===G.navSerial;}if(s!==G.navSerial)return false;mark(+n.lon,+n.lat,text||placeLabel(n),{size:10,dy:-29});flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(!await flyPoint(+n.lon,+n.lat,eventHeight(n),s,1.02))return false;G.v52StartDetailedBorders?.(s);return wait(2100,s)}
 async function runAdmins(n,iso,s,steps=null){const arr=Array.isArray(steps)?steps:(G.adminSteps?.(n)||[]);for(const st of arr){if(s!==G.navSerial)return false;await G.flashAdmin?.(st,iso,s,1750,{keepVisible:true,beforeShow:G.v51PrepareAdmin});if(s!==G.navSerial)return false;await wait(300,s)}return true}
 async function localFit(a,b,s){const ps=[];if(a&&good(a.lon,a.lat))ps.push(C.Cartesian3.fromDegrees(a.lon,a.lat,0));if(b&&good(b.lon,b.lat))ps.push(C.Cartesian3.fromDegrees(b.lon,b.lat,0));return flyFit(ps,s,{factor:3.0,min:290000,max:2450000,duration:.95})}
-function attackData(n){const p=n.scenePlan||{},att=String(p.attackerIso3||n.sourceCountryIso3||'').toUpperCase(),vic=String(p.victimIso3||n.targetCountryIso3||n.countryIso3||'').toUpperCase(),target={lon:+(n.targetLon??n.lon),lat:+(n.targetLat??n.lat)};let source=null;if(p.sourceUnconfirmed!==true&&(p.sourcePrecision==='platform'||p.sourcePrecision==='exact'||p.sourcePrecision==='precise')&&good(n.sourceLon,n.sourceLat))source={lon:+n.sourceLon,lat:+n.sourceLat};else if(p.sourceUnconfirmed!==true && ['direction','directional','approximate'].includes(String(p.sourcePrecision||'').toLowerCase()) && att)source=directionalOrigin(att,target.lon,target.lat);return{att,vic,target,source,sourceLabel:String(p.sourceLabel||p.sourceDirectionLabel||`${countryLabel(att)}方向`),targetLabel:placeLabel(n),sourceType:String(p.sourceType||n.sourceType||''),potential:String(n.sceneMode||'').toUpperCase()==='POTENTIAL_ATTACK'||!!n.potentialStrike}}
-function impact(lon,lat){const t0=performance.now();add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,800),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>{const t=Math.min(1,(performance.now()-t0)/850);return 5000+t*25000},false),semiMinorAxis:new C.CallbackProperty(()=>{const t=Math.min(1,(performance.now()-t0)/850);return 5000+t*25000},false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>{const t=Math.min(1,(performance.now()-t0)/850);return C.Color.fromCssColorString('#ff7a22').withAlpha((1-t)*.18)},false)),outline:true,outlineColor:new C.CallbackProperty(()=>{const t=Math.min(1,(performance.now()-t0)/850);return C.Color.fromCssColorString('#ffd45a').withAlpha((1-t)*.75)},false)}}))}
-async function renderAttack(n,iso,s){const a=attackData(n);if(!a.vic||!good(a.target.lon,a.target.lat))return fallbackRun(n,iso,s);if(!a.source){clearScene();hideBase();const attackerCenter=a.att&&a.att!==a.vic?mainland(a.att):null;const victimCenter=mainland(a.vic);if(a.att&&a.att!==a.vic){drawCountry(a.att,COLOR.attack,.13);if(attackerCenter&&good(attackerCenter[0],attackerCenter[1])){label(countryLabel(a.att),attackerCenter[0],attackerCenter[1],{dy:5,font:14});flag(a.att,attackerCenter[0],attackerCenter[1],{dx:22,dy:-20});}}drawCountry(a.vic,COLOR.victim,.12);if(victimCenter&&good(victimCenter[0],victimCenter[1])&&a.att!==a.vic)label(countryLabel(a.vic),victimCenter[0],victimCenter[1],{dy:5,font:14});mark(a.target.lon,a.target.lat,a.targetLabel,{size:11,dy:-29});flag(a.vic,a.target.lon,a.target.lat,{dx:25,dy:-11});const points=[C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,0),...carts(a.vic)];if(attackerCenter&&good(attackerCenter[0],attackerCenter[1]))points.push(C.Cartesian3.fromDegrees(attackerCenter[0],attackerCenter[1],0));if(!await flyFit(points,s,{factor:2.25,min:450000,max:9500000,duration:1.05}))return false;if(s!==G.navSerial)return false;if(!a.potential){impact(a.target.lon,a.target.lat);for(const delay of [650,1300,1950])setTimeout(()=>{if(s===G.navSerial)impact(a.target.lon,a.target.lat)},delay);}G.v52StartDetailedBorders?.(s);return wait(2600,s);}clearScene();hideBase();await localFit(a.source,a.target,s);if(s!==G.navSerial)return;const info={attackerIso:a.att,targetIso:a.vic,sourceLon:a.source.lon,sourceLat:a.source.lat,targetLon:a.target.lon,targetLat:a.target.lat,attackType:n.attackType,sourceType:a.sourceType,sourceLabel:a.sourceLabel,targetLabel:a.targetLabel,potential:a.potential};if(a.potential)G.v29ShowPotential?.(info);else if(String(n.attackType).toLowerCase()==='drone')G.v29ShowDrone?.(n,info);else G.v29ShowMissile?.(n,info);flag(a.att,a.source.lon,a.source.lat,{dx:24,dy:-11,w:21,h:13});flag(a.vic,a.target.lon,a.target.lat,{dx:24,dy:-11,w:21,h:13});if(!a.potential)setTimeout(()=>{if(s===G.navSerial)impact(a.target.lon,a.target.lat)},String(n.attackType).toLowerCase()==='drone'?2500:950);await wait(String(n.attackType).toLowerCase()==='drone'?3500:2200,s);if(s!==G.navSerial)return;return finalLocation(n,s,{text:a.targetLabel,flagIso:a.vic})}
-const CARRIER='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="210" height="78" viewBox="0 0 210 78"><path d="M9 40 37 10h132l32 24-18 35H31z" fill="#52666f" stroke="#ecf7fb" stroke-width="2"/><path d="M24 35 49 17h111l28 19-15 25H37z" fill="#aebbc0" stroke="#f7fbfc" stroke-width="1.3"/><path d="M50 39h119" stroke="#fff" stroke-width="1.3"/><rect x="146" y="18" width="20" height="18" rx="2" fill="#3a4d56"/><g fill="#2d424b"><path d="m58 27 13 4-13 4-9-4z"/><path d="m80 47 13 4-13 4-9-4z"/><path d="m111 27 13 4-13 4-9-4z"/><path d="m131 47 13 4-13 4-9-4z"/></g></svg>');
-function movePos(a,b,t0,dur){return new C.CallbackProperty(()=>{const t=Math.max(0,Math.min(1,(performance.now()-t0)/dur));return C.Cartesian3.fromDegrees(a.lon+(b.lon-a.lon)*t,a.lat+(b.lat-a.lat)*t,34000)},false)}
+// Attack context remains visible after the one-shot animation has finished.
+// Launch coordinates and country display anchors are deliberately separate.
+function attackData(n){
+ const resolved=G.v52AttackModel?.resolve(n);if(resolved)return resolved;
+ const p=n.scenePlan||{};
+ return {att:String(p.attackerIso3||n.sourceCountryIso3||'').toUpperCase(),
+  vic:String(p.victimIso3||n.targetCountryIso3||n.countryIso3||'').toUpperCase(),
+  target:{lon:+(n.targetLon??n.lon),lat:+(n.targetLat??n.lat)},
+  source:p.sourceUnconfirmed!==true&&n.sourceLon!=null&&n.sourceLat!=null&&good(n.sourceLon,n.sourceLat)&&
+   !['unknown','direction','directional','approximate'].includes(String(p.sourcePrecision||'').toLowerCase())?
+   {lon:+n.sourceLon,lat:+n.sourceLat}:null,
+  attackType:String(n.attackType||'missile').toLowerCase(),targetLabel:placeLabel(n),
+  potential:String(n.sceneMode||'').toUpperCase()==='POTENTIAL_ATTACK',enabled:true,impactEnabled:true};
+}
+function placeAttackLabels(ctx){
+ const scene=G.viewer.scene,t=G.viewer.clock.currentTime,project=p=>C.SceneTransforms.worldToWindowCoordinates(scene,p);
+ const target=project(C.Cartesian3.fromDegrees(ctx.data.target.lon,ctx.data.target.lat,30000)),used=[];
+ if(!target)return;
+ for(const item of ctx.badges||[]){
+  if(!item.flag)continue;
+  const p=project(item.flag.position.getValue(t));if(!p)continue;
+  const side=p.x>=target.x?1:-1;
+  const candidates=[[0,-8],[side*36,8],[-side*36,8],[0,35],[side*45,-24]];
+  let chosen=candidates[0],best=-Infinity;
+  for(const offset of candidates){const x=p.x+offset[0],y=p.y+offset[1];
+   if(x<20||y<14||x>scene.canvas.clientWidth-20||y>scene.canvas.clientHeight-14)continue;
+   const distance=Math.min(Math.hypot(x-target.x,y-target.y),...used.map(q=>Math.hypot(x-q.x,y-q.y)));
+   const score=Math.min(60,distance)-Math.hypot(...offset)*.15;
+   if(score>best){best=score;chosen=offset;}
+  }
+  const offset=new C.Cartesian2(...chosen);item.flag.billboard.pixelOffset=offset;
+  used.push({x:p.x+offset.x,y:p.y+offset.y});
+  if(item.label){const labelOffset=new C.Cartesian2(chosen[0]+side*14,chosen[1]+30);
+   item.label.label.pixelOffset=labelOffset;item.label.__v52FixedLabelOffset=labelOffset;}
+ }
+ scene.requestRender();
+}
+let activeAttack=null;
+function stopAttack(){
+ if(!activeAttack)return;
+ for(const id of activeAttack.timers)clearTimeout(id);
+ activeAttack.timers.clear();activeAttack.removeResize?.();activeAttack=null;
+}
+G.v52Attack={clear:stopAttack,getDiagnostics:()=>activeAttack?{
+ serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
+ source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
+ anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,
+ impactCount:activeAttack.impactCount,pendingTimers:activeAttack.timers.size,
+ entities:G.v51SceneEntities.filter(e=>e.__v52AttackSerial===activeAttack.serial&&G.viewer.entities.contains(e)).map(e=>({id:e.id,kind:e.__v52AttackKind}))
+}:null};
+function attackEntity(options,kind,ctx){
+ const e=add(G.viewer.entities.add(options));e.__v52AttackSerial=ctx.serial;e.__v52AttackKind=kind;return e;
+}
+function attackLater(ctx,ms,fn){
+ const id=setTimeout(()=>{ctx.timers.delete(id);if(activeAttack===ctx&&ctx.serial===G.navSerial&&!G.overviewMode)fn();},ms);
+ ctx.timers.add(id);return id;
+}
+function attackAnchor(iso,target){
+ const ring=mainRing(iso),center=mainland(iso);if(!ring?.length||!center)return center;
+ const aim=C.Cartesian3.fromDegrees(target.lon,target.lat);
+ let nearest=ring[0],distance=Infinity;
+ for(const q of ring){const d=C.Cartesian3.distanceSquared(aim,C.Cartesian3.fromDegrees(q[0],q[1]));if(d<distance){distance=d;nearest=q;}}
+ const line=new C.EllipsoidGeodesic(C.Cartographic.fromDegrees(nearest[0],nearest[1]),C.Cartographic.fromDegrees(center[0],center[1]));
+ const inside=(lon,lat)=>{let hit=false;const wrap=x=>lon+((x-lon+540)%360)-180;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+   const a=ring[i],b=ring[j],x=wrap(a[0]),y=wrap(b[0]);
+   if((a[1]>lat)!==(b[1]>lat)&&lon<(y-x)*(lat-a[1])/(b[1]-a[1])+x)hit=!hit;
+  }return hit;};
+ // Prefer a nearby interior label anchor, rather than the centre of a continent.
+ for(const meters of [350000,220000,120000,50000]){
+  const q=line.interpolateUsingFraction(Math.min(.45,meters/Math.max(1,line.surfaceDistance)));
+  const lon=C.Math.toDegrees(q.longitude),lat=C.Math.toDegrees(q.latitude);
+  if(inside(lon,lat))return [lon,lat];
+ }
+ return center;
+}
+async function fitAttack(ctx,duration=1.15){
+ if(activeAttack!==ctx||ctx.serial!==G.navSerial)return false;
+ const a=ctx.data,points=[...carts(a.vic),C.Cartesian3.fromDegrees(a.target.lon,a.target.lat)];
+ if(ctx.anchors.attacker)points.push(C.Cartesian3.fromDegrees(...ctx.anchors.attacker));
+ if(a.source)points.push(C.Cartesian3.fromDegrees(a.source.lon,a.source.lat));
+ const sp=C.BoundingSphere.fromPoints(points),frustum=G.viewer.camera.frustum;
+ const aspect=G.viewer.scene.canvas.clientWidth/Math.max(1,G.viewer.scene.canvas.clientHeight);
+ const fovy=frustum.fovy||C.Math.toRadians(60),fovx=2*Math.atan(Math.tan(fovy/2)*aspect);
+ const factor=1.12/Math.sin(Math.min(fovy,fovx)/2);
+ return flyFit(points,ctx.serial,{factor,min:500000,max:30000000,duration});
+}
+let impactSprite=null,projectileSprites={};
+function impactImage(){
+ if(impactSprite)return impactSprite;
+ const canvas=document.createElement('canvas');canvas.width=canvas.height=128;const x=canvas.getContext('2d');
+ const glow=x.createRadialGradient(64,64,3,64,64,61);glow.addColorStop(0,'rgba(255,245,165,.95)');
+ glow.addColorStop(.14,'rgba(255,146,50,.78)');glow.addColorStop(.4,'rgba(255,64,38,.28)');glow.addColorStop(1,'rgba(255,64,38,0)');
+ x.fillStyle=glow;x.fillRect(0,0,128,128);x.strokeStyle='#ffb64b';x.lineWidth=3;
+ x.beginPath();x.arc(64,64,43,0,Math.PI*2);x.stroke();x.strokeStyle='rgba(255,219,130,.6)';x.lineWidth=1.5;
+ x.beginPath();x.arc(64,64,57,0,Math.PI*2);x.stroke();return impactSprite=canvas.toDataURL('image/png');
+}
+function impact(ctx){
+ if(activeAttack!==ctx||ctx.serial!==G.navSerial)return;
+ const a=ctx.data,start=performance.now(),duration=1150;ctx.impactCount++;
+ const e=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,36000),billboard:{
+  image:impactImage(),width:100,height:100,
+  scale:new C.CallbackProperty(()=>.2+.9*Math.min(1,(performance.now()-start)/duration),false),
+  color:new C.CallbackProperty(()=>C.Color.WHITE.withAlpha(Math.max(0,1-(performance.now()-start)/duration)),false),
+  disableDepthTestDistance:Infinity}},'impact',ctx);
+ attackLater(ctx,duration,()=>{G.viewer.entities.remove(e);const i=G.v51SceneEntities.indexOf(e);if(i>=0)G.v51SceneEntities.splice(i,1);});
+}
+function flight(ctx){
+ const a=ctx.data,geodesic=new C.EllipsoidGeodesic(C.Cartographic.fromDegrees(a.source.lon,a.source.lat),C.Cartographic.fromDegrees(a.target.lon,a.target.lat));
+ const peak=Math.min(600000,Math.max(45000,geodesic.surfaceDistance*.12));
+ const positions=Array.from({length:129},(_,i)=>{const t=i/128,q=geodesic.interpolateUsingFraction(t);return C.Cartesian3.fromRadians(q.longitude,q.latitude,35000+peak*Math.sin(Math.PI*t));});
+ const path=attackEntity({polyline:{positions,width:2.8,material:new C.PolylineGlowMaterialProperty({glowPower:.22,color:C.Color.fromCssColorString('#ffae55')})}},'trajectory',ctx);
+ const start=performance.now(),duration=a.attackType==='drone'?5200:3600;
+ if(!projectileSprites[a.attackType]){
+  const body=a.attackType==='drone'?'<path d="M4 16 27 11 38 2l4 11 18 3-18 3-4 11-11-9Z" fill="#e4f8ff" stroke="#42b9ff"/>':'<path d="M4 11h31l20 5-20 5H4l8-5Z" fill="#fff0cf" stroke="#ff993d"/>';
+  projectileSprites[a.attackType]='data:image/svg+xml;charset=utf-8,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="32" viewBox="0 0 64 32">'+body+'</svg>');
+ }
+ const currentIndex=()=>Math.min(127,Math.floor(Math.min(1,(performance.now()-start)/duration)*128));
+ const mover=attackEntity({position:new C.CallbackProperty(()=>positions[currentIndex()],false),billboard:{
+  image:projectileSprites[a.attackType],width:40,height:20,disableDepthTestDistance:Infinity,
+  rotation:new C.CallbackProperty(()=>{const i=currentIndex(),fn=C.SceneTransforms.worldToWindowCoordinates;
+   const p=fn(G.viewer.scene,positions[i]),q=fn(G.viewer.scene,positions[i+1]);return p&&q?Math.atan2(-(q.y-p.y),q.x-p.x):0;},false)}},'projectile',ctx);
+ ctx.stage='flight';
+ attackLater(ctx,duration,()=>{G.viewer.entities.remove(mover);const i=G.v51SceneEntities.indexOf(mover);if(i>=0)G.v51SceneEntities.splice(i,1);
+  path.polyline.material=new C.PolylineGlowMaterialProperty({glowPower:.1,color:C.Color.fromCssColorString('#ffae55').withAlpha(.38)});
+  showImpacts(ctx);});
+}
+function showImpacts(ctx){
+ ctx.stage='impact';
+ if(ctx.data.enabled&&ctx.data.impactEnabled&&!ctx.data.potential){impact(ctx);attackLater(ctx,1150,()=>impact(ctx));attackLater(ctx,2300,()=>impact(ctx));}
+ attackLater(ctx,3500,()=>{ctx.stage='settled';G.viewer.scene.requestRender();});
+}
+async function renderAttack(n,iso,s){
+ const a=attackData(n);if(!a.vic||!a.target||!good(a.target.lon,a.target.lat))return fallbackRun(n,iso,s);
+ clearScene();hideBase();
+ const ctx=activeAttack={serial:s,data:a,timers:new Set(),stage:'framing',impactCount:0,anchors:{
+  attacker:a.att&&a.att!==a.vic?attackAnchor(a.att,a.target):null,victim:mainland(a.vic)}};
+ const country=(code,color)=>{const before=G.v51SceneEntities.length;drawCountry(code,color,.18);
+  for(const e of G.v51SceneEntities.slice(before)){e.__v52AttackSerial=s;e.__v52AttackKind='country-'+code;}};
+ if(a.att&&a.att!==a.vic)country(a.att,COLOR.attack);country(a.vic,COLOR.victim);
+ ctx.badges=[];
+ if(ctx.anchors.attacker){const [lon,lat]=ctx.anchors.attacker;
+  ctx.badges.push({label:label(countryLabel(a.att),lon,lat,{dy:18,font:13,height:30000}),flag:flag(a.att,lon,lat,{dx:0,dy:-8,w:30,h:20})});}
+ // Keep the victim flag on a stable country anchor, apart from the impact marker.
+ const victim=ctx.anchors.victim||[a.target.lon,a.target.lat];
+ ctx.badges.push({label:label(countryLabel(a.vic),victim[0],victim[1],{dy:18,font:13,height:30000}),flag:flag(a.vic,victim[0],victim[1],{dx:0,dy:-8,w:30,h:20})});
+ mark(a.target.lon,a.target.lat,a.targetLabel,{size:11,dy:-28});
+ G.v52SceneTrace?.push({type:'attack-render',serial:s,index:(G.current??0)+1,at:Date.now(),attacker:a.att,victim:a.vic,source:a.source,target:a.target});
+ if(!await fitAttack(ctx)||activeAttack!==ctx||s!==G.navSerial)return false;
+ placeAttackLabels(ctx);
+ const settled=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,35000),billboard:{
+  image:impactImage(),width:40,height:40,color:C.Color.WHITE.withAlpha(.55),disableDepthTestDistance:Infinity}},'event',ctx);
+ if(a.potential||!a.enabled)settled.show=false;
+ if(a.source&&a.enabled&&!a.potential)flight(ctx);else showImpacts(ctx);
+ let resizeTimer=null;
+ const resize=()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(activeAttack===ctx&&s===G.navSerial)fitAttack(ctx,.35).then(ok=>{if(ok&&activeAttack===ctx)placeAttackLabels(ctx);});},180);};
+ window.addEventListener('resize',resize,{passive:true});ctx.removeResize=()=>{clearTimeout(resizeTimer);window.removeEventListener('resize',resize);};
+ G.v52StartDetailedBorders?.(s);return true;
+}
+const attackFocus=G.focus;
+if(typeof attackFocus==='function')G.focus=function(...args){
+ stopAttack();const attack=G.v52AttackModel?.resolve(G.news?.[args[0]]),frame=document.querySelector('.map-frame');
+ frame?.classList.toggle('v52-attack-view',!!attack);
+ if(attack)window.scrollTo({top:0,left:0,behavior:'instant'});
+ return attackFocus.apply(this,args);
+};
+
 async function renderCarrier(n,iso,s){const p=n.scenePlan||{},primary=String(p.primaryIso3||n.countryIso3||'THA').toUpperCase(),ctx=(p.contextCountries||['USA',primary]).map(x=>String(x).toUpperCase()),other=ctx.find(x=>x!==primary);if(other){const ok=await pairStage(other,primary,s,{primary,hold:800});if(!ok){await countryStage(other,s,{color:COLOR.second,hold:550});if(s!==G.navSerial)return}}await countryStage(primary,s,{color:COLOR.main,hold:700});if(s!==G.navSerial)return;await runAdmins(n,primary,s);if(s!==G.navSerial)return;clearScene();hideBase();const from={lon:+(p.approachLon??100.70),lat:+(p.approachLat??13.00)},to={lon:+(p.dockLon??n.lon),lat:+(p.dockLat??n.lat)};await localFit(from,to,s);if(s!==G.navSerial)return;mark(+n.lon,+n.lat,n.focusLabel||n.location,{size:9.5,dy:-29});const t0=performance.now(),dur=2300,pos=movePos(from,to,t0,dur);add(G.viewer.entities.add({position:pos,billboard:{image:CARRIER,width:48,height:18,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));const cc=ISO2[String(p.platformCountryIso3||'USA').toUpperCase()];if(cc)add(G.viewer.entities.add({position:pos,billboard:{image:`https://flagcdn.com/w40/${cc}.png`,width:20,height:12,pixelOffset:new C.Cartesian2(0,-18),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));label(p.platformLabel||'航母',to.lon,to.lat,{dy:27,font:12,bg:.35});await wait(3600,s)}
 async function renderPoint(n,iso,s){const p=n.scenePlan||{};if(p.hierarchyPresented)return finalLocation(n,s,{text:placeLabel(n)});const primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase(),ctx=(p.contextCountries||p.participants||[]).map(x=>String(x).toUpperCase()).filter(Boolean),others=[...new Set(ctx.filter(x=>x!==primary))];if(others.length===1){const ok=await pairStage(others[0],primary,s,{primary,hold:750});if(!ok){await countryStage(others[0],s,{color:COLOR.second,hold:520});if(s!==G.navSerial)return}}else for(const x of others){await countryStage(x,s,{color:COLOR.second,hold:480});if(s!==G.navSerial)return}if(primary){await countryStage(primary,s,{color:COLOR.main,hold:650});if(s!==G.navSerial)return}await runAdmins(n,primary||iso,s);if(s!==G.navSerial)return;return finalLocation(n,s,{text:placeLabel(n)})}
 async function renderDiplomacy(n,iso,s){const p=n.scenePlan||{},arr=(p.participants||[]).map(x=>String(x).toUpperCase()),a=arr[0]||String(n.secondaryCountryIso3||'').toUpperCase(),b=arr[1]||String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();if(a&&b){const ok=await pairStage(a,b,s,{primary:String(p.primaryIso3||b).toUpperCase(),hold:1800});if(ok)return}if(a)await countryStage(a,s,{color:COLOR.second,hold:600});if(s!==G.navSerial)return;if(b)await countryStage(b,s,{color:COLOR.main,hold:1300})}
 async function renderOrg(n,iso,s){const p=n.scenePlan||{},org=String(p.organization||n.alliance||n.location||'');if(org!=='OPEC+')return fallbackRun(n,iso,s);clearScene();hideBase();let ps=[];for(const m of OPEC){drawCountry(m,COLOR.org,.12,2.0);ps.push(...carts(m))}await flyFit(ps,s,{factor:2.5,min:7600000,max:19000000,duration:1.2});await wait(1150,s);if(s!==G.navSerial)return;for(const group of OPEC_GROUPS){clearScene();hideBase();let q=[];for(const m of group){drawCountry(m,COLOR.org,.14,2.1);q.push(...carts(m))}if(q.length)await flyFit(q,s,{factor:2.25,min:1700000,max:9000000,duration:.85});await wait(600,s);if(s!==G.navSerial)return}const keys=(p.keyCountries||[]).map(x=>String(x).toUpperCase());if(keys.length){for(const k of keys){await countryStage(k,s,{color:COLOR.main,hold:1900});if(s!==G.navSerial)return}}}
-G.runSequence=async(n,iso,s)=>{if(s!==G.navSerial)return false;const mode=String(n.sceneMode||'').toUpperCase();if(!n.scenePlan?.hierarchyPresented){clearScene();hideBase()}if(mode==='ATTACK'||mode==='MISSILE_ATTACK'||mode==='DRONE_ATTACK'||mode==='POTENTIAL_ATTACK')return renderAttack(n,iso,s);if(mode==='CARRIER_PORT'||n.scenePlan?.carrierDocking)return renderCarrier(n,iso,s);if(mode==='ORGANIZATION')return renderOrg(n,iso,s);if(mode==='DIPLOMACY_2')return renderDiplomacy(n,iso,s);if(mode==='POINT'||mode==='ADMIN'||mode==='DIPLOMACY_MULTI'||(mode!=='COUNTRY'&&G.v52Geography?.kind(n)))return renderPoint(n,iso,s);if(mode==='COUNTRY'){const p=String(n.scenePlan?.primaryIso3||n.countryIso3||iso||'').toUpperCase();return countryStage(p,s,{color:COLOR.main,hold:1900})}return fallbackRun(n,iso,s)};
+G.runSequence=async(n,iso,s)=>{if(s!==G.navSerial)return false;const mode=G.v52AttackModel?.resolve(n)?.mode||String(n.sceneMode||'').toUpperCase();if(!n.scenePlan?.hierarchyPresented){clearScene();hideBase()}if(mode==='ATTACK'||mode==='MISSILE_ATTACK'||mode==='DRONE_ATTACK'||mode==='POTENTIAL_ATTACK')return renderAttack(n,iso,s);if(mode==='CARRIER_PORT'||n.scenePlan?.carrierDocking)return renderCarrier(n,iso,s);if(mode==='ORGANIZATION')return renderOrg(n,iso,s);if(mode==='DIPLOMACY_2')return renderDiplomacy(n,iso,s);if(mode==='POINT'||mode==='ADMIN'||mode==='DIPLOMACY_MULTI'||(mode!=='COUNTRY'&&G.v52Geography?.kind(n)))return renderPoint(n,iso,s);if(mode==='COUNTRY'){const p=String(n.scenePlan?.primaryIso3||n.countryIso3||iso||'').toUpperCase();return countryStage(p,s,{color:COLOR.main,hold:1900})}return fallbackRun(n,iso,s)};
 G.storyDuration=n=>{const m=String(n.sceneMode||'').toUpperCase();if(m==='ATTACK'||m==='MISSILE_ATTACK'||m==='DRONE_ATTACK'||m==='POTENTIAL_ATTACK')return 17000;if(m==='CARRIER_PORT')return 17000;if(m==='ORGANIZATION')return 21000;if(m==='DIPLOMACY_MULTI')return 18500;if(m==='DIPLOMACY_2')return 12500;if(m==='POINT'||m==='ADMIN')return 15500+(G.adminSteps?.(n)?.length||0)*1500;return typeof fallbackDuration==='function'?fallbackDuration(n):15000};
 
 // Opt-in on-screen audit for Android devices without remote DevTools.

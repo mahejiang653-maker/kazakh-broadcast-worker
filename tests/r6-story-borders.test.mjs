@@ -36,7 +36,7 @@ function harness() {
     return {iso:'MEX',lon:-102,lat:23};
   };
   for (const file of ['news-globe-v14-highlight.js','news-globe-v14-ui.js','news-globe-v52-china-border-ownership.js',
-    'news-globe-v52-geographic-features.js','news-globe-v52-story-borders.js']) vm.runInContext(source(file),context);
+    'news-globe-v52-geographic-features.js','news-globe-v52-attack-model.js','news-globe-v52-story-borders.js']) vm.runInContext(source(file),context);
   G.runSequence = (_n,iso) => { G.activeIso=iso;G.setCountry(iso,true);G.clearLocal(); };
   return {G,context,values};
 }
@@ -150,3 +150,9 @@ test('POINT diplomatic story highlights only its primary country despite headlin
   G.overview();assert.ok(G.borderEntities.every(e=>!e.show));
   G.focus(0);assertScope(G,['CHN']);
 });
+
+ test('unknown launch in an attack story retains both explicit actors and ignores unrelated context',async()=>{
+  const {G}=harness();await G.loadBorders();
+  const n={...story('UKR'),sceneMode:'MISSILE_ATTACK',relatedCountryIso3s:['UKR','RUS'],scenePlan:{primaryIso3:'UKR',sourceUnconfirmed:true,contextCountries:['USA']}};
+  installNews(G,[n]);G.focus(0);assertScope(G,['UKR','RUS']);
+ });

@@ -1,0 +1,363 @@
+{
+  "meta": {
+    "schemaVersion": "news-data-lock/v1",
+    "edition": "daily-10",
+    "date": "2026-10-14",
+    "dataLock": "NG-20261014-BJT1300-TOP10-R1",
+    "timeZone": "Asia/Shanghai",
+    "windowStart": "2026-10-13T13:00:00+08:00",
+    "windowEnd": "2026-10-14T13:00:00+08:00",
+    "newsCount": 10,
+    "imagesPerNews": 3
+  },
+  "news": [
+    {
+      "id": 1,
+      "title": "全国卫生与健康大会部署“十五五”健康中国建设重点任务",
+      "summary": "全国卫生与健康大会10月12日至13日在北京举行，强调健康优先、基层医疗、疾病预防和医药医保改革。",
+      "location": "中国北京",
+      "focusLabel": "北京",
+      "lon": 116.3972,
+      "lat": 39.9075,
+      "countryIso3": "CHN",
+      "relatedCountryIso3s": [
+        "CHN"
+      ],
+      "placeType": "city",
+      "eventType": "policy",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "CHN",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "新华社"
+        }
+      ],
+      "reportedAt": "2026-10-13T14:02:20+08:00",
+      "reportedAtPrecision": "second",
+      "articleUrls": [
+        "https://www.news.cn/politics/leaders/20261013/f0943fdf42f8406fa72cea5fd51d3d53/c.html"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_relevant_image_confirmed"
+    },
+    {
+      "id": 2,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+      "location": "乌克兰基辅",
+      "focusLabel": "基辅",
+      "lon": 30.5234,
+      "lat": 50.4501,
+      "countryIso3": "UKR",
+      "relatedCountryIso3s": [
+        "UKR",
+        "RUS"
+      ],
+      "placeType": "city",
+      "eventType": "missile_attack",
+      "sceneMode": "MISSILE_ATTACK",
+      "scenePlan": {
+        "primaryIso3": "UKR",
+        "finalLocation": true,
+        "attackEffect": {
+          "type": "missile_attack",
+          "enabled": true,
+          "target": {
+            "countryIso3": "UKR",
+            "location": "基辅",
+            "lon": 30.5234,
+            "lat": 50.4501
+          },
+          "origin": null,
+          "trajectory": null,
+          "impact": {
+            "enabled": true,
+            "location": "基辅"
+          },
+          "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+        }
+      },
+      "sources": [
+        {
+          "name": "路透社"
+        }
+      ],
+      "reportedAt": "2026-10-13",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失"
+    },
+    {
+      "id": 3,
+      "title": "霍尔木兹海峡商船遇袭增加，地区航运风险上升",
+      "summary": "路透社10月14日报道，伊朗官员称调整针对商船的行动方式；海事安全通报显示近期霍尔木兹海峡周边商船遇袭增加，责任与细节仍需逐案核实。",
+      "location": "霍尔木兹海峡",
+      "focusLabel": "霍尔木兹海峡",
+      "lon": 55.54615,
+      "lat": 26.13097,
+      "countryIso3": "IRN",
+      "relatedCountryIso3s": [
+        "IRN",
+        "OMN"
+      ],
+      "placeType": "waterway",
+      "eventType": "maritime_security",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "IRN",
+        "finalLocation": true,
+        "attackEffect": {
+          "type": "maritime_attack",
+          "enabled": false,
+          "target": {
+            "location": "霍尔木兹海峡"
+          },
+          "origin": null,
+          "trajectory": null,
+          "verification": "具体攻击目标、武器及路线未独立证实，暂不启用攻击动画"
+        }
+      },
+      "sources": [
+        {
+          "name": "路透社"
+        }
+      ],
+      "reportedAt": "2026-10-14",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [],
+      "articleUrlGap": 3,
+      "articleUrlVerification": "no_qualifying_image_page_verified"
+    },
+    {
+      "id": 4,
+      "title": "国际货币基金组织将2026年全球增长预期上调至3.1%",
+      "summary": "国际货币基金组织10月13日在曼谷发布最新展望，将2026年全球增长预测上调至百分之三点一，同时警告能源冲击、债务和人工智能市场调整风险。",
+      "location": "泰国曼谷",
+      "focusLabel": "曼谷",
+      "lon": 100.5018,
+      "lat": 13.7563,
+      "countryIso3": "THA",
+      "relatedCountryIso3s": [
+        "THA"
+      ],
+      "placeType": "city",
+      "eventType": "economy",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "THA",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "卫报"
+        }
+      ],
+      "reportedAt": "2026-10-13",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://www.theguardian.com/business/2026/oct/13/imf-global-economy-world-economic-outlook-uk-gdp-forecast-2026"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_oil_refinery_image_related_to_energy_risk"
+    },
+    {
+      "id": 5,
+      "title": "刚果（金）埃博拉确诊病例突破九千例，疫情继续扩散",
+      "summary": "刚果（金）卫生部门10月13日公布埃博拉确诊病例九千零六十六例、死亡四千三百八十一例，疫情涉及七个省，伊图里省为主要疫区。",
+      "location": "刚果（金）伊图里省布尼亚",
+      "focusLabel": "布尼亚",
+      "lon": 30.25224,
+      "lat": 1.55941,
+      "countryIso3": "COD",
+      "relatedCountryIso3s": [
+        "COD"
+      ],
+      "placeType": "city",
+      "eventType": "public_health",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "COD",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "美联社"
+        }
+      ],
+      "reportedAt": "2026-10-13",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://apnews.com/article/congo-ebola-death-toll-latest-23d7b1bfdae22c7a17cac49cc7b5826e"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_relevant_image_confirmed"
+    },
+    {
+      "id": 6,
+      "title": "中国与博茨瓦纳将双边关系提升为全面战略合作伙伴关系",
+      "summary": "10月13日两国领导人在北京会谈，宣布建立全面战略合作伙伴关系，并见证绿色矿产、卫生健康和共建“一带一路”等合作文件签署。",
+      "location": "中国北京",
+      "focusLabel": "北京",
+      "lon": 116.3972,
+      "lat": 39.9075,
+      "countryIso3": "CHN",
+      "relatedCountryIso3s": [
+        "CHN",
+        "BWA"
+      ],
+      "placeType": "city",
+      "eventType": "diplomacy",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "CHN",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "新华社"
+        }
+      ],
+      "reportedAt": "2026-10-13T20:03:03+08:00",
+      "reportedAtPrecision": "second",
+      "articleUrls": [
+        "https://www.news.cn/world/20261013/8bec48d2146441f8a41676e01566ff16/c.html"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_relevant_image_confirmed"
+    },
+    {
+      "id": 7,
+      "title": "阿富汗当局暂停英国广播公司在当地的调频广播",
+      "summary": "阿富汗当局10月13日暂停英国广播公司在境内的调频广播，称存在多次违规但未说明细节；该机构表示仍通过短波、卫星和网络提供节目。",
+      "location": "阿富汗喀布尔",
+      "focusLabel": "喀布尔",
+      "lon": 69.1723,
+      "lat": 34.5281,
+      "countryIso3": "AFG",
+      "relatedCountryIso3s": [
+        "AFG",
+        "GBR"
+      ],
+      "placeType": "city",
+      "eventType": "media_policy",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "AFG",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "欧罗巴通讯社"
+        }
+      ],
+      "reportedAt": "2026-10-13",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://www.europapress.es/internacional/noticia-taliban-suspenden-radio-fm-bbc-ultima-emisora-internacional-informa-afganistan-20261013150825.html"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_relevant_image_confirmed"
+    },
+    {
+      "id": 8,
+      "title": "墨西哥两场热带风暴引发洪灾，死亡人数升至六人",
+      "summary": "美联社10月13日报道，飓风西蒙和热带风暴蕾切尔残余带来洪水和滑坡，墨西哥太平洋沿岸死亡人数升至六人，恩塞纳达受灾严重。",
+      "location": "墨西哥下加利福尼亚州恩塞纳达",
+      "focusLabel": "恩塞纳达",
+      "lon": -116.5963713,
+      "lat": 31.8667427,
+      "countryIso3": "MEX",
+      "relatedCountryIso3s": [
+        "MEX"
+      ],
+      "placeType": "city",
+      "eventType": "natural_disaster",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "MEX",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "美联社"
+        }
+      ],
+      "reportedAt": "2026-10-13",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://apnews.com/article/mexico-hurricanes-simon-rachel-pacific-deaths-1276142fb7db0f50d0f61d86ae7fa977"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "body_relevant_image_confirmed"
+    },
+    {
+      "id": 9,
+      "title": "新疆阿拉山口口岸中欧中亚班列通行量突破七千列",
+      "summary": "新疆日报10月14日报道，截至10月12日，阿拉山口口岸今年中欧中亚班列通行量突破七千列，较上年提前四十五天，通达二十一个国家。",
+      "location": "新疆博尔塔拉阿拉山口",
+      "focusLabel": "阿拉山口",
+      "lon": 82.57,
+      "lat": 45.17,
+      "countryIso3": "CHN",
+      "relatedCountryIso3s": [
+        "CHN"
+      ],
+      "placeType": "city",
+      "eventType": "infrastructure",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "CHN",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "新疆日报"
+        }
+      ],
+      "reportedAt": "2026-10-14",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [],
+      "articleUrlGap": 3,
+      "articleUrlVerification": "原始报道早于统计窗口，新闻条目未通过时窗验收",
+      "timeWindowCaveat": "10月14日新刊报道，但7000列里程碑统计截至10月12日，实际突破时间未证实在本统计窗口内"
+    },
+    {
+      "id": 10,
+      "title": "乌鲁木齐生物医药企业推进民族药智能化生产",
+      "summary": "新疆日报10月14日刊发10月13日乌鲁木齐药业产业园生产现场照片，展示银朵兰药业以智能化生产线进行药品包装并形成研发制造销售产业链。",
+      "location": "新疆乌鲁木齐",
+      "focusLabel": "乌鲁木齐",
+      "lon": 87.60046,
+      "lat": 43.80096,
+      "countryIso3": "CHN",
+      "relatedCountryIso3s": [
+        "CHN"
+      ],
+      "placeType": "city",
+      "eventType": "technology",
+      "sceneMode": "POINT",
+      "scenePlan": {
+        "primaryIso3": "CHN",
+        "finalLocation": true
+      },
+      "sources": [
+        {
+          "name": "新疆日报"
+        }
+      ],
+      "reportedAt": "2026-10-14",
+      "reportedAtPrecision": "date_only_unverified_time",
+      "articleUrls": [
+        "https://www.ccwb.cn/content/202610/13/c926665.html"
+      ],
+      "articleUrlGap": 2,
+      "articleUrlVerification": "此前核验的实地采访图文报道，其他2个缺失"
+    }
+  ]
+}
