@@ -96,6 +96,22 @@
     else if (threat) G.clearArc?.();
     G.focus(to, true);
   };
+  // Threat announcements are NOT confirmed strikes. Force a point-only scene,
+  // regardless of legacy title heuristics or attack-related imported fields.
+  const baseRunSequence = G.runSequence;
+  G.runSequence = function(story, iso, serial){
+    const threat = /^(threat|warning|threatened_attack)$/i.test(String(story?.eventType || ''));
+    if (!threat) return baseRunSequence.call(this, story, iso, serial);
+    G.clearArc?.();
+    G.clearInteractionEffects?.();
+    G.clearSecondaryCountry?.();
+    const safe = {...story, sceneMode:'POINT', attackType:'', potentialStrike:false,
+      sourceLon:null, sourceLat:null, sourceCountryIso3:'', attackerIso3:'',
+      secondaryCountryIso3:'', attackEffect:null,
+      scenePlan:{...(story.scenePlan||{}), attackerIso3:'', sourceUnconfirmed:true,
+        sourcePrecision:'unknown', attackEffect:null, transitionArc:false}};
+    return baseRunSequence.call(this, safe, iso, serial);
+  };
   const baseStoryUI = G.storyUI;
   G.storyUI = function(story, iso){
     const result = baseStoryUI.call(this, story, iso);
