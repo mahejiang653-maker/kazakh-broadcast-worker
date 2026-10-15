@@ -1,35 +1,49 @@
 # 全球新闻地球仪：项目状态档案
-> 核对日期：2026-10-13（北京时间）；状态依据：GitHub `main`、GitHub Actions及实际已提交代码。更新此文件时应写入证据和日期；不得从聊天记忆推断上线状态。
 
-## 代码与生产
-- 项目：全球新闻地球仪 V52·A1 R6（现有网站，并非新系统）。
-- GitHub：`mahejiang653-maker/kazakh-broadcast-worker`；生产分支 `main`（该仓库同时托管哈萨克语播音，不属于本轮修改范围）。
-- 最近代码/CI已核实提交：`4c5380b12bd06e49e44de7d7ec9593a129958bfa`；CI运行 `38377387637`：构建、单元测试和Cloudflare部署作业均成功。
-- 生产链接：`https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html`。
-- 有效入口：`public/news-globe-run-20260920-v52-r1.html`；10条适配：`public/news-globe-v52-daily10.js`；数据资产：`public/news-globe-data-20260920-v52-r1.js`。
-- **生产注意**：现有默认数据资产仍是2026-10-11的历史13条；入口采用 **Top10历史预览**，不能把它当成当天真实10条锁定新闻。当天数据需要用户导入有效的 `news-data-lock/v1` JSON。没有证据证明系统已自动发布2026-10-12的新鲜日报。
+> 核对日期：2026-10-16（北京时间）。依据：当前GitHub main、Actions部署日志、真实JSON及独立正式站WebGL浏览器验收。
 
-## 功能状态
-- 原V52的国家边界、红点、新闻落点、动画、手机布局等原功能仍保留；未在本档案中宣称重新通过实机测试。
-- 已支持Top1–Top10、上一条／下一条、自动播放末条停止、严格10条JSON导入和北京时间前日13:00～当日13:00窗口。
-- 统一 JSON 保留 `meta`、`news`、`sceneMode`、`scenePlan`、国家ISO3、坐标、新闻来源、报道时间、`articleUrls`；无AI调用的结构校验。
-- 13条旧数据仍保存于原资产和 `legacyArchive`，不强制迁移。
+## 当前代码与生产
 
-## 最近测试证据
-- GitHub Actions `38251907272`：`npm test` 186项，184通过、0失败、2跳过；M3静态检查成功；部署作业成功。
-- `node --test tests/r6-daily10.test.mjs tests/r6-entry.test.mjs` 可检验10条导入、编号、计数、切换、载入顺序和历史兼容。
-- 轻量维护工作流：`.github/workflows/news-globe-contract-lite.yml`（仅代码变更与手动触发，不使用浏览器或生成服务）。
-- 原生产浏览器复核 `38251909421` **FAILED**，不能记录为通过。
+- 现有项目：全球新闻地球仪 V52·A1 R6；仓库 mahejiang653-maker/kazakh-broadcast-worker，分支main；与哈萨克语播音共享Worker。
+- 最新已验证应用提交：`a1c4a3fde7b274d64d2c477351831327f7dce862`。
+- Cloudflare正式版本：`1eaa6e37-0f73-4469-987a-7fa09cffe0aa`，2026-10-15 21:33:50北京时间部署成功。
+- 正式入口：https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html 。
+- 当前入口缓存版本：20261015-attack-v3；共享攻击解析器、国旗资源、场景引擎按顺序加载。
+- 默认数据仍为2026-10-11历史预览Top10；本次验收通过选择文件导入10月14日原始JSON。不要声称系统已自动发布当天日报。
 
-## 已知故障与风险
-1. **P1／验收基础设施故障**：`.github/scripts/verify-20260920-v52.mjs:112` 仍等 `NG14.news.length===13`，与新版10条不符，等90秒后超时；脚本后续也含13条导航和Top12历史位置假设。这是验证脚本问题，不能据此证明线上页面损坏。旧全套浏览器验证已调整为 **仅手动启动**，重大生产升级前需先更新断言再验证。
-2. **P1／当日内容未发布**：默认数据来源为2026-10-11历史版，而非自动刷新当天锁定JSON。不能宣传已自动按日出版。
-3. **P2／事实和地理准确性**：纯JS只作结构/坐标范围/有限的国家城市标签检查，不能替代实际来源、新闻事实和真实地理归属的人工核实。
-4. **P2／浏览器视觉覆盖**：没有对新JSON在手机／横屏／高纬／跨日期线等实机进行本次独立验收；需在用户报告问题或重大升级时执行。
+## 已解决的攻击渲染故障
 
-## 需人工确认
-- 新日期真实10条DATA LOCK（新闻来源、地点、事件模式、Top9–10精确报道时间）、第六板块30个报道网页是否真实可访问。
-- 地球仪真实浏览器展示和完整事件特效；是否对当天公开数据做正式发布。
+1. 原Top2虽进入MISSILE_ATTACK，但旧解析器漏读scenePlan.attackEffect与relatedCountryIso3s，攻击方为空。新增共享attack-model解析平铺/嵌套字段与明确两国角色，未知发射位置保留已知攻击方和受袭方身份。
+2. 双国场景按受袭国完整轮廓、目标、攻击方邻近国家显示锚点和可信源取景。显示锚点不作为发射坐标；无源只显示目标命中，不编造轨迹。
+3. 导弹/无人机已知源走球面路径；三轮明显命中脉冲后保留双方区域、双旗及目标事件环，避免回退finalLocation清空上下文。
+4. 国旗改用全量本地PNG，完整ISO3映射不依赖GeoJSON可选iso_a2。正式复验发现的白旗与Top5刚果（金）缺旗均已修复。
+5. focus、overview、resize和异步计时器受导航序号约束；攻击专用画布约束与顶部归位修复实际viewport裁切。白色国界范围只包含涉事国家。
+
+## 已确认的用户标准
+
+- 固定10条，选文件后直接导入；只做防页面崩溃的基本数据结构检查，不核验新闻真实性、报道时间或报道链接。旧的24小时窗口和链接数量不得阻断导入。
+- 不针对俄罗斯、乌克兰、基辅写特例；通用导弹/无人机、已知/未知源、任意有效双国身份。
+- 涉事国白边界、地点红点、原V52风格与直角画布；威胁公告点位规则和市县定位规则保持当前main行为。
+- 不修改无关配音系统，不大规模重构。
+
+## 最近完整验收证据
+
+- 原始文件：全球战局疆域热力榜_2026-10-14_第七板块_攻击特效_DATA_LOCK.json。回归fixture：tests/fixtures/r6-daily10-20261014.json；SHA256 `800747c8c5bf101b2bb4a4157d2d09ab92fe4b5cc884329ebd39c7572b9a2a00`。未读取实体手机本地副本。
+- npm test：208项，206通过、0失败、2项现有配音WAV样本测试跳过；Y1真实Cesium1.145.0独立回归43/43通过。M3与Fish TypeScript检查通过。
+- [完整CI及正式部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/38743591252)：SUCCESS。
+- [Top10离线合同](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/38743590767)：SUCCESS。
+- [新增真实浏览器视觉CI](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/38743590660)：SUCCESS；阻断外部flagcdn仍通过。该工作流只在相关代码变更或手动触发。
+- 部署后独立正式站：37项PASS，localOverrides=false，pageErrors=[]，consoleErrors=[]；八个生产关键资源与应用提交哈希一致。
+- 真实Chromium/WebGL尺寸390×844、1440×810、844×390；实际十条逐条截图/主国家国旗，Top1→Top2、Top2→Top3、Top3→Top2、18次快速切换、旋转、总览清理、完整动画和静态场景全部检查。
+- Top2：RUS/UKR填充和边界、双旗、基辅30.5234/50.4501同屏；UKR 93/93轮廓坐标在真实viewport内；source=null、trajectory=false；三轮命中后pendingTimers=0。
+- 通用真实渲染：ISR→IRN未知源、COD→UGA未知源、IND→PAK已知源导弹、ISR→IRN无人机、USA→JPN跨日界线。工程测试源坐标不代表真实新闻发射位置。
+
+## 尚未解决与下一步
+
+- 本轮攻击渲染验收无剩余阻断问题；浏览器手机尺寸验证不等同于所有实体手机型号验证。
+- 默认数据发布仍是历史预览；日报发布和新闻事实核验不属于此次渲染修复。
+- 旧13条浏览器验收脚本仍保留手动模式，不能用其旧断言判断新版10条失败。当前攻击与十条回归应使用scripts/verify-r6-attacks.mjs及上述视觉工作流。
+- 后续优先按真实用户JSON维护回归fixture；避免恢复时间/链接门槛或无关国家白边界。
 
 ## 维护规矩
 - 常规改动只跑纯Node快速回归；别自动启动浏览器、外部地图耗时测试、图像Gemini搜索或TTS音频。
