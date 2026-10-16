@@ -100,8 +100,16 @@ async function start(viewport,name){
 }
 async function genericCase(name,story){
  await page.evaluate(story=>{NG14.news[1]=story;},story);
+ const a=story.scenePlan.attackerIso3,b=story.countryIso3;
+ await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='country-overview'&&!NG14.viewer.camera._currentFlight,null,{timeout:120000});
+ await flagsReady([a,b]);const overview=await state();
+ assert.ok(overview.countries.every(c=>c.borderPoints>0&&c.fills>0&&c.readyFills===c.fills&&c.borderReady),'both countries must actually render in the overview');
+ log(name+'-country-overview',overview);await page.screenshot({path:path.join(dir,name+'-overview.png')});
+ // Capture the one-shot effect in a separate take so screenshot encoding
+ // cannot consume its transient stage. An unknown-origin target close-up may
+ // legitimately leave the distant attacker's badge outside the viewport.
  await select(1);await page.waitForFunction(()=>{const d=NG14.v52Attack.getDiagnostics();return d&&['flight','impact'].includes(d.stage);},null,{timeout:120000});
- const a=story.scenePlan.attackerIso3,b=story.countryIso3;await flagsReady([a,b]);
+ await flagsReady(story.sourceLon!=null?[a,b]:[b]);
  const s=await state();assert.equal(s.attack.attacker,a);assert.equal(s.attack.victim,b);
  assert.equal(s.invalidBorders,0);assert.deepEqual(s.scope.countries,[a,b].sort());
  assert.equal(s.attack.trajectory,!!story.sourceLon);
@@ -111,7 +119,7 @@ async function genericCase(name,story){
   log(name+'-spherical-path',{minimumAltitude:Math.min(...paths[0]),maximumAltitude:Math.max(...paths[0])});
  }
  await page.screenshot({path:path.join(dir,name+'.png')});await settled();
- const final=await state();assert.ok(final.countries.every(c=>c.borderPoints>0&&c.fills>0&&c.readyFills===c.fills&&c.borderReady));assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
+ const final=await state();assert.ok(final.countries.every(c=>c.fills>0&&c.readyFills===c.fills&&c.borderReady));assert.ok(final.countries.find(c=>c.iso===b)?.borderPoints>0);assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
  log(name,final);
 }
 try{
