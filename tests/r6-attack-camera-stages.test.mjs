@@ -38,5 +38,5 @@ test('unknown launch coordinates finish at target while known routes retain wide
 test('navigation serial and active attack guard both camera phases', () => {
   const body = between('async function renderAttack(', 'const attackFocus=G.focus;');
   assert.match(body, /activeAttack!==ctx\|\|s!==G\.navSerial/);
-  assert.match(body, /stopAttack\(\)/);
+  assert.match(engine, /const attackFocus=G\.focus;[\s\S]*?stopAttack\(\)/);
 });
