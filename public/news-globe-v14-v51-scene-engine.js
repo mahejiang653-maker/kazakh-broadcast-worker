@@ -296,7 +296,18 @@ async function renderAttack(n,iso,s){
  ctx.badges.push({label:label(countryLabel(a.vic),victim[0],victim[1],{dy:18,font:13,height:30000}),flag:flag(a.vic,victim[0],victim[1],{dx:0,dy:-8,w:30,h:20})});
  mark(a.target.lon,a.target.lat,a.targetLabel,{size:11,dy:-28});
  G.v52SceneTrace?.push({type:'attack-render',serial:s,index:(G.current??0)+1,at:Date.now(),attacker:a.att,victim:a.vic,source:a.source,target:a.target});
- if(!await fitAttack(ctx)||activeAttack!==ctx||s!==G.navSerial)return false;
+ // Establish the geographic relationship before moving to the impact site.
+ // Armed groups are not countries: only show a second country when its ISO is known.
+ const overviewCountries=[...new Set([a.att,a.vic].filter(Boolean))];
+ const overviewPoints=overviewCountries.flatMap(code=>carts(code));
+ if(overviewPoints.length){
+  ctx.stage='country-overview';
+  const overviewOk=await flyFit(overviewPoints,s,{factor:2.0,min:2600000,max:16500000,duration:1.15});
+  if(!overviewOk||activeAttack!==ctx||s!==G.navSerial)return false;
+  if(!await wait(1550,s)||activeAttack!==ctx||s!==G.navSerial)return false;
+ }
+ ctx.stage='target-approach';
+ if(!await fitAttack(ctx,1.75)||activeAttack!==ctx||s!==G.navSerial)return false;
  placeAttackLabels(ctx);
  const settled=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,35000),billboard:{
   image:impactImage(),width:40,height:40,color:C.Color.WHITE.withAlpha(.55),disableDepthTestDistance:Infinity}},'event',ctx);
