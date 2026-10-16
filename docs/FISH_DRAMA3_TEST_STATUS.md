@@ -1,30 +1,30 @@
 # Fish Audio Drama 3 independent test
 
-This experiment uses the existing Fish API credential in the production Worker. It does not change the Edge, M2, M3, ElevenLabs or existing Fish S2.1 defaults or UI.
+## Current authorized scope — 2026-10-16
 
-## Protocol
+Continue the existing independent experiment; preserve its completed 194 passing checks and two pre-existing skips as historical evidence. The user explicitly authorizes necessary GitHub commits and Cloudflare Workers deployment.
 
-- Original prior Daulet sample recovered: `original.wav`, 48.864 seconds, PCM 24 kHz mono. Its previously identified defect is around 39.35 seconds. That recording is retained for the prior local-repair comparison.
-- Generate a fresh short `kk-KZ-DauletNeural` reference with a known exact transcript, rather than clone an uncertain transcript or the defective region.
-- Generate exactly three short samples: Drama 3 take 1, Drama 3 take 2, S2.1 Pro free-tier control.
-- Use the same text and reference bytes in all three requests, with `temperature=0.7`, `top_p=0.7`, `sample_rate=24000`, `chunk_length=300`, `condition_on_previous_chunks=true` and normal latency. Do not post-process the generated audio.
-- The text is a pronunciation and numbering fixture, not a report of current news. It includes the user's Xinjiang Kazakh terminology.
-- The upstream `model` header is explicit and allowlisted. Provider calls never fall back or automatically retry. Explicit local authorization rejections before any provider request can be retried. Record an upstream model confirmation only if the provider actually returns it.
-- The S2.1 free tier uses the same model but a different service tier; one run does not justify performance conclusions.
+- Generate exactly two complete Kazakh news recordings using `model: drama-3` only. S2.1 Pro testing and control audio are canceled; the independent endpoint now rejects all other models before any provider call.
+- Reuse the repository's complete `tests/fixtures/m3-real-13-news.txt` (6,335 characters, thirteen items with opening and closing). This is a source-backed archive-news test, not current news; sources remain in `tests/fixtures/m3-real-13-sources.json`.
+- Reuse the existing 16.680-second Daulet reference from workflow `38808897856`, without an Edge synthesis request. SHA256: `ebe7fff6777cb6e6a65faebc0f523cfb2490cc5ea7a0e7eece26a2ba8f06a892`. Its exact 232-character transcript is checked before synthesis. The existing artifact expires on 2026-10-29; do not regenerate a substitute if retrieval fails.
+- Retain the original 48.864-second `original.wav` as the listening baseline, unchanged. SHA256: `755912db66392fa6e3c2313b5fa70150a46bdc61c1893f7bb2d672e7942a5f0d`; PCM 24 kHz mono. Its previously identified defect is around 39.35 seconds. Its full transcript is unavailable, so timbre/fry comparison with this recording is not a same-text comparison.
+- Both Drama 3 takes use identical full text, reference bytes, `temperature=0.7`, `top_p=0.7`, `sample_rate=24000`, `chunk_length=300`, `condition_on_previous_chunks=true`, normal latency and no post-processing. The independent endpoint allows up to 8,000 text characters, with a bounded ten-minute provider timeout for long-form output.
+- No model fallback or provider retries. Explicit local authorization failures before any provider call may retry. On a provider error, record it and mark the second take blocked instead of sending duplicate failed requests. Confirm the upstream model independently only if Fish actually returns that header.
 
-## Execution and credentials
+## Credentials and deployment isolation
 
-The `Fish Drama 3 independent test` workflow runs manually or after successful production CI for a commit containing `[Drama3 test]`. It installs a random, masked, 15-minute operator token in `FISH_DRAMA3_RUN_TOKEN` and removes it after the run. The existing `FISH_AUDIO_API_KEY` and `FISH_AUDIO_ACCESS_PIN` are never exported or changed. The endpoint is inaccessible without the temporary token.
+The independent workflow uses the existing server-side `FISH_AUDIO_API_KEY` without exporting it. A random masked operator token in `FISH_DRAMA3_RUN_TOKEN` expires in fifteen minutes and is removed after the run. Existing Fish PIN, default voice modes, UI and other providers remain untouched. A protected, read-only wallet check returns only whether positive API credit is available, never balances, account IDs or wallet history.
 
-Outputs are a Daulet reference, three WAV files, exact transcripts, a request manifest and `report.json`. Generation status and basic signal diagnostics are recorded separately from listening judgments. Pronunciation, vocal fry, same-speaker identity and tone/age stability require listening review.
+The `Fish Drama 3 independent test` workflow runs manually or after successful production CI for a commit containing `[Drama3 test]`. Outputs include two original WAV files if synthesis succeeds, the reused reference, complete text, `report.json` and signal diagnostics. Pronunciation accuracy, throat texture, vocal fry, timbre, prosody, long-text stability and word-for-word completeness require actual audio review. Signal metrics alone cannot establish these outcomes.
 
-## Verified starting point
+## Actual execution history
 
-- Source base: `4fd757a11466e0de4d60bb4516df244176d188f1`.
-- Production `/api/fish-s21-status` returned `keyConfigured=true`, `pinConfigured=true` on 2026-10-14.
-- Existing S2.1 route hardcodes `s2.1-pro-free` and cannot test Drama 3.
-- Drama 3 generation results are pending the independent workflow; no quality outcome is claimed here.
-- The initial workflow `38558897751` stopped at its immediate readiness check before generating a reference or sending any Fish request. Its temporary token was removed successfully. V2 records non-secret readiness diagnostics and waits for the freshly published binding using read-only status calls; audio requests are still never automatically retried.
-- Workflow `38808897856` generated the Daulet reference and observed a ready token on GET, but its first generation POST was rejected locally before any Fish request. V3 validates the actual POST authorization path, uses a dedicated operator header and retries only explicit local authentication rejections. Temporary access was removed after both failed runs.
+| Run | Verified result |
+| --- | --- |
+| `38558897751` | Initial readiness failure; zero Fish TTS calls and no reference generated. Temporary token removed. |
+| `38808897856` | Existing Daulet reference saved. First generation POST rejected locally before any Fish request; temporary token removed. |
+| `38809838401` | Authenticated POST preflight succeeded; actual Drama 3 request reached Fish and returned HTTP 402. No Drama 3 audio and no S2.1 API call. Temporary token removed. |
 
-Official interfaces: https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech and https://beta.fish.audio/zh-CN/blog/fish-audio-drama-3/.
+V4 narrows the experiment to Drama 3, reuses saved reference bytes, sends the complete existing news script and adds private credit-availability diagnosis. Its actual outcome must be appended after deployment and execution; no successful audio or listening result is claimed by code readiness.
+
+Official interfaces: https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech and https://docs.fish.audio/api-reference/endpoint/wallet/get-api-credit.

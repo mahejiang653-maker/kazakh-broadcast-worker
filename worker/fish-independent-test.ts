@@ -1,10 +1,10 @@
 import { encode } from "@msgpack/msgpack";
 
 type TestEnv = { FISH_AUDIO_API_KEY?: string; FISH_DRAMA3_RUN_TOKEN?: string };
-const VERSION = "fish-drama3-independent-v3-preflight";
-const MODELS = new Set(["drama-3", "s2.1-pro-free"]);
+const VERSION = "fish-drama3-independent-v4-drama-only";
+const MODELS = new Set(["drama-3"]);
 const MAX_BODY = 3_000_000;
-const MAX_AUDIO = 20_000_000;
+const MAX_AUDIO = 40_000_000;
 const json = (body: object, status = 200) => Response.json(body, {
   status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
 });
@@ -60,8 +60,19 @@ export async function handleIndependentFishTest(request: Request, env: TestEnv, 
     data = parsed as Record<string, unknown>;
   } catch { return json({ error: "请求格式错误。" }, 400); }
   if (data.preflight === true) return json({ version: VERSION, authorized: true, upstreamRequests: 0 });
-  if (typeof data.model !== "string" || !MODELS.has(data.model)) return json({ error: "请选择 Drama 3 或 S2.1 Pro 测试模型。", code: "FISH_TEST_MODEL_INVALID" }, 400);
-  if (typeof data.text !== "string" || !data.text.trim() || data.text.length > 1200) return json({ error: "请输入 1–1200 字符。" }, 400);
+  if (data.creditCheck === true) {
+    try {
+      const response = await fetcher("https://api.fish.audio/wallet/self/api-credit", {
+        headers: { Authorization: `Bearer ${key}` }, signal: AbortSignal.timeout(15_000),
+      });
+      const wallet = await response.json().catch(() => ({})) as { credit?: unknown };
+      const value = typeof wallet.credit === "number" || (typeof wallet.credit === "string" && wallet.credit.trim()) ? Number(wallet.credit) : NaN;
+      // Expose availability only. Never return amounts, account IDs or wallet history.
+      return json({ providerHttpStatus: response.status, hasPositiveApiCredit: response.ok && Number.isFinite(value) ? value > 0 : null });
+    } catch { return json({ error: "API 额度状态暂时无法读取。", code: "FISH_CREDIT_CHECK_FAILED" }, 502); }
+  }
+  if (typeof data.model !== "string" || !MODELS.has(data.model)) return json({ error: "独立测试仅允许 Drama 3。", code: "FISH_TEST_MODEL_INVALID" }, 400);
+  if (typeof data.text !== "string" || !data.text.trim() || data.text.length > 8000) return json({ error: "请输入 1–8000 字符。" }, 400);
   const reference = data.reference as { audioBase64?: unknown; text?: unknown } | undefined;
   if (!reference || typeof reference.audioBase64 !== "string" || !reference.audioBase64 || reference.audioBase64.length > 2_700_000 ||
       !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(reference.audioBase64) ||
@@ -72,7 +83,7 @@ export async function handleIndependentFishTest(request: Request, env: TestEnv, 
   const audio = Uint8Array.from(decoded, char => char.charCodeAt(0));
   if (audio.length < 100 || audio.length > 2_000_000) return json({ error: "参考音频大小不合格。" }, 400);
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120_000);
+  const timeout = setTimeout(() => controller.abort(), 600_000);
   try {
     const packed = encode({ text: data.text, references: [{ audio, text: reference.text }],
       format: "wav", sample_rate: 24000, temperature: 0.7, top_p: 0.7, normalize: false,
@@ -81,8 +92,17 @@ export async function handleIndependentFishTest(request: Request, env: TestEnv, 
       method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/msgpack", model: data.model },
       body: new Uint8Array(packed).buffer, signal: controller.signal,
     });
-    if (!upstream.ok) return json({ error: `Fish API 返回 HTTP ${upstream.status}。`, code: "FISH_UPSTREAM_ERROR", upstreamStatus: upstream.status,
-      requestedModel: data.model, version: VERSION }, 502);
+    if (!upstream.ok) {
+      // Classify payment failures without returning provider text, IDs or credentials.
+      let upstreamCategory: string | undefined;
+      if (upstream.status === 402) {
+        const problem = await upstream.json().catch(() => ({})) as { message?: unknown; reason?: unknown };
+        const description = [problem.message, problem.reason].filter(value => typeof value === "string").join(" ");
+        upstreamCategory = /insufficient|not enough|credit|balance|余额|额度/i.test(description) ? "api_credit_unavailable" : "payment_required";
+      }
+      return json({ error: `Fish API 返回 HTTP ${upstream.status}。`, code: "FISH_UPSTREAM_ERROR", upstreamStatus: upstream.status,
+        ...(upstreamCategory ? { upstreamCategory } : {}), requestedModel: data.model, version: VERSION }, 502);
+    }
     const served = upstream.headers.get("X-Model") || upstream.headers.get("X-Fish-Model");
     if (served && served !== data.model) return json({ error: "Fish 返回的模型与请求不一致。", code: "FISH_MODEL_MISMATCH", requestedModel: data.model, servedModel: served }, 502);
     const bytes = await upstream.arrayBuffer();
