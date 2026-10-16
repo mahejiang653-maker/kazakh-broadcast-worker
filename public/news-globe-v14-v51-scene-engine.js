@@ -179,7 +179,18 @@ function attackAnchor(iso,target){
 }
 async function fitAttack(ctx,duration=1.15){
  if(activeAttack!==ctx||ctx.serial!==G.navSerial)return false;
- const a=ctx.data,points=[...carts(a.vic),C.Cartesian3.fromDegrees(a.target.lon,a.target.lat)];
+ // A location-only attack must finish at the actual impact site, not at a
+ // whole-country bounding sphere (which leaves cities tiny on mobile).
+ // Preserve the wider framing for confirmed launch-to-target trajectories.
+ const a=ctx.data;
+ if(!a.source){
+  const canvas=G.viewer.scene.canvas;
+  const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
+  const height=aspect<.8?370000:290000;
+  const ok=await flyPoint(a.target.lon,a.target.lat,height,ctx.serial,duration);
+  return ok&&activeAttack===ctx;
+ }
+ const points=[...carts(a.vic),C.Cartesian3.fromDegrees(a.target.lon,a.target.lat)];
  if(ctx.anchors.attacker)points.push(C.Cartesian3.fromDegrees(...ctx.anchors.attacker));
  if(a.source)points.push(C.Cartesian3.fromDegrees(a.source.lon,a.source.lat));
  const sp=C.BoundingSphere.fromPoints(points),frustum=G.viewer.camera.frustum;
