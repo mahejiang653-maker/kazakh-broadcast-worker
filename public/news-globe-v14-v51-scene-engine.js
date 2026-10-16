@@ -186,7 +186,9 @@ async function fitAttack(ctx,duration=1.15){
  if(!a.source){
   const canvas=G.viewer.scene.canvas;
   const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
-  const height=aspect<.8?370000:290000;
+  // Medium-range globe framing: keep visible curvature and regional context.
+  // Portrait needs extra altitude because its horizontal field of view is narrow.
+  const height=aspect<.8?2400000:1650000;
   const ok=await flyPoint(a.target.lon,a.target.lat,height,ctx.serial,duration);
   return ok&&activeAttack===ctx;
  }
