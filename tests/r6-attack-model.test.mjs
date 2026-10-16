@@ -7,6 +7,27 @@ vm.runInContext(fs.readFileSync(new URL('../public/news-globe-v52-attack-model.j
 const model=context.window.NG14.v52AttackModel;
 const resolve=n=>JSON.parse(JSON.stringify(model.resolve(n)));
 const payload=JSON.parse(fs.readFileSync(new URL('./fixtures/r6-daily10-20261014.json',import.meta.url)));
+const stageCases=JSON.parse(fs.readFileSync(new URL('./fixtures/r6-attack-stages-20261016.json',import.meta.url))).cases;
+test('Top3 POINT drone report retains Ukraine and Russia and approaches Ryazan without inventing a launch',()=>{
+ const n=structuredClone(stageCases[0]),a=resolve(n);
+ assert.equal(a.att,'UKR');assert.equal(a.vic,'RUS');assert.equal(a.mode,'DRONE_ATTACK');
+ assert.equal(a.source,null);assert.deepEqual(a.target,{lon:39.7364,lat:54.6296});
+ model.normalize(n);assert.equal(resolve(n).att,'UKR');assert.equal(n.sceneMode,'DRONE_ATTACK');
+});
+test('Top4 missing nonStateActor never turns Saudi context into a Houthi attacking country',()=>{
+ const n=structuredClone(stageCases[1]);
+ for(const story of [n,{...n,title:'Houthis attack Aden'},
+   {...n,title:'Armed group attack',attackerType:'non-state'},
+   {...n,title:'Armed group attack',nonStateActor:'某武装'},
+   {...n,sourceCountryIso3:'SAU',scenePlan:{attackerIso3:'SAU'}}]){
+  const copy=structuredClone(story),a=resolve(copy);assert.equal(a.att,'');assert.equal(a.vic,'YEM');
+  assert.equal(a.source,null);assert.deepEqual(a.target,{lon:45.0355,lat:12.7855});
+  model.normalize(copy);assert.equal(resolve(copy).att,'');assert.equal(copy.sourceCountryIso3,undefined);
+  assert.equal(copy.scenePlan.attackerIso3,undefined);
+ }
+ const stateAttack=resolve({...n,title:'沙特军方袭击也门胡塞武装阵地',sourceCountryIso3:'SAU'});
+ assert.equal(stateAttack.att,'SAU','mentioning the group as a target must retain a known state attacker');
+});
 test('real imported Top2 resolves both country roles and unknown launch without a fabricated source',()=>{
  const n=structuredClone(payload.news[1]),a=resolve(n);
  assert.doesNotThrow(()=>resolve({...n,scenePlan:{attackEffect:'invalid'}}));

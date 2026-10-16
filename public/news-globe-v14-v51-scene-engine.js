@@ -142,15 +142,19 @@ function stopAttack(){
  for(const id of activeAttack.timers)clearTimeout(id);
  activeAttack.timers.clear();activeAttack.cancelGeometry?.();activeAttack.removeResize?.();activeAttack=null;
 }
-G.v52Attack={version:'20261016-attack-v4',clear:stopAttack,getDiagnostics:()=>activeAttack?{
+G.v52Attack={version:'20261017-attack-v5',clear:stopAttack,getDiagnostics:()=>activeAttack?{
  serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
  source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
  anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,
  impactCount:activeAttack.impactCount,pendingTimers:activeAttack.timers.size,
  geometryReady:!!activeAttack.geometryReady,geometryWaitMs:activeAttack.geometryWaitMs||0,geometryTimedOut:!!activeAttack.geometryTimedOut,
- playbackReady:activeAttack.stage==='settled'&&performance.now()-(activeAttack.settledAt||0)>=2000,
+ playbackReady:['settled','cancelled','geometry-unavailable'].includes(activeAttack.stage)&&performance.now()-(activeAttack.settledAt||0)>=2000,
  entities:G.v51SceneEntities.filter(e=>e.__v52AttackSerial===activeAttack.serial&&G.viewer.entities.contains(e)).map(e=>({id:e.id,kind:e.__v52AttackKind}))
 }:null};
+function endAttackStage(ctx,stage){
+ if(activeAttack===ctx&&ctx.serial===G.navSerial){ctx.stage=stage;ctx.settledAt=performance.now();}
+ return false;
+}
 function attackEntity(options,kind,ctx){
  const e=add(G.viewer.entities.add(options));e.__v52AttackSerial=ctx.serial;e.__v52AttackKind=kind;return e;
 }
@@ -183,6 +187,7 @@ async function fitAttack(ctx,duration=1.15){
  // whole-country bounding sphere (which leaves cities tiny on mobile).
  // Preserve the wider framing for confirmed launch-to-target trajectories.
  const a=ctx.data;
+ ctx.targetAspect=G.viewer.scene.canvas.clientWidth/Math.max(1,G.viewer.scene.canvas.clientHeight);
  if(!a.source){
   const canvas=G.viewer.scene.canvas;
   const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
@@ -300,21 +305,30 @@ async function renderAttack(n,iso,s){
  // Armed groups are not countries: only show a second country when its ISO is known.
  const overviewCountries=[...new Set([a.att,a.vic].filter(Boolean))];
  const overviewPoints=overviewCountries.flatMap(code=>carts(code));
+ // The first country view must be real geometry, even on a cold Worker cache.
+ // A timeout is a failed render, never permission to start impact effects.
+ const geometryReady=await waitAttackGeometry(ctx);
+ if(activeAttack!==ctx||s!==G.navSerial)return false;
+ if(!geometryReady)return endAttackStage(ctx,'geometry-unavailable');
+ G.v52SceneTrace?.push({type:'attack-geometry',serial:s,ready:true,waitMs:ctx.geometryWaitMs});
  if(overviewPoints.length){
   ctx.stage='country-overview';
   const overviewOk=await flyFit(overviewPoints,s,{factor:2.0,min:2600000,max:16500000,duration:1.15});
-  if(!overviewOk||activeAttack!==ctx||s!==G.navSerial)return false;
+  if(!overviewOk)return endAttackStage(ctx,'cancelled');
+  if(activeAttack!==ctx||s!==G.navSerial)return false;
+  placeAttackLabels(ctx);
   if(!await wait(1550,s)||activeAttack!==ctx||s!==G.navSerial)return false;
  }
  ctx.stage='target-approach';
- if(!await fitAttack(ctx,1.75)||activeAttack!==ctx||s!==G.navSerial)return false;
+ if(!await fitAttack(ctx,1.75))return endAttackStage(ctx,'cancelled');
+ if(activeAttack!==ctx||s!==G.navSerial)return false;
+ const aspect=G.viewer.scene.canvas.clientWidth/Math.max(1,G.viewer.scene.canvas.clientHeight);
+ if(Math.abs(aspect-ctx.targetAspect)>.01&&!await fitAttack(ctx,.35))return endAttackStage(ctx,'cancelled');
+ if(activeAttack!==ctx||s!==G.navSerial)return false;
  placeAttackLabels(ctx);
  const settled=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,35000),billboard:{
   image:impactImage(),width:40,height:40,color:C.Color.WHITE.withAlpha(.55),disableDepthTestDistance:Infinity}},'event',ctx);
  if(a.potential||!a.enabled)settled.show=false;
- await waitAttackGeometry(ctx);
- if(activeAttack!==ctx||s!==G.navSerial)return false;
- G.v52SceneTrace?.push({type:'attack-geometry',serial:s,ready:ctx.geometryReady,waitMs:ctx.geometryWaitMs});
  placeAttackLabels(ctx);
  if(a.source&&a.enabled&&!a.potential)flight(ctx);else showImpacts(ctx);
  let resizeTimer=null;

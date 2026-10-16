@@ -11,9 +11,12 @@ on:
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
+      - 'scripts/verify-r6-attack-stages.mjs'
       - 'scripts/wait-r6-production.mjs'
       - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-attack-camera-stages.test.mjs'
+      - 'tests/fixtures/r6-attack-stages-20261016.json'
       - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
@@ -30,9 +33,12 @@ on:
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
+      - 'scripts/verify-r6-attack-stages.mjs'
       - 'scripts/wait-r6-production.mjs'
       - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-attack-camera-stages.test.mjs'
+      - 'tests/fixtures/r6-attack-stages-20261016.json'
       - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
@@ -43,7 +49,7 @@ permissions:
 jobs:
   rendered-scenes:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,6 +63,11 @@ jobs:
           GLOBE_LOCAL: '1'
           GLOBE_BLOCK_FLAG_CDN: '1'
           GLOBE_RECORD: '1'
+      - name: Verify Top3 Ryazan, Top4 Aden, cancelled flights and resize stages
+        run: node scripts/verify-r6-attack-stages.mjs
+        env:
+          GLOBE_LOCAL: '1'
+          GLOBE_OUTPUT: globe-verify-r6-attacks/stages
       - name: Save rendered screenshots, video and runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -67,7 +78,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: rendered-scenes
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -79,6 +90,10 @@ jobs:
         run: node scripts/wait-r6-production.mjs
         env:
           GLOBE_OUTPUT: globe-production-r6-attacks
+      - name: Verify production Top3 and Top4 with no local asset overrides
+        run: node scripts/verify-r6-attack-stages.mjs
+        env:
+          GLOBE_OUTPUT: globe-production-r6-attacks/stages
       - name: Verify the formal website without local asset overrides
         run: node scripts/verify-r6-attacks.mjs
         env:

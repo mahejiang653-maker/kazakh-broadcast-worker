@@ -27,14 +27,19 @@
       e.target?.countryIso3 || n.target?.countryIso3 || n.countryIso3 || p.primaryIso3);
     let att=iso(p.attackerIso3 || n.sourceCountryIso3 || n.attackerIso3 || e.attackerIso3 ||
       e.sourceCountryIso3 || e.origin?.countryIso3 || n.source?.countryIso3);
+    // Older DATA LOCKs identify a group in the headline but omit nonStateActor.
+    // A related country is context, not evidence that it launched the attack.
+    const nonStateActor=!!(p.nonStateActor || n.nonStateActor || e.nonStateActor) ||
+      /^(non[-_ ]?state|armed[-_ ]?group)$/i.test(String(p.attackerType || n.attackerType || '')) ||
+      /^(?:也门)?胡塞(?:武装|组织)?[^，。；]{0,12}(?:袭击|攻击|发射)|^(?:Yemen.s?\s+)?(?:Houthis?|Ansar Allah)\b.{0,20}\b(?:attack(?:ed|s)?|strik\w*|struck|launch\w*)\b/i.test(String(n.title || '').trim());
     let identitySource=att?'explicit':'';
     // The second member of an explicitly supplied TWO-country attack pair is
     // unambiguous once the victim is known. Larger context lists are not roles.
     const related=[...new Set((Array.isArray(n.relatedCountryIso3s)?n.relatedCountryIso3s:[]).map(iso).filter(Boolean))];
-    if(!att && !p.nonStateActor && !p.registryOnly && related.length===2 && related.includes(vic)){
+    if(!att && !nonStateActor && !p.registryOnly && related.length===2 && related.includes(vic)){
       att=related.find(x=>x!==vic) || '';identitySource='related-pair';
     }
-    if(p.nonStateActor) att='';
+    if(nonStateActor){att='';identitySource='non-state-actor';}
     const target=point(e.target) || point(n.target) || coordinate(n.targetLon,n.targetLat) || coordinate(n.lon,n.lat);
     const precision=String(p.sourcePrecision || n.sourcePrecision || e.origin?.precision || '').toLowerCase();
     const originExplicitlyUnknown=('origin' in e && e.origin===null) ||
@@ -56,6 +61,9 @@
     const p=n.scenePlan && typeof n.scenePlan==='object'&&!Array.isArray(n.scenePlan)?n.scenePlan:(n.scenePlan={});
     n.sceneMode=a.mode;n.attackType=a.attackType;
     if(a.att){p.attackerIso3=a.att;n.sourceCountryIso3=a.att;}
+    else if(a.identitySource==='non-state-actor'){
+      delete p.attackerIso3;delete n.sourceCountryIso3;delete n.attackerIso3;
+    }
     if(a.vic){p.victimIso3=a.vic;n.targetCountryIso3=a.vic;}
     p.sourceUnconfirmed=a.sourceUnconfirmed;
     if(a.source){n.sourceLon=a.source.lon;n.sourceLat=a.source.lat;}
@@ -63,5 +71,5 @@
     if(a.target){n.targetLon=a.target.lon;n.targetLat=a.target.lat;}
     return n;
   }
-  G.v52AttackModel={version:'20261015-attack-v1',resolve,normalize,coordinate};
+  G.v52AttackModel={version:'20261017-attack-v2',resolve,normalize,coordinate};
 })(window.NG14);

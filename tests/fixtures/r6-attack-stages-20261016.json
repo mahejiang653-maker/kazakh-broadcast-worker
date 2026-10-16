@@ -1,0 +1,27 @@
+{
+  "description": "Recovered Top3/Top4 reproduction fields from DATA LOCK 20261016-LOCK10-1300-BJT. These are regression cases, not a reconstructed complete daily edition. Missing nonStateActor and POINT modes are intentional.",
+  "cases": [
+    {
+      "id": 3,
+      "title": "乌克兰恢复袭击俄罗斯炼油设施，梁赞地区炼油厂起火",
+      "location": "梁赞",
+      "lon": 39.7364,
+      "lat": 54.6296,
+      "countryIso3": "RUS",
+      "relatedCountryIso3s": ["RUS", "UKR"],
+      "eventType": "drone_attack",
+      "sceneMode": "POINT"
+    },
+    {
+      "id": 4,
+      "title": "胡塞武装袭击也门亚丁总统府，政府称五人死亡",
+      "location": "亚丁",
+      "lon": 45.0355,
+      "lat": 12.7855,
+      "countryIso3": "YEM",
+      "relatedCountryIso3s": ["YEM", "SAU"],
+      "eventType": "missile_attack",
+      "sceneMode": "POINT"
+    }
+  ]
+}
