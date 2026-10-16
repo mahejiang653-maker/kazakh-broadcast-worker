@@ -12,19 +12,31 @@ const browser=await chromium.launch({headless:true,
  ...(process.env.GLOBE_CHROMIUM_PATH?{executablePath:process.env.GLOBE_CHROMIUM_PATH}:{}),
  args:['--no-sandbox','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],
  ...(process.env.HTTPS_PROXY?{proxy:{server:process.env.HTTPS_PROXY,bypass:'localhost,127.0.0.1'}}:{})});
-let context,page,videoStart=0;
+let context,page,videoStart=0,releaseWorkers=()=>{};
 const log=(name,state)=>{report.checks.push({name,at:new Date().toISOString(),videoOffsetSeconds:videoStart?(Date.now()-videoStart)/1000:null,...state});console.log('PASS',name);};
 async function state(){return page.evaluate(()=>{
  const G=NG14,C=Cesium,v=G.viewer,t=v.clock.currentTime,scene=v.scene,rect=scene.canvas.getBoundingClientRect();
  const current=G.news[G.current],a=G.v52Attack?.getDiagnostics(),project=p=>C.SceneTransforms.worldToWindowCoordinates(scene,p);
+ const gpuReady=e=>{
+  const visit=primitive=>{
+   if(typeof primitive.get==='function'&&Number.isInteger(primitive.length)){
+    for(let i=0;i<primitive.length;i++)if(visit(primitive.get(i)))return true;return false;
+   }
+   if(primitive.ready&&typeof primitive.getGeometryInstanceAttributes==='function'){
+    try{const attrs=primitive.getGeometryInstanceAttributes(e);return !!attrs&&(!attrs.show||attrs.show[0]!==0);}catch{}
+   }return false;
+  };return visit(v.scene.primitives);
+ };
+
  const within=p=>!!p&&p.x>=0&&p.y>=0&&p.x<=rect.width&&p.y<=rect.height;
  const occluder=new C.EllipsoidalOccluder(C.Ellipsoid.WGS84,v.camera.positionWC);
  const countries=(a?[a.attacker,a.victim]:[current.countryIso3]).filter(Boolean).map(iso=>{
   const c=G.countries.get(iso),coords=G.collect(c?.feature?.geometry||{},[]);
   const projected=coords.map(q=>project(C.Cartesian3.fromDegrees(q[0],q[1])));
   let borderPoints=0;for(const e of c?.entities||[])if(e.show)for(const p of e.polyline.positions.getValue(t))if(within(project(p))&&occluder.isPointVisible(p))borderPoints++;
+  const fills=G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e));
   return {iso,exists:!!c,coordinates:coords.length,inside:projected.filter(within).length,screenInside:projected.filter(p=>p&&rect.left+p.x>=0&&rect.left+p.x<=innerWidth&&rect.top+p.y>=0&&rect.top+p.y<=innerHeight).length,borderPoints,
-   fills:G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e)).length};
+   fills:fills.length,readyFills:fills.filter(gpuReady).length,borderReady:(c?.entities||[]).some(e=>e.show&&gpuReady(e))};
  });
  const flags=[...document.querySelectorAll('img[alt$=" flag"]')].map(e=>({iso:e.alt.split(' ')[0],source:e.dataset.flagSource,visible:getComputedStyle(e).display!=='none',complete:e.complete,naturalWidth:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()}));
  const target=a?.target||{lon:+current.lon,lat:+current.lat};
@@ -41,14 +53,15 @@ async function state(){return page.evaluate(()=>{
   performance:G.v52Performance.getDiagnostics()};
  });}
 async function select(index){await page.locator('#timeline button').nth(index).click();}
-async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:25000});}
+async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:120000});}
 async function flagsReady(isos){await page.waitForFunction(isos=>isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none')),isos,{timeout:30000});}
 function verifyTop2(s){
  assert.equal(s.index,1);assert.equal(s.attack.attacker,'RUS');assert.equal(s.attack.victim,'UKR');
- assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);
+ assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);assert.equal(s.attack.geometryReady,true);assert.equal(s.attack.geometryTimedOut,false);
  assert.deepEqual(s.scope.countries,['RUS','UKR']);assert.equal(s.invalidBorders,0);
  for(const iso of ['RUS','UKR']){
   const c=s.countries.find(c=>c.iso===iso);assert.ok(c?.exists&&c.fills>0&&c.borderPoints>10,iso+' must be rendered in the viewport');
+  assert.equal(c.readyFills,c.fills,iso+' country meshes must be present in ready GPU primitives');assert.equal(c.borderReady,true,iso+' border must be present in a ready GPU primitive');
   const f=s.flags.find(f=>f.iso===iso);assert.equal(f?.source,'bundled',iso+' must not depend on the remote flag CDN');assert.ok(f?.visible&&f.complete&&f.naturalWidth>0,iso+' flag image must be visible');
   assert.ok(f.rect.left>=s.canvas.left&&f.rect.right<=s.canvas.right&&f.rect.top>=s.canvas.top&&f.rect.bottom<=s.canvas.bottom,iso+' flag must remain inside globe');
   assert.ok(!(s.target.x>=f.rect.left-6&&s.target.x<=f.rect.right+6&&s.target.y>=f.rect.top-6&&s.target.y<=f.rect.bottom+6),iso+' flag must not cover the target');
@@ -70,6 +83,7 @@ async function start(viewport,name){
  videoStart=Date.now();page=await context.newPage();page.on('pageerror',e=>report.pageErrors.push(e.stack));
  page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());});
  page.on('response',r=>{if(r.url().includes('news-globe-v52-attack-model')||r.url().includes('news-globe-v14-v51-scene-engine'))report.requests.push({url:r.url(),status:r.status()});});
+ if(name==='mobile'){const gate=new Promise(resolve=>{releaseWorkers=resolve;});await page.route('**/Build/Cesium/Workers/**',async route=>{await gate;await route.continue();});}
  if(process.env.GLOBE_BLOCK_FLAG_CDN)await page.route('https://flagcdn.com/**',route=>route.abort());
  if(process.env.GLOBE_LOCAL)await page.route(new URL(url).origin+'/**',route=>{
   const file=path.resolve(root,'.'+new URL(route.request().url()).pathname);
@@ -86,7 +100,7 @@ async function start(viewport,name){
 }
 async function genericCase(name,story){
  await page.evaluate(story=>{NG14.news[1]=story;},story);
- await select(1);await page.waitForFunction(()=>{const d=NG14.v52Attack.getDiagnostics();return d&&['flight','impact'].includes(d.stage);},null,{timeout:15000});
+ await select(1);await page.waitForFunction(()=>{const d=NG14.v52Attack.getDiagnostics();return d&&['flight','impact'].includes(d.stage);},null,{timeout:120000});
  const a=story.scenePlan.attackerIso3,b=story.countryIso3;await flagsReady([a,b]);
  const s=await state();assert.equal(s.attack.attacker,a);assert.equal(s.attack.victim,b);
  assert.equal(s.invalidBorders,0);assert.deepEqual(s.scope.countries,[a,b].sort());
@@ -97,19 +111,27 @@ async function genericCase(name,story){
   log(name+'-spherical-path',{minimumAltitude:Math.min(...paths[0]),maximumAltitude:Math.max(...paths[0])});
  }
  await page.screenshot({path:path.join(dir,name+'.png')});await settled();
- const final=await state();assert.ok(final.countries.every(c=>c.borderPoints>0&&c.fills>0));assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
+ const final=await state();assert.ok(final.countries.every(c=>c.borderPoints>0&&c.fills>0&&c.readyFills===c.fills&&c.borderReady));assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
  log(name,final);
 }
 try{
  for(const [name,viewport] of [['mobile',{width:390,height:844}],['desktop',{width:1440,height:810}],['landscape',{width:844,height:390}]].filter(([name])=>!process.env.GLOBE_VIEW||process.env.GLOBE_VIEW===name)){
   await start(viewport,name);
   // Exercise the actual navigation path, then warm the two flag images once.
-  await select(0);await ordinaryReady(0);await select(1);await flagsReady(['RUS','UKR']);await settled();
-  await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact');await page.waitForTimeout(400);
+  await select(0);await ordinaryReady(0);await select(1);
+  if(name==='mobile'){
+   await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='geometry',null,{timeout:20000});
+   const pending=await state();assert.equal(pending.attack.geometryReady,false);assert.equal(pending.attack.impactCount,0);assert.ok(pending.countries.some(c=>c.readyFills<c.fills));log('cold-workers-defer-animation',pending);
+   await select(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log('navigation-cancels-pending-geometry',{});
+   await select(1);releaseWorkers();
+  }
+  await flagsReady(['RUS','UKR']);await settled();
+  await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.waitForTimeout(400);
   const animated=await state();verifyTop2(animated);assert.ok(animated.effects.some(e=>e.width>=80&&e.alpha>.1));
   await page.screenshot({path:path.join(dir,'top2-'+name+'-impact.png')});log('top2-'+name+'-impact',animated);
   await settled();const final=await state();verifyTop2(final);assert.equal(final.attack.pendingTimers,0);assert.equal(final.attack.impactCount,3);
   await page.screenshot({path:path.join(dir,'top2-'+name+'-settled.png')});log('top2-'+name+'-settled',final);
+  if(name==='mobile'){await page.waitForTimeout(6000);const held=await state();verifyTop2(held);assert.equal(held.attack.pendingTimers,0);await page.screenshot({path:path.join(dir,'top2-mobile-static-6s.png')});log('top2-mobile-static-six-seconds',held);}
   await select(2);await ordinaryReady(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log(name+'-top2-to-top3',{});
   await select(1);await settled();verifyTop2(await state());log(name+'-top3-to-top2',{});
   if(name==='mobile'){
@@ -142,10 +164,10 @@ try{
    ...(source?{sourceLon:source[0],sourceLat:source[1]}:{}),scenePlan:{attackerIso3:att,victimIso3:vic,sourceUnconfirmed:!source,sourcePrecision:source?'exact':'unknown'}});
  }
  await page.evaluate(p=>{NG14.news=p.news;},payload);
- await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact');await page.locator('#all').click();await page.waitForTimeout(4200);
+ await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.locator('#all').click();await page.waitForTimeout(4200);
  assert.equal((await state()).attack,null);assert.equal((await state()).scope.visibleBorders,0);log('overview-cancels-attack',{});
  await context.close();assert.deepEqual(report.pageErrors,[]);
  assert.ok(!report.consoleErrors.some(x=>/SecurityError|image for billboard|rendering has stopped|DeveloperError/.test(x)),report.consoleErrors.join('\n'));
  report.status='PASS';
 }catch(error){report.status='FAIL';report.failure=error.stack;console.error(error);process.exitCode=1;try{await page?.screenshot({path:path.join(dir,'failure.png')});}catch{}}
-finally{fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2));await browser.close();console.log('ATTACK_VISUAL_'+report.status);}
+finally{releaseWorkers();fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2));await browser.close();console.log('ATTACK_VISUAL_'+report.status);}

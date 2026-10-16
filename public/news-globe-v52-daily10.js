@@ -124,12 +124,15 @@
   G.schedule = function(){
     if (!G.playing) return;
     const duration = G.storyDuration(G.news[G.current]);
-    G.playTimer = setTimeout(()=>{
+    const advance=()=>{
       if (!G.playing) return;
+      const attack=G.v52Attack?.getDiagnostics();
+      if(attack&&attack.serial===G.navSerial&&attack.playbackReady===false){G.playTimer=setTimeout(advance,500);return;}
       if (G.current >= G.news.length - 1) {G.overview(); return;}
       G.focus(G.current + 1, true);
       G.schedule();
-    }, duration);
+    };
+    G.playTimer=setTimeout(advance,duration);
   };
   const baseBind = G.bind;
   G.bind = function(...args){

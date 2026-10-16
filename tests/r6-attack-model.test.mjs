@@ -51,3 +51,16 @@ test('ordinary point stories keep their existing classification and potential at
  assert.equal(resolve({...ordinary,sceneMode:'POTENTIAL_ATTACK'}).potential,true);
  assert.equal(resolve({...ordinary,eventType:'drone_attack',scenePlan:{attackEffect:{enabled:false}}}).enabled,false);
 });
+
+test('GPU readiness ignores unrelated display-wide pending effects but waits for the country batch',()=>{
+ const engine=fs.readFileSync(new URL('../public/news-globe-v14-v51-scene-engine.js',import.meta.url),'utf8');
+ const start=engine.indexOf('function attackGeometryReady('),end=engine.indexOf('function waitAttackGeometry(',start);
+ const ready=vm.runInNewContext('('+engine.slice(start,end).trim()+')');
+ const entity={},bounds={};
+ const display={_ready:false,getBoundingSphere:()=>1,_defaultDataSource:{_visualizers:[{getBoundingSphere:()=>2},{getBoundingSphere:()=>0}]}};
+ assert.equal(ready(entity,display,bounds),true);
+ display._defaultDataSource._visualizers.push({getBoundingSphere:()=>1});
+ assert.equal(ready(entity,display,bounds),false);
+ display._defaultDataSource._visualizers=[{getBoundingSphere:()=>2}];
+ assert.equal(ready(entity,display,bounds),false);
+});
