@@ -116,6 +116,7 @@ function attackData(n){
 function placeAttackLabels(ctx){
  const scene=G.viewer.scene,t=G.viewer.clock.currentTime,project=p=>C.SceneTransforms.worldToWindowCoordinates(scene,p);
  const target=project(C.Cartesian3.fromDegrees(ctx.data.target.lon,ctx.data.target.lat,30000)),used=[];
+ const measure=document.createElement('canvas').getContext('2d');
  if(!target)return;
  for(const item of ctx.badges||[]){
   if(!item.flag)continue;
@@ -132,6 +133,15 @@ function placeAttackLabels(ctx){
   const offset=new C.Cartesian2(...chosen);item.flag.billboard.pixelOffset=offset;
   used.push({x:p.x+offset.x,y:p.y+offset.y});
   if(item.label){const labelOffset=new C.Cartesian2(chosen[0]+side*14,chosen[1]+30);
+   // Keep the whole country name inside the canvas when its flag is visible.
+   // Do not pull labels for distant off-screen anchors into a target close-up.
+   if(best!==-Infinity){
+    const text=String(item.label.label.text.getValue(t));
+    if(measure)measure.font=item.label.label.font.getValue(t);
+    const half=(measure?measure.measureText(text).width:text.length*14)/2+9;
+    labelOffset.x=Math.max(half+4,Math.min(scene.canvas.clientWidth-half-4,p.x+labelOffset.x))-p.x;
+    labelOffset.y=Math.max(17,Math.min(scene.canvas.clientHeight-17,p.y+labelOffset.y))-p.y;
+   }
    item.label.label.pixelOffset=labelOffset;item.label.__v52FixedLabelOffset=labelOffset;}
  }
  scene.requestRender();
@@ -142,7 +152,7 @@ function stopAttack(){
  for(const id of activeAttack.timers)clearTimeout(id);
  activeAttack.timers.clear();activeAttack.cancelGeometry?.();activeAttack.removeResize?.();activeAttack=null;
 }
-G.v52Attack={version:'20261017-attack-v5',clear:stopAttack,getDiagnostics:()=>activeAttack?{
+G.v52Attack={version:'20261017-attack-v6',clear:stopAttack,getDiagnostics:()=>activeAttack?{
  serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
  source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
  anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,

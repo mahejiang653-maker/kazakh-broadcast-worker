@@ -87,3 +87,16 @@ test('country geometry failure cannot advance the camera or play impacts', async
   assert.deepEqual(calls,[]);
   assert.equal(vm.runInContext('activeAttack.stage',ctx),'geometry-unavailable');
 });
+
+test('visible attack country labels stay inside a portrait canvas without pulling in distant labels',()=>{
+ const label=position=>({position:{getValue:()=>position},label:{text:{getValue:()=> '乌克兰'},font:{getValue:()=> '600 13px sans-serif'}}});
+ const make=(x,y)=>({flag:{position:{getValue:()=>({x,y})},billboard:{}},label:label({x,y})});
+ const near=make(22,180),far=make(1000,180);
+ const ctx=vm.createContext({G:{viewer:{clock:{currentTime:0},scene:{canvas:{clientWidth:374,clientHeight:210},requestRender(){}}}},
+  C:{SceneTransforms:{worldToWindowCoordinates:(_,p)=>p},Cartesian3:{fromDegrees:()=>({x:85,y:100})},Cartesian2:class{constructor(x,y){this.x=x;this.y=y;}}},
+  document:{createElement:()=>({getContext:()=>({measureText:()=>({width:39})})})},ctx:{data:{target:{lon:1,lat:2}},badges:[near,far]}});
+ vm.runInContext(between('function placeAttackLabels(', 'let activeAttack=null;')+'placeAttackLabels(ctx);',ctx);
+ const offset=near.label.label.pixelOffset;
+ assert.ok(22+offset.x-28.5>=4);assert.ok(180+offset.y+13<=210);
+ assert.ok(1000+far.label.label.pixelOffset.x>374,'off-screen country anchors must stay off screen');
+});

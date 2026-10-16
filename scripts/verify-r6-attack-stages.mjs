@@ -39,6 +39,8 @@ async function state(){return page.evaluate(()=>{
   };return visit(v.scene.primitives);
  };
  const scope=G.v52StoryBorders.getDiagnostics();
+ const measure=document.createElement('canvas').getContext('2d');
+ const countryNames=[a?.attacker,a?.victim].filter(Boolean).map(iso=>G.countryName(iso));
  return {index:G.current,serial:G.navSerial,title:document.querySelector('#title').textContent,attack:a,
   cameraMoving:!!v.camera._currentFlight,cameraHeight:v.camera.positionCartographic.height,
   target:p?{x:p.x,y:p.y,visible:occluder.isPointVisible(C.Cartesian3.fromDegrees(target.lon,target.lat,30000))}:null,
@@ -50,6 +52,12 @@ async function state(){return page.evaluate(()=>{
   }),
   flags:[...document.querySelectorAll('img[alt$=" flag"]')].filter(e=>getComputedStyle(e).display!=='none').map(e=>({iso:e.alt.split(' ')[0],complete:e.complete,width:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()})),
   labels:G.v51SceneEntities.filter(e=>e.label).map(e=>e.label.text.getValue(t)),
+  countryLabels:G.v51SceneEntities.filter(e=>e.label&&countryNames.includes(e.label.text.getValue(t))).map(e=>{
+   const l=e.label,p=project(e.position.getValue(t)),offset=l.pixelOffset.getValue(t),text=l.text.getValue(t);
+   measure.font=l.font.getValue(t);const half=measure.measureText(text).width/2+9;
+   return {text,anchorVisible:within(p)&&occluder.isPointVisible(e.position.getValue(t)),
+    left:p.x+offset.x-half,right:p.x+offset.x+half,top:p.y+offset.y-13,bottom:p.y+offset.y+13};
+  }),
   invalidBorders:G.borderEntities.filter(e=>e.show&&![...e._countryIsos].some(iso=>scope.countries.includes(iso))).length,
   staleEntities:v.entities.values.filter(e=>e.__v52AttackSerial!=null&&e.__v52AttackSerial!==G.navSerial).length,
   entityCount:v.entities.values.length};
@@ -67,6 +75,9 @@ function verify(s,index,scope){
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);
  assert.ok(s.countries.every(c=>c.fills>0&&c.readyFills===c.fills),'countries must have actual ready GPU instances');
  assert.ok(s.flags.every(f=>scope.includes(f.iso)),'no unrelated national flags');
+ for(const label of s.countryLabels.filter(l=>l.anchorVisible)){
+  assert.ok(label.left>=0&&label.right<=s.canvas.width&&label.top>=0&&label.bottom<=s.canvas.height,'country label must not be clipped: '+label.text);
+ }
 }
 async function completeCase(index,name){
  await select(index);
