@@ -25,6 +25,19 @@ The `Fish Drama 3 independent test` workflow runs manually or after successful p
 | `38808897856` | Existing Daulet reference saved. First generation POST rejected locally before any Fish request; temporary token removed. |
 | `38809838401` | Authenticated POST preflight succeeded; actual Drama 3 request reached Fish and returned HTTP 402. No Drama 3 audio and no S2.1 API call. Temporary token removed. |
 
-V4 narrows the experiment to Drama 3, reuses saved reference bytes, sends the complete existing news script and adds private credit-availability diagnosis. Its actual outcome must be appended after deployment and execution; no successful audio or listening result is claimed by code readiness.
+## Verified V4 outcome — 2026-10-16 20:26 Hong Kong time
+
+- PR: https://github.com/mahejiang653-maker/kazakh-broadcast-worker/pull/64
+- Source commit: `a2276c8b8d4a329515eaf526608d8d17724cd209`.
+- Deployed merge commit: `5a9e5c05084e8528b920ce9552a3603a54400851`.
+- Main CI and deployment: https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/38900269515 — success. Production build and 220 checks passed, with two pre-existing skips. Fish and M3 strict TypeScript checks and all existing online smoke checks passed.
+- Cloudflare Worker version: `9ecc8048-b65e-4c91-88b6-17d80d8794fa`.
+- Actual experiment: https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/38900447963 — generation failed at the provider. The V4 authenticated preflight returned HTTP 200 and the saved reference passed its SHA256/transcript checks.
+- Read-only credit API returned HTTP 200, `hasPositiveApiCredit=false`. The actual first Drama 3 request returned provider HTTP 402, classified `api_credit_unavailable`; the Worker transparently returned HTTP 502 / `FISH_UPSTREAM_ERROR`.
+- Take 1: FAILED. Take 2: NOT_REQUESTED_PROVIDER_BLOCKED by HTTP 402. Exactly one actual Drama 3 generation attempt; zero S2.1 TTS calls, zero newly generated Edge references, and zero Drama 3 WAV files.
+- Temporary operator token deletion completed successfully at 12:26:17 UTC. Existing Fish key and PIN were not exported or replaced; production defaults remain unchanged.
+- Evidence artifact: `12045553408`, SHA256 `f9b32d43416abe057709c59f434718e823d25641daa7443731b6fdb63c9f6edc`; its bytes were downloaded and verified. It contains the unchanged saved reference, exact text and transparent report, with no Drama 3 audio.
+
+Acceptance remains **0 / 2 complete Drama 3 recordings**. Pronunciation, throat texture, vocal fry, timbre, prosody, long-form stability and word completeness cannot be evaluated without generated audio. The blocker is Fish API credit, not code readiness or platform approval. The next necessary action is to restore usable API credit on the account behind the existing server key, then rerun the same independent workflow. Do not top up, change credentials, use a free model or alter production defaults automatically.
 
 Official interfaces: https://docs.fish.audio/api-reference/endpoint/openapi-v1/text-to-speech and https://docs.fish.audio/api-reference/endpoint/wallet/get-api-credit.
