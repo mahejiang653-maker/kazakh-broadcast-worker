@@ -1,15 +1,16 @@
-/** Bounded, authorized comparison: one fresh Daulet reference and exactly three Fish requests. */
-import { mkdir, writeFile } from "node:fs/promises";
+/** Two Drama 3 takes, reusing the saved Daulet reference without Edge generation. */
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 
 const site = "https://kazakh-broadcast-worker.mahejiang653.workers.dev";
-const VERSION = "fish-drama3-independent-v3-preflight";
+const VERSION = "fish-drama3-independent-v4-drama-only";
 const directory = resolve("work/fish-drama3");
 const referenceText = "Сәлем тораптастар, баршаңызға қайырлы таң. Алдімен төмендегі тораптастардың жақында белсенді қолдағанына көптен-көп рахімет. Енді өткен жиырма төрт сағат ішінде елімізде және әлемде болған маңызды жаңалықтарға бірге назар аударайық.";
-// Deliberate pronunciation/numbering fixture, not a report of today's news.
-const text = "Сәлем тораптастар, баршаңызға қайырлы таң.\n\nБірінші. Бұл сөйлемде бірлескен мемлекеттер ұйымы және халықаралық жағдай деген сөздер оқылады.\n\nЕкінші. Келесі сөйлемде енергийә құрылғылары, халықтық нысаналар және адамсыз ұшақтар деген сөздер оқылады.\n\nҮшінші. Шинжиаңда, құлжа, бұратала және тәңіртәу боғда көлі деген атауларды анық айтайық.\n\nОсымен бүгінгі кескіннің барлық мазмұны айақталды. Ертең қайта кездескенше сау сәлемет болыңыздар.";
-const variants = [{ name: "Drama3_run1", model: "drama-3" }, { name: "Drama3_run2", model: "drama-3" }, { name: "S21_control", model: "s2.1-pro-free" }];
+// Reuse the complete, source-backed archive-news fixture already in this repository.
+const text = (await readFile(new URL("../tests/fixtures/m3-real-13-news.txt", import.meta.url), "utf8")).trim();
+const variants = [{ name: "Drama3_run1", model: "drama-3" }, { name: "Drama3_run2", model: "drama-3" }];
+const referenceSha256 = "ebe7fff6777cb6e6a65faebc0f523cfb2490cc5ea7a0e7eece26a2ba8f06a892";
 const hash = bytes => createHash("sha256").update(bytes).digest("hex");
 
 export async function waitForIndependentReady({ token, fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onStatus = () => {}, attempts = 12 } = {}) {
@@ -40,7 +41,7 @@ export async function waitForIndependentReady({ token, fetcher = fetch, wait = m
 // explicit, unbilled rejection can be retried; never retry a provider call.
 export async function sendAuthorizedFishRequest(request, token, { fetcher = fetch, wait = ms => new Promise(resolve => setTimeout(resolve, ms)), onAuthorization = () => {}, attempts = 5 } = {}) {
   for (let attempt = 1; attempt <= attempts; attempt++) {
-    const response = await fetcher(site + "/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", "X-Fish-Test-Token": token }, body: JSON.stringify(request), signal: AbortSignal.timeout(150_000) });
+    const response = await fetcher(site + "/api/fish-independent-test", { method: "POST", headers: { "Content-Type": "application/json", "X-Fish-Test-Token": token }, body: JSON.stringify(request), signal: AbortSignal.timeout(630_000) });
     if (response.status !== 403) return response;
     const result = await response.clone().json().catch(() => ({}));
     if (result.code !== "FISH_TEST_UNAUTHORIZED") return response;
@@ -87,16 +88,18 @@ export function inspectWav(bytes) {
 
 async function run() {
   if (process.argv.includes("--validate-fixture")) {
-    if (text.length > 1200 || referenceText.length > 1200) throw Error("Fixture too long");
-    console.log(JSON.stringify({ textCharacters: text.length, referenceCharacters: referenceText.length, requests: variants.length, models: variants.map(v => v.model), textSha256: hash(text) }));
+    if (text.length > 8000 || referenceText.length > 1200) throw Error("Fixture too long");
+    console.log(JSON.stringify({ textCharacters: text.length, referenceCharacters: referenceText.length, requests: variants.length, models: variants.map(v => v.model), textSha256: hash(text), referenceSha256, edgeReferenceRegenerated: false }));
     return;
   }
   const token = process.env.FISH_DRAMA3_RUN_TOKEN;
   if (!token) throw Error("Authorized operator run token is required");
   await mkdir(directory, { recursive: true });
   const report = { version: VERSION, startedAt: new Date().toISOString(), textCharacters: text.length,
+    mode: "drama3-only", expectedVariants: variants.length, generationRequests: 0, providerTtsResponses: 0,
     textSha256: hash(text), referenceTextSha256: hash(referenceText), variants: [],
-    protocol: "Same text, fresh Edge Daulet reference, sampling parameters and sample rate; two Drama 3 repetitions and one S2.1 Pro free-tier control. No provider retries or audio post-processing. Only explicit local authorization rejections before any provider request may be retried.",
+    protocol: "Two complete Drama 3 takes of the same 13-item archive-news script, using identical saved Daulet reference bytes and sampling parameters. No Edge generation, other Fish TTS model, provider retries or audio post-processing. Only explicit local authorization rejections before any provider request may be retried.",
+    comparisonBaseline: { file: "original.wav", durationSeconds: 48.864, sha256: "755912db66392fa6e3c2313b5fa70150a46bdc61c1893f7bb2d672e7942a5f0d", use: "Existing original voice and fry baseline; its full transcript is unavailable, so this is not a same-text comparison." },
     subjectiveReview: "Pending listener review: Kazakh pronunciation, same-speaker identity, age/tone changes, numbering pauses and vocal fry. Signal metrics cannot settle these judgments.",
     productionDefaultsChanged: false };
   await writeFile(resolve(directory, "test_text.txt"), text);
@@ -104,33 +107,38 @@ async function run() {
   try {
     report.readiness = [];
     await waitForIndependentReady({ token, onStatus: status => { report.readiness.push(status); console.log(JSON.stringify({ event: "readiness", ...status })); } });
-    const referenceRequest = { text: referenceText, engine: "edge", voice: "kk-KZ-DauletNeural", preset: "news", speed: 1,
-      edgePitch: 0, edgeVolume: 0, stability: 0.5, similarityBoost: 0.75, style: 0, speakerBoost: true };
-    await writeFile(resolve(directory, "reference_request.json"), JSON.stringify(referenceRequest, null, 2));
-    const referenceResponse = await fetch(site + "/api/synthesize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(referenceRequest), signal: AbortSignal.timeout(180_000) });
-    if (!referenceResponse.ok || !referenceResponse.headers.get("content-type")?.startsWith("audio/")) throw Error("Edge Daulet reference generation failed (HTTP " + referenceResponse.status + ")");
-    const reference = Buffer.from(await referenceResponse.arrayBuffer());
-    if (reference.length < 1000 || reference.length > 2_000_000) throw Error("Invalid reference audio size");
+    const creditResponse = await sendAuthorizedFishRequest({ creditCheck: true }, token);
+    const credit = await creditResponse.json().catch(() => ({}));
+    report.creditCheck = { httpStatus: creditResponse.status, providerHttpStatus: credit.providerHttpStatus, hasPositiveApiCredit: typeof credit.hasPositiveApiCredit === "boolean" ? credit.hasPositiveApiCredit : null };
+    console.log(JSON.stringify({ event: "api-credit-availability", ...report.creditCheck }));
+    const reference = await readFile(resolve(process.env.FISH_EXISTING_REFERENCE_DIR || "work/fish-drama3-reference", "Daulet_reference.mp3"));
+    if (hash(reference) !== referenceSha256) throw Error("Saved Daulet reference hash mismatch");
+    const savedTranscript = await readFile(resolve(process.env.FISH_EXISTING_REFERENCE_DIR || "work/fish-drama3-reference", "reference_text.txt"), "utf8");
+    if (savedTranscript !== referenceText) throw Error("Saved Daulet transcript mismatch");
     await writeFile(resolve(directory, "Daulet_reference.mp3"), reference);
-    report.reference = { voice: "kk-KZ-DauletNeural", source: "Fresh authorized request to existing Edge endpoint", sha256: hash(reference), bytes: reference.length, exactTranscript: "reference_text.txt" };
+    report.reference = { voice: "kk-KZ-DauletNeural", source: "Existing artifact from workflow 38808897856", regenerated: false, durationSeconds: 16.680, sha256: hash(reference), bytes: reference.length, exactTranscript: "reference_text.txt" };
     for (const variant of variants) {
       const entry = { ...variant, startedAt: new Date().toISOString(), status: "REQUESTED" };
       report.variants.push(entry);
       await writeFile(resolve(directory, "report.json"), JSON.stringify(report, null, 2));
       const request = { model: variant.model, text, reference: { audioBase64: reference.toString("base64"), text: referenceText } };
       const started = performance.now();
+      report.generationRequests++;
       const response = await sendAuthorizedFishRequest(request, token, { onAuthorization: state => {
         entry.authorizationRejections ??= []; entry.authorizationRejections.push(state);
         console.log(JSON.stringify({ name: variant.name, event: "local-authorization-rejection", ...state }));
       } });
       entry.httpStatus = response.status;
+      if (response.ok) report.providerTtsResponses++;
       if (!response.ok) {
         const error = await response.json().catch(() => ({})); entry.status = "FAILED";
         entry.errorCode = error.code || "HTTP_ERROR"; entry.upstreamStatus = error.upstreamStatus;
-        console.log(JSON.stringify({ name: variant.name, status: entry.status, errorCode: entry.errorCode, upstreamStatus: entry.upstreamStatus }));
-        // Authorization/balance/unsupported model errors require investigation, not more paid requests.
-        if ([401, 402, 403, 422].includes(error.upstreamStatus) || response.status === 403) break;
-        continue;
+        if (entry.upstreamStatus) report.providerTtsResponses++;
+        entry.upstreamCategory = error.upstreamCategory;
+        console.log(JSON.stringify({ name: variant.name, status: entry.status, errorCode: entry.errorCode, upstreamStatus: entry.upstreamStatus, upstreamCategory: entry.upstreamCategory }));
+        // A provider failure blocks remaining takes; never retry or fall back.
+        for (const remaining of variants.slice(report.variants.length)) report.variants.push({ ...remaining, status: "NOT_REQUESTED_PROVIDER_BLOCKED", blockingStatus: entry.upstreamStatus || entry.httpStatus });
+        break;
       }
       entry.requestedModel = response.headers.get("X-Fish-Requested-Model");
       entry.upstreamModel = response.headers.get("X-Fish-Upstream-Model");
@@ -143,6 +151,7 @@ async function run() {
       console.log(JSON.stringify({ name: variant.name, status: entry.status, seconds: entry.signal.durationSeconds, elapsedSeconds: entry.elapsedSeconds, upstreamModelConfirmed: entry.upstreamModelIndependentlyConfirmed }));
     }
     report.complete = report.variants.length === variants.length && report.variants.every(v => v.status === "GENERATED");
+    report.audioGenerationComplete = report.complete;
     if (!report.complete) process.exitCode = 1;
   } catch (error) {
     report.complete = false; report.error = error instanceof Error ? error.message : "Run failed"; process.exitCode = 1;

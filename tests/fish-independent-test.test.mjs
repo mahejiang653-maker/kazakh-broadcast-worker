@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -29,14 +29,14 @@ test("anonymous, incorrect and expired operator credentials make zero upstream c
 });
 test("invalid models, incomplete references and oversized input never consume Fish credits", async () => {
   let calls = 0; const fetcher = async () => { calls++; throw Error("must not run"); };
-  for (const payload of [null, [], { ...body, model: "Drama3" }, { ...body, text: "а".repeat(1201) }, { ...body, reference: null },
+  for (const payload of [null, [], { ...body, model: "Drama3" }, { ...body, model: "s2.1-pro-free" }, { ...body, text: "а".repeat(8001) }, { ...body, reference: null },
     { ...body, reference: { ...body.reference, audioBase64: "!!!=" } }, { ...body, reference: { ...body.reference, text: "" } }]) {
     assert.equal((await handleIndependentFishTest(req(payload), env, fetcher)).status, 400);
   }
   assert.equal(calls, 0);
 });
 test("explicit model, transcript and binary reference survive MessagePack without model fallback", async () => {
-  for (const model of ["drama-3", "s2.1-pro-free"]) {
+  for (const model of ["drama-3"]) {
     const calls = [];
     const response = await handleIndependentFishTest(req({ ...body, model }), env, async (url, init) => {
       calls.push({ url, init }); return new Response(wav(), { headers: { "X-Model": model } });
@@ -74,7 +74,7 @@ test("read-only status exposes readiness but no credential values", async () => 
 test("a newly published operator binding can become ready before any generation request", async () => {
   const urls = [], observations = [];
   await waitForIndependentReady({ fetcher: async url => {
-    urls.push(url); return Response.json({ version: "fish-drama3-independent-v3-preflight", keyConfigured: true, operatorRunActive: urls.length === 3 });
+    urls.push(url); return Response.json({ version: "fish-drama3-independent-v4-drama-only", keyConfigured: true, operatorRunActive: urls.length === 3 });
   }, wait: async () => {}, onStatus: state => observations.push(state), attempts: 3 });
   assert.equal(urls.length, 3); assert.ok(urls.every(url => url.endsWith("/api/fish-independent-status")));
   assert.deepEqual(observations.map(x => x.operatorRunActive), [false, false, true]);
@@ -92,9 +92,9 @@ test("authenticated POST preflight validates the dedicated token without contact
 test("readiness waits for the actual POST authorization path", async () => {
   let posts = 0;
   await waitForIndependentReady({ token, wait: async () => {}, attempts: 2, fetcher: async (url, init) => {
-    if (url.endsWith("-status")) return Response.json({ version: "fish-drama3-independent-v3-preflight", keyConfigured: true, operatorRunActive: true });
+    if (url.endsWith("-status")) return Response.json({ version: "fish-drama3-independent-v4-drama-only", keyConfigured: true, operatorRunActive: true });
     assert.equal(init.headers["X-Fish-Test-Token"], token); assert.deepEqual(JSON.parse(init.body), { preflight: true });
-    return ++posts === 1 ? Response.json({ code: "FISH_TEST_UNAUTHORIZED" }, { status: 403 }) : Response.json({ authorized: true, version: "fish-drama3-independent-v3-preflight" });
+    return ++posts === 1 ? Response.json({ code: "FISH_TEST_UNAUTHORIZED" }, { status: 403 }) : Response.json({ authorized: true, version: "fish-drama3-independent-v4-drama-only" });
   } });
   assert.equal(posts, 2);
 });
@@ -105,4 +105,34 @@ test("only explicit local authorization rejections retry; provider failures neve
   calls = 0;
   const failure = await sendAuthorizedFishRequest(body, token, { wait: async () => {}, fetcher: async () => { calls++; return Response.json({ code: "FISH_UPSTREAM_ERROR", upstreamStatus: 402 }, { status: 502 }); } });
   assert.equal(failure.status, 502); assert.equal(calls, 1);
+});
+test("credit diagnosis is read-only and never returns balances or account details", async () => {
+  const response = await handleIndependentFishTest(req({ creditCheck: true }), env, async (url, init) => {
+    assert.equal(url, "https://api.fish.audio/wallet/self/api-credit");
+    assert.equal(init.method, undefined); assert.equal(init.headers.Authorization, `Bearer ${env.FISH_AUDIO_API_KEY}`);
+    return Response.json({ credit: "0.00", user_id: "private-user-id", cumulative_top_up: "private-history" });
+  });
+  const result = await response.json();
+  assert.deepEqual(result, { providerHttpStatus: 200, hasPositiveApiCredit: false });
+  assert.equal(JSON.stringify(result).includes("private"), false);
+});
+test("the complete existing 13-item news script is sent intact in one Drama 3 request", async () => {
+  const text = (await readFile("tests/fixtures/m3-real-13-news.txt", "utf8")).trim();
+  assert.equal(text.length, 6335);
+  let calls = 0;
+  const response = await handleIndependentFishTest(req({ ...body, text }), env, async (_url, init) => {
+    calls++; assert.equal(init.headers.model, "drama-3");
+    assert.equal(decode(new Uint8Array(init.body)).text, text);
+    return new Response(wav());
+  });
+  assert.equal(response.status, 200); assert.equal(calls, 1);
+});
+test("a credit error is classified without publishing provider messages", async () => {
+  const response = await handleIndependentFishTest(req(), env, async () => Response.json({
+    message: `Insufficient API credit for private-user-id ${env.FISH_AUDIO_API_KEY}`, reason: "balance too low",
+  }, { status: 402 }));
+  const result = await response.json();
+  assert.equal(result.upstreamCategory, "api_credit_unavailable");
+  assert.equal(JSON.stringify(result).includes("private-user-id"), false);
+  assert.equal(JSON.stringify(result).includes(env.FISH_AUDIO_API_KEY), false);
 });

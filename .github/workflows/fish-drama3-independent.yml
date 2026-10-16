@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: fish-drama3-independent
@@ -21,7 +22,7 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' &&
        contains(github.event.workflow_run.head_commit.message, '[Drama3 test]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,6 +34,13 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Validate bounded fixture
         run: node scripts/fish-independent-run.mjs --validate-fixture
+      - name: Reuse saved Daulet reference without Edge generation
+        uses: actions/download-artifact@v4
+        with:
+          name: fish-drama3-independent-38808897856
+          run-id: 38808897856
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: work/fish-drama3-reference
       - name: Enable short-lived operator access
         id: enable
         env:
@@ -46,7 +54,7 @@ jobs:
           echo "::add-mask::$fish_run_token"
           echo "FISH_DRAMA3_RUN_TOKEN=$fish_run_token" >> "$GITHUB_ENV"
           npx wrangler secret put FISH_DRAMA3_RUN_TOKEN < "$RUNNER_TEMP/fish-drama3-run-token"
-      - name: Generate two Drama 3 takes and one S2.1 Pro control
+      - name: Generate two complete Drama 3 news takes only
         run: node scripts/fish-independent-run.mjs
       - name: Save audio and transparent diagnostics
         if: always()
