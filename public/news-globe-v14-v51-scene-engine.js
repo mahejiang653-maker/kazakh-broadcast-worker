@@ -140,13 +140,15 @@ let activeAttack=null;
 function stopAttack(){
  if(!activeAttack)return;
  for(const id of activeAttack.timers)clearTimeout(id);
- activeAttack.timers.clear();activeAttack.removeResize?.();activeAttack=null;
+ activeAttack.timers.clear();activeAttack.cancelGeometry?.();activeAttack.removeResize?.();activeAttack=null;
 }
-G.v52Attack={version:'20261015-attack-v3',clear:stopAttack,getDiagnostics:()=>activeAttack?{
+G.v52Attack={version:'20261016-attack-v4',clear:stopAttack,getDiagnostics:()=>activeAttack?{
  serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
  source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
  anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,
  impactCount:activeAttack.impactCount,pendingTimers:activeAttack.timers.size,
+ geometryReady:!!activeAttack.geometryReady,geometryWaitMs:activeAttack.geometryWaitMs||0,geometryTimedOut:!!activeAttack.geometryTimedOut,
+ playbackReady:activeAttack.stage==='settled'&&performance.now()-(activeAttack.settledAt||0)>=2000,
  entities:G.v51SceneEntities.filter(e=>e.__v52AttackSerial===activeAttack.serial&&G.viewer.entities.contains(e)).map(e=>({id:e.id,kind:e.__v52AttackKind}))
 }:null};
 function attackEntity(options,kind,ctx){
@@ -226,10 +228,44 @@ function flight(ctx){
   path.polyline.material=new C.PolylineGlowMaterialProperty({glowPower:.1,color:C.Color.fromCssColorString('#ffae55').withAlpha(.38)});
   showImpacts(ctx);});
 }
+// Cesium 1.145's display-wide ready flag includes unrelated dynamic ellipses.
+// Query the actual per-entity visualizer batches so those ellipses cannot starve an attack.
+function attackGeometryReady(entity,display,bounds){
+ const visualizers=display._defaultDataSource?._visualizers;
+ if(!Array.isArray(visualizers))return display.getBoundingSphere(entity,false,bounds)===0;
+ let done=false;
+ for(const visualizer of visualizers){
+  if(typeof visualizer.getBoundingSphere!=='function')continue;
+  let state;try{state=visualizer.getBoundingSphere(entity,bounds);}catch{return false;}
+  if(state===1)return false;if(state===0)done=true;
+ }
+ return done;
+}
+function waitAttackGeometry(ctx){
+ const viewer=G.viewer,display=viewer.dataSourceDisplay;
+ if(typeof display?.getBoundingSphere!=='function'){ctx.geometryReady=true;return Promise.resolve(true);}
+ ctx.stage='geometry';const start=performance.now(),bounds=new C.BoundingSphere();
+ const entities=G.v51SceneEntities.filter(e=>e.__v52AttackSerial===ctx.serial&&e.polygon);
+ for(const iso of [ctx.data.att,ctx.data.vic]){
+  const border=G.countries?.get(iso)?.entities?.find(e=>e.show&&e.polyline);if(border)entities.push(border);
+ }
+ return new Promise(resolve=>{
+  let finished=false;
+  const finish=ready=>{if(finished)return;finished=true;ctx.cancelGeometry=null;ctx.geometryReady=ready;ctx.geometryWaitMs=Math.round(performance.now()-start);resolve(ready);};
+  ctx.cancelGeometry=()=>finish(false);
+  const check=()=>{
+   if(activeAttack!==ctx||ctx.serial!==G.navSerial||G.overviewMode){finish(false);return;}
+   viewer.scene.requestRender();
+   if(entities.length&&entities.every(e=>viewer.entities.contains(e)&&attackGeometryReady(e,display,bounds))){finish(true);return;}
+   if(performance.now()-start>=90000){ctx.geometryTimedOut=true;finish(false);return;}
+   const id=setTimeout(()=>{ctx.timers.delete(id);check();},100);ctx.timers.add(id);
+  };check();
+ });
+}
 function showImpacts(ctx){
  ctx.stage='impact';
  if(ctx.data.enabled&&ctx.data.impactEnabled&&!ctx.data.potential){impact(ctx);attackLater(ctx,1150,()=>impact(ctx));attackLater(ctx,2300,()=>impact(ctx));}
- attackLater(ctx,3500,()=>{ctx.stage='settled';G.viewer.scene.requestRender();});
+ attackLater(ctx,3500,()=>{ctx.stage='settled';ctx.settledAt=performance.now();G.viewer.scene.requestRender();});
 }
 async function renderAttack(n,iso,s){
  const a=attackData(n);if(!a.vic||!a.target||!good(a.target.lon,a.target.lat))return fallbackRun(n,iso,s);
@@ -252,6 +288,10 @@ async function renderAttack(n,iso,s){
  const settled=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,35000),billboard:{
   image:impactImage(),width:40,height:40,color:C.Color.WHITE.withAlpha(.55),disableDepthTestDistance:Infinity}},'event',ctx);
  if(a.potential||!a.enabled)settled.show=false;
+ await waitAttackGeometry(ctx);
+ if(activeAttack!==ctx||s!==G.navSerial)return false;
+ G.v52SceneTrace?.push({type:'attack-geometry',serial:s,ready:ctx.geometryReady,waitMs:ctx.geometryWaitMs});
+ placeAttackLabels(ctx);
  if(a.source&&a.enabled&&!a.potential)flight(ctx);else showImpacts(ctx);
  let resizeTimer=null;
  const resize=()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(()=>{if(activeAttack===ctx&&s===G.navSerial)fitAttack(ctx,.35).then(ok=>{if(ok&&activeAttack===ctx)placeAttackLabels(ctx);});},180);};

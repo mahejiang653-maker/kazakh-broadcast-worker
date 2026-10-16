@@ -202,3 +202,13 @@ test('direct import ignores editorial verification but rejects unusable coordina
  p.news[0].lat=200;
  assert.match(h.G.validate(p).join('|'),/纬度无效/);
 });
+
+test('autoplay waits for GPU geometry, the full attack and its final static hold',()=>{
+ const h=harness();h.G.focus(1);h.G.playing=true;
+ let ready=false;h.G.v52Attack={getDiagnostics:()=>({serial:h.G.navSerial,playbackReady:ready})};
+ h.G.schedule();const current=h.G.current;
+ h.drain();assert.equal(h.G.current,current);assert.equal(h.timers.size,1);
+ h.drain();assert.equal(h.G.current,current);
+ ready=true;h.drain();assert.equal(h.G.current,current+1);
+ h.G.pause();assert.equal(h.timers.size,0);
+});

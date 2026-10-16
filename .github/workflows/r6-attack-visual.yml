@@ -6,11 +6,15 @@ on:
       - 'public/news-globe-v52-flag-images*'
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-daily10.js'
       - 'public/news-globe-v52-story-borders.js'
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
+      - 'scripts/wait-r6-production.mjs'
+      - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
       - '.github/workflows/r6-attack-visual.yml'
@@ -21,11 +25,15 @@ on:
       - 'public/news-globe-v52-flag-images*'
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-daily10.js'
       - 'public/news-globe-v52-story-borders.js'
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
+      - 'scripts/wait-r6-production.mjs'
+      - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
+      - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
       - 'tests/fixtures/r6-daily10-20261014.json'
       - '.github/workflows/r6-attack-visual.yml'
@@ -43,7 +51,7 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
-      - name: Verify actual imported ten-story fixture, navigation and generic attacks
+      - name: Verify imported ten-story fixture, cold GPU geometry and generic attacks
         run: node scripts/verify-r6-attacks.mjs
         env:
           GLOBE_LOCAL: '1'
@@ -55,3 +63,57 @@ jobs:
         with:
           name: r6-attack-visual-${{ github.sha }}
           path: globe-verify-r6-attacks
+  production-scenes:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: rendered-scenes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm}
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+      - name: Wait until formal Cloudflare assets match this exact commit
+        run: node scripts/wait-r6-production.mjs
+        env:
+          GLOBE_OUTPUT: globe-production-r6-attacks
+      - name: Verify the formal website without local asset overrides
+        run: node scripts/verify-r6-attacks.mjs
+        env:
+          GLOBE_RECORD: '1'
+          GLOBE_OUTPUT: globe-production-r6-attacks
+      - name: Save independent production screenshots, video and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-attack-production-${{ github.sha }}
+          path: globe-production-r6-attacks
+  publish-evidence:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: production-scenes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22}
+      - uses: actions/download-artifact@v4
+        with:
+          name: r6-attack-production-${{ github.sha }}
+          path: globe-production-r6-attacks
+      - run: sudo apt-get install -y ffmpeg
+      - name: Save requested screenshots, recording and report on a separate evidence branch
+        run: node scripts/publish-r6-evidence.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Save the compact delivery package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r6-delivery-${{ github.sha }}
+          path: r6-delivery
