@@ -40,3 +40,15 @@ test('navigation serial and active attack guard both camera phases', () => {
   assert.match(body, /activeAttack!==ctx\|\|s!==G\.navSerial/);
   assert.match(engine, /const attackFocus=G\.focus;[\s\S]*?stopAttack\(\)/);
 });
+
+test('cancelled Cesium camera flights are not treated as completed stages', () => {
+  for (const [start, end] of [
+    ['async function flyPoint(', 'async function flyFit('],
+    ['async function flyFit(', 'function countryMin('],
+  ]) {
+    const body = between(start, end);
+    assert.match(body, /complete:\(\)=>r\(true\)/);
+    assert.match(body, /cancel:\(\)=>r\(false\)/);
+    assert.match(body, /return completed&&s===G\.navSerial/);
+  }
+});
