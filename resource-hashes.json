@@ -1,0 +1,54 @@
+{
+  "commit": "15d0a256593cd669636e4331ca00c8139b58d8e1",
+  "checkedAt": "2026-10-18T05:49:28.417Z",
+  "resources": [
+    {
+      "path": "news-globe-v52-flag-images.js",
+      "expectedSHA256": "4fc0c07d22fb9534c76ab9b1204f045d8ad45bd41cc6138d71dcc692a5cec634",
+      "productionSHA256": "4fc0c07d22fb9534c76ab9b1204f045d8ad45bd41cc6138d71dcc692a5cec634",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-attack-model.js",
+      "expectedSHA256": "5d909b53508c5a59c0f195ef6b762cd0e9ec364c68dbbee8ef024032003bd680",
+      "productionSHA256": "5d909b53508c5a59c0f195ef6b762cd0e9ec364c68dbbee8ef024032003bd680",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v14-v51-scene-engine.js",
+      "expectedSHA256": "255ebdb02ab4309b847a2abb8c5cdfc0ac86362ac8e71c7cd283e9461be9c471",
+      "productionSHA256": "255ebdb02ab4309b847a2abb8c5cdfc0ac86362ac8e71c7cd283e9461be9c471",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-hard-rules.js",
+      "expectedSHA256": "e2ed4cf0b616a5a57a6829fdf8324d4b0c36b71b4829349be38362221fc552f1",
+      "productionSHA256": "e2ed4cf0b616a5a57a6829fdf8324d4b0c36b71b4829349be38362221fc552f1",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-story-borders.js",
+      "expectedSHA256": "49c5b5eec3982d43238db7002e4487a92b94cd03073b4fa736e28eb223cb6c28",
+      "productionSHA256": "49c5b5eec3982d43238db7002e4487a92b94cd03073b4fa736e28eb223cb6c28",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-flags-overview-clean.js",
+      "expectedSHA256": "64d16a25f75b80cad2ab273b0605fb9c18119f1ef513dd3a4ca5722371e97380",
+      "productionSHA256": "64d16a25f75b80cad2ab273b0605fb9c18119f1ef513dd3a4ca5722371e97380",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-daily10.js",
+      "expectedSHA256": "9577cd1a5444b88449b3250d2a827c28cd352bd5ded711dcec718a20eca7efc2",
+      "productionSHA256": "9577cd1a5444b88449b3250d2a827c28cd352bd5ded711dcec718a20eca7efc2",
+      "matches": true
+    },
+    {
+      "path": "news-globe-run-20260920-v52-r1.html",
+      "expectedSHA256": "5519885ebcdff711761cf13c7dd87d2cbe844438f2f20bd27f4a7cb0a0cffebe",
+      "productionSHA256": "5519885ebcdff711761cf13c7dd87d2cbe844438f2f20bd27f4a7cb0a0cffebe",
+      "matches": true
+    }
+  ]
+}

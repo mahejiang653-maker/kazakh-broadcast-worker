@@ -1,0 +1,5750 @@
+{
+  "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html",
+  "localOverrides": false,
+  "flagCDNBlocked": false,
+  "fixture": "r6-daily10-20261014.json",
+  "fixtureSHA256": "800747c8c5bf101b2bb4a4157d2d09ab92fe4b5cc884329ebd39c7572b9a2a00",
+  "checks": [
+    {
+      "name": "mobile-direct-file-import",
+      "at": "2026-10-18T05:54:16.080Z",
+      "videoOffsetSeconds": 2.119,
+      "count": 10
+    },
+    {
+      "name": "cold-workers-defer-animation",
+      "at": "2026-10-18T05:54:19.734Z",
+      "videoOffsetSeconds": 5.773,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 4,
+        "stage": "geometry",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 0,
+        "pendingTimers": 1,
+        "geometryReady": false,
+        "geometryWaitMs": 0,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "f6234677-94b3-415e-8759-a69c6f142d90",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "dbe29c68-b711-48fd-8873-0f53ddf1f3d1",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5b389feb-dfb9-46b8-8f8c-30cf434093a2",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a0d344a3-d027-4b21-8103-cd84efa09347",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "2c7ace70-60a1-4306-9c20-fd99fca1feee",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "4a710eb5-9b45-4f21-856e-f3876ad67c35",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8459c8dc-fc38-4a80-ad3a-1552d85a4037",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "47a71973-80ab-45dc-9ada-a07d755045ee",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "9f702e79-7edf-400f-bbe1-5d0c9dc562cf",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "24f512ac-f301-4c61-b7e1-c31cbee0cb69",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "95ef0e9f-ed2e-4ef9-8f31-af25876f08b8",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "de72a4e9-2a3b-4a3d-b3d1-5074628bfac5",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "ce11b868-333b-422d-8be3-942512a1aff9",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e3f5f5f6-5bb9-4a93-91d0-3ee6fdc29957",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7916a9ba-fad8-4ee3-baf1-1b1e8c128e47",
+            "kind": "country-UKR"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 0,
+          "screenInside": 0,
+          "borderPoints": 0,
+          "fills": 14,
+          "readyFills": 0,
+          "borderReady": false
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 0,
+          "screenInside": 0,
+          "borderPoints": 0,
+          "fills": 1,
+          "readyFills": 0,
+          "borderReady": false
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": false,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": false,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": -208.328265694739,
+        "y": -189.58071583479426
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.9999988487,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 51,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "navigation-cancels-pending-geometry",
+      "at": "2026-10-18T05:54:19.849Z",
+      "videoOffsetSeconds": 5.888
+    },
+    {
+      "name": "top2-mobile-impact",
+      "at": "2026-10-18T05:54:40.340Z",
+      "videoOffsetSeconds": 26.379,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 7,
+        "stage": "impact",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 1,
+        "pendingTimers": 3,
+        "geometryReady": true,
+        "geometryWaitMs": 504,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "97864612-014f-4c26-b43e-e991e7beb85c",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "aa361c73-8ed3-4368-bfd2-62419ef75131",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "374c0923-d520-459e-8735-13816b3ee391",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f252e504-6ddc-4168-b5a7-756023aaa96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e70dbd78-e6d7-4061-b096-cb2432e340c4",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "1357ed45-8e26-40dd-a7a5-a4e4902cc96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c7148937-455a-4bdb-93ca-a58c046bfc42",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7fbfd77d-33a7-427b-b7ae-d7b856ea74e0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "01fbd12a-c1c8-48e6-a7d2-68233372b7c0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "10bf82c0-c004-44f6-8376-08048890c0cf",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5aa9687a-fe7a-4112-9445-54ae6b0c6c81",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8529da3c-3865-4b2d-878d-3fe4804953af",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "90141dbe-eef3-4411-8c86-0287a8703cb5",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f5ef33e3-964d-4bde-bc6a-354afb5ca6d6",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "19c46c72-f660-45d8-8fd9-f1682562cf09",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "8eb658f6-f62e-49ae-aca4-920beb75906b",
+            "kind": "event"
+          },
+          {
+            "id": "6097ef0d-c181-404d-934f-34141370e865",
+            "kind": "impact"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 95,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 243.65625,
+            "y": 80.375,
+            "width": 30,
+            "height": 20,
+            "top": 80.375,
+            "right": 273.65625,
+            "bottom": 100.375,
+            "left": 243.65625
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 179.0625,
+            "y": 226.140625,
+            "width": 30,
+            "height": 20,
+            "top": 226.140625,
+            "right": 209.0625,
+            "bottom": 246.140625,
+            "left": 179.0625
+          }
+        }
+      ],
+      "effects": [
+        {
+          "width": 100,
+          "alpha": 0.6300869565217189,
+          "scale": 0.533
+        }
+      ],
+      "target": {
+        "x": 195.00000000000003,
+        "y": 166.75650933974399
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 12,
+        "occlusionChecks": 108,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "top2-mobile-settled",
+      "at": "2026-10-18T05:54:43.445Z",
+      "videoOffsetSeconds": 29.484,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 7,
+        "stage": "settled",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 504,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "97864612-014f-4c26-b43e-e991e7beb85c",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "aa361c73-8ed3-4368-bfd2-62419ef75131",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "374c0923-d520-459e-8735-13816b3ee391",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f252e504-6ddc-4168-b5a7-756023aaa96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e70dbd78-e6d7-4061-b096-cb2432e340c4",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "1357ed45-8e26-40dd-a7a5-a4e4902cc96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c7148937-455a-4bdb-93ca-a58c046bfc42",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7fbfd77d-33a7-427b-b7ae-d7b856ea74e0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "01fbd12a-c1c8-48e6-a7d2-68233372b7c0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "10bf82c0-c004-44f6-8376-08048890c0cf",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5aa9687a-fe7a-4112-9445-54ae6b0c6c81",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8529da3c-3865-4b2d-878d-3fe4804953af",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "90141dbe-eef3-4411-8c86-0287a8703cb5",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f5ef33e3-964d-4bde-bc6a-354afb5ca6d6",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "19c46c72-f660-45d8-8fd9-f1682562cf09",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "8eb658f6-f62e-49ae-aca4-920beb75906b",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 95,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 243.65625,
+            "y": 80.375,
+            "width": 30,
+            "height": 20,
+            "top": 80.375,
+            "right": 273.65625,
+            "bottom": 100.375,
+            "left": 243.65625
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 179.0625,
+            "y": 226.140625,
+            "width": 30,
+            "height": 20,
+            "top": 226.140625,
+            "right": 209.0625,
+            "bottom": 246.140625,
+            "left": 179.0625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.00000000000003,
+        "y": 166.75650933974399
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 109,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "top2-mobile-static-six-seconds",
+      "at": "2026-10-18T05:54:50.934Z",
+      "videoOffsetSeconds": 36.973,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 7,
+        "stage": "settled",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 504,
+        "geometryTimedOut": false,
+        "playbackReady": true,
+        "entities": [
+          {
+            "id": "97864612-014f-4c26-b43e-e991e7beb85c",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "aa361c73-8ed3-4368-bfd2-62419ef75131",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "374c0923-d520-459e-8735-13816b3ee391",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f252e504-6ddc-4168-b5a7-756023aaa96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e70dbd78-e6d7-4061-b096-cb2432e340c4",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "1357ed45-8e26-40dd-a7a5-a4e4902cc96a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c7148937-455a-4bdb-93ca-a58c046bfc42",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7fbfd77d-33a7-427b-b7ae-d7b856ea74e0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "01fbd12a-c1c8-48e6-a7d2-68233372b7c0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "10bf82c0-c004-44f6-8376-08048890c0cf",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5aa9687a-fe7a-4112-9445-54ae6b0c6c81",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8529da3c-3865-4b2d-878d-3fe4804953af",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "90141dbe-eef3-4411-8c86-0287a8703cb5",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f5ef33e3-964d-4bde-bc6a-354afb5ca6d6",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "19c46c72-f660-45d8-8fd9-f1682562cf09",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "8eb658f6-f62e-49ae-aca4-920beb75906b",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 95,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 243.65625,
+            "y": 80.375,
+            "width": 30,
+            "height": 20,
+            "top": 80.375,
+            "right": 273.65625,
+            "bottom": 100.375,
+            "left": 243.65625
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 179.0625,
+            "y": 226.140625,
+            "width": 30,
+            "height": 20,
+            "top": 226.140625,
+            "right": 209.0625,
+            "bottom": 246.140625,
+            "left": 179.0625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.00000000000003,
+        "y": 166.75650933974399
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 109,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "mobile-top2-to-top3",
+      "at": "2026-10-18T05:54:55.047Z",
+      "videoOffsetSeconds": 41.086
+    },
+    {
+      "name": "mobile-top3-to-top2",
+      "at": "2026-10-18T05:55:04.706Z",
+      "videoOffsetSeconds": 50.745
+    },
+    {
+      "name": "orientation-change",
+      "at": "2026-10-18T05:55:07.182Z",
+      "videoOffsetSeconds": 53.221
+    },
+    {
+      "name": "rapid-switch-cancellation",
+      "at": "2026-10-18T05:55:22.039Z",
+      "videoOffsetSeconds": 68.078,
+      "index": 2,
+      "title": "霍尔木兹海峡商船遇袭增加，地区航运风险上升",
+      "news": {
+        "id": 3,
+        "title": "霍尔木兹海峡商船遇袭增加，地区航运风险上升",
+        "summary": "路透社10月14日报道，伊朗官员称调整针对商船的行动方式；海事安全通报显示近期霍尔木兹海峡周边商船遇袭增加，责任与细节仍需逐案核实。",
+        "location": "霍尔木兹海峡",
+        "focusLabel": "霍尔木兹海峡",
+        "lon": 55.54615,
+        "lat": 26.13097,
+        "countryIso3": "IRN",
+        "relatedCountryIso3s": [
+          "IRN",
+          "OMN"
+        ],
+        "placeType": "waterway",
+        "eventType": "maritime_security",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "IRN",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "maritime_attack",
+            "enabled": false,
+            "target": {
+              "location": "霍尔木兹海峡"
+            },
+            "origin": null,
+            "trajectory": null,
+            "verification": "具体攻击目标、武器及路线未独立证实，暂不启用攻击动画"
+          }
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-14",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [],
+        "articleUrlGap": 3,
+        "articleUrlVerification": "no_qualifying_image_page_verified"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 3,
+          "screenInside": 4,
+          "borderPoints": 4,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195,
+        "y": 166.96063592263278
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 304999.9999994721,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN"
+        ],
+        "visibleBorders": 75,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "霍尔木兹海峡"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 224,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top1",
+      "at": "2026-10-18T05:55:28.124Z",
+      "videoOffsetSeconds": 74.163,
+      "index": 0,
+      "title": "全国卫生与健康大会部署“十五五”健康中国建设重点任务",
+      "news": {
+        "id": 1,
+        "title": "全国卫生与健康大会部署“十五五”健康中国建设重点任务",
+        "summary": "全国卫生与健康大会10月12日至13日在北京举行，强调健康优先、基层医疗、疾病预防和医药医保改革。",
+        "location": "中国北京",
+        "focusLabel": "北京",
+        "lon": 116.3972,
+        "lat": 39.9075,
+        "countryIso3": "CHN",
+        "relatedCountryIso3s": [
+          "CHN"
+        ],
+        "placeType": "city",
+        "eventType": "policy",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "CHN",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "新华社"
+          }
+        ],
+        "reportedAt": "2026-10-13T14:02:20+08:00",
+        "reportedAtPrecision": "second",
+        "articleUrls": [
+          "https://www.news.cn/politics/leaders/20261013/f0943fdf42f8406fa72cea5fd51d3d53/c.html"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_relevant_image_confirmed"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "CHN",
+          "exists": true,
+          "coordinates": 596,
+          "inside": 1,
+          "screenInside": 3,
+          "borderPoints": 14,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "CHN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.99999999999918,
+        "y": 166.95385606767238
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.9999988487,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "CHN"
+        ],
+        "visibleBorders": 514,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "北京"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 238,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top2",
+      "at": "2026-10-18T05:55:39.230Z",
+      "videoOffsetSeconds": 85.269,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 30,
+        "stage": "settled",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 503,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "6214742f-3e0b-4b04-b9c4-df2adcad757e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "4e553ce5-97ec-41e6-82ba-8427f4462289",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a2fbf73d-55c0-4b22-9740-d13a664ba105",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "73290033-f5bf-4cc9-a737-506c9d7b9293",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "af3d2d52-3497-4c1d-9fa9-af2b8820381c",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "888f71fc-23bc-4a29-8c0b-8ce99cad73a1",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "d6b64ef0-448a-4796-9494-442db391f9f4",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5242b0e1-dd2c-4818-a5c8-d3390c48d5a9",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "78132107-7282-4b91-9266-d26bd222bf30",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "14514a6f-99ff-4b73-9890-57e0ae86eab1",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "20470869-01a0-4051-92dd-75b2a631b813",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "ecac6412-6b09-4a2d-9176-2db4869279b9",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "9eb2a7a9-705a-4be8-ab9b-331c75536102",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "5fd447f1-7ce2-49eb-8136-c73939a72ea4",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "4140e00d-cf79-44ea-bed2-6525800addae",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "965d4295-6fe6-412a-a496-ef29a8897cd8",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 95,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 243.65625,
+            "y": 80.375,
+            "width": 30,
+            "height": 20,
+            "top": 80.375,
+            "right": 273.65625,
+            "bottom": 100.375,
+            "left": 243.65625
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 179.0625,
+            "y": 226.140625,
+            "width": 30,
+            "height": 20,
+            "top": 226.140625,
+            "right": 209.0625,
+            "bottom": 246.140625,
+            "left": 179.0625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.00000000000003,
+        "y": 166.75650933974399
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 258,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top3",
+      "at": "2026-10-18T05:55:45.338Z",
+      "videoOffsetSeconds": 91.377,
+      "index": 2,
+      "title": "霍尔木兹海峡商船遇袭增加，地区航运风险上升",
+      "news": {
+        "id": 3,
+        "title": "霍尔木兹海峡商船遇袭增加，地区航运风险上升",
+        "summary": "路透社10月14日报道，伊朗官员称调整针对商船的行动方式；海事安全通报显示近期霍尔木兹海峡周边商船遇袭增加，责任与细节仍需逐案核实。",
+        "location": "霍尔木兹海峡",
+        "focusLabel": "霍尔木兹海峡",
+        "lon": 55.54615,
+        "lat": 26.13097,
+        "countryIso3": "IRN",
+        "relatedCountryIso3s": [
+          "IRN",
+          "OMN"
+        ],
+        "placeType": "waterway",
+        "eventType": "maritime_security",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "IRN",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "maritime_attack",
+            "enabled": false,
+            "target": {
+              "location": "霍尔木兹海峡"
+            },
+            "origin": null,
+            "trajectory": null,
+            "verification": "具体攻击目标、武器及路线未独立证实，暂不启用攻击动画"
+          }
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-14",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [],
+        "articleUrlGap": 3,
+        "articleUrlVerification": "no_qualifying_image_page_verified"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 3,
+          "screenInside": 4,
+          "borderPoints": 4,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.99999999999946,
+        "y": 166.96063592263278
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 304999.9999994721,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN"
+        ],
+        "visibleBorders": 75,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "霍尔木兹海峡"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 276,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top4",
+      "at": "2026-10-18T05:55:50.952Z",
+      "videoOffsetSeconds": 96.991,
+      "index": 3,
+      "title": "国际货币基金组织将2026年全球增长预期上调至3.1%",
+      "news": {
+        "id": 4,
+        "title": "国际货币基金组织将2026年全球增长预期上调至3.1%",
+        "summary": "国际货币基金组织10月13日在曼谷发布最新展望，将2026年全球增长预测上调至百分之三点一，同时警告能源冲击、债务和人工智能市场调整风险。",
+        "location": "泰国曼谷",
+        "focusLabel": "曼谷",
+        "lon": 100.5018,
+        "lat": 13.7563,
+        "countryIso3": "THA",
+        "relatedCountryIso3s": [
+          "THA"
+        ],
+        "placeType": "city",
+        "eventType": "economy",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "THA",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "卫报"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.theguardian.com/business/2026/oct/13/imf-global-economy-world-economic-outlook-uk-gdp-forecast-2026"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_oil_refinery_image_related_to_energy_risk"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "THA",
+          "exists": true,
+          "coordinates": 64,
+          "inside": 4,
+          "screenInside": 16,
+          "borderPoints": 8,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "THA",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.96875,
+            "width": 30,
+            "height": 20,
+            "top": 145.96875,
+            "right": 235,
+            "bottom": 165.96875,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.99999999999648,
+        "y": 166.97831591567527
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.9999999434,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "THA"
+        ],
+        "visibleBorders": 63,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "曼谷"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 295,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top5",
+      "at": "2026-10-18T05:55:56.741Z",
+      "videoOffsetSeconds": 102.78,
+      "index": 4,
+      "title": "刚果（金）埃博拉确诊病例突破九千例，疫情继续扩散",
+      "news": {
+        "id": 5,
+        "title": "刚果（金）埃博拉确诊病例突破九千例，疫情继续扩散",
+        "summary": "刚果（金）卫生部门10月13日公布埃博拉确诊病例九千零六十六例、死亡四千三百八十一例，疫情涉及七个省，伊图里省为主要疫区。",
+        "location": "刚果（金）伊图里省布尼亚",
+        "focusLabel": "布尼亚",
+        "lon": 30.25224,
+        "lat": 1.55941,
+        "countryIso3": "COD",
+        "relatedCountryIso3s": [
+          "COD"
+        ],
+        "placeType": "city",
+        "eventType": "public_health",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "COD",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "美联社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://apnews.com/article/congo-ebola-death-toll-latest-23d7b1bfdae22c7a17cac49cc7b5826e"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_relevant_image_confirmed"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "COD",
+          "exists": true,
+          "coordinates": 124,
+          "inside": 5,
+          "screenInside": 16,
+          "borderPoints": 10,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "COD",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.984375,
+            "width": 30,
+            "height": 20,
+            "top": 145.984375,
+            "right": 235,
+            "bottom": 165.984375,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195,
+        "y": 166.99744559398044
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286700.0000000017,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "COD"
+        ],
+        "visibleBorders": 123,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "布尼亚"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 312,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top6",
+      "at": "2026-10-18T05:56:02.541Z",
+      "videoOffsetSeconds": 108.58,
+      "index": 5,
+      "title": "中国与博茨瓦纳将双边关系提升为全面战略合作伙伴关系",
+      "news": {
+        "id": 6,
+        "title": "中国与博茨瓦纳将双边关系提升为全面战略合作伙伴关系",
+        "summary": "10月13日两国领导人在北京会谈，宣布建立全面战略合作伙伴关系，并见证绿色矿产、卫生健康和共建“一带一路”等合作文件签署。",
+        "location": "中国北京",
+        "focusLabel": "北京",
+        "lon": 116.3972,
+        "lat": 39.9075,
+        "countryIso3": "CHN",
+        "relatedCountryIso3s": [
+          "CHN",
+          "BWA"
+        ],
+        "placeType": "city",
+        "eventType": "diplomacy",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "CHN",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "新华社"
+          }
+        ],
+        "reportedAt": "2026-10-13T20:03:03+08:00",
+        "reportedAtPrecision": "second",
+        "articleUrls": [
+          "https://www.news.cn/world/20261013/8bec48d2146441f8a41676e01566ff16/c.html"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_relevant_image_confirmed"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "CHN",
+          "exists": true,
+          "coordinates": 596,
+          "inside": 1,
+          "screenInside": 3,
+          "borderPoints": 14,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "CHN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.99999999999918,
+        "y": 166.95385606767238
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.9999988487,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "CHN"
+        ],
+        "visibleBorders": 514,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "北京"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 330,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top7",
+      "at": "2026-10-18T05:56:08.274Z",
+      "videoOffsetSeconds": 114.313,
+      "index": 6,
+      "title": "阿富汗当局暂停英国广播公司在当地的调频广播",
+      "news": {
+        "id": 7,
+        "title": "阿富汗当局暂停英国广播公司在当地的调频广播",
+        "summary": "阿富汗当局10月13日暂停英国广播公司在境内的调频广播，称存在多次违规但未说明细节；该机构表示仍通过短波、卫星和网络提供节目。",
+        "location": "阿富汗喀布尔",
+        "focusLabel": "喀布尔",
+        "lon": 69.1723,
+        "lat": 34.5281,
+        "countryIso3": "AFG",
+        "relatedCountryIso3s": [
+          "AFG",
+          "GBR"
+        ],
+        "placeType": "city",
+        "eventType": "media_policy",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "AFG",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "欧罗巴通讯社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.europapress.es/internacional/noticia-taliban-suspenden-radio-fm-bbc-ultima-emisora-internacional-informa-afganistan-20261013150825.html"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_relevant_image_confirmed"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "AFG",
+          "exists": true,
+          "coordinates": 69,
+          "inside": 2,
+          "screenInside": 10,
+          "borderPoints": 2,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "AFG",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.00000000000063,
+        "y": 166.95620091354888
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.9999990701,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "AFG"
+        ],
+        "visibleBorders": 68,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "喀布尔"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 347,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top8",
+      "at": "2026-10-18T05:56:14.238Z",
+      "videoOffsetSeconds": 120.277,
+      "index": 7,
+      "title": "墨西哥两场热带风暴引发洪灾，死亡人数升至六人",
+      "news": {
+        "id": 8,
+        "title": "墨西哥两场热带风暴引发洪灾，死亡人数升至六人",
+        "summary": "美联社10月13日报道，飓风西蒙和热带风暴蕾切尔残余带来洪水和滑坡，墨西哥太平洋沿岸死亡人数升至六人，恩塞纳达受灾严重。",
+        "location": "墨西哥下加利福尼亚州恩塞纳达",
+        "focusLabel": "恩塞纳达",
+        "lon": -116.5963713,
+        "lat": 31.8667427,
+        "countryIso3": "MEX",
+        "relatedCountryIso3s": [
+          "MEX"
+        ],
+        "placeType": "city",
+        "eventType": "natural_disaster",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "MEX",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "美联社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://apnews.com/article/mexico-hurricanes-simon-rachel-pacific-deaths-1276142fb7db0f50d0f61d86ae7fa977"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "body_relevant_image_confirmed"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "MEX",
+          "exists": true,
+          "coordinates": 170,
+          "inside": 5,
+          "screenInside": 14,
+          "borderPoints": 6,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "MEX",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.0000000000012,
+        "y": 166.95793859641537
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.99999921035,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "MEX"
+        ],
+        "visibleBorders": 169,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "恩塞纳达"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 366,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top9",
+      "at": "2026-10-18T05:56:20.101Z",
+      "videoOffsetSeconds": 126.14,
+      "index": 8,
+      "title": "新疆阿拉山口口岸中欧中亚班列通行量突破七千列",
+      "news": {
+        "id": 9,
+        "title": "新疆阿拉山口口岸中欧中亚班列通行量突破七千列",
+        "summary": "新疆日报10月14日报道，截至10月12日，阿拉山口口岸今年中欧中亚班列通行量突破七千列，较上年提前四十五天，通达二十一个国家。",
+        "location": "新疆博尔塔拉阿拉山口",
+        "focusLabel": "阿拉山口",
+        "lon": 82.57,
+        "lat": 45.17,
+        "countryIso3": "CHN",
+        "relatedCountryIso3s": [
+          "CHN"
+        ],
+        "placeType": "city",
+        "eventType": "infrastructure",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "CHN",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "新疆日报"
+          }
+        ],
+        "reportedAt": "2026-10-14",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [],
+        "articleUrlGap": 3,
+        "articleUrlVerification": "原始报道早于统计窗口，新闻条目未通过时窗验收",
+        "timeWindowCaveat": "10月14日新刊报道，但7000列里程碑统计截至10月12日，实际突破时间未证实在本统计窗口内"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "CHN",
+          "exists": true,
+          "coordinates": 596,
+          "inside": 4,
+          "screenInside": 5,
+          "borderPoints": 275,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "CHN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.9999999999999,
+        "y": 166.95313311396004
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.99999877263,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "CHN"
+        ],
+        "visibleBorders": 514,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "阿拉山口"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 381,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "actual-edition-top10",
+      "at": "2026-10-18T05:56:25.786Z",
+      "videoOffsetSeconds": 131.825,
+      "index": 9,
+      "title": "乌鲁木齐生物医药企业推进民族药智能化生产",
+      "news": {
+        "id": 10,
+        "title": "乌鲁木齐生物医药企业推进民族药智能化生产",
+        "summary": "新疆日报10月14日刊发10月13日乌鲁木齐药业产业园生产现场照片，展示银朵兰药业以智能化生产线进行药品包装并形成研发制造销售产业链。",
+        "location": "新疆乌鲁木齐",
+        "focusLabel": "乌鲁木齐",
+        "lon": 87.60046,
+        "lat": 43.80096,
+        "countryIso3": "CHN",
+        "relatedCountryIso3s": [
+          "CHN"
+        ],
+        "placeType": "city",
+        "eventType": "technology",
+        "sceneMode": "POINT",
+        "scenePlan": {
+          "primaryIso3": "CHN",
+          "finalLocation": true
+        },
+        "sources": [
+          {
+            "name": "新疆日报"
+          }
+        ],
+        "reportedAt": "2026-10-14",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.ccwb.cn/content/202610/13/c926665.html"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "此前核验的实地采访图文报道，其他2个缺失"
+      },
+      "attack": null,
+      "countries": [
+        {
+          "iso": "CHN",
+          "exists": true,
+          "coordinates": 596,
+          "inside": 0,
+          "screenInside": 0,
+          "borderPoints": 0,
+          "fills": 0,
+          "readyFills": 0,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "CHN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 205,
+            "y": 145.953125,
+            "width": 30,
+            "height": 20,
+            "top": 145.953125,
+            "right": 235,
+            "bottom": 165.953125,
+            "left": 205
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 194.99999999999997,
+        "y": 166.95316941539562
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 286699.99999877653,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "CHN"
+        ],
+        "visibleBorders": 514,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "乌鲁木齐"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 399,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "desktop-direct-file-import",
+      "at": "2026-10-18T05:56:32.308Z",
+      "videoOffsetSeconds": 5.743,
+      "count": 10
+    },
+    {
+      "name": "top2-desktop-impact",
+      "at": "2026-10-18T05:57:09.922Z",
+      "videoOffsetSeconds": 43.357,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 5,
+        "stage": "impact",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 1,
+        "pendingTimers": 3,
+        "geometryReady": true,
+        "geometryWaitMs": 903,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "2ecf2a67-f94e-4e3e-9814-9fdd10f73435",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "b6891a08-4e1a-4fd6-8e6e-6c18bd2f61ed",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7ac31feb-614a-4772-86b3-77edfb166f59",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8d93828f-c7ba-4f58-aa2f-dd591e89b8f9",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "b349e5c6-cf91-4050-bf6c-d1603f356c4d",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "34e814b7-b527-44ea-8007-89bbd56ad025",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "4c14e85a-dab5-4d50-856e-02c921570a0e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f5c2688b-ef81-4897-a5f9-47193eb4aa3d",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "2e2089e5-0914-44c8-a198-46d9a8eb70df",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c65c0b06-e99a-477e-9295-c9674c67931e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a993ba26-0e29-4953-8547-821a9aa017f2",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e8432fd1-4e62-4aa5-b741-c7ad36fb4c8b",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "96373bc6-cd1a-4a34-bc3a-d0842b31ce20",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "d54d0f60-b2bb-4c82-9d0b-294fbe0c0215",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a90a6012-a445-4640-8a10-45691acf1410",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "1c557d7f-c338-425d-b086-9f2a04b63f6d",
+            "kind": "event"
+          },
+          {
+            "id": "9054b6d0-a8aa-4375-b033-3f34796c29b9",
+            "kind": "impact"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 85,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 921.96875,
+            "y": 240.875,
+            "width": 30,
+            "height": 20,
+            "top": 240.875,
+            "right": 951.96875,
+            "bottom": 260.875,
+            "left": 921.96875
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 656.578125,
+            "y": 532.515625,
+            "width": 30,
+            "height": 20,
+            "top": 532.515625,
+            "right": 686.578125,
+            "bottom": 552.515625,
+            "left": 656.578125
+          }
+        }
+      ],
+      "effects": [
+        {
+          "width": 100,
+          "alpha": 0.6320000000000405,
+          "scale": 0.5311999999999636
+        }
+      ],
+      "target": {
+        "x": 719.7812500000001,
+        "y": 449.1692671591265
+      },
+      "canvas": {
+        "x": 81.78125,
+        "y": 91,
+        "width": 1276.4375,
+        "height": 717.984375,
+        "top": 91,
+        "right": 1358.21875,
+        "bottom": 808.984375,
+        "left": 81.78125
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 810
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 12,
+        "occlusionChecks": 47,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 45
+      }
+    },
+    {
+      "name": "top2-desktop-settled",
+      "at": "2026-10-18T05:57:16.116Z",
+      "videoOffsetSeconds": 49.551,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 5,
+        "stage": "settled",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 903,
+        "geometryTimedOut": false,
+        "playbackReady": true,
+        "entities": [
+          {
+            "id": "2ecf2a67-f94e-4e3e-9814-9fdd10f73435",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "b6891a08-4e1a-4fd6-8e6e-6c18bd2f61ed",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "7ac31feb-614a-4772-86b3-77edfb166f59",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8d93828f-c7ba-4f58-aa2f-dd591e89b8f9",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "b349e5c6-cf91-4050-bf6c-d1603f356c4d",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "34e814b7-b527-44ea-8007-89bbd56ad025",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "4c14e85a-dab5-4d50-856e-02c921570a0e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f5c2688b-ef81-4897-a5f9-47193eb4aa3d",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "2e2089e5-0914-44c8-a198-46d9a8eb70df",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c65c0b06-e99a-477e-9295-c9674c67931e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a993ba26-0e29-4953-8547-821a9aa017f2",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "e8432fd1-4e62-4aa5-b741-c7ad36fb4c8b",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "96373bc6-cd1a-4a34-bc3a-d0842b31ce20",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "d54d0f60-b2bb-4c82-9d0b-294fbe0c0215",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "a90a6012-a445-4640-8a10-45691acf1410",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "1c557d7f-c338-425d-b086-9f2a04b63f6d",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 85,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 921.96875,
+            "y": 197.875,
+            "width": 30,
+            "height": 20,
+            "top": 197.875,
+            "right": 951.96875,
+            "bottom": 217.875,
+            "left": 921.96875
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 701.578125,
+            "y": 548.515625,
+            "width": 30,
+            "height": 20,
+            "top": 548.515625,
+            "right": 731.578125,
+            "bottom": 568.515625,
+            "left": 701.578125
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 719.7812500000001,
+        "y": 449.1692671591265
+      },
+      "canvas": {
+        "x": 81.78125,
+        "y": 91,
+        "width": 1276.4375,
+        "height": 717.984375,
+        "top": 91,
+        "right": 1358.21875,
+        "bottom": 808.984375,
+        "left": 81.78125
+      },
+      "viewport": {
+        "width": 1440,
+        "height": 810
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 47,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 45
+      }
+    },
+    {
+      "name": "desktop-top2-to-top3",
+      "at": "2026-10-18T05:57:22.683Z",
+      "videoOffsetSeconds": 56.118
+    },
+    {
+      "name": "desktop-top3-to-top2",
+      "at": "2026-10-18T05:57:35.593Z",
+      "videoOffsetSeconds": 69.028
+    },
+    {
+      "name": "landscape-direct-file-import",
+      "at": "2026-10-18T05:57:43.493Z",
+      "videoOffsetSeconds": 3.576,
+      "count": 10
+    },
+    {
+      "name": "top2-landscape-impact",
+      "at": "2026-10-18T05:58:12.019Z",
+      "videoOffsetSeconds": 32.102,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 5,
+        "stage": "impact",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 1,
+        "pendingTimers": 3,
+        "geometryReady": true,
+        "geometryWaitMs": 605,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "721b3386-e871-4c48-b94a-c55978bb21a1",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "805a4595-ba69-4f26-a57e-bfaa61fa29b3",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "88fd924f-3b90-4e4d-8d8c-9c84b48abe8e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "71029e46-5081-4d2b-84b3-3aee23c1978a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "29b950fe-f440-474d-9184-195cd99f9987",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "642d1c30-24f5-45ce-a535-c053eab98a87",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "9da904e1-59cd-4bd0-8dc4-cf64a45750ec",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8a88c919-6cdd-4874-a17a-202a4fff2d09",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "91182143-4ed1-47f9-8a61-2d17baaf9575",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "6cc90fe0-de83-40c5-a7b5-ffca8f721703",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "291ed912-6d5d-4829-b8f5-14a48c6316c0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "23c00e4e-8999-481e-89d1-7acdbf050f31",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8ca8be20-e1e5-450f-994c-7cfa5b53d4cd",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f3256300-3f6d-4c39-87e7-85900a1d5c4f",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c4a93fbc-8074-4669-b23c-3839e2477a7a",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "fdb6f1e1-0833-4bd2-ba0d-8dda1c68083f",
+            "kind": "event"
+          },
+          {
+            "id": "63633e53-bf66-4128-af81-571817f8a47d",
+            "kind": "impact"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 114,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 497.3125,
+            "y": 124.75,
+            "width": 30,
+            "height": 20,
+            "top": 124.75,
+            "right": 527.3125,
+            "bottom": 144.75,
+            "left": 497.3125
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 405.78125,
+            "y": 313.390625,
+            "width": 30,
+            "height": 20,
+            "top": 313.390625,
+            "right": 435.78125,
+            "bottom": 333.390625,
+            "left": 405.78125
+          }
+        }
+      ],
+      "effects": [
+        {
+          "width": 100,
+          "alpha": 0.6373913043478261,
+          "scale": 0.5263478260869565
+        }
+      ],
+      "target": {
+        "x": 422.10937500000006,
+        "y": 239.65494639054629
+      },
+      "canvas": {
+        "x": 157.109375,
+        "y": 91,
+        "width": 529.765625,
+        "height": 297.984375,
+        "top": 91,
+        "right": 686.875,
+        "bottom": 388.984375,
+        "left": 157.109375
+      },
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 12,
+        "occlusionChecks": 68,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "top2-landscape-settled",
+      "at": "2026-10-18T05:58:15.110Z",
+      "videoOffsetSeconds": 35.193,
+      "index": 1,
+      "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+      "news": {
+        "id": 2,
+        "title": "俄军导弹袭击基辅致两人死亡，乌方称未获提前预警",
+        "summary": "据乌克兰地方官员，10月13日基辅遭俄军弹道导弹袭击，住宅楼和能源设施受损，两人死亡、二十一人受伤；乌总统称未获盟友提前预警。",
+        "location": "乌克兰基辅",
+        "focusLabel": "基辅",
+        "lon": 30.5234,
+        "lat": 50.4501,
+        "countryIso3": "UKR",
+        "relatedCountryIso3s": [
+          "UKR",
+          "RUS"
+        ],
+        "placeType": "city",
+        "eventType": "missile_attack",
+        "sceneMode": "MISSILE_ATTACK",
+        "scenePlan": {
+          "primaryIso3": "UKR",
+          "finalLocation": true,
+          "attackEffect": {
+            "type": "missile_attack",
+            "enabled": true,
+            "target": {
+              "countryIso3": "UKR",
+              "location": "基辅",
+              "lon": 30.5234,
+              "lat": 50.4501
+            },
+            "origin": null,
+            "trajectory": null,
+            "impact": {
+              "enabled": true,
+              "location": "基辅"
+            },
+            "verification": "发射点与实际飞行轨迹未核实，禁止模拟为真实路径"
+          },
+          "attackerIso3": "RUS",
+          "victimIso3": "UKR",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sources": [
+          {
+            "name": "路透社"
+          }
+        ],
+        "reportedAt": "2026-10-13",
+        "reportedAtPrecision": "date_only_unverified_time",
+        "articleUrls": [
+          "https://www.reuters.com/world/russian-missile-attack-kyiv-kills-one-2026-10-13/"
+        ],
+        "articleUrlGap": 2,
+        "articleUrlVerification": "1个来源网页据此前核验有相关新闻图片，剩余2个缺失",
+        "attackType": "missile",
+        "sourceCountryIso3": "RUS",
+        "targetCountryIso3": "UKR",
+        "targetLon": 30.5234,
+        "targetLat": 50.4501
+      },
+      "attack": {
+        "serial": 5,
+        "stage": "settled",
+        "attacker": "RUS",
+        "victim": "UKR",
+        "source": null,
+        "target": {
+          "lon": 30.5234,
+          "lat": 50.4501
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            36.1034257989543,
+            53.86632421571519
+          ],
+          "victim": [
+            30.451075268817206,
+            48.687634408602136
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 605,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "721b3386-e871-4c48-b94a-c55978bb21a1",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "805a4595-ba69-4f26-a57e-bfaa61fa29b3",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "88fd924f-3b90-4e4d-8d8c-9c84b48abe8e",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "71029e46-5081-4d2b-84b3-3aee23c1978a",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "29b950fe-f440-474d-9184-195cd99f9987",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "642d1c30-24f5-45ce-a535-c053eab98a87",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "9da904e1-59cd-4bd0-8dc4-cf64a45750ec",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8a88c919-6cdd-4874-a17a-202a4fff2d09",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "91182143-4ed1-47f9-8a61-2d17baaf9575",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "6cc90fe0-de83-40c5-a7b5-ffca8f721703",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "291ed912-6d5d-4829-b8f5-14a48c6316c0",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "23c00e4e-8999-481e-89d1-7acdbf050f31",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "8ca8be20-e1e5-450f-994c-7cfa5b53d4cd",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "f3256300-3f6d-4c39-87e7-85900a1d5c4f",
+            "kind": "country-RUS"
+          },
+          {
+            "id": "c4a93fbc-8074-4669-b23c-3839e2477a7a",
+            "kind": "country-UKR"
+          },
+          {
+            "id": "fdb6f1e1-0833-4bd2-ba0d-8dda1c68083f",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "RUS",
+          "exists": true,
+          "coordinates": 625,
+          "inside": 71,
+          "screenInside": 114,
+          "borderPoints": 138,
+          "fills": 14,
+          "readyFills": 14,
+          "borderReady": true
+        },
+        {
+          "iso": "UKR",
+          "exists": true,
+          "coordinates": 93,
+          "inside": 93,
+          "screenInside": 93,
+          "borderPoints": 184,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "RUS",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 497.3125,
+            "y": 124.75,
+            "width": 30,
+            "height": 20,
+            "top": 124.75,
+            "right": 527.3125,
+            "bottom": 144.75,
+            "left": 497.3125
+          }
+        },
+        {
+          "iso": "UKR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 405.78125,
+            "y": 313.390625,
+            "width": 30,
+            "height": 20,
+            "top": 313.390625,
+            "right": 435.78125,
+            "bottom": 333.390625,
+            "left": 405.78125
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 422.10937500000006,
+        "y": 239.65494639054629
+      },
+      "canvas": {
+        "x": 157.109375,
+        "y": 91,
+        "width": 529.765625,
+        "height": 297.984375,
+        "top": 91,
+        "right": 686.875,
+        "bottom": 388.984375,
+        "left": 157.109375
+      },
+      "viewport": {
+        "width": 844,
+        "height": 390
+      },
+      "cameraHeight": 1880999.9999950537,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "RUS",
+          "UKR"
+        ],
+        "visibleBorders": 674,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "俄罗斯",
+        "乌克兰",
+        "基辅"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 68,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "landscape-top2-to-top3",
+      "at": "2026-10-18T05:58:19.207Z",
+      "videoOffsetSeconds": 39.29
+    },
+    {
+      "name": "landscape-top3-to-top2",
+      "at": "2026-10-18T05:58:30.088Z",
+      "videoOffsetSeconds": 50.171
+    },
+    {
+      "name": "generic-direct-file-import",
+      "at": "2026-10-18T05:58:35.501Z",
+      "videoOffsetSeconds": 3.257,
+      "count": 10
+    },
+    {
+      "name": "israel-iran-unknown-country-overview",
+      "at": "2026-10-18T05:58:38.308Z",
+      "videoOffsetSeconds": 6.064,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "IRN",
+        "lon": 51.39,
+        "lat": 35.69,
+        "attackType": "missile",
+        "scenePlan": {
+          "attackerIso3": "ISR",
+          "victimIso3": "IRN",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sourceCountryIso3": "ISR",
+        "targetCountryIso3": "IRN",
+        "targetLon": 51.39,
+        "targetLat": 35.69
+      },
+      "attack": {
+        "serial": 3,
+        "stage": "country-overview",
+        "attacker": "ISR",
+        "victim": "IRN",
+        "source": null,
+        "target": {
+          "lon": 51.39,
+          "lat": 35.69
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            35.50042828781324,
+            32.70261866922523
+          ],
+          "victim": [
+            53.23171052631579,
+            33.354078947368414
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 0,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 543,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "622b7fb9-7b16-4324-a722-fc5cd9574b6f",
+            "kind": "country-ISR"
+          },
+          {
+            "id": "d7f36bb8-d58c-48c3-8496-a9329304fda4",
+            "kind": "country-IRN"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "ISR",
+          "exists": true,
+          "coordinates": 26,
+          "inside": 26,
+          "screenInside": 26,
+          "borderPoints": 48,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 76,
+          "screenInside": 76,
+          "borderPoints": 150,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "ISR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 66.515625,
+            "y": 121.625,
+            "width": 30,
+            "height": 20,
+            "top": 121.625,
+            "right": 96.515625,
+            "bottom": 141.625,
+            "left": 66.515625
+          }
+        },
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 213.671875,
+            "y": 120.515625,
+            "width": 30,
+            "height": 20,
+            "top": 120.515625,
+            "right": 243.671875,
+            "bottom": 140.515625,
+            "left": 213.671875
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 212.42728180684202,
+        "y": 115.4795226010423
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 3555879.503126355,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN",
+          "ISR"
+        ],
+        "visibleBorders": 99,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "以色列",
+        "伊朗",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 24,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "israel-iran-unknown",
+      "at": "2026-10-18T05:58:53.036Z",
+      "videoOffsetSeconds": 20.792,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "IRN",
+        "lon": 51.39,
+        "lat": 35.69,
+        "attackType": "missile",
+        "scenePlan": {
+          "attackerIso3": "ISR",
+          "victimIso3": "IRN",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sourceCountryIso3": "ISR",
+        "targetCountryIso3": "IRN",
+        "targetLon": 51.39,
+        "targetLat": 35.69
+      },
+      "attack": {
+        "serial": 4,
+        "stage": "settled",
+        "attacker": "ISR",
+        "victim": "IRN",
+        "source": null,
+        "target": {
+          "lon": 51.39,
+          "lat": 35.69
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            35.50042828781324,
+            32.70261866922523
+          ],
+          "victim": [
+            53.23171052631579,
+            33.354078947368414
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 731,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "c44636ba-5ed3-45c1-b44d-f6411a430f7c",
+            "kind": "country-ISR"
+          },
+          {
+            "id": "410f25d9-8068-423d-a9a3-de60fe768480",
+            "kind": "country-IRN"
+          },
+          {
+            "id": "f2850ddf-6479-4c34-bbfa-e6104faef59b",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "ISR",
+          "exists": true,
+          "coordinates": 26,
+          "inside": 0,
+          "screenInside": 0,
+          "borderPoints": 0,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 54,
+          "screenInside": 76,
+          "borderPoints": 108,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "ISR",
+          "source": "bundled",
+          "visible": false,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 0,
+            "y": 0,
+            "width": 0,
+            "height": 0,
+            "top": 0,
+            "right": 0,
+            "bottom": 0,
+            "left": 0
+          }
+        },
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 210,
+            "y": 236.828125,
+            "width": 30,
+            "height": 20,
+            "top": 236.828125,
+            "right": 240,
+            "bottom": 256.828125,
+            "left": 210
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195,
+        "y": 166.7647683126072
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999957546,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN",
+          "ISR"
+        ],
+        "visibleBorders": 99,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "以色列",
+        "伊朗",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 61,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "congo-uganda-unknown-country-overview",
+      "at": "2026-10-18T05:58:55.783Z",
+      "videoOffsetSeconds": 23.539,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "UGA",
+        "lon": 32.58,
+        "lat": 0.35,
+        "attackType": "missile",
+        "scenePlan": {
+          "attackerIso3": "COD",
+          "victimIso3": "UGA",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sourceCountryIso3": "COD",
+        "targetCountryIso3": "UGA",
+        "targetLon": 32.58,
+        "targetLat": 0.35
+      },
+      "attack": {
+        "serial": 5,
+        "stage": "country-overview",
+        "attacker": "COD",
+        "victim": "UGA",
+        "source": null,
+        "target": {
+          "lon": 32.58,
+          "lat": 0.35
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            28.309675406884626,
+            -0.015682324792699227
+          ],
+          "victim": [
+            31.95142857142857,
+            1.339285714285714
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 0,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 502,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "8fbfc179-6ecc-4a9e-9bdb-08053cdb4250",
+            "kind": "country-COD"
+          },
+          {
+            "id": "17691511-c4f5-4da7-8e29-e34d982690ad",
+            "kind": "country-UGA"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "COD",
+          "exists": true,
+          "coordinates": 124,
+          "inside": 121,
+          "screenInside": 124,
+          "borderPoints": 240,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "UGA",
+          "exists": true,
+          "coordinates": 28,
+          "inside": 28,
+          "screenInside": 28,
+          "borderPoints": 54,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "COD",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 227.734375,
+            "y": 125.5,
+            "width": 30,
+            "height": 20,
+            "top": 125.5,
+            "right": 257.734375,
+            "bottom": 145.5,
+            "left": 227.734375
+          }
+        },
+        {
+          "iso": "UGA",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 264.65625,
+            "y": 112.125,
+            "width": 30,
+            "height": 20,
+            "top": 112.125,
+            "right": 294.65625,
+            "bottom": 132.125,
+            "left": 264.65625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 286.0905996390277,
+        "y": 140.41774447257356
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 3423260.35342197,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "COD",
+          "UGA"
+        ],
+        "visibleBorders": 140,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "刚果民主共和国",
+        "乌干达",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 72,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "congo-uganda-unknown",
+      "at": "2026-10-18T05:59:08.259Z",
+      "videoOffsetSeconds": 36.015,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "UGA",
+        "lon": 32.58,
+        "lat": 0.35,
+        "attackType": "missile",
+        "scenePlan": {
+          "attackerIso3": "COD",
+          "victimIso3": "UGA",
+          "sourceUnconfirmed": true,
+          "sourcePrecision": "unknown"
+        },
+        "sourceCountryIso3": "COD",
+        "targetCountryIso3": "UGA",
+        "targetLon": 32.58,
+        "targetLat": 0.35
+      },
+      "attack": {
+        "serial": 6,
+        "stage": "settled",
+        "attacker": "COD",
+        "victim": "UGA",
+        "source": null,
+        "target": {
+          "lon": 32.58,
+          "lat": 0.35
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            28.309675406884626,
+            -0.015682324792699227
+          ],
+          "victim": [
+            31.95142857142857,
+            1.339285714285714
+          ]
+        },
+        "trajectory": false,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 982,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "cede243c-ad68-4c97-8847-8d8a98a25ee8",
+            "kind": "country-COD"
+          },
+          {
+            "id": "df50bbc8-8df0-4bc0-8685-69102629efcb",
+            "kind": "country-UGA"
+          },
+          {
+            "id": "f568ed76-055c-4c4f-9e72-22144f2571c9",
+            "kind": "event"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "COD",
+          "exists": true,
+          "coordinates": 124,
+          "inside": 36,
+          "screenInside": 76,
+          "borderPoints": 70,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "UGA",
+          "exists": true,
+          "coordinates": 28,
+          "inside": 28,
+          "screenInside": 28,
+          "borderPoints": 54,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "COD",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 97.296875,
+            "y": 156.015625,
+            "width": 30,
+            "height": 20,
+            "top": 156.015625,
+            "right": 127.296875,
+            "bottom": 176.015625,
+            "left": 97.296875
+          }
+        },
+        {
+          "iso": "UGA",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 122.703125,
+            "y": 113.765625,
+            "width": 30,
+            "height": 20,
+            "top": 113.765625,
+            "right": 152.703125,
+            "bottom": 133.765625,
+            "left": 122.703125
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 195.0000000000004,
+        "y": 166.99696318477424
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 1880999.9999999998,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "COD",
+          "UGA"
+        ],
+        "visibleBorders": 140,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "刚果民主共和国",
+        "乌干达",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 109,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "india-pakistan-missile-country-overview",
+      "at": "2026-10-18T05:59:11.079Z",
+      "videoOffsetSeconds": 38.835,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "PAK",
+        "lon": 73.04,
+        "lat": 33.69,
+        "attackType": "missile",
+        "sourceLon": 74.86,
+        "sourceLat": 31.63,
+        "scenePlan": {
+          "attackerIso3": "IND",
+          "victimIso3": "PAK",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "IND",
+        "targetCountryIso3": "PAK",
+        "targetLon": 73.04,
+        "targetLat": 33.69
+      },
+      "attack": {
+        "serial": 7,
+        "stage": "country-overview",
+        "attacker": "IND",
+        "victim": "PAK",
+        "source": {
+          "lon": 74.86,
+          "lat": 31.63
+        },
+        "target": {
+          "lon": 73.04,
+          "lat": 33.69
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            76.24369168221313,
+            31.96214353828379
+          ],
+          "victim": [
+            69.44378787878786,
+            30.790000000000003
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 0,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 1002,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "e9993cc1-3f92-4af9-a1ae-6edaf7ee17d7",
+            "kind": "country-IND"
+          },
+          {
+            "id": "d6d6c93d-3172-4b38-af02-9a2709f464f0",
+            "kind": "country-PAK"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "IND",
+          "exists": true,
+          "coordinates": 136,
+          "inside": 127,
+          "screenInside": 136,
+          "borderPoints": 252,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "PAK",
+          "exists": true,
+          "coordinates": 66,
+          "inside": 66,
+          "screenInside": 66,
+          "borderPoints": 130,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "IND",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 161.390625,
+            "y": 103.796875,
+            "width": 30,
+            "height": 20,
+            "top": 103.796875,
+            "right": 191.390625,
+            "bottom": 123.796875,
+            "left": 161.390625
+          }
+        },
+        {
+          "iso": "PAK",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 118.5625,
+            "y": 110.796875,
+            "width": 30,
+            "height": 20,
+            "top": 110.796875,
+            "right": 148.5625,
+            "bottom": 130.796875,
+            "left": 118.5625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 157.3318251317639,
+        "y": 109.02037811578461
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 4840632.845684062,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IND",
+          "PAK"
+        ],
+        "visibleBorders": 180,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "印度",
+        "巴基斯坦",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 120,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "india-pakistan-missile-spherical-path",
+      "at": "2026-10-18T05:59:19.747Z",
+      "videoOffsetSeconds": 47.503,
+      "minimumAltitude": 34999.999999994405,
+      "maximumAltitude": 79999.99999997177
+    },
+    {
+      "name": "india-pakistan-missile",
+      "at": "2026-10-18T05:59:26.893Z",
+      "videoOffsetSeconds": 54.649,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "PAK",
+        "lon": 73.04,
+        "lat": 33.69,
+        "attackType": "missile",
+        "sourceLon": 74.86,
+        "sourceLat": 31.63,
+        "scenePlan": {
+          "attackerIso3": "IND",
+          "victimIso3": "PAK",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "IND",
+        "targetCountryIso3": "PAK",
+        "targetLon": 73.04,
+        "targetLat": 33.69
+      },
+      "attack": {
+        "serial": 8,
+        "stage": "settled",
+        "attacker": "IND",
+        "victim": "PAK",
+        "source": {
+          "lon": 74.86,
+          "lat": 31.63
+        },
+        "target": {
+          "lon": 73.04,
+          "lat": 33.69
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            76.24369168221313,
+            31.96214353828379
+          ],
+          "victim": [
+            69.44378787878786,
+            30.790000000000003
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 1004,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "7e98e223-b255-4c32-982c-25784a7ae473",
+            "kind": "country-IND"
+          },
+          {
+            "id": "29f8cff0-888e-4498-9b87-a237312114e9",
+            "kind": "country-PAK"
+          },
+          {
+            "id": "a8d1c85d-a85b-4651-a502-ccd84d942e57",
+            "kind": "event"
+          },
+          {
+            "id": "b90bcb1b-7e60-465b-8556-039f8b165031",
+            "kind": "trajectory"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "IND",
+          "exists": true,
+          "coordinates": 136,
+          "inside": 117,
+          "screenInside": 136,
+          "borderPoints": 230,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "PAK",
+          "exists": true,
+          "coordinates": 66,
+          "inside": 66,
+          "screenInside": 66,
+          "borderPoints": 130,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "IND",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 263.375,
+            "y": 152.578125,
+            "width": 30,
+            "height": 20,
+            "top": 152.578125,
+            "right": 293.375,
+            "bottom": 172.578125,
+            "left": 263.375
+          }
+        },
+        {
+          "iso": "PAK",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 181.4375,
+            "y": 190.296875,
+            "width": 30,
+            "height": 20,
+            "top": 190.296875,
+            "right": 211.4375,
+            "bottom": 210.296875,
+            "left": 181.4375
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 220.35449816000877,
+        "y": 141.80916073769876
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 4528841.207295106,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IND",
+          "PAK"
+        ],
+        "visibleBorders": 180,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "印度",
+        "巴基斯坦",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 154,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "israel-iran-drone-country-overview",
+      "at": "2026-10-18T05:59:29.751Z",
+      "videoOffsetSeconds": 57.507,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "DRONE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "IRN",
+        "lon": 51.39,
+        "lat": 35.69,
+        "attackType": "drone",
+        "sourceLon": 34.78,
+        "sourceLat": 32.08,
+        "scenePlan": {
+          "attackerIso3": "ISR",
+          "victimIso3": "IRN",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "ISR",
+        "targetCountryIso3": "IRN",
+        "targetLon": 51.39,
+        "targetLat": 35.69
+      },
+      "attack": {
+        "serial": 9,
+        "stage": "country-overview",
+        "attacker": "ISR",
+        "victim": "IRN",
+        "source": {
+          "lon": 34.78,
+          "lat": 32.08
+        },
+        "target": {
+          "lon": 51.39,
+          "lat": 35.69
+        },
+        "attackType": "drone",
+        "anchors": {
+          "attacker": [
+            35.50042828781324,
+            32.70261866922523
+          ],
+          "victim": [
+            53.23171052631579,
+            33.354078947368414
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 0,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 502,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "ceedf0e7-bf38-4c6c-bd4d-f21ab038b35c",
+            "kind": "country-ISR"
+          },
+          {
+            "id": "a8af2536-089e-4cdd-a7fe-e9a4b3781256",
+            "kind": "country-IRN"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "ISR",
+          "exists": true,
+          "coordinates": 26,
+          "inside": 26,
+          "screenInside": 26,
+          "borderPoints": 48,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 76,
+          "screenInside": 76,
+          "borderPoints": 150,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "ISR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 66.515625,
+            "y": 121.625,
+            "width": 30,
+            "height": 20,
+            "top": 121.625,
+            "right": 96.515625,
+            "bottom": 141.625,
+            "left": 66.515625
+          }
+        },
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 213.671875,
+            "y": 120.515625,
+            "width": 30,
+            "height": 20,
+            "top": 120.515625,
+            "right": 243.671875,
+            "bottom": 140.515625,
+            "left": 213.671875
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 212.42728180684202,
+        "y": 115.4795226010423
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 3555879.503126355,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN",
+          "ISR"
+        ],
+        "visibleBorders": 99,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "以色列",
+        "伊朗",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 165,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "israel-iran-drone-spherical-path",
+      "at": "2026-10-18T05:59:38.186Z",
+      "videoOffsetSeconds": 65.942,
+      "minimumAltitude": 34999.99999999269,
+      "maximumAltitude": 225282.22657700948
+    },
+    {
+      "name": "israel-iran-drone",
+      "at": "2026-10-18T05:59:46.953Z",
+      "videoOffsetSeconds": 74.709,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "DRONE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "IRN",
+        "lon": 51.39,
+        "lat": 35.69,
+        "attackType": "drone",
+        "sourceLon": 34.78,
+        "sourceLat": 32.08,
+        "scenePlan": {
+          "attackerIso3": "ISR",
+          "victimIso3": "IRN",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "ISR",
+        "targetCountryIso3": "IRN",
+        "targetLon": 51.39,
+        "targetLat": 35.69
+      },
+      "attack": {
+        "serial": 10,
+        "stage": "settled",
+        "attacker": "ISR",
+        "victim": "IRN",
+        "source": {
+          "lon": 34.78,
+          "lat": 32.08
+        },
+        "target": {
+          "lon": 51.39,
+          "lat": 35.69
+        },
+        "attackType": "drone",
+        "anchors": {
+          "attacker": [
+            35.50042828781324,
+            32.70261866922523
+          ],
+          "victim": [
+            53.23171052631579,
+            33.354078947368414
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 502,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "b1690cba-dc8f-4142-be90-13dc20980f86",
+            "kind": "country-ISR"
+          },
+          {
+            "id": "c9d8c3d2-24a6-47d2-9160-3964891ca932",
+            "kind": "country-IRN"
+          },
+          {
+            "id": "17d190b9-4c3c-448b-a872-d2d397d9897e",
+            "kind": "event"
+          },
+          {
+            "id": "e38d34d9-e3a3-408f-938e-11b27d6a650f",
+            "kind": "trajectory"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "ISR",
+          "exists": true,
+          "coordinates": 26,
+          "inside": 26,
+          "screenInside": 26,
+          "borderPoints": 48,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        },
+        {
+          "iso": "IRN",
+          "exists": true,
+          "coordinates": 76,
+          "inside": 76,
+          "screenInside": 76,
+          "borderPoints": 150,
+          "fills": 1,
+          "readyFills": 1,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "ISR",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 113.390625,
+            "y": 130.921875,
+            "width": 30,
+            "height": 20,
+            "top": 130.921875,
+            "right": 143.390625,
+            "bottom": 150.921875,
+            "left": 113.390625
+          }
+        },
+        {
+          "iso": "IRN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 243.5625,
+            "y": 114.53125,
+            "width": 30,
+            "height": 20,
+            "top": 114.53125,
+            "right": 273.5625,
+            "bottom": 134.53125,
+            "left": 243.5625
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 204.2934873448488,
+        "y": 135.29095858862894
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 6198207.309494157,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "IRN",
+          "ISR"
+        ],
+        "visibleBorders": 99,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "以色列",
+        "伊朗",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 201,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "dateline-known-country-overview",
+      "at": "2026-10-18T05:59:49.749Z",
+      "videoOffsetSeconds": 77.505,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "JPN",
+        "lon": 139.69,
+        "lat": 35.68,
+        "attackType": "missile",
+        "sourceLon": -157.85,
+        "sourceLat": 21.3,
+        "scenePlan": {
+          "attackerIso3": "USA",
+          "victimIso3": "JPN",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "USA",
+        "targetCountryIso3": "JPN",
+        "targetLon": 139.69,
+        "targetLat": 35.68
+      },
+      "attack": {
+        "serial": 11,
+        "stage": "country-overview",
+        "attacker": "USA",
+        "victim": "JPN",
+        "source": {
+          "lon": -157.85,
+          "lat": 21.3
+        },
+        "target": {
+          "lon": 139.69,
+          "lat": 35.68
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            -119.96116815107887,
+            47.770514731110815
+          ],
+          "victim": [
+            135.9954054054054,
+            35.72027027027028
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 0,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 502,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "0cba8ad0-ea48-4c0b-82a9-3b742d3b5f29",
+            "kind": "country-USA"
+          },
+          {
+            "id": "70113a1f-9bd9-4355-af38-8bced28bb836",
+            "kind": "country-USA"
+          },
+          {
+            "id": "e6733c74-a310-48d4-b04a-df7e25d0bd41",
+            "kind": "country-USA"
+          },
+          {
+            "id": "eca0b7a9-a5fe-44a3-8aa3-420bee686fd1",
+            "kind": "country-USA"
+          },
+          {
+            "id": "491abb02-a9b7-491b-bad3-6e2cfca7ff12",
+            "kind": "country-USA"
+          },
+          {
+            "id": "dd2b2640-f0b4-450c-b80b-d3d0d2381a70",
+            "kind": "country-USA"
+          },
+          {
+            "id": "122d6c00-bed4-4347-b9eb-f8ac8f13a2dd",
+            "kind": "country-USA"
+          },
+          {
+            "id": "3378a752-16b6-40d2-b33d-ca84f324073f",
+            "kind": "country-USA"
+          },
+          {
+            "id": "06bf98c8-d585-4cbf-84e8-ad483b5a533a",
+            "kind": "country-USA"
+          },
+          {
+            "id": "bc47cd95-ed40-45d1-8ecb-84c531a3076a",
+            "kind": "country-USA"
+          },
+          {
+            "id": "b5f1ec1b-dd13-4100-a301-61866b7bd5e4",
+            "kind": "country-JPN"
+          },
+          {
+            "id": "8dadce1d-70c6-41c2-b62a-6e1eb627fa81",
+            "kind": "country-JPN"
+          },
+          {
+            "id": "e66c7884-2803-4806-aeb1-082d7a203280",
+            "kind": "country-JPN"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "USA",
+          "exists": true,
+          "coordinates": 447,
+          "inside": 400,
+          "screenInside": 447,
+          "borderPoints": 786,
+          "fills": 10,
+          "readyFills": 10,
+          "borderReady": true
+        },
+        {
+          "iso": "JPN",
+          "exists": true,
+          "coordinates": 65,
+          "inside": 65,
+          "screenInside": 65,
+          "borderPoints": 124,
+          "fills": 3,
+          "readyFills": 3,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "USA",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 247.90625,
+            "y": 186.84375,
+            "width": 30,
+            "height": 20,
+            "top": 186.84375,
+            "right": 277.90625,
+            "bottom": 206.84375,
+            "left": 247.90625
+          }
+        },
+        {
+          "iso": "JPN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 45.328125,
+            "y": 136.515625,
+            "width": 30,
+            "height": 20,
+            "top": 136.515625,
+            "right": 75.328125,
+            "bottom": 156.515625,
+            "left": 45.328125
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 61.30485471324528,
+        "y": 162.13925508304948
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 9654899.93577858,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "JPN",
+          "USA"
+        ],
+        "visibleBorders": 497,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "美国",
+        "日本",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": true,
+        "animatedEntities": 11,
+        "occlusionChecks": 210,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "dateline-known-spherical-path",
+      "at": "2026-10-18T05:59:58.521Z",
+      "videoOffsetSeconds": 86.277,
+      "minimumAltitude": 34999.99999999367,
+      "maximumAltitude": 634999.9999991185
+    },
+    {
+      "name": "dateline-known",
+      "at": "2026-10-18T06:00:05.605Z",
+      "videoOffsetSeconds": 93.361,
+      "index": 1,
+      "title": "通用攻击渲染验收",
+      "news": {
+        "id": 2,
+        "title": "通用攻击渲染验收",
+        "location": "目标地点",
+        "focusLabel": "目标地点",
+        "placeType": "city",
+        "sceneMode": "MISSILE_ATTACK",
+        "eventType": "missile_attack",
+        "countryIso3": "JPN",
+        "lon": 139.69,
+        "lat": 35.68,
+        "attackType": "missile",
+        "sourceLon": -157.85,
+        "sourceLat": 21.3,
+        "scenePlan": {
+          "attackerIso3": "USA",
+          "victimIso3": "JPN",
+          "sourceUnconfirmed": false,
+          "sourcePrecision": "exact"
+        },
+        "sourceCountryIso3": "USA",
+        "targetCountryIso3": "JPN",
+        "targetLon": 139.69,
+        "targetLat": 35.68
+      },
+      "attack": {
+        "serial": 12,
+        "stage": "settled",
+        "attacker": "USA",
+        "victim": "JPN",
+        "source": {
+          "lon": -157.85,
+          "lat": 21.3
+        },
+        "target": {
+          "lon": 139.69,
+          "lat": 35.68
+        },
+        "attackType": "missile",
+        "anchors": {
+          "attacker": [
+            -119.96116815107887,
+            47.770514731110815
+          ],
+          "victim": [
+            135.9954054054054,
+            35.72027027027028
+          ]
+        },
+        "trajectory": true,
+        "impactCount": 3,
+        "pendingTimers": 0,
+        "geometryReady": true,
+        "geometryWaitMs": 703,
+        "geometryTimedOut": false,
+        "playbackReady": false,
+        "entities": [
+          {
+            "id": "17f9bb30-1658-4049-8db5-311ed32250e9",
+            "kind": "country-USA"
+          },
+          {
+            "id": "4ed181e0-2668-4b0f-920f-a56a24f26a27",
+            "kind": "country-USA"
+          },
+          {
+            "id": "dae660a3-7c9e-42cc-8398-c22280a5e70a",
+            "kind": "country-USA"
+          },
+          {
+            "id": "7749d9fd-27d1-4f87-837e-b4f05490dea1",
+            "kind": "country-USA"
+          },
+          {
+            "id": "c0a66d93-c1b6-4a84-91d4-09c1cc3abc34",
+            "kind": "country-USA"
+          },
+          {
+            "id": "d0db6962-d83e-4098-a996-c68dcdfa497e",
+            "kind": "country-USA"
+          },
+          {
+            "id": "3215affb-78d7-427d-bb05-8de4dd6cd093",
+            "kind": "country-USA"
+          },
+          {
+            "id": "6c3b2cf1-08a7-44d9-9e02-58279e0de583",
+            "kind": "country-USA"
+          },
+          {
+            "id": "f2180026-ea47-4ec6-a2f9-2eae263a5846",
+            "kind": "country-USA"
+          },
+          {
+            "id": "45df79aa-b14c-4420-a48b-d6a95b35221c",
+            "kind": "country-USA"
+          },
+          {
+            "id": "22ef3bdf-baa2-47cd-adf8-7aa46f54bf38",
+            "kind": "country-JPN"
+          },
+          {
+            "id": "c6b9a00a-a9d5-4d79-90de-88c591bc0793",
+            "kind": "country-JPN"
+          },
+          {
+            "id": "c4e03af7-c2e6-4a91-8152-dc44b13d6681",
+            "kind": "country-JPN"
+          },
+          {
+            "id": "fed4dfea-823c-4dd8-9074-c08759c337fe",
+            "kind": "event"
+          },
+          {
+            "id": "8fb608fd-673b-43d0-b2ec-09e411f4d8ec",
+            "kind": "trajectory"
+          }
+        ]
+      },
+      "countries": [
+        {
+          "iso": "USA",
+          "exists": true,
+          "coordinates": 447,
+          "inside": 447,
+          "screenInside": 447,
+          "borderPoints": 870,
+          "fills": 10,
+          "readyFills": 10,
+          "borderReady": true
+        },
+        {
+          "iso": "JPN",
+          "exists": true,
+          "coordinates": 65,
+          "inside": 65,
+          "screenInside": 65,
+          "borderPoints": 124,
+          "fills": 3,
+          "readyFills": 3,
+          "borderReady": true
+        }
+      ],
+      "flags": [
+        {
+          "iso": "USA",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 252.46875,
+            "y": 126.421875,
+            "width": 30,
+            "height": 20,
+            "top": 126.421875,
+            "right": 282.46875,
+            "bottom": 146.421875,
+            "left": 252.46875
+          }
+        },
+        {
+          "iso": "JPN",
+          "source": "bundled",
+          "visible": true,
+          "complete": true,
+          "naturalWidth": 40,
+          "rect": {
+            "x": 71.609375,
+            "y": 154.453125,
+            "width": 30,
+            "height": 20,
+            "top": 154.453125,
+            "right": 101.609375,
+            "bottom": 174.453125,
+            "left": 71.609375
+          }
+        }
+      ],
+      "effects": [],
+      "target": {
+        "x": 136.24891950497255,
+        "y": 191.8726193364355
+      },
+      "canvas": {
+        "x": 8,
+        "y": 62,
+        "width": 374,
+        "height": 210.375,
+        "top": 62,
+        "right": 382,
+        "bottom": 272.375,
+        "left": 8
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "cameraHeight": 15950842.684568945,
+      "cameraMoving": false,
+      "scope": {
+        "version": "20261015-r6-attack-scope-r11",
+        "enabled": true,
+        "countries": [
+          "JPN",
+          "USA"
+        ],
+        "visibleBorders": 497,
+        "totalBorders": 8132
+      },
+      "invalidBorders": 0,
+      "targetPoints": 1,
+      "labels": [
+        "美国",
+        "日本",
+        "目标地点"
+      ],
+      "staleAttackEntities": 0,
+      "performance": {
+        "disposed": false,
+        "moving": false,
+        "animatedEntities": 11,
+        "occlusionChecks": 242,
+        "requestRenderMode": true,
+        "scale": 1,
+        "sse": 0.75,
+        "msaaSamples": 4,
+        "targetFrameRate": 30
+      }
+    },
+    {
+      "name": "overview-cancels-attack",
+      "at": "2026-10-18T06:00:16.623Z",
+      "videoOffsetSeconds": 104.379
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "requests": [
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v14-v51-scene-engine.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v52-attack-model.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v52-attack-model.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v14-v51-scene-engine.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v52-attack-model.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v14-v51-scene-engine.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v52-attack-model.js?v=20261018-attack-v7",
+      "status": 200
+    },
+    {
+      "url": "https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-v14-v51-scene-engine.js?v=20261018-attack-v7",
+      "status": 200
+    }
+  ],
+  "status": "PASS"
+}
