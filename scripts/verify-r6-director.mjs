@@ -25,6 +25,27 @@ const state=()=>page.evaluate(()=>({director:NG14.v52Director.getState(),attack:
 const paused=phase=>page.waitForFunction(phase=>{
   const d=NG14.v52Director.getState();return d.paused&&d.phase===phase;
 },phase,{timeout:120000});
+// Observe an animated phase and click its real DOM handler in the same browser
+// task. A separate Playwright click can arrive after a short camera flight on
+// a busy software-GPU runner, which correctly requests an end-of-effects pause.
+async function pauseDuring(kind){
+  const handle=await page.waitForFunction(kind=>{
+    const d=NG14.v52Director.getState(),a=NG14.v52Attack.getDiagnostics();
+    const moving=!!NG14.viewer.camera._currentFlight;
+    const ready=kind==='target'?a?.stage==='target-approach'&&moving:
+      kind==='ordinary'?d.phase==='location'&&moving:a?.stage==='impact'&&d.effects;
+    if(!ready)return false;
+    const button=document.getElementById('directorPause');
+    if(button.disabled||d.pauseRequested)return false;
+    button.click();
+    return {phase:d.phase,moving,effects:d.effects,pauseRequested:NG14.v52Director.getState().pauseRequested};
+  },kind,{timeout:120000});
+  const observed=await handle.jsonValue();await handle.dispose();
+  assert.equal(observed.pauseRequested,true);
+  if(kind==='effects')assert.equal(observed.effects,true);
+  else assert.equal(observed.moving,true);
+  return observed;
+}
 const select=index=>page.locator('#timeline button').nth(index).click();
 const shot=name=>page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
 async function openSettings(){
@@ -63,14 +84,12 @@ try{
     await page.waitForTimeout(1200);s=await state();assert.equal(s.serial,serial);assert.equal(s.attack.stage,'country-overview');
     assert.equal(s.director.pendingTimers,0);await shot(name+'-paused-country');pass(name+'-pause-country',s);
     await page.locator('#directorPause').click();
-    await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='target-approach'&&!!NG14.viewer.camera._currentFlight);
-    await page.locator('#directorPause').click();await paused('location');
+    const targetRequest=await pauseDuring('target');await paused('location');
     s=await state();assert.equal(s.attack.impactCount,0);assert.equal(s.moving,false);pass(name+'-pause-at-target-before-effects',s);
     await page.locator('#directorPause').click();
-    await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});
-    await page.locator('#directorPause').click();await paused('end');
+    const effectRequest=await pauseDuring('effects');await paused('end');
     s=await state();assert.equal(s.attack.impactCount,3);assert.equal(s.attack.pendingTimers,0);assert.equal(s.stale,0);
-    await shot(name+'-paused-end');pass(name+'-effects-complete-before-pause',s);
+    await shot(name+'-paused-end');pass(name+'-effects-complete-before-pause',{...s,targetRequest,effectRequest});
     // The existing attack parser normalizes derived scene fields on first selection.
     // Replay must preserve the already-normalized records, including all facts.
     const data=await page.evaluate(()=>JSON.stringify(NG14.news));
@@ -98,8 +117,7 @@ try{
       await page.locator('#directorReplay').click();assert.equal((await state()).playing,false);pass('replay-stops-auto-play');
       await select(0);await page.locator('#directorPause').click();await paused('country');
       await page.locator('#directorPause').click();
-      await page.waitForFunction(()=>NG14.v52Director.getState().phase==='location'&&!!NG14.viewer.camera._currentFlight);
-      await page.locator('#directorPause').click();await paused('location');
+      await pauseDuring('ordinary');await paused('location');
       s=await state();assert.equal(s.attack,null);assert.equal(s.index,0);assert.equal(s.moving,false);
       pass('ordinary-location-can-pause-after-arrival',s);
       await page.locator('#next').click();assert.equal((await state()).index,1);
