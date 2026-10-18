@@ -33,7 +33,8 @@ async function pauseDuring(kind){
     const d=NG14.v52Director.getState(),a=NG14.v52Attack.getDiagnostics();
     const moving=!!NG14.viewer.camera._currentFlight;
     const ready=kind==='target'?a?.stage==='target-approach'&&moving:
-      kind==='ordinary'?d.phase==='location'&&moving:a?.stage==='impact'&&d.effects;
+      kind==='ordinary'?d.phase==='location'&&moving:
+      kind==='admin'?d.phase==='admin':a?.stage==='impact'&&d.effects;
     if(!ready)return false;
     const button=document.getElementById('directorPause');
     if(button.disabled||d.pauseRequested)return false;
@@ -42,7 +43,8 @@ async function pauseDuring(kind){
   },kind,{timeout:120000});
   const observed=await handle.jsonValue();await handle.dispose();
   assert.equal(observed.pauseRequested,true);
-  if(kind==='effects')assert.equal(observed.effects,true);
+  if(kind==='admin')assert.equal(observed.phase,'admin');
+  else if(kind==='effects')assert.equal(observed.effects,true);
   else assert.equal(observed.moving,true);
   return observed;
 }
@@ -85,11 +87,11 @@ try{
     const serial=s.serial;
     await page.waitForTimeout(1200);s=await state();assert.equal(s.serial,serial);assert.equal(s.attack.stage,'country-overview');
     assert.equal(s.director.pendingTimers,0);await shot(name+'-paused-country');pass(name+'-pause-country',s);
-    await page.locator('#directorPause').click();
-    const targetRequest=await pauseDuring('target');await paused('location');
+    const [targetRequest]=await Promise.all([pauseDuring('target'),page.locator('#directorPause').click()]);
+    await paused('location');
     s=await state();assert.equal(s.attack.impactCount,0);assert.equal(s.moving,false);pass(name+'-pause-at-target-before-effects',s);
-    await page.locator('#directorPause').click();
-    const effectRequest=await pauseDuring('effects');await paused('end');
+    const [effectRequest]=await Promise.all([pauseDuring('effects'),page.locator('#directorPause').click()]);
+    await paused('end');
     s=await state();assert.equal(s.attack.impactCount,3);assert.equal(s.attack.pendingTimers,0);assert.equal(s.stale,0);
     await shot(name+'-paused-end');pass(name+'-effects-complete-before-pause',{...s,targetRequest,effectRequest});
     // The existing attack parser normalizes derived scene fields on first selection.
@@ -118,8 +120,7 @@ try{
       await page.locator('#play').click();assert.equal((await state()).playing,true);
       await page.locator('#directorReplay').click();assert.equal((await state()).playing,false);pass('replay-stops-auto-play');
       await select(0);await page.locator('#directorPause').click();await paused('country');
-      await page.locator('#directorPause').click();
-      await pauseDuring('ordinary');await paused('location');
+      await Promise.all([pauseDuring('ordinary'),page.locator('#directorPause').click()]);await paused('location');
       s=await state();assert.equal(s.attack,null);assert.equal(s.index,0);assert.equal(s.moving,false);
       pass('ordinary-location-can-pause-after-arrival',s);
       await page.locator('#next').click();assert.equal((await state()).index,1);
@@ -135,8 +136,7 @@ try{
             name:'新疆维吾尔自治区',location:'新疆维吾尔自治区',focusLabel:'新疆维吾尔自治区',
             placeType:'省',focusGeometry:feature.geometry,lon:87.6,lat:43.8}]}};
       });
-      await select(8);await page.waitForFunction(()=>NG14.v52Director.getState().phase==='admin',null,{timeout:120000});
-      await page.locator('#directorPause').click();await paused('admin');
+      await Promise.all([pauseDuring('admin'),select(8)]);await paused('admin');
       s=await state();assert.equal(s.moving,false);
       assert.ok(await page.evaluate(()=>NG14.localHighlightEntities.length>0));
       pass('admin-stage-keeps-actual-province-geometry-while-paused',s);
