@@ -152,7 +152,7 @@ function stopAttack(){
  for(const id of activeAttack.timers)clearTimeout(id);
  activeAttack.timers.clear();activeAttack.cancelGeometry?.();activeAttack.removeResize?.();activeAttack=null;
 }
-G.v52Attack={version:'20261017-attack-v6',clear:stopAttack,getDiagnostics:()=>activeAttack?{
+G.v52Attack={version:'20261018-attack-v7',clear:stopAttack,getDiagnostics:()=>activeAttack?{
  serial:activeAttack.serial,stage:activeAttack.stage,attacker:activeAttack.data.att,victim:activeAttack.data.vic,
  source:activeAttack.data.source,target:activeAttack.data.target,attackType:activeAttack.data.attackType,
  anchors:activeAttack.anchors,trajectory:!!activeAttack.data.source&&activeAttack.data.enabled,
@@ -226,7 +226,7 @@ function impactImage(){
  x.beginPath();x.arc(64,64,43,0,Math.PI*2);x.stroke();x.strokeStyle='rgba(255,219,130,.6)';x.lineWidth=1.5;
  x.beginPath();x.arc(64,64,57,0,Math.PI*2);x.stroke();return impactSprite=canvas.toDataURL('image/png');
 }
-function impact(ctx){
+function impact(ctx,onComplete){
  if(activeAttack!==ctx||ctx.serial!==G.navSerial)return;
  const a=ctx.data,start=performance.now(),duration=1150;ctx.impactCount++;
  const e=attackEntity({position:C.Cartesian3.fromDegrees(a.target.lon,a.target.lat,36000),billboard:{
@@ -234,7 +234,7 @@ function impact(ctx){
   scale:new C.CallbackProperty(()=>.2+.9*Math.min(1,(performance.now()-start)/duration),false),
   color:new C.CallbackProperty(()=>C.Color.WHITE.withAlpha(Math.max(0,1-(performance.now()-start)/duration)),false),
   disableDepthTestDistance:Infinity}},'impact',ctx);
- attackLater(ctx,duration,()=>{G.viewer.entities.remove(e);const i=G.v51SceneEntities.indexOf(e);if(i>=0)G.v51SceneEntities.splice(i,1);});
+ attackLater(ctx,duration,()=>{G.viewer.entities.remove(e);const i=G.v51SceneEntities.indexOf(e);if(i>=0)G.v51SceneEntities.splice(i,1);onComplete?.();});
 }
 function flight(ctx){
  const a=ctx.data,geodesic=new C.EllipsoidGeodesic(C.Cartographic.fromDegrees(a.source.lon,a.source.lat),C.Cartographic.fromDegrees(a.target.lon,a.target.lat));
@@ -292,8 +292,12 @@ function waitAttackGeometry(ctx){
 }
 function showImpacts(ctx){
  ctx.stage='impact';
- if(ctx.data.enabled&&ctx.data.impactEnabled&&!ctx.data.potential){impact(ctx);attackLater(ctx,1150,()=>impact(ctx));attackLater(ctx,2300,()=>impact(ctx));}
- attackLater(ctx,3500,()=>{ctx.stage='settled';ctx.settledAt=performance.now();G.viewer.scene.requestRender();});
+ const settle=()=>{ctx.stage='settled';ctx.settledAt=performance.now();G.viewer.scene.requestRender();};
+ // Slow frames can delay the third pulse beyond a fixed 3.5s deadline.
+ // Enter the idle stage only after its actual entity and timer are removed.
+ if(ctx.data.enabled&&ctx.data.impactEnabled&&!ctx.data.potential){
+  impact(ctx);attackLater(ctx,1150,()=>impact(ctx));attackLater(ctx,2300,()=>impact(ctx,settle));
+ }else attackLater(ctx,3500,settle);
 }
 async function renderAttack(n,iso,s){
  const a=attackData(n);if(!a.vic||!a.target||!good(a.target.lon,a.target.lat))return fallbackRun(n,iso,s);

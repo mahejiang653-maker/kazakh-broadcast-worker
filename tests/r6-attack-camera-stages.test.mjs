@@ -100,3 +100,32 @@ test('visible attack country labels stay inside a portrait canvas without pullin
  assert.ok(22+offset.x-28.5>=4);assert.ok(180+offset.y+13<=210);
  assert.ok(1000+far.label.label.pixelOffset.x>374,'off-screen country anchors must stay off screen');
 });
+
+test('delayed impact timers cannot declare settled before the final pulse is cleaned up',()=>{
+ let now=0,nextId=0;
+ const tasks=new Map(),entities=new Set();
+ const attack={serial:7,data:{enabled:true,impactEnabled:true,target:{lon:39,lat:54}},timers:new Set(),impactCount:0};
+ const G={navSerial:7,overviewMode:false,v51SceneEntities:[],viewer:{
+  entities:{remove:e=>entities.delete(e)},scene:{requestRender(){}}
+ }};
+ const ctx=vm.createContext({G,activeAttack:attack,ctx:attack,performance:{now:()=>now},
+  setTimeout:(fn,ms)=>{const id=++nextId;tasks.set(id,{fn,due:now+ms});return id;},
+  C:{Cartesian3:{fromDegrees:()=>({})},CallbackProperty:function(){},Color:{WHITE:{withAlpha(){}}}},
+  impactImage:()=>'',attackEntity:options=>{entities.add(options);G.v51SceneEntities.push(options);return options;}
+ });
+ vm.runInContext(between('function attackLater(', 'function attackAnchor(')+
+  between('function impact(', 'function flight(')+between('function showImpacts(', 'async function renderAttack('),ctx);
+ const advance=time=>{
+  now=time;
+  for(;;){const next=[...tasks].filter(([,t])=>t.due<=now).sort((a,b)=>a[1].due-b[1].due)[0];
+   if(!next)break;tasks.delete(next[0]);next[1].fn();}
+ };
+ vm.runInContext('showImpacts(ctx)',ctx);
+ advance(1200);advance(2700);advance(3500);
+ assert.equal(attack.impactCount,3);
+ assert.equal(attack.stage,'impact','a delayed final pulse is still active at the old fixed deadline');
+ assert.equal(entities.size,1);
+ advance(3850);
+ assert.equal(attack.stage,'settled');assert.equal(attack.timers.size,0);
+ assert.equal(entities.size,0);assert.equal(G.v51SceneEntities.length,0);
+});
