@@ -7,15 +7,18 @@ on:
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
       - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-director.js'
       - 'public/news-globe-v52-story-borders.js'
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
       - 'scripts/verify-r6-attack-stages.mjs'
+      - 'scripts/verify-r6-director.mjs'
       - 'scripts/wait-r6-production.mjs'
       - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
       - 'tests/r6-attack-camera-stages.test.mjs'
+      - 'tests/r6-director.test.mjs'
       - 'tests/fixtures/r6-attack-stages-20261016.json'
       - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
@@ -29,15 +32,18 @@ on:
       - 'public/news-globe-v14-v51-scene-engine.js'
       - 'public/news-globe-v52-hard-rules.js'
       - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-director.js'
       - 'public/news-globe-v52-story-borders.js'
       - 'public/news-globe-v52-flags-overview-clean.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'scripts/verify-r6-attacks.mjs'
       - 'scripts/verify-r6-attack-stages.mjs'
+      - 'scripts/verify-r6-director.mjs'
       - 'scripts/wait-r6-production.mjs'
       - 'scripts/publish-r6-evidence.mjs'
       - 'tests/r6-attack-model.test.mjs'
       - 'tests/r6-attack-camera-stages.test.mjs'
+      - 'tests/r6-director.test.mjs'
       - 'tests/fixtures/r6-attack-stages-20261016.json'
       - 'tests/r6-daily10.test.mjs'
       - 'tests/r6-flag-images.test.mjs'
@@ -68,6 +74,11 @@ jobs:
         env:
           GLOBE_LOCAL: '1'
           GLOBE_OUTPUT: globe-verify-r6-attacks/stages
+      - name: Verify replay, safe phase pause and saved timing on three viewports
+        run: node scripts/verify-r6-director.mjs
+        env:
+          GLOBE_LOCAL: '1'
+          GLOBE_OUTPUT: globe-verify-r6-attacks/director
       - name: Save rendered screenshots, video and runtime evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,6 +105,10 @@ jobs:
         run: node scripts/verify-r6-attack-stages.mjs
         env:
           GLOBE_OUTPUT: globe-production-r6-attacks/stages
+      - name: Verify formal replay, phase pause and timing without asset overrides
+        run: node scripts/verify-r6-director.mjs
+        env:
+          GLOBE_OUTPUT: globe-production-r6-attacks/director
       - name: Verify the formal website without local asset overrides
         run: node scripts/verify-r6-attacks.mjs
         env:
