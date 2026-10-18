@@ -49,7 +49,9 @@ async function pauseDuring(kind){
 const select=index=>page.locator('#timeline button').nth(index).click();
 const shot=name=>page.screenshot({path:path.join(out,name+'.png'),fullPage:true});
 async function openSettings(){
+  await page.waitForFunction(()=>typeof document.getElementById('settingsBtn')?.onclick==='function',null,{timeout:120000});
   await page.locator('#settingsBtn').click();
+  await page.locator('#drawerBackdrop.show').waitFor({state:'visible'});
   if(!await page.locator('#directorTimingSettings').getAttribute('open')){
     if(!await page.locator('#directorTiming-travel').isVisible())await page.locator('#directorTimingSettings summary').click();
   }
@@ -74,7 +76,7 @@ try{
     });
     await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
     console.log('PAGE_LOADED',name);
-    await page.waitForFunction(()=>window.NG14?.v52Director&&NG14.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
+    await page.waitForFunction(()=>window.NG14?.v52Director&&NG14.countries?.size>0&&document.querySelector('#dailyLockFile')&&typeof document.getElementById('settingsBtn')?.onclick==='function',null,{timeout:120000});
     await page.locator('#settingsBtn').click();await page.locator('#dailyLockFile').setInputFiles(file);
     await page.waitForFunction(()=>NG14.news[2]?.location==='梁赞');
     if(await page.locator('#closeBtn').isVisible())await page.locator('#closeBtn').click();
