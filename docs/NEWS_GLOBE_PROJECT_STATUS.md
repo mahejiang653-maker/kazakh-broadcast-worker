@@ -1,15 +1,28 @@
 # 全球新闻地球仪：项目状态档案
 
-> 核对日期：2026-10-18（北京时间）。依据：GitHub应用提交、Actions部署日志、完整npm test及独立正式站WebGL浏览器验收。
+> 核对日期：2026-10-19（北京时间）。依据：GitHub应用提交、Actions部署日志、完整npm test及独立正式站WebGL浏览器验收。
 
 ## 当前代码与生产
 
 - 现有项目：全球新闻地球仪 V52·A1 R6；仓库 mahejiang653-maker/kazakh-broadcast-worker，分支main；与哈萨克语播音共享Worker。
-- 最新已验证应用提交：`15d0a256593cd669636e4331ca00c8139b58d8e1`。
-- Cloudflare正式版本：`c9b70f75-0bc6-4f6f-9c88-69b68057cd6f`，2026-10-18 13:34北京时间部署成功。
+- 最新已验证应用提交：`3eda3c1653ab2dd284bafc60a5342dfe8fbded75`（PR #65）；完整构建、合同、部署及独立正式站三视口分镜验收通过。
+- Cloudflare正式版本：`3634ceab-aabe-4ba4-b685-c220ded76a47`，2026-10-19 00:09北京时间部署成功。
 - 正式入口：https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html 。
-- 当前场景引擎/入口缓存版本：20261018-attack-v7；共享攻击解析器、国旗资源、场景引擎按原有顺序加载，daily10直接导入规则不变。
+- 当前入口/分镜控制缓存版本：`20261018-director-v1`；攻击几何诊断版本仍为`20261018-attack-v7`。共享攻击解析器、国旗资源、场景引擎按原有顺序加载，新增分镜控制最后加载；daily10直接导入规则不变。
 - 默认数据仍为2026-10-11历史预览Top10；本轮通过选择文件导入攻击回归数据验收。不要声称系统已自动发布当天日报。
+
+## 第一批分镜控制（2026-10-19）
+
+- 已合并[PR #65](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/pull/65)：单条重播、阶段暂停/继续、分镜时长设置；使用说明见`NEWS_GLOBE_DIRECTOR.md`。保留此前东半球总览修复。
+- 重播停止自动播放并重新播放当前新闻；总览中重播返回上次选中的新闻。暂停保留剩余停留时间，镜头先到达目的地，已开始的攻击/航母效果先完成本轮；攻击目标到达后可在效果前暂停。
+- “设置 / 导入 → 分镜时长设置”支持镜头移动、国家、行政区、地点各0.25～4倍，结束额外停留0～60秒；当前浏览器单独保存，下次重播或下一条生效，可恢复默认。切条、总览、重播与销毁清理旧等待，自动切条等待实际分镜结束且排除暂停时间。
+- 完整npm test：247项，245通过、0失败、2项既有WAV样本跳过；新增19项分镜回归。Fish/M3 TypeScript检查通过。[主分支CI与正式部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39143607012)：SUCCESS；[Top10离线合同](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39143607000)：SUCCESS。
+- [合并前完整视觉回归](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39142233405)：SUCCESS；冷GPU几何、真实十条、通用攻击、Top3/4、取消飞行、快速切换、尺寸变化及新增三视口分镜23项全部通过。该轮与最终合并提交的public资源完全一致，后续仅强化测试初始化等待及短阶段按钮同步，没有再改功能代码。
+- 线上9个关键资源SHA-256与应用提交全部匹配，包含新增分镜模块；核对时间2026-10-19 00:09北京时间。
+- 独立正式站Chromium 140 + SwiftShader WebGL：23项PASS，localOverrides=false，pageErrors=[]、consoleErrors=[]；北京时间2026-10-19 00:09～00:18验收。1440×810、390×844、844×390覆盖三个攻击暂停位置、单条重播、实际停留倍率、刷新持久保存与恢复默认、自动播放、普通地点、行政区真实几何、快速切换和总览清理；已人工复核桌面国家总览及手机竖屏/横屏设置截图，保存和关闭按钮可实际点击。手机视口模拟不等于实体机型号认证。
+- 同版本本地资源实测同样23项PASS、错误0。后续短阶段测试在浏览器内观察到对应阶段时触发真实DOM按钮处理器，以免软件GPU低帧率下分开的远程点击错过阶段；场景及清理断言保留。
+- [主分支完整视觉流程](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39143607058)继续自动二次复验，当前记录不将尚未完成的CI当作成功；上述独立正式站23项及资源校验已经完成。
+- 默认新闻仍为10月11日历史预览。工程导入数据仅用于独立浏览器回归；未发布当天日报，未改变新闻事实、未知发射源规则、球面轨迹、国家边界范围或配音默认配置。
 
 ## 本轮续修与正式站验收（2026-10-18）
 
@@ -22,7 +35,7 @@
 - 1440×810、390×844、844×390三种视口均完成Top3/Top4国家总览、实际地点推进、三次命中和静止清理。还通过上一条/下一条、24次快速切换、两阶段直接取消飞行、推进中resize、844×390/390×844/1100×700窗口变化、切普通新闻和回总览清理。六组完整攻击场景均impactCount=3、pendingTimers=0；无旧导航实体。
 - 已人工复核桌面、竖屏、横屏的总览和目标截图；竖屏乌克兰标签完整显示。手机视口模拟不等于实体手机型号认证。保留现有边境线、国旗、红点、地名、16:9直角画布及其他V52功能。
 - 本轮输入`tests/fixtures/r6-attack-stages-20261016.json`仅保存恢复出的Top3/Top4复现字段，浏览器脚本将其插入既有十条回归fixture，不是完整原始10月16日日报，也没有将该混合数据发布为默认新闻。
-- [独立视觉CI](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39100949986)：复验运行中，最终结论待核对。该状态不代替上述已完成的正式站32项验收。
+- [独立视觉CI](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/39100949986)：SUCCESS（2026-10-19续查已完成结果）；上述独立正式站32项验收同样保留。
 - 控制台保留既有Cesium CDN parser-blocking及terrain polygon outline提示；真实白色边界使用的polyline已独立检查GPU就绪和画面可见，错误数为0。
 
 ## 已解决的攻击渲染故障
