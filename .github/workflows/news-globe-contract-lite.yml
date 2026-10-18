@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-director.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'public/news-globe-data-20260920-v52-r1.js'
       - 'public/news-globe-v14-ui.js'
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-director.js'
       - 'public/news-globe-run-20260920-v52-r1.html'
       - 'public/news-globe-data-20260920-v52-r1.js'
       - 'public/news-globe-v14-ui.js'
@@ -41,6 +43,7 @@ jobs:
         run: |
           node --test \
             tests/r6-daily10.test.mjs \
+            tests/r6-director.test.mjs \
             tests/r6-entry.test.mjs \
             tests/r6-story-borders.test.mjs \
             tests/r6-overlay-lifecycle.test.mjs \
