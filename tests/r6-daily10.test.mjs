@@ -287,6 +287,36 @@ test('regional scene retries missing country geometry and cancels pending retry 
   assert.equal(h.timers.size,0,'navigation must cancel pending area retry');
 });
 
+test('portrait region camera frames wider than desktop and clears overlay on next story',async()=>{
+  const h=harness(),G=h.G,distances=[];
+  h.context.window.Cesium={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:()=>({radius:600000})},
+    HeadingPitchRange:class {constructor(heading,pitch,range){this.range=range}}
+  };
+  const entities=new Set();
+  G.viewer={entities:{add:e=>{entities.add(e);return e},remove:e=>entities.delete(e)},
+    camera:{frustum:{fovy:Math.PI/3,aspectRatio:16/9},
+      flyToBoundingSphere(sphere,opts){distances.push(opts.offset.range)}}};
+  const region={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'UKR',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[30,45],[40,45],[40,50],[30,50],[30,45]]]}}}};
+  G.navSerial=30;
+  await G.runSequence(region,'UKR',30);
+  assert.equal(distances.length,1);
+  const desktop=distances[0];
+  G.viewer.camera.frustum.aspectRatio=9/16;
+  G.navSerial=31;
+  await G.runSequence(region,'UKR',31);
+  assert.equal(distances.length,2);
+  assert.ok(distances[1]>desktop,'portrait viewport needs a greater framing distance');
+  G.navSerial=32;
+  await G.runSequence(story(2),'UKR',32);
+  assert.equal(entities.size,0,'switching news must remove regional overlay');
+});
+
 test('area rendering rolls back partially created Cesium entities on failure',async()=>{
   const h=harness(),G=h.G,added=[],removed=[];
   h.context.window.Cesium={
