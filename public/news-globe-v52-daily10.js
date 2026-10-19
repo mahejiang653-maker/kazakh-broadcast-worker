@@ -290,7 +290,7 @@
         // Country geometry may finish loading just after the base scene.
         // Retry briefly; stop immediately on navigation to another story.
         const area=areaOf(story);
-        const needsCountry=area?.type==='GEOGRAPHIC_REGION'&&area.geometry===undefined&&
+        const needsCountry=String(area?.type||'').toUpperCase()==='GEOGRAPHIC_REGION'&&area.geometry===undefined&&
           !!DIRECTION[String(area.direction||'').toUpperCase()];
         if(!needsCountry){drawArea(story,serial);return ok;}
         let attempts=0;
