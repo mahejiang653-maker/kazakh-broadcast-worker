@@ -36,9 +36,18 @@
       if(!n || typeof n!=='object'){errors.push('Top'+(i+1)+' 不是有效对象');return;}
       if(!String(n.title||'').trim())errors.push('Top'+(i+1)+' 缺少标题');
       if(!String(n.location||n.focusLabel||'').trim())errors.push('Top'+(i+1)+' 缺少定位名称');
+      // Explicit regional/no-precision stories may omit coordinates. Never infer
+      // that null means zero or silently turn an arbitrary camera anchor into an impact.
+      const scope=String(n.geoScope||n.scenePlan?.geoScope||'').toUpperCase();
+      const regional=scope==='REGIONAL'||scope==='NO_EXACT_COORDINATE';
+      const hasLon=n.lon!==null&&n.lon!==undefined&&n.lon!=='';
+      const hasLat=n.lat!==null&&n.lat!==undefined&&n.lat!=='';
       const lon=Number(n.lon),lat=Number(n.lat);
-      if(n.lon==null || !Number.isFinite(lon) || lon < -180 || lon > 180)errors.push('Top'+(i+1)+' 经度无效');
-      if(n.lat==null || !Number.isFinite(lat) || lat < -90 || lat > 90)errors.push('Top'+(i+1)+' 纬度无效');
+      if(!regional||hasLon||hasLat){
+        if(!hasLon||!Number.isFinite(lon)||lon < -180||lon > 180)errors.push('Top'+(i+1)+' 经度无效');
+        if(!hasLat||!Number.isFinite(lat)||lat < -90||lat > 90)errors.push('Top'+(i+1)+' 纬度无效');
+      }
+      if(regional&&!String(n.scenePlan?.primaryIso3||n.countryIso3||'').trim())errors.push('Top'+(i+1)+' 区域事件缺少国家ISO3');
     });
     return errors;
   };
@@ -101,6 +110,23 @@
   const baseRunSequence = G.runSequence;
   G.runSequence = function(story, iso, serial){
     const threat = /^(threat|warning|threatened_attack)$/i.test(String(story?.eventType || ''));
+    const scope=String(story?.geoScope||story?.scenePlan?.geoScope||'').toUpperCase();
+    if(scope==='REGIONAL'||scope==='NO_EXACT_COORDINATE'){
+      // Existing COUNTRY renderer is safe for unknown precise positions: it
+      // frames the confirmed country, without drawing a fabricated impact dot.
+      // Keep the full regional description in the story text, not a fake point.
+      G.clearArc?.();
+      G.clearInteractionEffects?.();
+      G.clearSecondaryCountry?.();
+      const primary=String(story?.scenePlan?.primaryIso3||story?.countryIso3||iso||'').toUpperCase();
+      const safe={...story,sceneMode:'COUNTRY',lon:null,lat:null,
+        attackType:'',sourceLon:null,sourceLat:null,attackerIso3:'',
+        secondaryCountryIso3:'',attackEffect:null,
+        scenePlan:{...(story.scenePlan||{}),primaryIso3:primary,
+          finalLocation:false,transitionArc:false,attackEffect:null,
+          sourcePrecision:'unknown',hierarchyPresented:false}};
+      return baseRunSequence.call(this,safe,primary,serial);
+    }
     if (!threat) return baseRunSequence.call(this, story, iso, serial);
     G.clearArc?.();
     G.clearInteractionEffects?.();
