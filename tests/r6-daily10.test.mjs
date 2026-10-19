@@ -248,3 +248,41 @@ test('direction-only geographic regions accept no coordinate and no invented pol
   stories[0].scenePlan.area.geometry={type:'Polygon',coordinates:[[[0,0],[1,0],[1,1]]]};
   assert.match(h.G.validate(daily(stories)).join('|'),/显式区域GeoJSON无效/);
 });
+
+test('regional scene retries missing country geometry and cancels pending retry on navigation',async()=>{
+  const h=harness();
+  const G=h.G;
+  const C={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:points=>({radius:100000,points})},
+    HeadingPitchRange:class {constructor(heading,pitch,range){this.range=range}}
+  };
+  h.context.window.Cesium=C;
+  const added=[],removed=[];
+  G.viewer={entities:{add:e=>{added.push(e);return e},remove:e=>removed.push(e)},
+    camera:{frustum:{fovy:Math.PI/3,aspectRatio:9/16},flyToBoundingSphere(){}}};
+  G.countries=new Map();
+  const regional={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',direction:'NORTHWEST'}}};
+  G.navSerial=11;
+  await G.runSequence(regional,'CHN',11);
+  assert.equal(added.length,0);
+  assert.equal(h.timers.size,1);
+  G.countries.set('CHN',{feature:{type:'Polygon',coordinates:[[[70,20],[130,20],[130,50],[70,50],[70,20]]]}});
+  h.drain();
+  assert.ok(added.length>=2,'directional polygon and outline must be rendered');
+  assert.ok(G.v52AreaScenes.getDiagnostics().entities>=2);
+  G.navSerial=12;
+  await G.runSequence({...story(2)},'CHN',12);
+  assert.equal(G.v52AreaScenes.getDiagnostics().entities,0);
+  assert.equal(removed.length,added.length);
+  G.countries.clear();
+  G.navSerial=13;
+  await G.runSequence(regional,'CHN',13);
+  assert.equal(h.timers.size,1);
+  G.navSerial=14;
+  await G.runSequence({...story(3)},'CHN',14);
+  assert.equal(h.timers.size,0,'navigation must cancel pending area retry');
+});
