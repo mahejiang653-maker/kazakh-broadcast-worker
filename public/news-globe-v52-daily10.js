@@ -66,7 +66,7 @@
   };
   // Directional regions are cartographic approximations clipped to the
   // actual national boundary, never claims about administrative boundaries.
-  const DIRECTION = {NORTH:[0,1,1/3,1],SOUTH:[0,0,1/3,1],
+  const DIRECTION = {NORTH:[0,2/3,1,1],SOUTH:[0,0,1,1/3],
     EAST:[2/3,0,1,1],WEST:[0,0,1/3,1],
     NORTHEAST:[2/3,2/3,1,1],NORTHWEST:[0,2/3,1/3,1],
     SOUTHEAST:[2/3,0,1,1/3],SOUTHWEST:[0,0,1/3,1/3],
@@ -80,7 +80,8 @@
     const all=polys.flatMap(p=>p[0]||[]);
     if(!all.length)return null;
     const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
-    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    const minX=xs.reduce((a,b)=>Math.min(a,b),Infinity),maxX=xs.reduce((a,b)=>Math.max(a,b),-Infinity);
+    const minY=ys.reduce((a,b)=>Math.min(a,b),Infinity),maxY=ys.reduce((a,b)=>Math.max(a,b),-Infinity);
     // Avoid incorrect directional quadrants for date-line-spanning nations.
     if(maxX-minX>180)return null;
     const rect=[minX+(maxX-minX)*band[0],minY+(maxY-minY)*band[1],
