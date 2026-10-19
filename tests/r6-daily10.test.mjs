@@ -244,4 +244,7 @@ test('direction-only geographic regions accept no coordinate and no invented pol
   assert.equal(h.G.validate(daily(stories)).length,0);
   stories[0].scenePlan.area.direction='NOT_A_DIRECTION';
   assert.match(h.G.validate(daily(stories)).join('|'),/GeoJSON/);
+  stories[0].scenePlan.area.direction='NORTHWEST';
+  stories[0].scenePlan.area.geometry={type:'Polygon',coordinates:[[[0,0],[1,0],[1,1]]]};
+  assert.match(h.G.validate(daily(stories)).join('|'),/显式区域GeoJSON无效/);
 });
