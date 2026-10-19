@@ -103,16 +103,22 @@
     }
     const output=[];
     for(const poly of polys){
-      // Clip outer boundary and preserve interior holes only when fully inside
-      // the selected cell; no fabricated polygon outside national territory.
-      let ring=(poly[0]||[]).slice(0,-1);
-      for(const [axis,limit,greater] of [[0,rect[0],true],[0,rect[2],false],
-        [1,rect[1],true],[1,rect[3],false]])ring=clip(ring,axis,limit,greater);
-      if(ring.length<3)continue;
-      ring.push([...ring[0]]);
-      const holes=(poly.slice(1)||[]).filter(h=>h.every(p=>
-        p[0]>=rect[0]&&p[0]<=rect[2]&&p[1]>=rect[1]&&p[1]<=rect[3]));
-      output.push([ring,...holes]);
+      // Clip both the outer ring and interior holes. Dropping a partially
+      // intersected hole would incorrectly fill lakes/excluded territory.
+      const clipRing=source=>{
+        let ring=(source||[]).slice(0,-1);
+        for(const [axis,limit,greater] of [[0,rect[0],true],[0,rect[2],false],
+          [1,rect[1],true],[1,rect[3],false]])ring=clip(ring,axis,limit,greater);
+        if(ring.length<3)return null;
+        const unique=ring.filter((p,i)=>i===0||p[0]!==ring[i-1][0]||p[1]!==ring[i-1][1]);
+        if(unique.length<3)return null;
+        unique.push([...unique[0]]);
+        return unique;
+      };
+      const outer=clipRing(poly[0]);
+      if(!outer)continue;
+      const holes=poly.slice(1).map(clipRing).filter(Boolean);
+      output.push([outer,...holes]);
     }
     return output.length?{type:'MultiPolygon',coordinates:output}:null;
   }
