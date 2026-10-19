@@ -147,7 +147,9 @@
   let areaEntities=[];
   const clearArea=()=>{
     const viewer=G.viewer;
-    if(viewer?.entities)for(const e of areaEntities)viewer.entities.remove(e);
+    if(viewer?.entities)for(const e of areaEntities){
+      try{viewer.entities.remove(e)}catch(err){console.warn('V52 area entity cleanup failed',err)}
+    }
     areaEntities=[];
   };
   function drawArea(n,serial){
