@@ -126,7 +126,8 @@
   const baseValidate = G.validate;
   G.validate = function(payload){
     const errors=baseValidate(payload);
-    (payload?.news||[]).forEach((n,i)=>{
+    if(!Array.isArray(payload?.news))return errors;
+    payload.news.forEach((n,i)=>{
       const area=areaOf(n);if(!area)return;
       const type=String(area.type||'').toUpperCase();
       if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
