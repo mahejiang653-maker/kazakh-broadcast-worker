@@ -147,7 +147,9 @@
     return errors;
   };
   let areaEntities=[];
+  let pendingAreaRetry=null;
   const clearArea=()=>{
+    if(pendingAreaRetry!==null){clearTimeout(pendingAreaRetry);pendingAreaRetry=null;}
     const viewer=G.viewer;
     if(viewer?.entities)for(const e of areaEntities){
       try{viewer.entities.remove(e)}catch(err){console.warn('V52 area entity cleanup failed',err)}
@@ -297,7 +299,7 @@
         const attempt=()=>{
           if(serial!==G.navSerial)return;
           if(drawArea(story,serial))return;
-          if(++attempts<12)setTimeout(attempt,250);
+          if(++attempts<12)pendingAreaRetry=setTimeout(()=>{pendingAreaRetry=null;attempt()},250);
         };
         attempt();
         return ok;
