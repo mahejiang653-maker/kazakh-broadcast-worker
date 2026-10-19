@@ -54,10 +54,18 @@
   // A control-area polygon is evidence, not a location guess. Only accept
   // explicit dated, attributed GeoJSON; direction labels alone never invent
   // occupied territory. No geometry means country overview only.
-  const validRing = ring => Array.isArray(ring)&&ring.length>=4&&ring.length<=10000&&
-    ring.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(p[0])&&
-      Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90)&&
-    ring[0][0]===ring[ring.length-1][0]&&ring[0][1]===ring[ring.length-1][1];
+  const validRing = ring => {
+    if(!Array.isArray(ring)||ring.length<4||ring.length>10000||
+      !ring.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(p[0])&&
+        Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90)||
+      ring[0][0]!==ring[ring.length-1][0]||ring[0][1]!==ring[ring.length-1][1])return false;
+    // A closed line is not a polygon. Reject near-zero-area rings before
+    // handing geometry to Cesium's triangulator.
+    let twiceArea=0;
+    for(let i=0;i<ring.length-1;i++)
+      twiceArea+=ring[i][0]*ring[i+1][1]-ring[i+1][0]*ring[i][1];
+    return Math.abs(twiceArea)>1e-10;
+  };
   const validShape = shape => {
     if(!shape||!['Polygon','MultiPolygon'].includes(shape.type))return false;
     const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
