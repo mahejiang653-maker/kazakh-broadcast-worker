@@ -64,6 +64,57 @@
     return Array.isArray(polygons)&&polygons.length>0&&polygons.length<=100&&
       polygons.every(poly=>Array.isArray(poly)&&poly.length>0&&poly.length<=50&&poly.every(validRing));
   };
+  // Directional regions are cartographic approximations clipped to the
+  // actual national boundary, never claims about administrative boundaries.
+  const DIRECTION = {NORTH:[0,1,1/3,1],SOUTH:[0,0,1/3,1],
+    EAST:[2/3,0,1,1],WEST:[0,0,1/3,1],
+    NORTHEAST:[2/3,2/3,1,1],NORTHWEST:[0,2/3,1/3,1],
+    SOUTHEAST:[2/3,0,1,1/3],SOUTHWEST:[0,0,1/3,1/3],
+    CENTRAL:[1/3,1/3,2/3,2/3]};
+  function directionalShape(iso,direction){
+    const band=DIRECTION[String(direction||'').toUpperCase()];
+    const f=G.countries?.get?.(String(iso||'').toUpperCase())?.feature;
+    const g=f?.geometry||f;
+    if(!band||!g||!['Polygon','MultiPolygon'].includes(g.type))return null;
+    const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+    const all=polys.flatMap(p=>p[0]||[]);
+    if(!all.length)return null;
+    const xs=all.map(p=>p[0]),ys=all.map(p=>p[1]);
+    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    // Avoid incorrect directional quadrants for date-line-spanning nations.
+    if(maxX-minX>180)return null;
+    const rect=[minX+(maxX-minX)*band[0],minY+(maxY-minY)*band[1],
+      minX+(maxX-minX)*band[2],minY+(maxY-minY)*band[3]];
+    function clip(input,axis,limit,keepGreater){
+      const inside=p=>keepGreater?p[axis]>=limit:p[axis]<=limit;
+      const intersection=(a,b)=>{
+        const t=(limit-a[axis])/(b[axis]-a[axis]);
+        return [a[0]+t*(b[0]-a[0]),a[1]+t*(b[1]-a[1])];
+      };
+      const output=[];
+      for(let i=0;i<input.length;i++){
+        const a=input[i],b=input[(i+1)%input.length],ai=inside(a),bi=inside(b);
+        if(ai&&bi)output.push(b);
+        else if(ai&&!bi)output.push(intersection(a,b));
+        else if(!ai&&bi)output.push(intersection(a,b),b);
+      }
+      return output;
+    }
+    const output=[];
+    for(const poly of polys){
+      // Clip outer boundary and preserve interior holes only when fully inside
+      // the selected cell; no fabricated polygon outside national territory.
+      let ring=(poly[0]||[]).slice(0,-1);
+      for(const [axis,limit,greater] of [[0,rect[0],true],[0,rect[2],false],
+        [1,rect[1],true],[1,rect[3],false]])ring=clip(ring,axis,limit,greater);
+      if(ring.length<3)continue;
+      ring.push([...ring[0]]);
+      const holes=(poly.slice(1)||[]).filter(h=>h.every(p=>
+        p[0]>=rect[0]&&p[0]<=rect[2]&&p[1]>=rect[1]&&p[1]<=rect[3]));
+      output.push([ring,...holes]);
+    }
+    return output.length?{type:'MultiPolygon',coordinates:output}:null;
+  }
   const areaOf = n => n?.scenePlan?.area || n?.area;
   const baseValidate = G.validate;
   G.validate = function(payload){
@@ -72,7 +123,8 @@
       const area=areaOf(n);if(!area)return;
       const type=String(area.type||'').toUpperCase();
       if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
-      if(!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
+      const directional=type==='GEOGRAPHIC_REGION'&&!!DIRECTION[String(area.direction||'').toUpperCase()];
+      if(!directional&&!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
       const date=String(area.asOf||'');
       const validDate=/^\d{4}-\d{2}-\d{2}$/.test(date)&&
         !Number.isNaN(Date.parse(date+'T00:00:00Z'))&&
@@ -88,8 +140,12 @@
   const clearArea=()=>{const viewer=G.viewer;if(viewer?.entities)for(const e of areaEntities)viewer.entities.remove(e);areaEntities=[];};
   function drawArea(n,serial){
     const area=areaOf(n),viewer=G.viewer,C=window.Cesium;
-    if(!area||!viewer||!C||!validShape(area.geometry)||serial!==G.navSerial)return;
-    const polygons=area.geometry.type==='Polygon'?[area.geometry.coordinates]:area.geometry.coordinates;
+    if(!area||!viewer||!C||serial!==G.navSerial)return;
+    const shape=validShape(area.geometry)?area.geometry:
+      (String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
+        directionalShape(n.scenePlan?.primaryIso3||n.countryIso3,area.direction):null);
+    if(!validShape(shape))return;
+    const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
     const conflict=String(area.type).toUpperCase()==='CONFLICT_CONTROL';
     const fill=C.Color.fromCssColorString(conflict?'#ed5353':'#43bce4').withAlpha(conflict?.32:.22);
     const outline=C.Color.fromCssColorString(conflict?'#ff9b9b':'#a8e7ff');
