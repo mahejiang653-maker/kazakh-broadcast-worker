@@ -286,3 +286,26 @@ test('regional scene retries missing country geometry and cancels pending retry 
   await G.runSequence({...story(3)},'CHN',14);
   assert.equal(h.timers.size,0,'navigation must cancel pending area retry');
 });
+
+test('area rendering rolls back partially created Cesium entities on failure',async()=>{
+  const h=harness(),G=h.G,added=[],removed=[];
+  h.context.window.Cesium={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:points=>({radius:100000,points})},
+    HeadingPitchRange:class {}
+  };
+  G.viewer={entities:{add:e=>{
+    if(added.length===1)throw Error('mock Cesium entity failure');
+    added.push(e);return e;
+  },remove:e=>removed.push(e)},camera:{frustum:{fovy:Math.PI/3,aspectRatio:9/16},flyToBoundingSphere(){}}};
+  const region={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[70,20],[90,20],[90,40],[70,40],[70,20]]]}}}};
+  G.navSerial=21;
+  await G.runSequence(region,'CHN',21);
+  assert.equal(added.length,1);
+  assert.equal(removed.length,1,'partial overlay must be rolled back');
+  assert.equal(G.v52AreaScenes.getDiagnostics().entities,0);
+});
