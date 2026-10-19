@@ -134,8 +134,16 @@ try{
    await select(1);releaseWorkers();
   }
   await flagsReady(['RUS','UKR']);await settled();
-  await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.waitForTimeout(400);
-  const animated=await state();verifyTop2(animated);assert.ok(animated.effects.some(e=>e.width>=80&&e.alpha>.1));
+  await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});
+  // Sample the effect during its active animation window, rather than once
+  // after a fixed delay (slow CI frames may have already faded the billboard).
+  await page.waitForFunction(()=>{
+    const G=NG14,t=G.viewer.clock.currentTime;
+    return G.v51SceneEntities.some(e=>e.__v52AttackKind==='impact'&&
+      G.viewer.entities.contains(e)&&e.billboard?.width?.getValue(t)>=80&&
+      e.billboard?.color?.getValue(t)?.alpha>.1);
+  },null,{timeout:5000,polling:50});
+  const animated=await state();verifyTop2(animated);
   await page.screenshot({path:path.join(dir,'top2-'+name+'-impact.png')});log('top2-'+name+'-impact',animated);
   await settled();const final=await state();verifyTop2(final);assert.equal(final.attack.pendingTimers,0);assert.equal(final.attack.impactCount,3);
   await page.screenshot({path:path.join(dir,'top2-'+name+'-settled.png')});log('top2-'+name+'-settled',final);

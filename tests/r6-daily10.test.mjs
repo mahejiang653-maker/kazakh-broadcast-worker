@@ -212,3 +212,141 @@ test('autoplay waits for GPU geometry, the full attack and its final static hold
  ready=true;h.drain();assert.equal(h.G.current,current+1);
  h.G.pause();assert.equal(h.timers.size,0);
 });
+
+test('regional area validator rejects malformed news and invalid conflict evidence safely',()=>{
+  const h=harness();
+  assert.match(h.G.validate({news:{unexpected:true}}).join('|'),/10条/);
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'UKR',area:{type:'CONFLICT_CONTROL',
+      geometry:{type:'Polygon',coordinates:[[[30,48],[31,48],[31,49],[30,49],[30,48]]]},
+      sourceUrl:'https://example.org/map',asOf:'2026-10-19',controlledBy:'example'}}};
+  assert.equal(h.G.validate(daily(stories)).length,0);
+  const bad=JSON.parse(JSON.stringify(stories));
+  bad[0].scenePlan.area.geometry.coordinates[0].pop();
+  assert.match(h.G.validate(daily(bad)).join('|'),/GeoJSON/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  bad[0].scenePlan.area.asOf='2026-02-30';
+  assert.match(h.G.validate(daily(bad)).join('|'),/日期/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  bad[0].scenePlan.area.sourceUrl='http://invalid.test';
+  assert.match(h.G.validate(daily(bad)).join('|'),/来源/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  delete bad[0].geoScope;
+  assert.match(h.G.validate(daily(bad)).join('|'),/区域场景/);
+});
+
+test('area validation rejects closed but zero-area polygon rings',()=>{
+  const h=harness();
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'UKR',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[30,45],[31,46],[32,47],[30,45]]]}}}};
+  assert.match(h.G.validate(daily(stories)).join('|'),/GeoJSON/);
+  stories[0].scenePlan.area.geometry.coordinates[0]=[[30,45],[32,45],[32,47],[30,47],[30,45]];
+  assert.equal(h.G.validate(daily(stories)).length,0);
+});
+
+test('direction-only geographic regions accept no coordinate and no invented polygon',()=>{
+  const h=harness();
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',direction:'NORTHWEST'}}};
+  assert.equal(h.G.validate(daily(stories)).length,0);
+  stories[0].scenePlan.area.direction='NOT_A_DIRECTION';
+  assert.match(h.G.validate(daily(stories)).join('|'),/GeoJSON/);
+  stories[0].scenePlan.area.direction='NORTHWEST';
+  stories[0].scenePlan.area.geometry={type:'Polygon',coordinates:[[[0,0],[1,0],[1,1]]]};
+  assert.match(h.G.validate(daily(stories)).join('|'),/显式区域GeoJSON无效/);
+});
+
+test('regional scene retries missing country geometry and cancels pending retry on navigation',async()=>{
+  const h=harness();
+  const G=h.G;
+  const C={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:points=>({radius:100000,points})},
+    HeadingPitchRange:class {constructor(heading,pitch,range){this.range=range}}
+  };
+  h.context.window.Cesium=C;
+  const added=[],removed=[];
+  G.viewer={entities:{add:e=>{added.push(e);return e},remove:e=>removed.push(e)},
+    camera:{frustum:{fovy:Math.PI/3,aspectRatio:9/16},flyToBoundingSphere(){}}};
+  G.countries=new Map();
+  const regional={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',direction:'NORTHWEST'}}};
+  G.navSerial=11;
+  await G.runSequence(regional,'CHN',11);
+  assert.equal(added.length,0);
+  assert.equal(h.timers.size,1);
+  G.countries.set('CHN',{feature:{type:'Polygon',coordinates:[[[70,20],[130,20],[130,50],[70,50],[70,20]]]}});
+  h.drain();
+  assert.ok(added.length>=2,'directional polygon and outline must be rendered');
+  assert.ok(G.v52AreaScenes.getDiagnostics().entities>=2);
+  G.navSerial=12;
+  await G.runSequence({...story(2)},'CHN',12);
+  assert.equal(G.v52AreaScenes.getDiagnostics().entities,0);
+  assert.equal(removed.length,added.length);
+  G.countries.clear();
+  G.navSerial=13;
+  await G.runSequence(regional,'CHN',13);
+  assert.equal(h.timers.size,1);
+  G.navSerial=14;
+  await G.runSequence({...story(3)},'CHN',14);
+  assert.equal(h.timers.size,0,'navigation must cancel pending area retry');
+});
+
+test('portrait region camera frames wider than desktop and clears overlay on next story',async()=>{
+  const h=harness(),G=h.G,distances=[];
+  h.context.window.Cesium={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:()=>({radius:600000})},
+    HeadingPitchRange:class {constructor(heading,pitch,range){this.range=range}}
+  };
+  const entities=new Set();
+  G.viewer={entities:{add:e=>{entities.add(e);return e},remove:e=>entities.delete(e)},
+    camera:{frustum:{fovy:Math.PI/3,aspectRatio:16/9},
+      flyToBoundingSphere(sphere,opts){distances.push(opts.offset.range)}}};
+  const region={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'UKR',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[30,45],[40,45],[40,50],[30,50],[30,45]]]}}}};
+  G.navSerial=30;
+  await G.runSequence(region,'UKR',30);
+  assert.equal(distances.length,1);
+  const desktop=distances[0];
+  G.viewer.camera.frustum.aspectRatio=9/16;
+  G.navSerial=31;
+  await G.runSequence(region,'UKR',31);
+  assert.equal(distances.length,2);
+  assert.ok(distances[1]>desktop,'portrait viewport needs a greater framing distance');
+  G.navSerial=32;
+  await G.runSequence(story(2),'UKR',32);
+  assert.equal(entities.size,0,'switching news must remove regional overlay');
+});
+
+test('area rendering rolls back partially created Cesium entities on failure',async()=>{
+  const h=harness(),G=h.G,added=[],removed=[];
+  h.context.window.Cesium={
+    Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes}},
+    Color:{fromCssColorString:()=>({withAlpha:()=>({})})},
+    BoundingSphere:{fromPoints:points=>({radius:100000,points})},
+    HeadingPitchRange:class {}
+  };
+  G.viewer={entities:{add:e=>{
+    if(added.length===1)throw Error('mock Cesium entity failure');
+    added.push(e);return e;
+  },remove:e=>removed.push(e)},camera:{frustum:{fovy:Math.PI/3,aspectRatio:9/16},flyToBoundingSphere(){}}};
+  const region={...story(1),geoScope:'REGIONAL',lon:null,lat:null,
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[70,20],[90,20],[90,40],[70,40],[70,20]]]}}}};
+  G.navSerial=21;
+  await G.runSequence(region,'CHN',21);
+  assert.equal(added.length,1);
+  assert.equal(removed.length,1,'partial overlay must be rolled back');
+  assert.equal(G.v52AreaScenes.getDiagnostics().entities,0);
+});
