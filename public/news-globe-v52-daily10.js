@@ -132,7 +132,9 @@
       const type=String(area.type||'').toUpperCase();
       if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
       const directional=type==='GEOGRAPHIC_REGION'&&!!DIRECTION[String(area.direction||'').toUpperCase()];
-      if(!directional&&!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
+      if(!validShape(area.geometry)&&!directional)errors.push('Top'+(i+1)+' 区域GeoJSON无效');
+      if(area.geometry!==undefined&&!validShape(area.geometry))
+        errors.push('Top'+(i+1)+' 显式区域GeoJSON无效，不得以方向推断覆盖');
       const date=String(area.asOf||'');
       const validDate=/^\d{4}-\d{2}-\d{2}$/.test(date)&&
         !Number.isNaN(Date.parse(date+'T00:00:00Z'))&&
@@ -155,8 +157,11 @@
   function drawArea(n,serial){
     const area=areaOf(n),viewer=G.viewer,C=window.Cesium;
     if(!area||!viewer||!C||serial!==G.navSerial)return;
+    const isConflict=String(area.type).toUpperCase()==='CONFLICT_CONTROL';
+    // Never replace an explicit but invalid control boundary with a
+    // direction-based approximation. Control lines require real evidence.
     const shape=validShape(area.geometry)?area.geometry:
-      (String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
+      (!isConflict&&String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
         directionalShape(n.scenePlan?.primaryIso3||n.countryIso3,area.direction):null);
     if(!validShape(shape))return;
     const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
