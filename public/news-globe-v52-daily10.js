@@ -56,7 +56,8 @@
   // occupied territory. No geometry means country overview only.
   const validRing = ring => Array.isArray(ring)&&ring.length>=4&&ring.length<=10000&&
     ring.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(p[0])&&
-      Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90);
+      Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90)&&
+    ring[0][0]===ring[ring.length-1][0]&&ring[0][1]===ring[ring.length-1][1];
   const validShape = shape => {
     if(!shape||!['Polygon','MultiPolygon'].includes(shape.type))return false;
     const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
@@ -72,9 +73,14 @@
       const type=String(area.type||'').toUpperCase();
       if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
       if(!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
-      if(type==='CONFLICT_CONTROL'&&(!String(area.sourceUrl||'').startsWith('https://')||
-        !/^\d{4}-\d{2}-\d{2}$/.test(String(area.asOf||''))||
-        !String(area.controlledBy||'').trim()))errors.push('Top'+(i+1)+' 冲突控制区缺少来源、日期或控制方');
+      const date=String(area.asOf||'');
+      const validDate=/^\d{4}-\d{2}-\d{2}$/.test(date)&&
+        !Number.isNaN(Date.parse(date+'T00:00:00Z'))&&
+        new Date(date+'T00:00:00Z').toISOString().slice(0,10)===date;
+      if(type==='CONFLICT_CONTROL'&&(!/^https:\/\/[^\s/]+\.[^\s/]+/.test(String(area.sourceUrl||''))||
+        !validDate||!String(area.controlledBy||'').trim()))errors.push('Top'+(i+1)+' 冲突控制区缺少有效来源、日期或控制方');
+      if(type==='CONFLICT_CONTROL'&&!/^(REGIONAL|NO_EXACT_COORDINATE)$/i.test(String(n.geoScope||n.scenePlan?.geoScope||'')))
+        errors.push('Top'+(i+1)+' 冲突控制区必须声明区域场景');
     });
     return errors;
   };
