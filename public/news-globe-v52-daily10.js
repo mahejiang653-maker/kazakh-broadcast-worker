@@ -106,6 +106,7 @@
     }
   }
   G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
+  window.addEventListener('pagehide',clearArea);
   G.daily10Warnings = () => [];
 
   const legacy = oldNews.length === 13;
@@ -148,7 +149,11 @@
     return ((i % COUNT) + COUNT) % COUNT;
   };
   const baseFocus = G.focus;
-  G.focus = function(index, ...rest){return baseFocus.call(this, normalized(index), ...rest);};
+  G.focus = function(index, ...rest){
+    // Clear immediately, not only after an asynchronous camera transition.
+    G.v52AreaScenes?.clear();
+    return baseFocus.call(this, normalized(index), ...rest);
+  };
   G.navigate = function(target){
     if (!G.started) {G.focus(0, true); return;}
     const from = G.current, to = normalized(target);
@@ -156,8 +161,10 @@
     // misleadingly suggests the previous story's location launched an attack.
     const next = G.news?.[to];
     const threat = /^(threat|warning|threatened_attack)$/i.test(String(next?.eventType || ''));
-    if (from !== to && !threat) G.showArc(from, to);
-    else if (threat) G.clearArc?.();
+    // Region/control-area stories are not point-to-point movements.
+    const regional=/^(REGIONAL|NO_EXACT_COORDINATE)$/i.test(String(next?.geoScope||next?.scenePlan?.geoScope||''));
+    if (from !== to && !threat && !regional) G.showArc(from, to);
+    else if (threat || regional) G.clearArc?.();
     G.focus(to, true);
   };
   // Threat announcements are NOT confirmed strikes. Force a point-only scene,
