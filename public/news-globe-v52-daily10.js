@@ -51,6 +51,61 @@
     });
     return errors;
   };
+  // A control-area polygon is evidence, not a location guess. Only accept
+  // explicit dated, attributed GeoJSON; direction labels alone never invent
+  // occupied territory. No geometry means country overview only.
+  const validRing = ring => Array.isArray(ring)&&ring.length>=4&&ring.length<=10000&&
+    ring.every(p=>Array.isArray(p)&&p.length>=2&&Number.isFinite(p[0])&&
+      Number.isFinite(p[1])&&Math.abs(p[0])<=180&&Math.abs(p[1])<=90);
+  const validShape = shape => {
+    if(!shape||!['Polygon','MultiPolygon'].includes(shape.type))return false;
+    const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
+    return Array.isArray(polygons)&&polygons.length>0&&polygons.length<=100&&
+      polygons.every(poly=>Array.isArray(poly)&&poly.length>0&&poly.length<=50&&poly.every(validRing));
+  };
+  const areaOf = n => n?.scenePlan?.area || n?.area;
+  const baseValidate = G.validate;
+  G.validate = function(payload){
+    const errors=baseValidate(payload);
+    (payload?.news||[]).forEach((n,i)=>{
+      const area=areaOf(n);if(!area)return;
+      const type=String(area.type||'').toUpperCase();
+      if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
+      if(!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
+      if(type==='CONFLICT_CONTROL'&&(!String(area.sourceUrl||'').startsWith('https://')||
+        !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(area.asOf||''))||
+        !String(area.controlledBy||'').trim()))errors.push('Top'+(i+1)+' 冲突控制区缺少来源、日期或控制方');
+    });
+    return errors;
+  };
+  let areaEntities=[];
+  const clearArea=()=>{const viewer=G.viewer;if(viewer?.entities)for(const e of areaEntities)viewer.entities.remove(e);areaEntities=[];};
+  function drawArea(n,serial){
+    const area=areaOf(n),viewer=G.viewer,C=window.Cesium;
+    if(!area||!viewer||!C||!validShape(area.geometry)||serial!==G.navSerial)return;
+    const polygons=area.geometry.type==='Polygon'?[area.geometry.coordinates]:area.geometry.coordinates;
+    const conflict=String(area.type).toUpperCase()==='CONFLICT_CONTROL';
+    const fill=C.Color.fromCssColorString(conflict?'#ed5353':'#43bce4').withAlpha(conflict?.32:.22);
+    const outline=C.Color.fromCssColorString(conflict?'#ff9b9b':'#a8e7ff');
+    const pts=[];
+    for(const poly of polygons){
+      const outer=poly[0].map(p=>C.Cartesian3.fromDegrees(p[0],p[1],0));
+      const holes=poly.slice(1).map(ring=>new C.PolygonHierarchy(ring.map(p=>C.Cartesian3.fromDegrees(p[0],p[1],0))));
+      areaEntities.push(viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
+        material:fill,height:0,outline:false}}));
+      for(const ring of poly){
+        const positions=ring.map(p=>C.Cartesian3.fromDegrees(p[0],p[1],2500));
+        areaEntities.push(viewer.entities.add({polyline:{positions,width:2,material:outline}}));
+      }
+      pts.push(...outer);
+    }
+    if(pts.length&&serial===G.navSerial){
+      const sphere=C.BoundingSphere.fromPoints(pts);
+      viewer.camera.flyToBoundingSphere(sphere,{duration:1.1,offset:new C.HeadingPitchRange(0,-Math.PI/2,
+        Math.max(350000,sphere.radius*2.8))});
+    }
+  }
+  G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
   G.daily10Warnings = () => [];
 
   const legacy = oldNews.length === 13;
@@ -109,6 +164,7 @@
   // regardless of legacy title heuristics or attack-related imported fields.
   const baseRunSequence = G.runSequence;
   G.runSequence = function(story, iso, serial){
+    clearArea();
     const threat = /^(threat|warning|threatened_attack)$/i.test(String(story?.eventType || ''));
     const scope=String(story?.geoScope||story?.scenePlan?.geoScope||'').toUpperCase();
     if(scope==='REGIONAL'||scope==='NO_EXACT_COORDINATE'){
@@ -125,7 +181,8 @@
         scenePlan:{...(story.scenePlan||{}),primaryIso3:primary,
           finalLocation:false,transitionArc:false,attackEffect:null,
           sourcePrecision:'unknown',hierarchyPresented:false}};
-      return baseRunSequence.call(this,safe,primary,serial);
+      const result=baseRunSequence.call(this,safe,primary,serial);
+      return Promise.resolve(result).then(ok=>{if(serial===G.navSerial)drawArea(story,serial);return ok;});
     }
     if (!threat) return baseRunSequence.call(this, story, iso, serial);
     G.clearArc?.();
