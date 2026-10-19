@@ -156,14 +156,14 @@
   };
   function drawArea(n,serial){
     const area=areaOf(n),viewer=G.viewer,C=window.Cesium;
-    if(!area||!viewer||!C||serial!==G.navSerial)return;
+    if(!area||!viewer||!C||serial!==G.navSerial)return false;
     const isConflict=String(area.type).toUpperCase()==='CONFLICT_CONTROL';
     // Never replace an explicit but invalid control boundary with a
     // direction-based approximation. Control lines require real evidence.
     const shape=validShape(area.geometry)?area.geometry:
       (area.geometry===undefined&&!isConflict&&String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
         directionalShape(n.scenePlan?.primaryIso3||n.countryIso3,area.direction):null);
-    if(!validShape(shape))return;
+    if(!validShape(shape))return false;
     const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
     const conflict=String(area.type).toUpperCase()==='CONFLICT_CONTROL';
     const fill=C.Color.fromCssColorString(conflict?'#ed5353':'#43bce4').withAlpha(conflict?.32:.22);
@@ -194,9 +194,11 @@
       const distance=Math.max(350000,sphere.radius/Math.max(.15,Math.sin(half))*1.2);
       camera.flyToBoundingSphere(sphere,{duration:1.1,offset:new C.HeadingPitchRange(0,-Math.PI/2,distance)});
     }
+    return true;
     } catch(err) {
       clearArea();
       console.warn('V52 area scene skipped after Cesium rendering failure',err);
+      return false;
     }
   }
   G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
@@ -283,7 +285,23 @@
           finalLocation:false,transitionArc:false,attackEffect:null,
           sourcePrecision:'unknown',hierarchyPresented:false}};
       const result=baseRunSequence.call(this,safe,primary,serial);
-      return Promise.resolve(result).then(ok=>{if(serial===G.navSerial)drawArea(story,serial);return ok;});
+      return Promise.resolve(result).then(ok=>{
+        if(serial!==G.navSerial)return ok;
+        // Country geometry may finish loading just after the base scene.
+        // Retry briefly; stop immediately on navigation to another story.
+        const area=areaOf(story);
+        const needsCountry=area?.type==='GEOGRAPHIC_REGION'&&area.geometry===undefined&&
+          !!DIRECTION[String(area.direction||'').toUpperCase()];
+        if(!needsCountry){drawArea(story,serial);return ok;}
+        let attempts=0;
+        const attempt=()=>{
+          if(serial!==G.navSerial)return;
+          if(drawArea(story,serial))return;
+          if(++attempts<12)setTimeout(attempt,250);
+        };
+        attempt();
+        return ok;
+      });
     }
     if (!threat) return baseRunSequence.call(this, story, iso, serial);
     G.clearArc?.();
