@@ -170,8 +170,14 @@
     }
     if(pts.length&&serial===G.navSerial){
       const sphere=C.BoundingSphere.fromPoints(pts);
-      viewer.camera.flyToBoundingSphere(sphere,{duration:1.1,offset:new C.HeadingPitchRange(0,-Math.PI/2,
-        Math.max(350000,sphere.radius*2.8))});
+      // The minimum camera distance must account for portrait aspect ratio.
+      // A fixed 2.8 radius can crop a wide area on a 9:16 viewport.
+      const camera=viewer.camera,frustum=camera.frustum;
+      const fovy=frustum?.fovy||Math.PI/3;
+      const aspect=frustum?.aspectRatio||viewer.canvas?.clientWidth/Math.max(1,viewer.canvas?.clientHeight)||1;
+      const half=Math.min(fovy/2,Math.atan(Math.tan(fovy/2)*Math.max(.25,aspect)));
+      const distance=Math.max(350000,sphere.radius/Math.max(.15,Math.sin(half))*1.2);
+      camera.flyToBoundingSphere(sphere,{duration:1.1,offset:new C.HeadingPitchRange(0,-Math.PI/2,distance)});
     }
   }
   G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
