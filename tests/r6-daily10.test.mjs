@@ -212,3 +212,36 @@ test('autoplay waits for GPU geometry, the full attack and its final static hold
  ready=true;h.drain();assert.equal(h.G.current,current+1);
  h.G.pause();assert.equal(h.timers.size,0);
 });
+
+test('regional area validator rejects malformed news and invalid conflict evidence safely',()=>{
+  const h=harness();
+  assert.match(h.G.validate({news:{unexpected:true}}).join('|'),/10条/);
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'UKR',area:{type:'CONFLICT_CONTROL',
+      geometry:{type:'Polygon',coordinates:[[[30,48],[31,48],[31,49],[30,49],[30,48]]]},
+      sourceUrl:'https://example.org/map',asOf:'2026-10-19',controlledBy:'example'}}};
+  assert.equal(h.G.validate(daily(stories)).length,0);
+  const bad=JSON.parse(JSON.stringify(stories));
+  bad[0].scenePlan.area.geometry.coordinates[0].pop();
+  assert.match(h.G.validate(daily(bad)).join('|'),/GeoJSON/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  bad[0].scenePlan.area.asOf='2026-02-30';
+  assert.match(h.G.validate(daily(bad)).join('|'),/日期/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  bad[0].scenePlan.area.sourceUrl='http://invalid.test';
+  assert.match(h.G.validate(daily(bad)).join('|'),/来源/);
+  bad[0]=JSON.parse(JSON.stringify(stories[0]));
+  delete bad[0].geoScope;
+  assert.match(h.G.validate(daily(bad)).join('|'),/区域场景/);
+});
+
+test('direction-only geographic regions accept no coordinate and no invented polygon',()=>{
+  const h=harness();
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'CHN',area:{type:'GEOGRAPHIC_REGION',direction:'NORTHWEST'}}};
+  assert.equal(h.G.validate(daily(stories)).length,0);
+  stories[0].scenePlan.area.direction='NOT_A_DIRECTION';
+  assert.match(h.G.validate(daily(stories)).join('|'),/GeoJSON/);
+});
