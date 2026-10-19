@@ -236,6 +236,17 @@ test('regional area validator rejects malformed news and invalid conflict eviden
   assert.match(h.G.validate(daily(bad)).join('|'),/区域场景/);
 });
 
+test('area validation rejects closed but zero-area polygon rings',()=>{
+  const h=harness();
+  const stories=Array.from({length:10},(_,i)=>story(i+1));
+  stories[0]={...stories[0],lon:null,lat:null,geoScope:'REGIONAL',
+    scenePlan:{primaryIso3:'UKR',area:{type:'GEOGRAPHIC_REGION',
+      geometry:{type:'Polygon',coordinates:[[[30,45],[31,46],[32,47],[30,45]]]}}}};
+  assert.match(h.G.validate(daily(stories)).join('|'),/GeoJSON/);
+  stories[0].scenePlan.area.geometry.coordinates[0]=[[30,45],[32,45],[32,47],[30,47],[30,45]];
+  assert.equal(h.G.validate(daily(stories)).length,0);
+});
+
 test('direction-only geographic regions accept no coordinate and no invented polygon',()=>{
   const h=harness();
   const stories=Array.from({length:10},(_,i)=>story(i+1));
