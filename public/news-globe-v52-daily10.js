@@ -73,7 +73,7 @@
       if(!['GEOGRAPHIC_REGION','CONFLICT_CONTROL'].includes(type))errors.push('Top'+(i+1)+' 区域类型无效');
       if(!validShape(area.geometry))errors.push('Top'+(i+1)+' 区域GeoJSON无效');
       if(type==='CONFLICT_CONTROL'&&(!String(area.sourceUrl||'').startsWith('https://')||
-        !/^\\d{4}-\\d{2}-\\d{2}$/.test(String(area.asOf||''))||
+        !/^\d{4}-\d{2}-\d{2}$/.test(String(area.asOf||''))||
         !String(area.controlledBy||'').trim()))errors.push('Top'+(i+1)+' 冲突控制区缺少来源、日期或控制方');
     });
     return errors;
@@ -106,7 +106,7 @@
     }
   }
   G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
-  window.addEventListener('pagehide',clearArea);
+  window.addEventListener?.('pagehide',clearArea);
   G.daily10Warnings = () => [];
 
   const legacy = oldNews.length === 13;
