@@ -145,7 +145,11 @@
     return errors;
   };
   let areaEntities=[];
-  const clearArea=()=>{const viewer=G.viewer;if(viewer?.entities)for(const e of areaEntities)viewer.entities.remove(e);areaEntities=[];};
+  const clearArea=()=>{
+    const viewer=G.viewer;
+    if(viewer?.entities)for(const e of areaEntities)viewer.entities.remove(e);
+    areaEntities=[];
+  };
   function drawArea(n,serial){
     const area=areaOf(n),viewer=G.viewer,C=window.Cesium;
     if(!area||!viewer||!C||serial!==G.navSerial)return;
@@ -158,6 +162,9 @@
     const fill=C.Color.fromCssColorString(conflict?'#ed5353':'#43bce4').withAlpha(conflict?.32:.22);
     const outline=C.Color.fromCssColorString(conflict?'#ff9b9b':'#a8e7ff');
     const pts=[];
+    // Cesium entity creation can fail on malformed or unsupported geometry.
+    // Roll back the partial overlay rather than leaking it into the next story.
+    try {
     for(const poly of polygons){
       const outer=poly[0].map(p=>C.Cartesian3.fromDegrees(p[0],p[1],0));
       const holes=poly.slice(1).map(ring=>new C.PolygonHierarchy(ring.map(p=>C.Cartesian3.fromDegrees(p[0],p[1],0))));
@@ -179,6 +186,10 @@
       const half=Math.min(fovy/2,Math.atan(Math.tan(fovy/2)*Math.max(.25,aspect)));
       const distance=Math.max(350000,sphere.radius/Math.max(.15,Math.sin(half))*1.2);
       camera.flyToBoundingSphere(sphere,{duration:1.1,offset:new C.HeadingPitchRange(0,-Math.PI/2,distance)});
+    }
+    } catch(err) {
+      clearArea();
+      console.warn('V52 area scene skipped after Cesium rendering failure',err);
     }
   }
   G.v52AreaScenes={clear:clearArea,validate:validShape,getDiagnostics:()=>({entities:areaEntities.length})};
