@@ -161,7 +161,7 @@
     // Never replace an explicit but invalid control boundary with a
     // direction-based approximation. Control lines require real evidence.
     const shape=validShape(area.geometry)?area.geometry:
-      (!isConflict&&String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
+      (area.geometry===undefined&&!isConflict&&String(area.type).toUpperCase()==='GEOGRAPHIC_REGION'?
         directionalShape(n.scenePlan?.primaryIso3||n.countryIso3,area.direction):null);
     if(!validShape(shape))return;
     const polygons=shape.type==='Polygon'?[shape.coordinates]:shape.coordinates;
