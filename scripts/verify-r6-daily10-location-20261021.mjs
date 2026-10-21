@@ -124,6 +124,8 @@ try{
  }));
  assert.equal(imported.errors.length,0);
  assert.equal(imported.noPoint7,true);assert.equal(imported.noPoint8,true);assert.equal(imported.noPoint9,true);
+ await page.evaluate(()=>window.NG14?.closeSettings?.());
+ await page.waitForFunction(()=>!document.querySelector('#drawerBackdrop')?.classList.contains('show'),null,{timeout:10000});
  // These are positive assertions about final visual state, not just title/flag presence.
  const top1=await visit(1,'top1-airport',{target:[30.27,59.8]});
  near(top1,30.27,59.8);
