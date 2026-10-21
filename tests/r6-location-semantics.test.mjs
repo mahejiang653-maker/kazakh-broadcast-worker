@@ -85,7 +85,7 @@ test('country and area summaries never receive fictitious red position markers',
     {sceneMode:'POINT',noPoint:false,lon:null,lat:null},
     {sceneMode:'POINT',noPoint:false,lon:30.27,lat:59.8}
   ];
-  const G={news,markers:[],pulses:[],clearArc(){},clearLocal(){},
+  const G={news,markers:[],pulses:[], $:()=>null, clearArc(){},clearLocal(){},
     viewer:{entities:{add:v=>{recorded.push(v);return v;},remove(){}}}};
   vm.runInNewContext(source('news-globe-v52-locationless-marker-guard.js'),{
     window:{NG14:G,Cesium:C},Cesium:C
