@@ -15,16 +15,33 @@ if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
 const baseApplySettings=G.applySettings;
 if(typeof baseApplySettings==='function')G.applySettings=function(...args){
  const input=G.$?.('jsonInput');
+ let validImport=false;
  try{
    if(input?.value){
      const parsed=JSON.parse(input.value);
      if(Array.isArray(parsed?.news) && !(G.validate?.(parsed)||[]).length){
        parsed.news=G.applyV52HardRules(parsed.news);
        input.value=JSON.stringify(parsed,null,2);
+       validImport=true;
      }
    }
  }catch{/* Keep the standard validation error in applySettings. */}
- return baseApplySettings.apply(this,args);
+ const result=baseApplySettings.apply(this,args);
+ // Import resets the page to overview. The old overview animated a long
+ // camera flight while users immediately selected Top1. That leftover flight
+ // could cancel Top1's first China country stage. After a successful import,
+ // settle the overview camera instantly. Normal manual Overview remains animated.
+ if(validImport && G.overviewMode && G.viewer?.camera && window.Cesium){
+   try{
+     const C=window.Cesium;
+     G.viewer.camera.cancelFlight?.();
+     G.viewer.camera.setView({
+       destination:C.Cartesian3.fromDegrees(70,20,21000000),
+       orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}
+     });
+   }catch(error){console.warn('[V52] Imported overview camera reset unavailable',error);}
+ }
+ return result;
 };
 const oldRun=G.runSequence;
 async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;try{r=await oldRun.call(G,q,iso,s)}finally{G.__v52SuppressAdminTrace=false}if(s!==G.navSerial)return false;await wait(hold,s);return r!==false}
