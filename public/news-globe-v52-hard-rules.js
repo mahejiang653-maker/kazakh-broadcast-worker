@@ -13,7 +13,7 @@ async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof
 function removeLegacyActorCard(){const h=document.getElementById('v52ActorStage');if(h)h.remove()}
 async function showActorStage(n,s){const p=n.scenePlan||{},actor=String(p.nonStateActor||'').trim();if(!actor)return;const target=String(n.focusLabel||n.location||'目标地点');removeLegacyActorCard();trace('actor',{actor,target});trace('actor-visible',{actor,target,integrated:true});await wait(900,s)}
 function chinaLevelOne(name){
- const norm=v=>String(v||'').replace(/中华人民共和国|中国|特别行政区|维吾尔自治区|自治区|省|直辖市|市/g,'').replace(/\\s+/g,'').trim();
+ const norm=v=>String(v||'').replace(/中华人民共和国|中国|特别行政区|维吾尔自治区|自治区|省|直辖市|市/g,'').replace(/\s+/g,'').trim();
  const target=norm(name);
  if(!target)return null;
  for(const f of G.chinaLevel1Geo?.features||[]){
