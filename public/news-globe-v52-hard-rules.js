@@ -7,7 +7,25 @@ const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.nav
 const oldAdminSteps=G.adminSteps;G.adminSteps=function(n){const a=n?.scenePlan?.adminChain;if(Array.isArray(a)&&a.length)return a.slice();return oldAdminSteps?oldAdminSteps.call(this,n):[]};
 const oldFlashAdmin=typeof G.flashAdmin==='function'?G.flashAdmin:null;if(oldFlashAdmin)G.flashAdmin=async function(step,iso,s,hold=2600,options={}){if(s!==G.navSerial)return false;const name=String(step?.name||step?.location||step?.focusLabel||step||''),code=String(iso||'').toUpperCase();if(!G.__v52SuppressAdminTrace){trace('admin',{name,iso:code,visible:true});trace('admin-visible-start',{name,iso:code})}const r=await oldFlashAdmin.call(this,step,iso,s,hold,{...options,keepVisible:true,beforeShow:options.beforeShow||G.v51PrepareAdmin});if(r&&s===G.navSerial){if(!G.__v52SuppressAdminTrace)trace('admin-visible-hold',{name,iso:code});await wait(1200,s)}return s===G.navSerial?r:false};
 function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.scenePlan||(n.scenePlan={}),mode=String(n.sceneMode||'').toUpperCase();if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
-G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
+G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
+if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
+if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
+// A newly imported DATA LOCK replaces G.news before buildScene. Normalize it
+// BEFORE building markers, not only when the first story starts playing.
+const baseApplySettings=G.applySettings;
+if(typeof baseApplySettings==='function')G.applySettings=function(...args){
+ const input=G.$?.('jsonInput');
+ try{
+   if(input?.value){
+     const parsed=JSON.parse(input.value);
+     if(Array.isArray(parsed?.news) && !(G.validate?.(parsed)||[]).length){
+       parsed.news=G.applyV52HardRules(parsed.news);
+       input.value=JSON.stringify(parsed,null,2);
+     }
+   }
+ }catch{/* Keep the standard validation error in applySettings. */}
+ return baseApplySettings.apply(this,args);
+};
 const oldRun=G.runSequence;
 async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;try{r=await oldRun.call(G,q,iso,s)}finally{G.__v52SuppressAdminTrace=false}if(s!==G.navSerial)return false;await wait(hold,s);return r!==false}
 function removeLegacyActorCard(){const h=document.getElementById('v52ActorStage');if(h)h.remove()}
