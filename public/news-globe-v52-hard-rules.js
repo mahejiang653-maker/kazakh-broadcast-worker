@@ -12,7 +12,31 @@ const oldRun=G.runSequence;
 async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;try{r=await oldRun.call(G,q,iso,s)}finally{G.__v52SuppressAdminTrace=false}if(s!==G.navSerial)return false;await wait(hold,s);return r!==false}
 function removeLegacyActorCard(){const h=document.getElementById('v52ActorStage');if(h)h.remove()}
 async function showActorStage(n,s){const p=n.scenePlan||{},actor=String(p.nonStateActor||'').trim();if(!actor)return;const target=String(n.focusLabel||n.location||'目标地点');removeLegacyActorCard();trace('actor',{actor,target});trace('actor-visible',{actor,target,integrated:true});await wait(900,s)}
-async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(primary!=='CHN'||!chain.length||!oldFlashAdmin)return null;await runCountry('CHN',n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){if(s!==G.navSerial)return false;const shown=await G.flashAdmin(step,'CHN',s);if(shown===false){trace('admin-unavailable',{name:String(step?.location||step?.focusLabel||'')});return false}if(s!==G.navSerial)return false}trace('admin-hierarchy-complete',{chain:chain.slice()});return true}
+function chinaLevelOne(name){
+ const norm=v=>String(v||'').replace(/中华人民共和国|中国|特别行政区|维吾尔自治区|自治区|省|直辖市|市/g,'').replace(/\\s+/g,'').trim();
+ const target=norm(name);
+ if(!target)return null;
+ for(const f of G.chinaLevel1Geo?.features||[]){
+   const properties=Object.values(f.properties||{});
+   if(properties.some(v=>(typeof v==='string'||typeof v==='number')&&norm(v)===target))
+     return f.geometry||null;
+ }
+ return null;
+}
+async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(primary!=='CHN'||!chain.length||!oldFlashAdmin)return null;await runCountry('CHN',n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){
+ if(s!==G.navSerial)return false;
+ let selected=step;
+ // For region-wide news, never replace a province polygon with a guessed dot
+ // or an imprecise geocoder match. Render the bundled level-one boundary.
+ if(String(n.sceneMode||'').toUpperCase()==='ADMIN_REGION'){
+   const geo=chinaLevelOne(step?.location||step?.focusLabel);
+   if(!geo){trace('admin-unavailable',{name:String(step?.location||''),reason:'missing-exact-China-level1-geometry'});return false}
+   selected={...step,focusGeometry:geo};
+ }
+ const shown=await G.flashAdmin(selected,'CHN',s);
+ if(shown===false){trace('admin-unavailable',{name:String(step?.location||step?.focusLabel||'')});return false}
+ if(s!==G.navSerial)return false;
+}trace('admin-hierarchy-complete',{chain:chain.slice()});return true}
 function canonicalizeAdminTrace(chain,s){if(!Array.isArray(chain)||!chain.length)return;const keep=[];for(const e of G.v52SceneTrace){if(e.serial===s&&e.type==='admin')continue;keep.push(e)}const now=Date.now(),idx=(G.current??0)+1;chain.forEach((step,i)=>keep.push({type:'admin',serial:s,index:idx,at:now+i,name:String(step?.name||step?.location||step?.focusLabel||step||''),iso:'CHN',visible:true}));G.v52SceneTrace=keep.slice(-300)}
 G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(n);removeLegacyActorCard();const p=n.scenePlan||{},mode=String(n.sceneMode||'').toUpperCase(),primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();trace('sequence',{mode,primary,title:String(n.title||'')});
  // Attack modes share one renderer for every country and city. Do not let
