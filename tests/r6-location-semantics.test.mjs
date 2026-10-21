@@ -5,9 +5,9 @@ import vm from 'node:vm';
 
 const source = name => fs.readFileSync(new URL('../public/' + name, import.meta.url), 'utf8');
 
-function sceneHarness() {
+function sceneHarness({cancelFirstCountry=false,navigateOnCancel=false}={}) {
   const stages = [], admins = [];
-  let failAdmin = false;
+  let failAdmin = false,countryAttempts=0;
   const G = {
     news:[], demo:[], navSerial:9, current:0, v52SceneTrace:[],
     chinaLevel1Geo:{features:[{properties:{name_zh:'新疆维吾尔自治区'},
@@ -17,6 +17,10 @@ function sceneHarness() {
       stages.push({mode:story.sceneMode, iso, title:story.title,
         context:story.scenePlan?.contextCountries || [],
         lon:story.lon,lat:story.lat});
+      if(cancelFirstCountry&&story.sceneMode==='COUNTRY'&&++countryAttempts===1){
+        if(navigateOnCancel)G.navSerial=serial+1;
+        return false;
+      }
       return true;
     },
     flashAdmin: async (step,iso) => {
@@ -162,4 +166,25 @@ test('multi-city Gaza event visits both city anchors without inventing an attack
  ]);
  assert.equal(h.stages[0].context.length,0);
  assert.equal(h.stages[1].context.length,0);
+});
+
+test('a same-serial initial flight cancellation is retried once before reaching airport',async()=>{
+  const h=sceneHarness({cancelFirstCountry:true});
+  const n={title:'圣彼得堡机场',sceneMode:'DIPLOMACY',
+    countryIso3:'RUS',lon:30.27,lat:59.8,location:'普尔科沃机场',
+    scenePlan:{primaryIso3:'RUS',contextCountries:['CHN'],finalLocation:true}};
+  assert.equal(await h.G.runSequence(n,'RUS',9),true);
+  assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[
+    ['COUNTRY','CHN'],['COUNTRY','CHN'],['COUNTRY','RUS'],['POINT','']
+  ]);
+  assert.equal(h.G.getV52SceneTrace().filter(e=>e.type==='country-camera-retry').length,1);
+});
+test('a genuine user navigation cancellation must never retry the retired camera scene',async()=>{
+  const h=sceneHarness({cancelFirstCountry:true,navigateOnCancel:true});
+  const n={title:'圣彼得堡机场',sceneMode:'DIPLOMACY',
+    countryIso3:'RUS',lon:30.27,lat:59.8,location:'普尔科沃机场',
+    scenePlan:{primaryIso3:'RUS',contextCountries:['CHN'],finalLocation:true}};
+  assert.equal(await h.G.runSequence(n,'RUS',9),false);
+  assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[['COUNTRY','CHN']]);
+  assert.equal(h.G.getV52SceneTrace().filter(e=>e.type==='country-camera-retry').length,0);
 });
