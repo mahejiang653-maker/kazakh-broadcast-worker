@@ -10,6 +10,8 @@ function sceneHarness() {
   let failAdmin = false;
   const G = {
     news:[], demo:[], navSerial:9, current:0, v52SceneTrace:[],
+    chinaLevel1Geo:{features:[{properties:{name_zh:'新疆维吾尔自治区'},
+      geometry:{type:'Polygon',coordinates:[[[74,35],[95,35],[95,49],[74,49],[74,35]]]}}]},
     countryName: iso => iso, wait: async () => true,
     runSequence: async (story, iso, serial) => {
       stages.push({mode:story.sceneMode, iso, title:story.title,
@@ -65,6 +67,8 @@ test('Top9 Xinjiang area routes into the existing China level-one administrative
   assert.equal(h.admins.length,1);
   assert.equal(h.admins[0].step.location,'新疆维吾尔自治区');
   assert.equal(h.admins[0].step.placeType,'自治区');
+  assert.equal(h.admins[0].step.focusGeometry.type,'Polygon');
+  assert.ok(h.admins[0].step.focusGeometry.coordinates[0].length>=4);
   h.setFailAdmin(true);
   assert.equal(await h.G.runSequence(story,'CHN',9),false,
     'missing polygon must fail rather than silently claim region display');
