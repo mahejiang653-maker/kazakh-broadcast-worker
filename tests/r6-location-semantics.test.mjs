@@ -117,3 +117,32 @@ test('news transition arcs skip country-only anchors and retain real city routes
   G.showArc(2,3);
   assert.deepEqual(arcs,[[2,3]]);
 });
+
+test('fresh JSON import normalizes area and country news before constructing any red markers',()=>{
+  const news=[
+    {id:1,title:'Top7 Chinese chips',location:'中国',lon:103.8,lat:35.4,sceneMode:'COUNTRY'},
+    {id:2,title:'Top8 Terafab proposal',location:'美国',lon:-122.4,lat:37.7,sceneMode:'COUNTRY'},
+    {id:3,title:'Top9 Xinjiang cotton',location:'新疆维吾尔自治区',lon:85.2,lat:41.5,
+      sceneMode:'ADMIN_REGION',scenePlan:{primaryIso3:'CHN',adminChain:[{location:'新疆维吾尔自治区'}]}},
+    {id:4,title:'Top1 real airport',location:'圣彼得堡机场',lon:30.27,lat:59.8,sceneMode:'POINT'}
+  ];
+  const input={value:JSON.stringify({news})},snapshots=[];
+  const G={
+    news:[],demo:[],current:0,navSerial:1,
+    $:key=>key==='jsonInput'?input:null,
+    validate:()=>[],
+    applySettings(){
+      this.news=JSON.parse(input.value).news;
+      snapshots.push(this.news.map(n=>({mode:n.sceneMode,noPoint:!!n.noPoint,final:n.scenePlan?.finalLocation})));
+    },
+    runSequence:async()=>true
+  };
+  vm.runInNewContext(source('news-globe-v52-hard-rules.js'),{
+    window:{NG14:G},document:{getElementById:()=>null},console
+  });
+  G.applySettings();
+  assert.equal(snapshots.length,1);
+  assert.deepEqual(snapshots[0].map(n=>n.noPoint),[true,true,true,false]);
+  assert.deepEqual(snapshots[0].slice(0,3).map(n=>n.final),[false,false,false]);
+  assert.deepEqual(snapshots[0].map(n=>n.mode),['COUNTRY','COUNTRY','ADMIN_REGION','POINT']);
+});
