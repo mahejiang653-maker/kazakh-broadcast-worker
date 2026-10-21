@@ -146,3 +146,20 @@ test('fresh JSON import normalizes area and country news before constructing any
   assert.deepEqual(snapshots[0].slice(0,3).map(n=>n.final),[false,false,false]);
   assert.deepEqual(snapshots[0].map(n=>n.mode),['COUNTRY','COUNTRY','ADMIN_REGION','POINT']);
 });
+
+test('multi-city Gaza event visits both city anchors without inventing an attack midpoint',async()=>{
+ const h=sceneHarness();
+ const story={title:'加沙两地遇袭',sceneMode:'POINT',countryIso3:'PSE',
+   lon:34.466,lat:31.502,location:'加沙城',scenePlan:{primaryIso3:'PSE',finalLocation:true},
+   eventSites:[
+     {location:'加沙城',label:'加沙城（涉事城市）',lon:34.466,lat:31.502,countryIso3:'PSE'},
+     {location:'汗尤尼斯',label:'汗尤尼斯（涉事城市）',lon:34.307,lat:31.345,countryIso3:'PSE'}
+   ]};
+ assert.equal(await h.G.runSequence(story,'PSE',9),true);
+ assert.deepEqual(h.stages.map(x=>[x.title,x.lon,x.lat]),[
+   ['加沙两地遇袭',34.466,31.502],
+   ['加沙两地遇袭',34.307,31.345]
+ ]);
+ assert.equal(h.stages[0].context.length,0);
+ assert.equal(h.stages[1].context.length,0);
+});
