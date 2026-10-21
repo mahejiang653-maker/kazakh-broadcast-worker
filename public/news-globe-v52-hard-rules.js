@@ -32,10 +32,16 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    return typeof oldRun==='function'?oldRun.call(this,q,iso,s):false;
  }
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true}
- if(mode==='ADMIN_REGION')return runCountry(primary,n,s,2100);
+ // Administrative-area reports have a real boundary, not an incident dot.
+ // Use the existing China level-1 geometry via the admin chain.
+ if(mode==='ADMIN_REGION'){
+   const shown=await runAdminHierarchy(n,primary,s);
+   if(shown!==null)return shown;
+   return runCountry(primary,n,s,2100);
+ }
  if(p.nonStateActor){await runCountry(primary,n,s,1200);if(s!==G.navSerial)return false;await showActorStage(n,s);if(s!==G.navSerial)return false;const q={...n,adminChain:[],scenePlan:{...p,participants:[],contextCountries:[],adminChain:[]}};return oldRun?oldRun.call(this,q,iso,s):false}
  const adminResult=await runAdminHierarchy(n,primary,s);if(adminResult!==null){if(!adminResult)return false;const chain=p.adminChain.slice(),q={...n,forceAdminChain:false,adminChain:[],scenePlan:{...p,adminChain:[],forceAdminChain:false,participants:[],contextCountries:[],hierarchyPresented:true}};let r=true;G.__v52SuppressAdminTrace=true;try{r=oldRun?await oldRun.call(this,q,iso,s):true}finally{G.__v52SuppressAdminTrace=false}if(s===G.navSerial)canonicalizeAdminTrace(chain,s);return r}
- const ctx=p.contextDisplay===false?[]:[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];if(ctx.length){const eventCountry=primary;for(const x of ctx){await runCountry(x,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false}if(eventCountry){await runCountry(eventCountry,n,s,850,'diplomacy-country');if(s!==G.navSerial)return false}const q={...n,countryIso3:null,secondaryCountryIso3:null,adminChain:[],scenePlan:{...p,primaryIso3:'',participants:[],contextCountries:[],adminChain:[]}};trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});return oldRun?oldRun.call(this,q,'',s):false}
+ const ctx=p.contextDisplay===false?[]:[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];if(ctx.length){const eventCountry=primary;for(const x of ctx){if(!await runCountry(x,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}if(eventCountry){if(!await runCountry(eventCountry,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}const q={...n,sceneMode:'POINT',secondaryCountryIso3:null,adminChain:[],scenePlan:{...p,primaryIso3:eventCountry,participants:[],contextCountries:[],adminChain:[],regionalContext:false,finalLocation:true}};trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});return oldRun?oldRun.call(this,q,'',s):false}
 
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}return false};
 })(window.NG14);
