@@ -74,11 +74,25 @@ try{
   assert.equal(state.noPoint[8],true);
   for(const index of [0,4,5,6,7,8]){
     await page.evaluate(i=>window.NG14.focus(i,true),index);
-    await page.waitForFunction(i=>{
-      const G=window.NG14,s=G.v52Director?.getState();
-      return G.current===i && s?.index===i &&
-        ['complete','cancelled','failed'].includes(s.status);
-    },index,{timeout:65000});
+    try{
+      await page.waitForFunction(i=>{
+        const G=window.NG14,s=G.v52Director?.getState();
+        return G.current===i && s?.index===i &&
+          ['complete','cancelled','failed'].includes(s.status);
+      },index,{timeout:45000});
+    }catch(error){
+      const diag=await page.evaluate(()=>{
+        const G=window.NG14;return {current:G?.current,serial:G?.navSerial,overview:G?.overviewMode,
+          director:G?.v52Director?.getState?.(),trace:G?.getV52SceneTrace?.()?.slice(-20),
+          cameraFlying:!!G?.viewer?.camera?._currentFlight,
+          pendingOverview:G?.v52OverviewCleanup?.getDiagnostics?.(),
+          countryIso3:[...(G?.countries?.keys?.()||[])].slice(0,8),
+          ready:!!G?.viewer,globeLevel1:G?.chinaLevel1Geo?.features?.length};
+      });
+      console.log('SCENE_TIMEOUT_DIAG',JSON.stringify(diag));
+      report.sceneTimeout=diag;
+      throw error;
+    }
     const n=await page.evaluate(inspect);
     const mistakes=[];
     if(n.status!=='complete')mistakes.push('scene ended '+n.status);
