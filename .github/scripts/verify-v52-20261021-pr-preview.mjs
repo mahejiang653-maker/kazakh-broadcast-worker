@@ -103,6 +103,18 @@ try{
     if(mistakes.length)report.errors.push('Top'+(index+1)+': '+mistakes.join('; '));
     console.log('TOP'+(index+1),JSON.stringify({status:n.status,trace:n.trace,center:n.center,polygons:n.adminPolygons,mistakes}));
   }
+  // Diagnose first-story cancellation separately from an intrinsic venue error.
+  // Replaying Top1 from a settled Top9 camera distinguishes startup/overview
+  // interference from the normal China -> Russia -> airport scene path.
+  await page.evaluate(()=>window.NG14.focus(0,true));
+  await page.waitForFunction(()=>{
+    const G=window.NG14,s=G.v52Director?.getState();
+    return G.current===0&&s?.index===0&&['complete','cancelled','failed'].includes(s.status);
+  },null,{timeout:65000});
+  const replay=await page.evaluate(inspect);
+  report.top1Replay=replay;
+  await page.screenshot({path:dir+'/top-01-replay.png',fullPage:true});
+  console.log('TOP1_REPLAY',JSON.stringify(replay));
   assert.deepEqual(report.errors,[],report.errors.join('; '));
   report.status='PASS';
 }catch(e){
