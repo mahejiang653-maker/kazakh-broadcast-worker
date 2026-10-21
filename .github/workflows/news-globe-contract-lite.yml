@@ -43,6 +43,7 @@ jobs:
         run: |
           node --test \
             tests/r6-daily10.test.mjs \
+            tests/r6-location-semantics.test.mjs \
             tests/r6-director.test.mjs \
             tests/r6-entry.test.mjs \
             tests/r6-story-borders.test.mjs \
