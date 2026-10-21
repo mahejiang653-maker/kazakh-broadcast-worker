@@ -57,7 +57,8 @@ try{
   page.on('pageerror',e=>report.pageErrors.push(e.message));
   await page.goto(base,{waitUntil:'domcontentloaded',timeout:70000});
   await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.news?.length===10&&
-    document.querySelector('#jsonInput')&&window.NG14?.v52Director,
+    document.querySelector('#dailyLockFile')&&window.NG14?.v52Director&&
+    !!document.querySelector('#timeline button'),
     null,{timeout:100000});
   const state=await page.evaluate(p=>{
     const G=window.NG14,area=G.$('jsonInput');
