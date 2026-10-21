@@ -221,7 +221,7 @@ test('country-only news can omit a fictional city coordinate but real point scen
  items[7]={id:8,title:'Terafab时间表',location:'美国',countryIso3:'USA',
    sceneMode:'COUNTRY',noPoint:true,lon:null,lat:null,scenePlan:{primaryIso3:'USA',finalLocation:false}};
  const pack=daily(items);
- assert.deepEqual(h.G.validate(pack),[]);
+ assert.deepEqual(Array.from(h.G.validate(pack)),[]);
  pack.news[7].countryIso3='';pack.news[7].scenePlan.primaryIso3='';
  assert.match(h.G.validate(pack).join('|'),/国家代码/);
  pack.news[7]=story(8);pack.news[7].lon=null;
