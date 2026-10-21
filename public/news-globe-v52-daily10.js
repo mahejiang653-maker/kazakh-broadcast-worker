@@ -36,9 +36,18 @@
       if(!n || typeof n!=='object'){errors.push('Top'+(i+1)+' 不是有效对象');return;}
       if(!String(n.title||'').trim())errors.push('Top'+(i+1)+' 缺少标题');
       if(!String(n.location||n.focusLabel||'').trim())errors.push('Top'+(i+1)+' 缺少定位名称');
-      const lon=Number(n.lon),lat=Number(n.lat);
-      if(n.lon==null || !Number.isFinite(lon) || lon < -180 || lon > 180)errors.push('Top'+(i+1)+' 经度无效');
-      if(n.lat==null || !Number.isFinite(lat) || lat < -90 || lat > 90)errors.push('Top'+(i+1)+' 纬度无效');
+      // COUNTRY-only news has no factually established single incident site.
+      // Its country polygon, not a fabricated city coordinate, is the camera target.
+      const mode=String(n.sceneMode||'').toUpperCase();
+      const countryOnly=mode==='COUNTRY' && n.noPoint===true;
+      if(countryOnly){
+        if(!/^[A-Z]{3}$/.test(String(n.countryIso3||n.scenePlan?.primaryIso3||'').toUpperCase()))
+          errors.push('Top'+(i+1)+' 国家范围新闻缺少国家代码');
+      }else{
+        const lon=Number(n.lon),lat=Number(n.lat);
+        if(n.lon==null || !Number.isFinite(lon) || lon < -180 || lon > 180)errors.push('Top'+(i+1)+' 经度无效');
+        if(n.lat==null || !Number.isFinite(lat) || lat < -90 || lat > 90)errors.push('Top'+(i+1)+' 纬度无效');
+      }
     });
     return errors;
   };
