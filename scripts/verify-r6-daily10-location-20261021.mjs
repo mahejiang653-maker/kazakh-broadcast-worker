@@ -93,8 +93,8 @@ async function visit(index,id,{target=null,timeout=80000}={}){
     const G=window.NG14,C=window.Cesium;
     if(G.viewer.camera._currentFlight)return false;
     const cp=G.viewer.camera.positionCartographic;
-    return Math.abs(C.Math.toDegrees(cp.longitude)-lon)<.2 &&
-       Math.abs(C.Math.toDegrees(cp.latitude)-lat)<.2;
+    return Math.abs(C.Math.toDegrees(cp.longitude)-lon)<.025 &&
+       Math.abs(C.Math.toDegrees(cp.latitude)-lat)<.025;
    },target,{timeout});
  } else {
    await page.waitForFunction(()=>{
@@ -102,8 +102,9 @@ async function visit(index,id,{target=null,timeout=80000}={}){
      return !G.viewer.camera._currentFlight && d&&['complete','cancelled','failed'].includes(d.status);
    },null,{timeout});
  }
+ await page.waitForFunction(()=>window.NG14?.v52Director?.getState?.()?.status==='complete',null,{timeout:30000});
  const s=await capture(id);
- assert.ok(s.director?.status!=='cancelled'&&s.director?.status!=='failed',
+ assert.ok(s.director?.status==='complete',
   'camera stage was cancelled: '+JSON.stringify(s.director));
  return s;
 }
