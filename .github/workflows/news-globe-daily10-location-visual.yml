@@ -1,0 +1,35 @@
+name: V52 Daily10 Location Visual QA
+on:
+  pull_request:
+    paths:
+      - 'scripts/verify-r6-daily10-location-20261021.mjs'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-locationless-marker-guard.js'
+      - 'public/news-globe-v52-navigation-guard.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - '.github/workflows/news-globe-daily10-location-visual.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  location-visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify actual 2026-10-21 V52 story locations in Chromium
+        run: node scripts/verify-r6-daily10-location-20261021.mjs
+      - name: Preserve scene diagnostics and screenshots even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily10-location-scenes-${{ github.sha }}
+          path: globe-verify-20261021
+          retention-days: 30

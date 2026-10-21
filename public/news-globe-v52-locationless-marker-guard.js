@@ -3,7 +3,15 @@
   const $=G.$;
   if(!C||!$) return;
 
-  const hasPoint=n=>Number.isFinite(Number(n?.lon))&&Number.isFinite(Number(n?.lat));
+  // A numeric camera anchor is not proof of a real news location.
+  // Country / regional summaries keep their coordinates for camera framing,
+  // but never receive a fabricated red incident marker.
+  const hasPoint=n=>!!n && n.noPoint!==true &&
+    !['COUNTRY','ADMIN_REGION'].includes(String(n.sceneMode||'').toUpperCase()) &&
+    n.lon!==null && n.lon!==undefined && n.lon!=='' &&
+    n.lat!==null && n.lat!==undefined && n.lat!=='' &&
+    Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) &&
+    Math.abs(Number(n.lon))<=180 && Math.abs(Number(n.lat))<=90;
 
   G.buildScene=()=>{
     G.clearScene();

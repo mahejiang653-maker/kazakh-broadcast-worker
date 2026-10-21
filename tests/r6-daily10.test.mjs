@@ -212,3 +212,18 @@ test('autoplay waits for GPU geometry, the full attack and its final static hold
  ready=true;h.drain();assert.equal(h.G.current,current+1);
  h.G.pause();assert.equal(h.timers.size,0);
 });
+
+test('country-only news can omit a fictional city coordinate but real point scenes still require coordinates',()=>{
+ const h=harness();
+ const items=Array.from({length:10},(_,i)=>story(i+1));
+ items[6]={id:7,title:'跨境芯片订单',location:'中国',countryIso3:'CHN',
+   sceneMode:'COUNTRY',noPoint:true,lon:null,lat:null,scenePlan:{primaryIso3:'CHN',finalLocation:false}};
+ items[7]={id:8,title:'Terafab时间表',location:'美国',countryIso3:'USA',
+   sceneMode:'COUNTRY',noPoint:true,lon:null,lat:null,scenePlan:{primaryIso3:'USA',finalLocation:false}};
+ const pack=daily(items);
+ assert.deepEqual(Array.from(h.G.validate(pack)),[]);
+ pack.news[7].countryIso3='';pack.news[7].scenePlan.primaryIso3='';
+ assert.match(h.G.validate(pack).join('|'),/国家代码/);
+ pack.news[7]=story(8);pack.news[7].lon=null;
+ assert.match(h.G.validate(pack).join('|'),/经度无效/);
+});

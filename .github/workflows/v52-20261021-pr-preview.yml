@@ -1,0 +1,46 @@
+name: V52 2026-10-21 PR rendered news preview
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-locationless-marker-guard.js'
+      - 'public/news-globe-v52-navigation-guard.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - '.github/scripts/verify-v52-20261021-pr-preview.mjs'
+      - '.github/workflows/v52-20261021-pr-preview.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview-scene-verification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start PR static preview, not production
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory public > /tmp/v52-preview-http.log 2>&1 &
+          echo $! > /tmp/v52-preview-http.pid
+          for i in {1..20}; do
+            if curl --silent --fail http://127.0.0.1:8765/news-globe-run-20260920-v52-r1.html > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/v52-preview-http.log
+          exit 1
+      - name: Verify six real Cesium camera/region scenes
+        run: node .github/scripts/verify-v52-20261021-pr-preview.mjs
+      - name: Upload diagnostic report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v52-20261021-pr-preview
+          path: globe-20261021-pr-preview
+          if-no-files-found: warn
