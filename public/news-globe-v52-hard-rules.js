@@ -62,6 +62,27 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  if(['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    return typeof oldRun==='function'?oldRun.call(this,n,iso,s):false;
  }
+ // A report spanning multiple confirmed cities should visit each city,
+ // without suggesting that a generic midpoint is the sole attack location.
+ if(mode==='POINT' && Array.isArray(n.eventSites) && n.eventSites.length>1){
+   const sites=n.eventSites;
+   for(let i=0;i<sites.length;i++){
+     if(s!==G.navSerial)return false;
+     const site=sites[i],lon=site?.lon,lat=site?.lat;
+     if(lon==null||lat==null||!Number.isFinite(+lon)||!Number.isFinite(+lat)||Math.abs(+lon)>180||Math.abs(+lat)>90)return false;
+     const where=String(site.location||site.label||'').trim();
+     if(!where)return false;
+     const iso3=String(site.countryIso3||primary).toUpperCase();
+     const q={...n,eventSites:[],location:where,focusLabel:String(site.label||where),lon:+lon,lat:+lat,
+       noPoint:false,countryIso3:iso3,sceneMode:'POINT',adminChain:[],forceAdminChain:false,
+       scenePlan:{...p,primaryIso3:iso3,participants:[],contextCountries:[],adminChain:[],
+         hierarchyPresented:i>0,forceAdminChain:false,finalLocation:true}};
+     trace('multi-location',{site:i+1,total:sites.length,location:where,lon:+lon,lat:+lat});
+     const result=await oldRun.call(this,q,iso3,s);
+     if(result===false||s!==G.navSerial)return false;
+   }
+   return true;
+ }
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
  const locality=/县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(String(n.focusLabel||n.location||'')) || /^(city|county|town|village|point)$/i.test(String(n.placeType||''));
