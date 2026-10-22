@@ -55,17 +55,6 @@ if(typeof baseApplySettings==='function')G.applySettings=function(...args){
  return result;
 };
 const oldRun=G.runSequence;
-// Keep sovereign outlines during country overview; suppress them only while
-// the legacy engine renders a locality camera. Restore the prior state safely.
-async function runCloseup(n,iso,serial){
- if(typeof oldRun!=='function')return false;
- const previous=G.__v52CloseupActive;
- G.__v52CloseupActive=true;
- G.hideCountryOverviewBorders?.();
- try{return await oldRun.call(G,n,iso,serial)}
- finally{G.__v52CloseupActive=previous}
-}
-
 async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;
 try{
   // Scope the white sovereign outline to the country being introduced.
@@ -164,7 +153,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
      scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
    trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
-   return runCloseup(q,primary,s);
+   return oldRun?oldRun.call(this,q,primary,s):false;
  }
  if(locality && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) && n.lon!=null && n.lat!=null && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
@@ -172,7 +161,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
      scenePlan:{...p,regionalContext:false,contextCountries:[],participants:[],adminChain:[],
        forceAdminChain:false,finalLocation:true,nonStateActor:null,hierarchyPresented:false}};
    trace('locality-point',{name:q.focusLabel||q.location,lon:+q.lon,lat:+q.lat});
-   return runCloseup(q,iso,s);
+   return typeof oldRun==='function'?oldRun.call(this,q,iso,s):false;
  }
  if(p.regionalContext){const arr=[primary,...(p.contextCountries||[])].map(x=>String(x).toUpperCase()).filter(Boolean);for(const x of [...new Set(arr)]){if(s!==G.navSerial)return false;await runCountry(x,n,s,1050)}trace('regional-context',{countries:[...new Set(arr)]});return true}
  // Administrative-area reports have a real boundary, not an incident dot.
@@ -184,7 +173,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  }
  if(p.nonStateActor){await runCountry(primary,n,s,1200);if(s!==G.navSerial)return false;await showActorStage(n,s);if(s!==G.navSerial)return false;const q={...n,adminChain:[],scenePlan:{...p,participants:[],contextCountries:[],adminChain:[]}};return oldRun?oldRun.call(this,q,iso,s):false}
  const adminResult=await runAdminHierarchy(n,primary,s);if(adminResult!==null){if(!adminResult)return false;const chain=p.adminChain.slice(),q={...n,forceAdminChain:false,adminChain:[],scenePlan:{...p,adminChain:[],forceAdminChain:false,participants:[],contextCountries:[],hierarchyPresented:true}};let r=true;G.__v52SuppressAdminTrace=true;try{r=oldRun?await oldRun.call(this,q,iso,s):true}finally{G.__v52SuppressAdminTrace=false}if(s===G.navSerial)canonicalizeAdminTrace(chain,s);return r}
- const ctx=p.contextDisplay===false?[]:[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];if(ctx.length){const eventCountry=primary;for(const x of ctx){if(!await runCountry(x,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}if(eventCountry){if(!await runCountry(eventCountry,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}const q={...n,sceneMode:'POINT',secondaryCountryIso3:null,adminChain:[],scenePlan:{...p,primaryIso3:eventCountry,participants:[],contextCountries:[],adminChain:[],regionalContext:false,finalLocation:true,hierarchyPresented:true}};trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});return runCloseup(q,'',s)}
+ const ctx=p.contextDisplay===false?[]:[...new Set((p.contextCountries||[]).map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))];if(ctx.length){const eventCountry=primary;for(const x of ctx){if(!await runCountry(x,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}if(eventCountry){if(!await runCountry(eventCountry,n,s,850,'diplomacy-country'))return false;if(s!==G.navSerial)return false}const q={...n,sceneMode:'POINT',secondaryCountryIso3:null,adminChain:[],scenePlan:{...p,primaryIso3:eventCountry,participants:[],contextCountries:[],adminChain:[],regionalContext:false,finalLocation:true,hierarchyPresented:true}};trace('two-country-location',{countries:[...ctx,eventCountry].filter(Boolean),eventCountry,location:String(n.focusLabel||n.location||'')});return oldRun?oldRun.call(this,q,'',s):false}
 
  try{if(typeof oldRun==='function')return await oldRun.call(this,n,iso,s)}catch(e){console.warn('V52 semantic scene fallback',e)}return false};
 })(window.NG14);
