@@ -161,8 +161,23 @@ try{
    await select(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log('navigation-cancels-pending-geometry',{});
    await select(1);releaseWorkers();
   }
+  // A fast, focused smoke path exercises real Cesium rendering before the expensive full suite.
+  if(process.env.GLOBE_FAST_FLAGS==='1'){
+   await flagsReady(['RUS','UKR']);
+   const overview=await state();
+   assert.equal(overview.attack?.stage,'country-overview');
+   for(const iso of ['RUS','UKR']){
+    const flag=overview.flags.find(f=>f.iso===iso);
+    assert.ok(flag?.visible&&flag.complete&&flag.naturalWidth>0,iso+' overview flag must be visible');
+    assert.equal(flag.source,'bundled');
+   }
+   await page.screenshot({path:path.join(dir,'fast-flags-'+name+'.png')});
+   log('fast-flags-'+name,overview);
+   await context.close();
+   continue;
+  }
   // Country flags are an overview requirement; target close-ups legitimately move their anchors offscreen.
-   await flagsReady(['RUS','UKR']);await settled();
+  await flagsReady(['RUS','UKR']);await settled();
   await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.waitForTimeout(400);
   const animated=await state();verifyTop2(animated);assert.ok(animated.effects.some(e=>e.width>=80&&e.alpha>.1));
   await page.screenshot({path:path.join(dir,'top2-'+name+'-impact.png')});log('top2-'+name+'-impact',animated);
@@ -188,6 +203,10 @@ try{
   const video=page.video();await context.close();
   if(video)await video.saveAs(path.join(dir,'top2-mobile.webm'));
  }
+ if(process.env.GLOBE_FAST_FLAGS==='1'){
+  assert.deepEqual(report.pageErrors,[]);
+  report.status='PASS';
+ }else{
  // The same renderer must work without Russia/Ukraine-specific cases.
  await start({width:390,height:844},'generic');
  const base={id:2,title:'通用攻击渲染验收',location:'目标地点',focusLabel:'目标地点',placeType:'city',sceneMode:'MISSILE_ATTACK',eventType:'missile_attack'};
@@ -206,5 +225,6 @@ try{
  await context.close();assert.deepEqual(report.pageErrors,[]);
  assert.ok(!report.consoleErrors.some(x=>/SecurityError|image for billboard|rendering has stopped|DeveloperError/.test(x)),report.consoleErrors.join('\n'));
  report.status='PASS';
+ }
 }catch(error){report.status='FAIL';report.failure=error.stack;console.error(error);process.exitCode=1;try{await page?.screenshot({path:path.join(dir,'failure.png')});}catch{}}
 finally{releaseWorkers();fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2));await browser.close();console.log('ATTACK_VISUAL_'+report.status);}
