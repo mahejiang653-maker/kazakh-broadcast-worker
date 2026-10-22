@@ -54,7 +54,22 @@ async function state(){return page.evaluate(()=>{
  });}
 async function select(index){await page.locator('#timeline button').nth(index).click();}
 async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:120000});}
-async function flagsReady(isos){await page.waitForFunction(isos=>isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none')),isos,{timeout:30000});}
+async function flagsReady(isos){
+ try{
+  await page.waitForFunction(isos=>isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none')),isos,{timeout:30000});
+ }catch(error){
+  const diagnostic=await page.evaluate(isos=>({
+   requested:isos,navSerial:window.NG14?.navSerial,current:window.NG14?.current,
+   attack:window.NG14?.v52Attack?.getDiagnostics?.(),flagAudit:window.NG14?.v52FlagAudit,
+   cameraMoving:!!window.NG14?.viewer?.camera?._currentFlight,
+   flags:[...document.querySelectorAll('img[alt$=" flag"]')].map(el=>({alt:el.alt,source:el.dataset.flagSource,complete:el.complete,naturalWidth:el.naturalWidth,display:getComputedStyle(el).display,rect:el.getBoundingClientRect().toJSON()}))
+  }),isos).catch(e=>({diagnosticError:String(e)}));
+  fs.writeFileSync(path.join(dir,'flag-timeout-'+Date.now()+'.json'),JSON.stringify(diagnostic,(key,value)=>key==='entity'?undefined:value,2));
+  await page.screenshot({path:path.join(dir,'flag-timeout.png')}).catch(()=>{});
+  console.error('FLAG_READY_TIMEOUT',JSON.stringify({requested:isos,current:diagnostic.current,cameraMoving:diagnostic.cameraMoving,flags:diagnostic.flags}));
+  throw error;
+ }
+}
 function verifyTop2(s){
  assert.equal(s.index,1);assert.equal(s.attack.attacker,'RUS');assert.equal(s.attack.victim,'UKR');
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);assert.equal(s.attack.geometryReady,true);assert.equal(s.attack.geometryTimedOut,false);
