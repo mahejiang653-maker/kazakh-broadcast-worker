@@ -6,7 +6,18 @@ G.v52SceneTrace=[];function trace(type,data={}){const e={type,serial:G.navSerial
 const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 const oldAdminSteps=G.adminSteps;G.adminSteps=function(n){const a=n?.scenePlan?.adminChain;if(Array.isArray(a)&&a.length)return a.slice();return oldAdminSteps?oldAdminSteps.call(this,n):[]};
 const oldFlashAdmin=typeof G.flashAdmin==='function'?G.flashAdmin:null;if(oldFlashAdmin)G.flashAdmin=async function(step,iso,s,hold=2600,options={}){if(s!==G.navSerial)return false;const name=String(step?.name||step?.location||step?.focusLabel||step||''),code=String(iso||'').toUpperCase();if(!G.__v52SuppressAdminTrace){trace('admin',{name,iso:code,visible:true});trace('admin-visible-start',{name,iso:code})}const r=await oldFlashAdmin.call(this,step,iso,s,hold,{...options,keepVisible:true,beforeShow:options.beforeShow||G.v51PrepareAdmin});if(r&&s===G.navSerial){if(!G.__v52SuppressAdminTrace)trace('admin-visible-hold',{name,iso:code});await wait(1200,s)}return s===G.navSerial?r:false};
-function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.scenePlan||(n.scenePlan={}),mode=String(n.sceneMode||'').toUpperCase();if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
+function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.scenePlan||(n.scenePlan={}),mode=String(n.sceneMode||'').toUpperCase();
+// New Mexico is a US state, not the sovereign country Mexico. Old imported
+// records may contain MEX as an inferred contextual country: drop that guess
+// only for clearly US-based New Mexico stories, preserving real cross-border
+// stories with explicitly configured participants.
+const usNewMexico=String(n.countryIso3||p.primaryIso3||'').toUpperCase()==='USA'
+  && /新墨西哥|New\s+Mexico/i.test([n.location,n.focusLabel,n.title].join(' '));
+if(usNewMexico && !p.allowContextCountryBorders){
+  if(Array.isArray(p.contextCountries))p.contextCountries=p.contextCountries.filter(x=>String(x).toUpperCase()!=='MEX');
+  if(String(n.secondaryCountryIso3||'').toUpperCase()==='MEX')delete n.secondaryCountryIso3;
+}
+if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
 if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
 if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
