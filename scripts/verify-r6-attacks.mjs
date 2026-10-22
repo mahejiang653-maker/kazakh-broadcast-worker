@@ -62,11 +62,21 @@ async function flagsReady(isos){
    requested:isos,navSerial:window.NG14?.navSerial,current:window.NG14?.current,
    attack:window.NG14?.v52Attack?.getDiagnostics?.(),flagAudit:window.NG14?.v52FlagAudit,
    cameraMoving:!!window.NG14?.viewer?.camera?._currentFlight,
+   viewport:{width:innerWidth,height:innerHeight},
+   flagEntities:(window.NG14?.v52FlagAudit?.events||[]).filter(event=>isos.includes(event.iso)).map(event=>{
+    const viewer=window.NG14?.viewer,entity=event.entity;
+    const position=entity?.position?.getValue?.(viewer.clock.currentTime);
+    const projected=position&&Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,position);
+    const canvas=viewer.scene.canvas.getBoundingClientRect();
+    return {iso:event.iso,entityAlive:viewer.entities.contains(entity),entityShown:entity.show,
+     projected:projected?{x:projected.x,y:projected.y}:null,
+     canvas:{left:canvas.left,top:canvas.top,width:canvas.width,height:canvas.height}};
+   }),
    flags:[...document.querySelectorAll('img[alt$=" flag"]')].map(el=>({alt:el.alt,source:el.dataset.flagSource,complete:el.complete,naturalWidth:el.naturalWidth,display:getComputedStyle(el).display,rect:el.getBoundingClientRect().toJSON()}))
   }),isos).catch(e=>({diagnosticError:String(e)}));
   fs.writeFileSync(path.join(dir,'flag-timeout-'+Date.now()+'.json'),JSON.stringify(diagnostic,(key,value)=>key==='entity'?undefined:value,2));
   await page.screenshot({path:path.join(dir,'flag-timeout.png')}).catch(()=>{});
-  console.error('FLAG_READY_TIMEOUT',JSON.stringify({requested:isos,current:diagnostic.current,cameraMoving:diagnostic.cameraMoving,flags:diagnostic.flags}));
+  console.error('FLAG_READY_TIMEOUT',JSON.stringify({requested:isos,current:diagnostic.current,cameraMoving:diagnostic.cameraMoving,flagEntities:diagnostic.flagEntities,flags:diagnostic.flags}));
   throw error;
  }
 }
