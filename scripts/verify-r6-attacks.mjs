@@ -56,7 +56,10 @@ async function select(index){await page.locator('#timeline button').nth(index).c
 async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:120000});}
 async function flagsReady(isos){
  try{
-  await page.waitForFunction(isos=>isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none')),isos,{timeout:30000});
+  await page.waitForFunction(isos=>{
+   const stage=window.NG14?.v52Attack?.getDiagnostics?.()?.stage;
+   return stage==='country-overview'&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
+  },isos,{timeout:120000});
  }catch(error){
   const diagnostic=await page.evaluate(isos=>({
    requested:isos,navSerial:window.NG14?.navSerial,current:window.NG14?.current,
@@ -158,7 +161,8 @@ try{
    await select(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log('navigation-cancels-pending-geometry',{});
    await select(1);releaseWorkers();
   }
-  await flagsReady(['RUS','UKR']);await settled();
+  // Country flags are an overview requirement; target close-ups legitimately move their anchors offscreen.
+   await flagsReady(['RUS','UKR']);await settled();
   await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.waitForTimeout(400);
   const animated=await state();verifyTop2(animated);assert.ok(animated.effects.some(e=>e.width>=80&&e.alpha>.1));
   await page.screenshot({path:path.join(dir,'top2-'+name+'-impact.png')});log('top2-'+name+'-impact',animated);
