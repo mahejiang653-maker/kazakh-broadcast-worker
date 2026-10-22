@@ -129,6 +129,19 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
  const locality=/县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(String(n.focusLabel||n.location||'')) || /^(city|county|town|village|point)$/i.test(String(n.placeType||''));
+ // Explicit diplomatic partner overview for a precise locality: display both
+ // sovereign-country stages before the final city camera. A country mentioned
+ // only in prose does not opt in; importers must supply scenePlan.contextCountries.
+ const explicitPartners=Array.isArray(p.contextCountries)?[...new Set(p.contextCountries.map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))]:[];
+ if(locality && p.contextDisplay!==false && explicitPartners.length && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat))){
+   for(const partner of explicitPartners){if(!await runCountry(partner,n,s,950,'diplomacy-country'))return false;}
+   if(!await runCountry(primary,n,s,950,'diplomacy-country'))return false;
+   if(s!==G.navSerial)return false;
+   const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
+     scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
+   trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
+   return oldRun?oldRun.call(this,q,primary,s):false;
+ }
  if(locality && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) && n.lon!=null && n.lat!=null && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
      adminChain:[],forceAdminChain:false,
