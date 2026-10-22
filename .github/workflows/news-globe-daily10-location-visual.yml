@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'scripts/verify-r6-daily10-location-20261021.mjs'
+      - 'scripts/verify-r6-top9-kgz-border.mjs'
+      - 'public/news-globe-v52-story-borders.js'
       - 'public/news-globe-v52-hard-rules.js'
       - 'public/news-globe-v52-daily10.js'
       - 'public/news-globe-v52-locationless-marker-guard.js'
@@ -15,7 +17,7 @@ permissions:
 jobs:
   location-visual:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,10 +28,14 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Verify actual 2026-10-21 V52 story locations in Chromium
         run: node scripts/verify-r6-daily10-location-20261021.mjs
+      - name: Verify Top9 Kyrgyzstan and China sovereign borders in Chromium
+        run: timeout --signal=TERM --kill-after=15s 6m node scripts/verify-r6-top9-kgz-border.mjs
       - name: Preserve scene diagnostics and screenshots even on failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: daily10-location-scenes-${{ github.sha }}
-          path: globe-verify-20261021
+          path: |
+            globe-verify-20261021
+            globe-verify-top9-kgz-border
           retention-days: 30
