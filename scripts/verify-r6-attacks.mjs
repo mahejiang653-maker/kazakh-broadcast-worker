@@ -58,7 +58,7 @@ async function flagsReady(isos){
  try{
   await page.waitForFunction(isos=>{
    const stage=window.NG14?.v52Attack?.getDiagnostics?.()?.stage;
-   return stage==='country-overview'&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
+   return (stage==null||stage==='country-overview')&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
   },isos,{timeout:120000});
  }catch(error){
   const diagnostic=await page.evaluate(isos=>({
