@@ -75,7 +75,12 @@ try{
   }
 }finally{G.__v52SuppressAdminTrace=false}
 if(s!==G.navSerial || G.overviewMode || r===false)return false;
-return (await wait(hold,s))!==false}
+// Reassert the active sovereign outline after legacy async scene cleanup and
+// keep it selected for the complete country-overview hold.
+G.selectCountryOverviewBorders?.(iso);
+const held=await wait(hold,s);
+if(held!==false && s===G.navSerial && !G.overviewMode)G.selectCountryOverviewBorders?.(iso);
+return held!==false}
 function removeLegacyActorCard(){const h=document.getElementById('v52ActorStage');if(h)h.remove()}
 async function showActorStage(n,s){const p=n.scenePlan||{},actor=String(p.nonStateActor||'').trim();if(!actor)return;const target=String(n.focusLabel||n.location||'目标地点');removeLegacyActorCard();trace('actor',{actor,target});trace('actor-visible',{actor,target,integrated:true});await wait(900,s)}
 function chinaLevelOne(name){
