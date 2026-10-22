@@ -102,7 +102,22 @@
     G.applyStoryBorders(true);
     return [...selectedEntities].some(e => e.show === true);
   };
+  // City/point closeups must not retain a sovereign outline. The original
+  // story is still available for labels/flags; only border visibility changes.
+  G.hideCountryOverviewBorders = function () {
+    selected = new Set();
+    collectSelected();
+    G.applyStoryBorders(false);
+    for (const e of G.borderEntities || []) if (e.show) e.show = false;
+    G.viewer?.scene?.requestRender?.();
+  };
   G.selectStoryBorders = function (n) {
+    const mode = String(n?.sceneMode || '').toUpperCase();
+    if (G.__v52CloseupActive && (mode === 'POINT' || mode === 'CITY' || n?.placeType === 'city')) {
+      G.hideCountryOverviewBorders();
+      return;
+    }
+
     selected = countriesForStory(n);
     collectSelected();
     G.applyStoryBorders();

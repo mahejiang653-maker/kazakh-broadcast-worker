@@ -33,7 +33,16 @@ function mainRing(iso){let best=null,ba=-1;for(const p of polygons(raw(iso))){co
 function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1])){x+=+p[0];y+=+p[1];n++}}return n?[x/n,y/n]:null}
 function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[103.8,35.4];return centroid(mainRing(iso))||G.countries?.get?.(iso)?.center||null}
 /* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
-function drawCountry(iso,color,alpha=.14,width=2.35){const col=C.Color.fromCssColorString(color),outline=String(iso).toUpperCase()==='CHN'?G.countries?.get('CHN')?.authoritativeOutline:null;for(const f of outline?[outline]:viewFeatures(iso))for(const p of polygons(f)){const r=p?.[0]||[];if(r.length<3)continue;add(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(r.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000))),height:5000,material:col.withAlpha(alpha),outline:false}}))}}
+// Country stages use one sovereign perimeter at a time. No red/blue area fills.
+// Draw from the same full Polygon/MultiPolygon geometry used for the country.
+function drawCountry(iso,color,alpha=.14,width=2.35){
+ const outline=String(iso).toUpperCase()==='CHN'?G.countries?.get('CHN')?.authoritativeOutline:null;
+ for(const f of outline?[outline]:viewFeatures(iso))for(const p of polygons(f))for(const ring of p||[]){
+  if(!Array.isArray(ring)||ring.length<3)continue;
+  const points=ring.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],16000));
+  add(G.viewer.entities.add({polyline:{positions:points,width:2.9,material:C.Color.WHITE.withAlpha(.99)}}));
+ }
+}
 function label(text,lon,lat,{dx=0,dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(dx,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(dx,dy);return e}
 function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  const key=String(iso||'').toUpperCase(),cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();

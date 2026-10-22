@@ -89,7 +89,7 @@ test('missing authoritative data never suppresses foreign geometry',async()=>{
   assert.equal(h.values.length,before);
 });
 
-test('active R6 country fill uses authoritative rings while camera fitting retains its baseline geometry',async()=>{
+test('active R6 country outline uses authoritative rings while camera fitting retains baseline geometry',async()=>{
   const h=harness();h.install();await h.G.loadBorders();
   const original=h.G.countries.get('CHN').feature;
   const points=h.G.collect(original,[]).length;
@@ -97,10 +97,11 @@ test('active R6 country fill uses authoritative rings while camera fitting retai
   h.G.viewer.camera.flyToBoundingSphere=(sphere,opts)=>{fittingPoints=sphere.points.length;opts.complete();};
   vm.runInContext(source('news-globe-v14-v51-scene-engine.js'),h.context);
   await h.G.runSequence({sceneMode:'COUNTRY',countryIso3:'CHN'},'CHN',h.G.navSerial);
-  const fills=h.G.v51SceneEntities.filter(e=>e.polygon);
-  assert.equal(fills.length,514);assert.equal(fittingPoints,points);
-  assert.equal(h.G.countries.get('CHN').feature,original,'do not replace camera or event country geometry');
-  assert.deepEqual(fills[0].polygon.hierarchy.positions.map(p=>[p.lon,p.lat]),
-    outline.geometry.coordinates[0][0]);
-  assert.ok(fills.every(e=>e.polygon.outline===false));
+  const outlines=h.G.v51SceneEntities.filter(e=>e.polyline);
+  assert.ok(outlines.length>=514,'authoritative China rings must all be present');
+  assert.equal(h.G.v51SceneEntities.filter(e=>e.polygon).length,0,'no country color fill');
+  assert.equal(fittingPoints,points);
+  assert.equal(h.G.countries.get('CHN').feature,original,'do not replace camera geometry');
+  assert.ok(outlines.some(e=>JSON.stringify(e.polyline.positions.map(p=>[p.lon,p.lat]))===JSON.stringify(outline.geometry.coordinates[0][0])),'canonical China outline ring missing');
+  assert.ok(outlines.some(e=>e.polyline.width===2.9),'white outline stage not drawn');
 });
