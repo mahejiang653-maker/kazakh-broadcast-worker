@@ -132,7 +132,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  // Explicit diplomatic partner overview for a precise locality: display both
  // sovereign-country stages before the final city camera. A country mentioned
  // only in prose does not opt in; importers must supply scenePlan.contextCountries.
- const explicitPartners=Array.isArray(p.contextCountries)?[...new Set(p.contextCountries.map(x=>String(x).toUpperCase()).filter(x=>x&&x!==primary))]:[];
+ const explicitPartners=Array.isArray(p.contextCountries)?[...new Set(p.contextCountries.map(x=>String(x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??false)))]:[];
  if(locality && p.showPartnerCountryOverview===true && p.contextDisplay!==false && explicitPartners.length && n.lon!=null && n.lat!=null && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat))){
    for(const partner of explicitPartners){if(!await runCountry(partner,n,s,950,'diplomacy-country'))return false;}
    if(!await runCountry(primary,n,s,950,'diplomacy-country'))return false;
