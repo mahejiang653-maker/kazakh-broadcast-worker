@@ -11,11 +11,20 @@ function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.sc
 // records may contain MEX as an inferred contextual country: drop that guess
 // only for clearly US-based New Mexico stories, preserving real cross-border
 // stories with explicitly configured participants.
-const usNewMexico=String(n.countryIso3||p.primaryIso3||'').toUpperCase()==='USA'
-  && /新墨西哥|New\s+Mexico/i.test([n.location,n.focusLabel,n.title].join(' '));
+const placeText=[n.location,n.focusLabel,n.region,n.title].filter(Boolean).join(' ');
+const usNewMexico=/新墨西哥(?:州)?|New\\s+Mexico(?:\\s+State)?/i.test(placeText)
+  && (String(n.countryIso3||'').toUpperCase()==='USA'||String(p.primaryIso3||'').toUpperCase()==='USA'||/美国|\\bUSA\\b|United States/i.test(placeText));
 if(usNewMexico && !p.allowContextCountryBorders){
-  if(Array.isArray(p.contextCountries))p.contextCountries=p.contextCountries.filter(x=>String(x).toUpperCase()!=='MEX');
-  if(String(n.secondaryCountryIso3||'').toUpperCase()==='MEX')delete n.secondaryCountryIso3;
+  // New Mexico is a US state: do not turn the substring Mexico into MEX.
+  n.countryIso3='USA';p.primaryIso3='USA';
+  if(Array.isArray(p.contextCountries))p.contextCountries=p.contextCountries.filter(x=>String(x?.countryIso3||x).toUpperCase()!=='MEX');
+  if(Array.isArray(p.participants))p.participants=p.participants.filter(x=>String(x?.countryIso3||x).toUpperCase()!=='MEX');
+  for(const key of ['secondaryCountryIso3','sourceCountryIso3','targetCountryIso3'])if(String(n[key]||'').toUpperCase()==='MEX')delete n[key];
+  for(const key of ['attackerIso3','victimIso3'])if(String(p[key]||'').toUpperCase()==='MEX')delete p[key];
+  p.regionalContext=false;
+  // Legacy locality paths must not substitute the Mexico-country centroid.
+  if(String(n.focusLabel||'').trim()==='墨西哥')n.focusLabel='新墨西哥州';
+  if(String(n.location||'').trim()==='墨西哥')n.location='美国新墨西哥州';
 }
 if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
