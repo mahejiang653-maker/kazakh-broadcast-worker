@@ -54,7 +54,35 @@ async function state(){return page.evaluate(()=>{
  });}
 async function select(index){await page.locator('#timeline button').nth(index).click();}
 async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:120000});}
-async function flagsReady(isos){await page.waitForFunction(isos=>isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none')),isos,{timeout:30000});}
+async function flagsReady(isos){
+ try{
+  await page.waitForFunction(isos=>{
+   const stage=window.NG14?.v52Attack?.getDiagnostics?.()?.stage;
+   return (stage==null||stage==='country-overview')&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
+  },isos,{timeout:120000});
+ }catch(error){
+  const diagnostic=await page.evaluate(isos=>({
+   requested:isos,navSerial:window.NG14?.navSerial,current:window.NG14?.current,
+   attack:window.NG14?.v52Attack?.getDiagnostics?.(),flagAudit:window.NG14?.v52FlagAudit,
+   cameraMoving:!!window.NG14?.viewer?.camera?._currentFlight,
+   viewport:{width:innerWidth,height:innerHeight},
+   flagEntities:(window.NG14?.v52FlagAudit?.events||[]).filter(event=>isos.includes(event.iso)).map(event=>{
+    const viewer=window.NG14?.viewer,entity=event.entity;
+    const position=entity?.position?.getValue?.(viewer.clock.currentTime);
+    const projected=position&&Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,position);
+    const canvas=viewer.scene.canvas.getBoundingClientRect();
+    return {iso:event.iso,entityAlive:viewer.entities.contains(entity),entityShown:entity.show,
+     projected:projected?{x:projected.x,y:projected.y}:null,
+     canvas:{left:canvas.left,top:canvas.top,width:canvas.width,height:canvas.height}};
+   }),
+   flags:[...document.querySelectorAll('img[alt$=" flag"]')].map(el=>({alt:el.alt,source:el.dataset.flagSource,complete:el.complete,naturalWidth:el.naturalWidth,display:getComputedStyle(el).display,rect:el.getBoundingClientRect().toJSON()}))
+  }),isos).catch(e=>({diagnosticError:String(e)}));
+  fs.writeFileSync(path.join(dir,'flag-timeout-'+Date.now()+'.json'),JSON.stringify(diagnostic,(key,value)=>key==='entity'?undefined:value,2));
+  await page.screenshot({path:path.join(dir,'flag-timeout.png')}).catch(()=>{});
+  console.error('FLAG_READY_TIMEOUT',JSON.stringify({requested:isos,current:diagnostic.current,cameraMoving:diagnostic.cameraMoving,flagEntities:diagnostic.flagEntities,flags:diagnostic.flags}));
+  throw error;
+ }
+}
 function verifyTop2(s){
  assert.equal(s.index,1);assert.equal(s.attack.attacker,'RUS');assert.equal(s.attack.victim,'UKR');
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);assert.equal(s.attack.geometryReady,true);assert.equal(s.attack.geometryTimedOut,false);
@@ -133,6 +161,22 @@ try{
    await select(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log('navigation-cancels-pending-geometry',{});
    await select(1);releaseWorkers();
   }
+  // A fast, focused smoke path exercises real Cesium rendering before the expensive full suite.
+  if(process.env.GLOBE_FAST_FLAGS==='1'){
+   await flagsReady(['RUS','UKR']);
+   const overview=await state();
+   assert.equal(overview.attack?.stage,'country-overview');
+   for(const iso of ['RUS','UKR']){
+    const flag=overview.flags.find(f=>f.iso===iso);
+    assert.ok(flag?.visible&&flag.complete&&flag.naturalWidth>0,iso+' overview flag must be visible');
+    assert.equal(flag.source,'bundled');
+   }
+   await page.screenshot({path:path.join(dir,'fast-flags-'+name+'.png')});
+   log('fast-flags-'+name,overview);
+   await context.close();
+   continue;
+  }
+  // Country flags are an overview requirement; target close-ups legitimately move their anchors offscreen.
   await flagsReady(['RUS','UKR']);await settled();
   await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='impact',null,{timeout:120000});await page.waitForTimeout(400);
   const animated=await state();verifyTop2(animated);assert.ok(animated.effects.some(e=>e.width>=80&&e.alpha>.1));
@@ -159,6 +203,10 @@ try{
   const video=page.video();await context.close();
   if(video)await video.saveAs(path.join(dir,'top2-mobile.webm'));
  }
+ if(process.env.GLOBE_FAST_FLAGS==='1'){
+  assert.deepEqual(report.pageErrors,[]);
+  report.status='PASS';
+ }else{
  // The same renderer must work without Russia/Ukraine-specific cases.
  await start({width:390,height:844},'generic');
  const base={id:2,title:'通用攻击渲染验收',location:'目标地点',focusLabel:'目标地点',placeType:'city',sceneMode:'MISSILE_ATTACK',eventType:'missile_attack'};
@@ -177,5 +225,6 @@ try{
  await context.close();assert.deepEqual(report.pageErrors,[]);
  assert.ok(!report.consoleErrors.some(x=>/SecurityError|image for billboard|rendering has stopped|DeveloperError/.test(x)),report.consoleErrors.join('\n'));
  report.status='PASS';
+ }
 }catch(error){report.status='FAIL';report.failure=error.stack;console.error(error);process.exitCode=1;try{await page?.screenshot({path:path.join(dir,'failure.png')});}catch{}}
 finally{releaseWorkers();fs.writeFileSync(path.join(dir,'report.json'),JSON.stringify(report,null,2));await browser.close();console.log('ATTACK_VISUAL_'+report.status);}
