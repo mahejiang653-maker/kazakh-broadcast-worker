@@ -113,7 +113,7 @@
   };
   G.selectStoryBorders = function (n) {
     const mode = String(n?.sceneMode || '').toUpperCase();
-    if (mode === 'POINT' || mode === 'CITY' || n?.placeType === 'city') {
+    if (G.__v52CloseupActive && (mode === 'POINT' || mode === 'CITY' || n?.placeType === 'city')) {
       G.hideCountryOverviewBorders();
       return;
     }
