@@ -34,6 +34,26 @@ function sceneHarness({cancelFirstCountry=false,navigateOnCancel=false}={}) {
   return {G, stages, admins, setFailAdmin:value => failAdmin=value};
 }
 
+test('Kashgar Kyrgyz trade cooperation shows Kyrgyzstan and China before Kashgar without imported flag',async()=>{
+  const h=sceneHarness();h.G.countries=new Map([['CHN',{}],['KGZ',{}]]);
+  const n={title:'喀什与吉尔吉斯斯坦开展经贸合作',summary:'双方推动贸易合作',sceneMode:'POINT',
+    countryIso3:'CHN',location:'喀什',focusLabel:'喀什',placeType:'city',lon:75.99,lat:39.47,
+    scenePlan:{primaryIso3:'CHN'}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[['COUNTRY','KGZ'],['COUNTRY','CHN'],['POINT','CHN']]);
+  assert.equal(h.stages.at(-1).lon,75.99);
+  assert.equal(h.stages.at(-1).context.length,0);
+});
+
+test('Kashgar Kyrgyz partner overview respects explicit opt-out',async()=>{
+  const h=sceneHarness();h.G.countries=new Map([['CHN',{}],['KGZ',{}]]);
+  const n={title:'喀什与吉尔吉斯斯坦贸易合作',sceneMode:'POINT',countryIso3:'CHN',
+    location:'喀什',focusLabel:'喀什',placeType:'city',lon:75.99,lat:39.47,
+    scenePlan:{primaryIso3:'CHN',showPartnerCountryOverview:false}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.equal(h.stages.some(x=>x.mode==='COUNTRY'&&x.iso==='KGZ'),false);
+});
+
 test('Top1 China/Russia previews both countries then shows St Petersburg venue', async()=>{
   const h=sceneHarness();
   const story={title:'中俄总理定期会晤',sceneMode:'DIPLOMACY',
