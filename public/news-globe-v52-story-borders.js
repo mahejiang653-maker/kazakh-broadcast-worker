@@ -92,6 +92,16 @@
     } finally { entities?.resumeEvents?.(); }
     G.viewer?.scene?.requestRender?.();
   };
+  // The diplomatic sequence needs one country's full outline at a time.
+  // Never derive this selection from the original story's locality metadata.
+  G.selectCountryOverviewBorders = function (iso) {
+    const code = String(iso || '').trim().toUpperCase();
+    if (!G.countries?.has(code)) return false;
+    selected = new Set([code]);
+    collectSelected();
+    G.applyStoryBorders(true);
+    return [...selectedEntities].some(e => e.show === true);
+  };
   G.selectStoryBorders = function (n) {
     selected = countriesForStory(n);
     collectSelected();
