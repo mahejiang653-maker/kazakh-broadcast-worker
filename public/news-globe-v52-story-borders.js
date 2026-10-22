@@ -19,8 +19,13 @@
 
   function countriesForStory(n) {
     const result = new Set(), p = n?.scenePlan || {};
+    const place=[n?.title,n?.location,n?.focusLabel,n?.region].filter(Boolean).join(' ');
+    const newMexicoUS=/新墨西哥(?:州)?|New\\s+Mexico(?:\\s+State)?/i.test(place)
+      && (String(n?.countryIso3||p.primaryIso3||'').toUpperCase()==='USA'||/美国|\\bUSA\\b|United States/i.test(place))
+      && !p.allowContextCountryBorders;
     const add = value => {
       const iso = String(value?.countryIso3 || value?.iso3 || value || '').trim().toUpperCase();
+      if (newMexicoUS && iso==='MEX') return;
       if (/^[A-Z]{3}$/.test(iso) && G.countries?.has(iso)) result.add(iso);
     };
     if (!n) return result;
