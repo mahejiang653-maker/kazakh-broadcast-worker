@@ -62,7 +62,13 @@ jobs:
         with: {node-version: 22, cache: npm}
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+      - name: Ensure CJK and emoji fonts without unnecessary reinstall
+        run: |
+          if fc-match -f '%{family}\n' 'Noto Sans CJK SC' | grep -qi 'Noto Sans CJK' && fc-match -f '%{family}\n' 'Noto Color Emoji' | grep -qi 'Noto Color Emoji'; then
+            echo 'Required fonts already available';
+          else
+            sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji
+          fi
       - name: Verify imported ten-story fixture, cold GPU geometry and generic attacks
         # A stalled Chromium/GPU wait must fail this step before the 30-minute job limit,
         # leaving time for the always() diagnostics artifact upload.
@@ -98,7 +104,13 @@ jobs:
         with: {node-version: 22, cache: npm}
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: sudo apt-get install -y fonts-noto-cjk fonts-noto-color-emoji
+      - name: Ensure CJK and emoji fonts without unnecessary reinstall
+        run: |
+          if fc-match -f '%{family}\n' 'Noto Sans CJK SC' | grep -qi 'Noto Sans CJK' && fc-match -f '%{family}\n' 'Noto Color Emoji' | grep -qi 'Noto Color Emoji'; then
+            echo 'Required fonts already available';
+          else
+            sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji
+          fi
       - name: Wait until formal Cloudflare assets match this exact commit
         run: node scripts/wait-r6-production.mjs
         env:
