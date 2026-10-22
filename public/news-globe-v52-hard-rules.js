@@ -57,7 +57,11 @@ if(typeof baseApplySettings==='function')G.applySettings=function(...args){
 const oldRun=G.runSequence;
 async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;
 try{
+  // Scope the white sovereign outline to the country being introduced.
+  // The legacy sequence otherwise reselects the original locality's borders.
+  G.selectCountryOverviewBorders?.(iso);
   r=await oldRun.call(G,q,iso,s);
+  if(s===G.navSerial && !G.overviewMode)G.selectCountryOverviewBorders?.(iso);
   // An overview flyTo can still be winding down immediately after an import.
   // A cancelled country flight must not strand the first news scene.
   // Retry at most once, and NEVER after navigation, overview, or user cancellation.
@@ -67,6 +71,7 @@ try{
     try{G.viewer?.camera?.cancelFlight?.()}catch{}
     if(s!==G.navSerial || G.overviewMode)return false;
     r=await oldRun.call(G,q,iso,s);
+    if(s===G.navSerial && !G.overviewMode)G.selectCountryOverviewBorders?.(iso);
   }
 }finally{G.__v52SuppressAdminTrace=false}
 if(s!==G.navSerial || G.overviewMode || r===false)return false;
