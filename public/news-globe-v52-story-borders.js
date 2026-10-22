@@ -39,6 +39,12 @@
         for (const value of [p.attackerIso3,p.victimIso3,n.sourceCountryIso3,n.targetCountryIso3]) add(value);
       }
     }
+    // Imported daily-10 single-location stories may mention foreign partners or
+    // contain geographic names such as "New Mexico". Do not turn that context
+    // into an additional country-wide border. Explicit participants above still win.
+    const singleLocation = ['CITY','REGION','LOCATION_FOCUS','POINT'].includes(String(n.sceneMode || '').toUpperCase())
+      || ['city','region'].includes(String(n.placeType || '').toLowerCase());
+    if (singleLocation && !p.allowContextCountryBorders) return result;
     // Country chips and contextCountries can include geographic neighbors or a
     // ship's registry. Read the actual story, never a place label such as Gulf of Mexico.
     const text = [n.title,n.summary].filter(Boolean).join(' ');
