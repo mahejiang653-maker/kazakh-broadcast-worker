@@ -33,12 +33,20 @@
     // Explicit multi-country scene modes continue through the existing logic.
     if (String(n.sceneMode || '').toUpperCase() === 'POINT') return result;
     for (const value of p.participants || []) add(value);
+    const singleLocation = ['CITY','REGION','LOCATION_FOCUS','POINT'].includes(String(n.sceneMode || '').toUpperCase())
+      || ['city','region'].includes(String(n.placeType || '').toLowerCase());
     if (!p.registryOnly) {
-      add(n.secondaryCountryIso3);
+      // Secondary country metadata on a locality is not proof of a second
+      // sovereign border; explicit participants remain authoritative above.
+      if (!singleLocation || p.allowContextCountryBorders) add(n.secondaryCountryIso3);
       if (!p.sourceUnconfirmed && !p.nonStateActor) {
         for (const value of [p.attackerIso3,p.victimIso3,n.sourceCountryIso3,n.targetCountryIso3]) add(value);
       }
     }
+    // Imported daily-10 single-location stories may mention foreign partners or
+    // contain geographic names such as "New Mexico". Do not turn that context
+    // into an additional country-wide border. Explicit participants above still win.
+    if (singleLocation && !p.allowContextCountryBorders) return result;
     // Country chips and contextCountries can include geographic neighbors or a
     // ship's registry. Read the actual story, never a place label such as Gulf of Mexico.
     const text = [n.title,n.summary].filter(Boolean).join(' ');

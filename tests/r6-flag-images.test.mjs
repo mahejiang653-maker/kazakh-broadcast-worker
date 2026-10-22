@@ -31,3 +31,13 @@ test('ISO3 flag lookup covers the complete country table and every imported news
  for(const story of fixture.news)for(const iso of story.relatedCountryIso3s||[story.countryIso3])assert.ok(images[table[iso]],'Top'+story.id+' '+iso+' flag missing');
  assert.equal(table.COD,'cd');assert.equal(table.UGA,'ug');
 });
+
+test('V52 country-intro controller maps Kyrgyzstan to a real flag and name',()=>{
+ const controller=fs.readFileSync(new URL('../public/news-globe-v52-scene-controller.js',import.meta.url),'utf8');
+ const iso2=controller.match(/const ISO2=(\{[^\n]*\});const NAME=/);
+ assert.ok(iso2,'controller country flag map must exist');
+ const map=vm.runInNewContext('('+iso2[1]+')');
+ assert.equal(map.KGZ,'kg');
+ assert.ok(images[map.KGZ],'Kyrgyzstan flag must be available locally');
+ assert.match(controller,/KGZ:'吉尔吉斯斯坦'/);
+});

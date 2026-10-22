@@ -156,3 +156,20 @@ test('POINT diplomatic story highlights only its primary country despite headlin
   const n={...story('UKR'),sceneMode:'MISSILE_ATTACK',relatedCountryIso3s:['UKR','RUS'],scenePlan:{primaryIso3:'UKR',sourceUnconfirmed:true,contextCountries:['USA']}};
   installNews(G,[n]);G.focus(0);assertScope(G,['UKR','RUS']);
  });
+
+test('New Mexico city story never turns the US state into Mexico country borders',async()=>{
+  const {G}=harness();await G.loadBorders();
+  const n={...story('USA','美国新墨西哥州隐私处罚'),sceneMode:'CITY',placeType:'city',
+    location:'New Mexico',focusLabel:'新墨西哥州',lon:-106.65,lat:35.08,
+    secondaryCountryIso3:'MEX',scenePlan:{primaryIso3:'USA',contextCountries:['MEX']}};
+  installNews(G,[n]);G.focus(0);assertScope(G,['USA']);
+  assert.deepEqual(visibleCountries(G),['USA']);
+});
+
+test('local diplomatic partner context does not add off-camera country borders',async()=>{
+  const {G}=harness();await G.loadBorders();
+  const n={...story('CHN','喀什与吉尔吉斯斯坦开展合作'),sceneMode:'POINT',
+    placeType:'city',location:'喀什',focusLabel:'喀什',lon:75.99,lat:39.47,
+    scenePlan:{primaryIso3:'CHN',contextCountries:['KGZ'],showPartnerCountryOverview:true}};
+  installNews(G,[n]);G.focus(0);assertScope(G,['CHN']);
+});

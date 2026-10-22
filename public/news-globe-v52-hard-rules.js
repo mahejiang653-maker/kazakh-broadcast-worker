@@ -1,12 +1,23 @@
 (function(G){
 if(!G||G.__v52HardRules)return;G.__v52HardRules=true;
-const COUNTRY_ZH={CHN:'中国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:'伊朗',ISR:'以色列',PSE:'巴勒斯坦',LTU:'立陶宛',BLR:'白俄罗斯',YEM:'也门',SAU:'沙特阿拉伯',DNK:'丹麦',IRQ:'伊拉克',KOR:'韩国',KAZ:'哈萨克斯坦',ARE:'阿联酋',QAT:'卡塔尔',MDA:'摩尔多瓦',BEL:'比利时',OMN:'阿曼',DEU:'德国',FRA:'法国',GBR:'英国',POL:'波兰',ROU:'罗马尼亚',TUR:'土耳其',SYR:'叙利亚',LBN:'黎巴嫩',JOR:'约旦',EGY:'埃及',IND:'印度',PAK:'巴基斯坦',AFG:'阿富汗',JPN:'日本',PRK:'朝鲜',AUS:'澳大利亚',CAN:'加拿大',MEX:'墨西哥',BRA:'巴西',VEN:'委内瑞拉',THA:'泰国',SGP:'新加坡',MYS:'马来西亚',IDN:'印度尼西亚',PHL:'菲律宾',VNM:'越南',MMR:'缅甸'};
+const COUNTRY_ZH={CHN:'中国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:'伊朗',ISR:'以色列',PSE:'巴勒斯坦',LTU:'立陶宛',BLR:'白俄罗斯',YEM:'也门',SAU:'沙特阿拉伯',DNK:'丹麦',IRQ:'伊拉克',KOR:'韩国',KAZ:'哈萨克斯坦',KGZ:'吉尔吉斯斯坦',ARE:'阿联酋',QAT:'卡塔尔',MDA:'摩尔多瓦',BEL:'比利时',OMN:'阿曼',DEU:'德国',FRA:'法国',GBR:'英国',POL:'波兰',ROU:'罗马尼亚',TUR:'土耳其',SYR:'叙利亚',LBN:'黎巴嫩',JOR:'约旦',EGY:'埃及',IND:'印度',PAK:'巴基斯坦',AFG:'阿富汗',JPN:'日本',PRK:'朝鲜',AUS:'澳大利亚',CAN:'加拿大',MEX:'墨西哥',BRA:'巴西',VEN:'委内瑞拉',THA:'泰国',SGP:'新加坡',MYS:'马来西亚',IDN:'印度尼西亚',PHL:'菲律宾',VNM:'越南',MMR:'缅甸'};
 const oldCountryName=G.countryName;G.countryNameZh=iso=>COUNTRY_ZH[String(iso||'').toUpperCase()]||(oldCountryName?oldCountryName.call(G,iso):'')||'未知国家';G.countryName=function(iso){return G.countryNameZh(iso)};
 G.v52SceneTrace=[];function trace(type,data={}){const e={type,serial:G.navSerial,index:(G.current??0)+1,at:Date.now(),...data};G.v52SceneTrace.push(e);if(G.v52SceneTrace.length>300)G.v52SceneTrace.splice(0,G.v52SceneTrace.length-300);return e}G.getV52SceneTrace=()=>G.v52SceneTrace.slice();
 const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
 const oldAdminSteps=G.adminSteps;G.adminSteps=function(n){const a=n?.scenePlan?.adminChain;if(Array.isArray(a)&&a.length)return a.slice();return oldAdminSteps?oldAdminSteps.call(this,n):[]};
 const oldFlashAdmin=typeof G.flashAdmin==='function'?G.flashAdmin:null;if(oldFlashAdmin)G.flashAdmin=async function(step,iso,s,hold=2600,options={}){if(s!==G.navSerial)return false;const name=String(step?.name||step?.location||step?.focusLabel||step||''),code=String(iso||'').toUpperCase();if(!G.__v52SuppressAdminTrace){trace('admin',{name,iso:code,visible:true});trace('admin-visible-start',{name,iso:code})}const r=await oldFlashAdmin.call(this,step,iso,s,hold,{...options,keepVisible:true,beforeShow:options.beforeShow||G.v51PrepareAdmin});if(r&&s===G.navSerial){if(!G.__v52SuppressAdminTrace)trace('admin-visible-hold',{name,iso:code});await wait(1200,s)}return s===G.navSerial?r:false};
-function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.scenePlan||(n.scenePlan={}),mode=String(n.sceneMode||'').toUpperCase();if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
+function normalize(n){if(!n)return n;G.v52AttackModel?.normalize(n);const p=n.scenePlan||(n.scenePlan={}),mode=String(n.sceneMode||'').toUpperCase();
+// New Mexico is a US state, not the sovereign country Mexico. Old imported
+// records may contain MEX as an inferred contextual country: drop that guess
+// only for clearly US-based New Mexico stories, preserving real cross-border
+// stories with explicitly configured participants.
+const usNewMexico=String(n.countryIso3||p.primaryIso3||'').toUpperCase()==='USA'
+  && /新墨西哥|New\s+Mexico/i.test([n.location,n.focusLabel,n.title].join(' '));
+if(usNewMexico && !p.allowContextCountryBorders){
+  if(Array.isArray(p.contextCountries))p.contextCountries=p.contextCountries.filter(x=>String(x).toUpperCase()!=='MEX');
+  if(String(n.secondaryCountryIso3||'').toUpperCase()==='MEX')delete n.secondaryCountryIso3;
+}
+if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
 if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
 if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
@@ -118,6 +129,22 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
  const locality=/县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(String(n.focusLabel||n.location||'')) || /^(city|county|town|village|point)$/i.test(String(n.placeType||''));
+ // Explicit diplomatic partner overview for a precise locality: display both
+ // sovereign-country stages before the final city camera. A country mentioned
+ // only in prose does not opt in; importers must supply scenePlan.contextCountries.
+ const kashgarKgCooperation=primary==='CHN' && /喀什|Kashgar/i.test([n.focusLabel,n.location,n.title].join(' ')) && /吉尔吉斯|Kyrgyz/i.test([n.title,n.summary].join(' ')) && /合作|贸易|经贸|协作|cooperat|trade/i.test([n.title,n.summary].join(' '));
+ const configuredPartners=Array.isArray(p.contextCountries)?p.contextCountries:[];
+ const partnerCodes=kashgarKgCooperation?[...configuredPartners,'KGZ']:configuredPartners;
+ const explicitPartners=[...new Set(partnerCodes.map(x=>String(x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??false)))];
+ if(locality && (p.showPartnerCountryOverview===true || (kashgarKgCooperation && p.showPartnerCountryOverview!==false)) && p.contextDisplay!==false && explicitPartners.length && n.lon!=null && n.lat!=null && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat))){
+   for(const partner of explicitPartners){if(!await runCountry(partner,n,s,950,'diplomacy-country'))return false;}
+   if(!await runCountry(primary,n,s,950,'diplomacy-country'))return false;
+   if(s!==G.navSerial)return false;
+   const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
+     scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
+   trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
+   return oldRun?oldRun.call(this,q,primary,s):false;
+ }
  if(locality && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) && n.lon!=null && n.lat!=null && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
      adminChain:[],forceAdminChain:false,
