@@ -54,12 +54,12 @@ async function state(){return page.evaluate(()=>{
  });}
 async function select(index){await page.locator('#timeline button').nth(index).click();}
 async function settled(){await page.waitForFunction(()=>NG14.v52Attack?.getDiagnostics()?.stage==='settled',null,{timeout:120000});}
-async function flagsReady(isos){
+async function flagsReady(isos,{overviewOnly=true}={}){
  try{
-  await page.waitForFunction(isos=>{
+  await page.waitForFunction(({isos,overviewOnly})=>{
    const stage=window.NG14?.v52Attack?.getDiagnostics?.()?.stage;
-   return (stage==null||stage==='country-overview')&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
-  },isos,{timeout:120000});
+   return (!overviewOnly||stage==null||stage==='country-overview')&&isos.every(iso=>[...document.querySelectorAll('img[alt$=" flag"]')].some(e=>e.alt===iso+' flag'&&e.complete&&e.naturalWidth>0&&getComputedStyle(e).display!=='none'));
+  },{isos,overviewOnly},{timeout:120000});
  }catch(error){
   const diagnostic=await page.evaluate(isos=>({
    requested:isos,navSerial:window.NG14?.navSerial,current:window.NG14?.current,
@@ -137,7 +137,7 @@ async function genericCase(name,story){
  // cannot consume its transient stage. An unknown-origin target close-up may
  // legitimately leave the distant attacker's badge outside the viewport.
  await select(1);await page.waitForFunction(()=>{const d=NG14.v52Attack.getDiagnostics();return d&&['flight','impact'].includes(d.stage);},null,{timeout:120000});
- await flagsReady(story.sourceLon!=null?[a,b]:[b]);
+ await flagsReady(story.sourceLon!=null?[a,b]:[b],{overviewOnly:false});
  const s=await state();assert.equal(s.attack.attacker,a);assert.equal(s.attack.victim,b);
  assert.equal(s.invalidBorders,0);assert.deepEqual(s.scope.countries,[a,b].sort());
  assert.equal(s.attack.trajectory,!!story.sourceLon);

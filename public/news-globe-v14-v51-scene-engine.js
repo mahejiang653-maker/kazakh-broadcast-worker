@@ -32,6 +32,40 @@ function area(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(+r[j][0])
 function mainRing(iso){let best=null,ba=-1;for(const p of polygons(raw(iso))){const r=p?.[0]||[],a=area(r);if(r.length>3&&a>ba){best=r;ba=a}}return best}
 function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1])){x+=+p[0];y+=+p[1];n++}}return n?[x/n,y/n]:null}
 function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[103.8,35.4];return centroid(mainRing(iso))||G.countries?.get?.(iso)?.center||null}
+// For countries outside France, use the relevant territorial component for camera
+// framing when faraway overseas land would otherwise make the main region tiny.
+// France has already been reduced to metropolitan France (including Corsica)
+// during world geometry loading, so its camera fits ALL retained polygons.
+const DISPERSED_TERRITORIES=new Set(['USA','GBR','ESP','PRT','NLD','NOR']);
+function countryFramePoints(iso,focus=null){
+ iso=String(iso||'').toUpperCase();const all=carts(iso);
+ if(!DISPERSED_TERRITORIES.has(iso)||all.length<4)return all;
+ const pieces=polygons(raw(iso)).map(poly=>poly?.[0]).filter(r=>r?.length>=3);
+ if(pieces.length<2)return all;
+ const target=good(focus?.lon,focus?.lat)?[+focus.lon,+focus.lat]:null;
+ let best=null,score=Infinity;
+ for(const ring of pieces){
+  const pts=ring.filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
+  if(pts.length<3)continue;
+  const sphere=C.BoundingSphere.fromPoints(pts);
+  // Without a known incident, prefer the largest landmass. With one, frame
+  // the nearest component, including real incidents in overseas territories.
+  const d=target?C.Cartesian3.distance(sphere.center,C.Cartesian3.fromDegrees(target[0],target[1],0)):-area(ring);
+  if(d<score){best=pts;score=d}
+ }
+ if(!best)return all;
+ const whole=C.BoundingSphere.fromPoints(all),regional=C.BoundingSphere.fromPoints(best);
+ return whole.radius>Math.max(180000,regional.radius*1.65)?best:all;
+}
+function impactHeight(ctx){
+ const canvas=G.viewer.scene.canvas,aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
+ const pts=countryFramePoints(ctx.data.vic,ctx.data.target);
+ const radius=pts.length?C.BoundingSphere.fromPoints(pts).radius:Infinity;
+ const scale=radius<180000?.30:radius<350000?.45:1;
+ // Tight enough for the West Bank, Israel and other small states, but not so
+ // tight that a portrait phone loses all geographic context.
+ return Math.round(Math.max(aspect<.8?500000:350000,(aspect<.8?2400000:1650000)*scale));
+}
 /* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
 function drawCountry(iso,color,alpha=.14,width=2.35){const col=C.Color.fromCssColorString(color),outline=String(iso).toUpperCase()==='CHN'?G.countries?.get('CHN')?.authoritativeOutline:null;for(const f of outline?[outline]:viewFeatures(iso))for(const p of polygons(f)){const r=p?.[0]||[];if(r.length<3)continue;add(G.viewer.entities.add({polygon:{hierarchy:new C.PolygonHierarchy(r.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],5000))),height:5000,material:col.withAlpha(alpha),outline:false}}))}}
 function label(text,lon,lat,{dx=0,dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(dx,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(dx,dy);return e}
@@ -88,9 +122,9 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
 async function flyPoint(lon,lat,height,s,duration=1.0){if(s!==G.navSerial||!good(lon,lat))return false;const completed=await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,+height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,complete:()=>r(true),cancel:()=>r(false)}));return completed&&s===G.navSerial}
 async function flyFit(ps,s,{factor=2.15,min=450000,max=15000000,duration=1.0}={}){if(s!==G.navSerial||!ps.length)return false;const sp=C.BoundingSphere.fromPoints(ps),range=Math.max(min,Math.min(max,sp.radius*factor));const completed=await new Promise(r=>G.viewer.camera.flyToBoundingSphere(sp,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-89),range),duration,complete:()=>r(true),cancel:()=>r(false)}));return completed&&s===G.navSerial}
-function countryMin(iso){const ps=carts(iso);if(!ps.length)return 800000;const r=C.BoundingSphere.fromPoints(ps).radius;if(r<180000)return 390000;if(r<400000)return 600000;if(r<800000)return 930000;if(r<1600000)return 1380000;return 1900000}
+function countryMin(iso,ps=countryFramePoints(iso)){if(!ps.length)return 800000;const r=C.BoundingSphere.fromPoints(ps).radius;if(r<180000)return 390000;if(r<400000)return 600000;if(r<800000)return 930000;if(r<1600000)return 1380000;return 1900000}
 function placeLabel(n){if(G.v52PlaceLabel)return G.v52PlaceLabel(n);let s=String(n.scenePlan?.targetLabel||n.focusLabel||n.location||'').trim();if(!s||/^(事件发生地|冲突发生地|新闻地点|实际发生地)$/.test(s))s=String(n.location||n.region||'').trim();return s||'新闻地点'}
-async function countryStage(iso,s,{color=COLOR.main,hold=800,event=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('country',s);clearScene();hideBase();const ps=carts(iso);if(!ps.length)return false;drawCountry(iso,color,.14,2.4);const a=mainland(iso);if(a){label(countryLabel(iso),a[0],a[1],{dy:5,font:15,bg:.34});flag(iso,a[0],a[1],{dy:-22,w:22,h:14})}if(event&&good(event.lon,event.lat))mark(event.lon,event.lat,event.label,{size:8.5,dy:-25});if(!await flyFit(ps,s,{factor:iso==='CHN'?3.20:2.02,min:countryMin(iso),max:14500000,duration:1.0}))return false;return wait(hold,s)}
+async function countryStage(iso,s,{color=COLOR.main,hold=800,event=null,focus=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('country',s);clearScene();hideBase();const ps=countryFramePoints(iso,focus);if(!ps.length)return false;drawCountry(iso,color,.14,2.4);const a=mainland(iso);if(a){label(countryLabel(iso),a[0],a[1],{dy:5,font:15,bg:.34});flag(iso,a[0],a[1],{dy:-22,w:22,h:14})}if(event&&good(event.lon,event.lat))mark(event.lon,event.lat,event.label,{size:8.5,dy:-25});if(!await flyFit(ps,s,{factor:iso==='CHN'?3.20:2.42,min:countryMin(iso,ps),max:14500000,duration:1.0}))return false;G.__v52CountryFrame={serial:s,iso};return wait(hold,s)}
 function sample(r,max=220){if(!r)return[];if(r.length<=max)return r;const step=Math.ceil(r.length/max),out=[];for(let i=0;i<r.length;i+=step)out.push(r[i]);return out}
 function closestMainland(a,b){const A=sample(mainRing(a)),B=sample(mainRing(b));if(!A.length||!B.length)return null;let best=null,bd=Infinity;for(const p of A)for(const q0 of B){let qx=+q0[0],px=+p[0];let dl=qx-px;if(dl>180)qx-=360;if(dl<-180)qx+=360;const lat=(+p[1]+ +q0[1])/2,dx=(qx-px)*Math.cos(lat*Math.PI/180),dy=+q0[1]-+p[1],d=dx*dx+dy*dy;if(d<bd){bd=d;best={p:[px,+p[1]],q:[qx,+q0[1]],gap:Math.sqrt(d)}}}if(!best)return null;const ca=mainland(a)||best.p,cb=mainland(b)||best.q;const p=[best.p[0]*.9+ca[0]*.1,best.p[1]*.9+ca[1]*.1],q=[best.q[0]*.9+cb[0]*.1,best.q[1]*.9+cb[1]*.1];let lon=(p[0]+q[0])/2;while(lon>180)lon-=360;while(lon<-180)lon+=360;return{p,q,mid:[lon,(p[1]+q[1])/2],gap:best.gap}}
 async function pairStage(a,b,s,{attack=false,primary=a,hold=950}={}){G.v52Director?.stage('country',s);const g=closestMainland(a,b);if(!g||g.gap>32)return false;clearScene();hideBase();drawCountry(a,attack?COLOR.attack:(a===primary?COLOR.main:COLOR.second),.13,2.3);drawCountry(b,attack?COLOR.victim:(b===primary?COLOR.main:COLOR.second),.13,2.3);const h=Math.max(700000,Math.min(4100000,680000+g.gap*165000));if(!await flyPoint(g.mid[0],g.mid[1],h,s,.95))return false;flag(a,g.p[0],g.p[1],{dy:-18,w:22,h:14});flag(b,g.q[0],g.q[1],{dy:-18,w:22,h:14});label(countryLabel(a),g.p[0],g.p[1],{dy:17,font:12,bg:.3});label(countryLabel(b),g.q[0],g.q[1],{dy:17,font:12,bg:.3});return wait(hold,s)}
@@ -203,11 +237,11 @@ async function fitAttack(ctx,duration=1.15){
   const aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
   // Medium-range globe framing: keep visible curvature and regional context.
   // Portrait needs extra altitude because its horizontal field of view is narrow.
-  const height=aspect<.8?2400000:1650000;
+  const height=impactHeight(ctx);
   const ok=await flyPoint(a.target.lon,a.target.lat,height,ctx.serial,duration);
   return ok&&activeAttack===ctx;
  }
- const points=[...carts(a.vic),C.Cartesian3.fromDegrees(a.target.lon,a.target.lat)];
+ const points=[...countryFramePoints(a.vic,a.target),C.Cartesian3.fromDegrees(a.target.lon,a.target.lat)];
  if(ctx.anchors.attacker)points.push(C.Cartesian3.fromDegrees(...ctx.anchors.attacker));
  if(a.source)points.push(C.Cartesian3.fromDegrees(a.source.lon,a.source.lat));
  const sp=C.BoundingSphere.fromPoints(points),frustum=G.viewer.camera.frustum;
@@ -254,7 +288,15 @@ function flight(ctx){
  ctx.stage='flight';
  attackLater(ctx,duration,()=>{G.viewer.entities.remove(mover);const i=G.v51SceneEntities.indexOf(mover);if(i>=0)G.v51SceneEntities.splice(i,1);
   path.polyline.material=new C.PolylineGlowMaterialProperty({glowPower:.1,color:C.Color.fromCssColorString('#ffae55').withAlpha(.38)});
-  showImpacts(ctx);});
+  showImpacts(ctx);
+  // Only after the real projectile reaches the impact area, finish on a
+  // closer incident-site camera. The earlier launch-to-target shot is kept.
+  if(activeAttack===ctx&&ctx.serial===G.navSerial){
+   flyPoint(a.target.lon,a.target.lat,impactHeight(ctx),ctx.serial,1.05).then(ok=>{
+    if(ok&&activeAttack===ctx&&ctx.serial===G.navSerial)placeAttackLabels(ctx);
+   });
+  }
+ });
 }
 // Cesium 1.145's display-wide ready flag includes unrelated dynamic ellipses.
 // Query the actual per-entity visualizer batches so those ellipses cannot starve an attack.
@@ -319,7 +361,7 @@ async function renderAttack(n,iso,s){
  // Establish the geographic relationship before moving to the impact site.
  // Armed groups are not countries: only show a second country when its ISO is known.
  const overviewCountries=[...new Set([a.att,a.vic].filter(Boolean))];
- const overviewPoints=overviewCountries.flatMap(code=>carts(code));
+ const overviewPoints=overviewCountries.flatMap(code=>countryFramePoints(code,code===a.vic?a.target:null));
  // The first country view must be real geometry, even on a cold Worker cache.
  // A timeout is a failed render, never permission to start impact effects.
  const geometryReady=await waitAttackGeometry(ctx);
@@ -368,10 +410,10 @@ if(typeof attackFocus==='function')G.focus=function(...args){
 };
 
 async function renderCarrier(n,iso,s){const p=n.scenePlan||{},primary=String(p.primaryIso3||n.countryIso3||'THA').toUpperCase(),ctx=(p.contextCountries||['USA',primary]).map(x=>String(x).toUpperCase()),other=ctx.find(x=>x!==primary);if(other){const ok=await pairStage(other,primary,s,{primary,hold:800});if(!ok){await countryStage(other,s,{color:COLOR.second,hold:550});if(s!==G.navSerial)return}}await countryStage(primary,s,{color:COLOR.main,hold:700});if(s!==G.navSerial)return;await runAdmins(n,primary,s);if(s!==G.navSerial)return;clearScene();hideBase();const from={lon:+(p.approachLon??100.70),lat:+(p.approachLat??13.00)},to={lon:+(p.dockLon??n.lon),lat:+(p.dockLat??n.lat)};await localFit(from,to,s);if(s!==G.navSerial)return;mark(+n.lon,+n.lat,n.focusLabel||n.location,{size:9.5,dy:-29});if(G.v52Director&&!await G.v52Director.checkpoint('location',s))return false;G.v52Director?.stage('event',s,{effects:true});const t0=performance.now(),dur=2300,pos=movePos(from,to,t0,dur);add(G.viewer.entities.add({position:pos,billboard:{image:CARRIER,width:48,height:18,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));const cc=ISO2[String(p.platformCountryIso3||'USA').toUpperCase()];if(cc)add(G.viewer.entities.add({position:pos,billboard:{image:`https://flagcdn.com/w40/${cc}.png`,width:20,height:12,pixelOffset:new C.Cartesian2(0,-18),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));label(p.platformLabel||'航母',to.lon,to.lat,{dy:27,font:12,bg:.35});await wait(3600,s)}
-async function renderPoint(n,iso,s){const p=n.scenePlan||{};if(p.hierarchyPresented)return finalLocation(n,s,{text:placeLabel(n)});const primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase(),ctx=(p.contextCountries||p.participants||[]).map(x=>String(x).toUpperCase()).filter(Boolean),others=[...new Set(ctx.filter(x=>x!==primary))];if(others.length===1){const ok=await pairStage(others[0],primary,s,{primary,hold:750});if(!ok){await countryStage(others[0],s,{color:COLOR.second,hold:520});if(s!==G.navSerial)return}}else for(const x of others){await countryStage(x,s,{color:COLOR.second,hold:480});if(s!==G.navSerial)return}if(primary){await countryStage(primary,s,{color:COLOR.main,hold:650});if(s!==G.navSerial)return}await runAdmins(n,primary||iso,s);if(s!==G.navSerial)return;return finalLocation(n,s,{text:placeLabel(n)})}
+async function renderPoint(n,iso,s){const p=n.scenePlan||{};const primary=String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();if(p.hierarchyPresented){const seen=G.__v52CountryFrame;if(seen?.serial!==s||seen?.iso!==primary){if(!await countryStage(primary,s,{color:COLOR.main,hold:750,focus:n}))return false;}return finalLocation(n,s,{text:placeLabel(n)});}const ctx=(p.contextCountries||p.participants||[]).map(x=>String(x).toUpperCase()).filter(Boolean),others=[...new Set(ctx.filter(x=>x!==primary))];if(others.length===1){const ok=await pairStage(others[0],primary,s,{primary,hold:750});if(!ok){await countryStage(others[0],s,{color:COLOR.second,hold:520});if(s!==G.navSerial)return}}else for(const x of others){await countryStage(x,s,{color:COLOR.second,hold:480});if(s!==G.navSerial)return}if(primary){await countryStage(primary,s,{color:COLOR.main,hold:650,focus:n});if(s!==G.navSerial)return}await runAdmins(n,primary||iso,s);if(s!==G.navSerial)return;return finalLocation(n,s,{text:placeLabel(n)})}
 async function renderDiplomacy(n,iso,s){const p=n.scenePlan||{},arr=(p.participants||[]).map(x=>String(x).toUpperCase()),a=arr[0]||String(n.secondaryCountryIso3||'').toUpperCase(),b=arr[1]||String(p.primaryIso3||n.countryIso3||iso||'').toUpperCase();if(a&&b){const ok=await pairStage(a,b,s,{primary:String(p.primaryIso3||b).toUpperCase(),hold:1800});if(ok)return}if(a)await countryStage(a,s,{color:COLOR.second,hold:600});if(s!==G.navSerial)return;if(b)await countryStage(b,s,{color:COLOR.main,hold:1300})}
 async function renderOrg(n,iso,s){const p=n.scenePlan||{},org=String(p.organization||n.alliance||n.location||'');if(org!=='OPEC+')return fallbackRun(n,iso,s);clearScene();hideBase();let ps=[];for(const m of OPEC){drawCountry(m,COLOR.org,.12,2.0);ps.push(...carts(m))}await flyFit(ps,s,{factor:2.5,min:7600000,max:19000000,duration:1.2});await wait(1150,s);if(s!==G.navSerial)return;for(const group of OPEC_GROUPS){clearScene();hideBase();let q=[];for(const m of group){drawCountry(m,COLOR.org,.14,2.1);q.push(...carts(m))}if(q.length)await flyFit(q,s,{factor:2.25,min:1700000,max:9000000,duration:.85});await wait(600,s);if(s!==G.navSerial)return}const keys=(p.keyCountries||[]).map(x=>String(x).toUpperCase());if(keys.length){for(const k of keys){await countryStage(k,s,{color:COLOR.main,hold:1900});if(s!==G.navSerial)return}}}
-G.runSequence=async(n,iso,s)=>{if(s!==G.navSerial)return false;const mode=G.v52AttackModel?.resolve(n)?.mode||String(n.sceneMode||'').toUpperCase();if(!n.scenePlan?.hierarchyPresented){clearScene();hideBase()}if(mode==='ATTACK'||mode==='MISSILE_ATTACK'||mode==='DRONE_ATTACK'||mode==='POTENTIAL_ATTACK')return renderAttack(n,iso,s);if(mode==='CARRIER_PORT'||n.scenePlan?.carrierDocking)return renderCarrier(n,iso,s);if(mode==='ORGANIZATION')return renderOrg(n,iso,s);if(mode==='DIPLOMACY_2')return renderDiplomacy(n,iso,s);if(mode==='POINT'||mode==='ADMIN'||mode==='DIPLOMACY_MULTI'||(mode!=='COUNTRY'&&G.v52Geography?.kind(n)))return renderPoint(n,iso,s);if(mode==='COUNTRY'){const p=String(n.scenePlan?.primaryIso3||n.countryIso3||iso||'').toUpperCase();return countryStage(p,s,{color:COLOR.main,hold:1900})}return fallbackRun(n,iso,s)};
+G.runSequence=async(n,iso,s)=>{if(s!==G.navSerial)return false;const mode=G.v52AttackModel?.resolve(n)?.mode||String(n.sceneMode||'').toUpperCase();if(!n.scenePlan?.hierarchyPresented){clearScene();hideBase()}if(mode==='ATTACK'||mode==='MISSILE_ATTACK'||mode==='DRONE_ATTACK'||mode==='POTENTIAL_ATTACK')return renderAttack(n,iso,s);if(mode==='CARRIER_PORT'||n.scenePlan?.carrierDocking)return renderCarrier(n,iso,s);if(mode==='ORGANIZATION')return renderOrg(n,iso,s);if(mode==='DIPLOMACY_2')return renderDiplomacy(n,iso,s);if(mode==='POINT'||mode==='ADMIN'||mode==='DIPLOMACY_MULTI'||(mode!=='COUNTRY'&&G.v52Geography?.kind(n)))return renderPoint(n,iso,s);if(mode==='COUNTRY'){const p=String(n.scenePlan?.primaryIso3||n.countryIso3||iso||'').toUpperCase();return countryStage(p,s,{color:COLOR.main,hold:1900,focus:n})}return fallbackRun(n,iso,s)};
 G.storyDuration=n=>{const m=String(n.sceneMode||'').toUpperCase();if(m==='ATTACK'||m==='MISSILE_ATTACK'||m==='DRONE_ATTACK'||m==='POTENTIAL_ATTACK')return 17000;if(m==='CARRIER_PORT')return 17000;if(m==='ORGANIZATION')return 21000;if(m==='DIPLOMACY_MULTI')return 18500;if(m==='DIPLOMACY_2')return 12500;if(m==='POINT'||m==='ADMIN')return 15500+(G.adminSteps?.(n)?.length||0)*1500;return typeof fallbackDuration==='function'?fallbackDuration(n):15000};
 
 // Opt-in on-screen audit for Android devices without remote DevTools.

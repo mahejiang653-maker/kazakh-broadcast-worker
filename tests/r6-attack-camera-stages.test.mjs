@@ -25,14 +25,15 @@ test('attack renders country overview before approaching the impact location', (
 test('overview contains only known country identities, not armed-group labels', () => {
   const body = between('async function renderAttack(', 'const attackFocus=G.focus;');
   assert.match(body, /\[a\.att,a\.vic\]\.filter\(Boolean\)/);
-  assert.match(body, /overviewCountries\.flatMap\(code=>carts\(code\)\)/);
+  assert.match(body, /overviewCountries\.flatMap\(code=>countryFramePoints\(code,/);
 });
 
 test('unknown launch coordinates finish at target while known routes retain wide framing', () => {
   const body = between('async function fitAttack(', 'let impactSprite=null');
   assert.match(body, /if\(!a\.source\)/);
   assert.match(body, /flyPoint\(a\.target\.lon,a\.target\.lat,height,ctx\.serial,duration\)/);
-  assert.match(body, /aspect<\.8\?2400000:1650000/);
+  assert.match(engine, /aspect<\.8\?2400000:1650000/);
+  assert.match(body, /const height=impactHeight\(ctx\)/);
   assert.match(body, /if\(a\.source\)points\.push/);
 });
 
@@ -76,7 +77,7 @@ test('country geometry failure cannot advance the camera or play impacts', async
   const ctx=vm.createContext({G,activeAttack:null,performance:{now:()=>100},
     attackData:()=>({vic:'YEM',att:'',target:{lon:45,lat:12}}),good:()=>true,
     clearScene:()=>{},hideBase:()=>{},mainland:()=>[45,12],drawCountry:()=>{},
-    countryLabel:()=>'',label:()=>{},flag:()=>{},mark:()=>{},carts:()=>[{}],
+    countryLabel:()=>'',label:()=>{},flag:()=>{},mark:()=>{},carts:()=>[{}],countryFramePoints:()=>[{}],
     COLOR:{attack:'',victim:''},waitAttackGeometry:async()=>false,
     flyFit:()=>{calls.push('flight');},fitAttack:()=>{calls.push('approach');},
     showImpacts:()=>{calls.push('impact');}
@@ -128,4 +129,71 @@ test('delayed impact timers cannot declare settled before the final pulse is cle
  advance(3850);
  assert.equal(attack.stage,'settled');assert.equal(attack.timers.size,0);
  assert.equal(entities.size,0);assert.equal(G.v51SceneEntities.length,0);
+});
+
+
+test('France overview camera frames mainland and Corsica together after upstream overseas filtering',()=>{
+ const mainland=[[-5,43],[8,43],[8,51],[-5,51],[-5,43]];
+ const corsica=[[8.54,41.38],[9.56,41.38],[9.56,43.01],[8.54,43.01]];
+ const indonesia=[[96,-6],[140,-6],[140,7],[96,7],[96,-6]];
+ const points=ring=>ring.map(([x,y])=>({x,y}));
+ const C={Cartesian3:{fromDegrees:(x,y)=>({x,y}),distance:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)},
+  BoundingSphere:{fromPoints(ps){const center={x:ps.reduce((a,p)=>a+p.x,0)/ps.length,y:ps.reduce((a,p)=>a+p.y,0)/ps.length};
+   return {center,radius:Math.max(...ps.map(p=>Math.hypot(p.x-center.x,p.y-center.y)))*100000};}}};
+ const geometry={FRA:{type:'MultiPolygon',coordinates:[[mainland],[corsica]]},
+  IDN:{type:'Polygon',coordinates:[indonesia]}};
+ const G={viewer:{scene:{canvas:{clientWidth:690,clientHeight:378}}}};
+ const ctx=vm.createContext({C,G,good:(a,b)=>Number.isFinite(+a)&&Number.isFinite(+b),
+  polygons:f=>f.type==='MultiPolygon'?f.coordinates:[f.coordinates],
+  raw:iso=>geometry[iso],
+  carts:iso=>iso==='FRA'?[...points(mainland),...points(corsica)]:points(indonesia),
+  area:ring=>Math.abs(ring.reduce((a,p,i)=>{const q=ring[(i+1)%ring.length];return a+p[0]*q[1]-q[0]*p[1];},0)/2)});
+ vm.runInContext(between('const DISPERSED_TERRITORIES=', '/* Fill follows'),ctx);
+ const fra=vm.runInContext('countryFramePoints("FRA",{lon:2.35,lat:48.85})',ctx);
+ assert.equal(fra.length,mainland.length+corsica.length,'France camera must frame ALL metropolitan territory');
+ const withoutFocus=vm.runInContext('countryFramePoints("FRA")',ctx);
+ assert.equal(withoutFocus.length,mainland.length+corsica.length);
+ const idn=vm.runInContext('countryFramePoints("IDN")',ctx);
+ assert.equal(idn.length,indonesia.length,'other countries must retain existing regional policy');
+ assert.ok(!engine.includes("new Set(['FRA','USA'"));
+});
+
+test('small-state impact camera height is lower than large-country camera height',()=>{
+ const G={viewer:{scene:{canvas:{clientWidth:690,clientHeight:378}}}};
+ const C={BoundingSphere:{fromPoints:pts=>({radius:pts[0].radius})}};
+ const ctx=vm.createContext({G,C,countryFramePoints:iso=>[{radius:iso==='PSE'?90000:iso==='UKR'?600000:900000}]});
+ vm.runInContext(between('function impactHeight(ctx){','/* Fill follows'),ctx);
+ const palestine=vm.runInContext('impactHeight({data:{vic:"PSE",target:{lon:35.10,lat:31.5}}})',ctx);
+ const large=vm.runInContext('impactHeight({data:{vic:"FRA",target:{lon:2.3,lat:48.8}}})',ctx);
+ assert.equal(palestine,495000);
+ assert.equal(large,1650000);
+ const ukraine=vm.runInContext('impactHeight({data:{vic:"UKR",target:{lon:31,lat:50}}})',ctx);
+ assert.equal(ukraine,1650000,'medium-sized countries must keep their complete sovereign border on screen');
+ G.viewer.scene.canvas.clientWidth=378;G.viewer.scene.canvas.clientHeight=690;
+ const portrait=vm.runInContext('impactHeight({data:{vic:"PSE",target:{lon:35.10,lat:31.5}}})',ctx);
+ assert.ok(portrait<1000000&&portrait>palestine,'portrait should be closer while retaining context');
+});
+
+test('a locality never skips its country intro because an imported field says hierarchyPresented',async()=>{
+ const calls=[],G={navSerial:42};
+ const ctx=vm.createContext({G,placeLabel:()=> '巴黎',countryStage:async(iso,serial)=>{
+  calls.push('country:'+iso);G.__v52CountryFrame={iso,serial};return true;
+ },finalLocation:async()=>{calls.push('location');return true;},COLOR:{main:'#f00'}});
+ vm.runInContext(between('async function renderPoint(', 'async function renderDiplomacy('),ctx);
+ const news={countryIso3:'FRA',scenePlan:{primaryIso3:'FRA',hierarchyPresented:true}};
+ await vm.runInContext('renderPoint',ctx)(news,'FRA',42);
+ assert.deepEqual(calls,['country:FRA','location']);
+ calls.length=0;
+ await vm.runInContext('renderPoint',ctx)(news,'FRA',42);
+ assert.deepEqual(calls,['location'],'already displayed intro on same navigation must not repeat');
+ G.navSerial=43;
+ calls.length=0;
+ await vm.runInContext('renderPoint',ctx)(news,'FRA',43);
+ assert.deepEqual(calls,['country:FRA','location'],'next news navigation starts from a country view again');
+});
+
+test('confirmed attack routes keep projectile animation then end on an incident close-up',()=>{
+ const flightCode=between('function flight(', '// Cesium 1.145');
+ assert.ok(flightCode.indexOf('showImpacts(ctx)')<flightCode.indexOf('flyPoint(a.target.lon,a.target.lat,impactHeight(ctx),ctx.serial,1.05)'));
+ assert.match(flightCode,/activeAttack===ctx&&ctx.serial===G.navSerial/);
 });
