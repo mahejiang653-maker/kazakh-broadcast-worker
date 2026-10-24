@@ -22,8 +22,29 @@ G.collect=(g,o=[])=>{if(!g)return o;if(g.type==='Feature')return G.collect(g.geo
 // Natural Earth's source marks France and Norway as -99; give their outlines
 // their real country IDs so per-story selection cannot lose these countries.
 G.featureIso=f=>{const p=f?.properties||{},iso=String(p.iso_a3||'').toUpperCase();return /^[A-Z]{3}$/.test(iso)?iso:({France:'FRA',Norway:'NOR'}[p.name]||iso)};
+// V52 France display policy: metropolitan France only (European mainland and Corsica).
+// Natural Earth stores French Guiana and other overseas territories in FRA's
+// MultiPolygon; remove those polygons BEFORE any country fill, frontier, focus,
+// world point-in-polygon lookup, or camera bounding sphere is constructed.
+// Keep the original source data untouched; normalize only this view copy.
+G.metropolitanFranceFeature=f=>{
+ if(!f?.geometry)return f;
+ const g=f.geometry;
+ const polys=g.type==='MultiPolygon'?g.coordinates:g.type==='Polygon'?[g.coordinates]:[];
+ if(!polys.length)return f;
+ const inEurope=poly=>{
+  const outer=poly?.[0]||[];
+  return outer.length>=3&&outer.every(q=>Array.isArray(q)&&Number.isFinite(+q[0])&&
+   Number.isFinite(+q[1])&& +q[0]>=-7&&+q[0]<=11&&+q[1]>=40&&+q[1]<=52.5);
+ };
+ const kept=polys.filter(inEurope);
+ if(!kept.length)console.warn('[V52] No metropolitan France polygon in loaded dataset');
+ return {...f,geometry:{type:'MultiPolygon',coordinates:kept}};
+};
 G.loadBorders=async()=>{try{
-G.worldGeo=await G.fetchJSON(G.WORLD);
+const source=await G.fetchJSON(G.WORLD);
+G.worldGeo={...source,features:(source?.features||[]).map(f=>
+ G.featureIso(f)==='FRA'?G.metropolitanFranceFeature(f):f)};
 const edgeMap=new Map();
 const keypt=q=>`${(+q[0]).toFixed(4)},${(+q[1]).toFixed(4)}`;
 const edgekey=(a,b)=>{const x=keypt(a),y=keypt(b);return x<y?x+'|'+y:y+'|'+x};
