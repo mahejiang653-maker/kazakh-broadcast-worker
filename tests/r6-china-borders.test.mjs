@@ -52,7 +52,8 @@ test('canonical China retains all neighbor-side frontiers without changing other
   const shared=h.G.borderEntities.filter(e=>e._countryIsos.size>1);
   const china=[...before.get('CHN')];h.install();
   assert.equal(h.G.v52ChinaBoundaryOwnership.reconcile(),0);
-  assert.equal(h.G.borderEntities.length,8132);
+  // France's four overseas-only border segments are intentionally absent.
+  assert.equal(h.G.borderEntities.length,8128);
   const removed={};
   for(const [iso,old]of before){const count=old.length-h.G.countries.get(iso).entities.length;if(count)removed[iso]=count;}
   assert.deepEqual(removed,expected);
