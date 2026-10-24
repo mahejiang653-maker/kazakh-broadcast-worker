@@ -167,12 +167,14 @@ test('metropolitan France is the camera frame, while its overseas polygons are p
 test('small-state impact camera height is lower than large-country camera height',()=>{
  const G={viewer:{scene:{canvas:{clientWidth:690,clientHeight:378}}}};
  const C={BoundingSphere:{fromPoints:pts=>({radius:pts[0].radius})}};
- const ctx=vm.createContext({G,C,countryFramePoints:iso=>[{radius:iso==='PSE'?90000:900000}]});
+ const ctx=vm.createContext({G,C,countryFramePoints:iso=>[{radius:iso==='PSE'?90000:iso==='UKR'?600000:900000}]});
  vm.runInContext(between('function impactHeight(ctx){','/* Fill follows'),ctx);
  const palestine=vm.runInContext('impactHeight({data:{vic:"PSE",target:{lon:35.10,lat:31.5}}})',ctx);
  const large=vm.runInContext('impactHeight({data:{vic:"FRA",target:{lon:2.3,lat:48.8}}})',ctx);
  assert.equal(palestine,495000);
  assert.equal(large,1650000);
+ const ukraine=vm.runInContext('impactHeight({data:{vic:"UKR",target:{lon:31,lat:50}}})',ctx);
+ assert.equal(ukraine,1650000,'medium-sized countries must keep their complete sovereign border on screen');
  G.viewer.scene.canvas.clientWidth=378;G.viewer.scene.canvas.clientHeight=690;
  const portrait=vm.runInContext('impactHeight({data:{vic:"PSE",target:{lon:35.10,lat:31.5}}})',ctx);
  assert.ok(portrait<1000000&&portrait>palestine,'portrait should be closer while retaining context');
