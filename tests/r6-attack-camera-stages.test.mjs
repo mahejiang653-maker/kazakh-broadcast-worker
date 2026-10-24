@@ -132,36 +132,30 @@ test('delayed impact timers cannot declare settled before the final pulse is cle
 });
 
 
-test('metropolitan France is the camera frame, while its overseas polygons are preserved',()=>{
+test('France overview camera frames mainland and Corsica together after upstream overseas filtering',()=>{
  const mainland=[[-5,43],[8,43],[8,51],[-5,51],[-5,43]];
- const guyane=[[-54,2],[-51,2],[-51,6],[-54,6],[-54,2]];
+ const corsica=[[8.54,41.38],[9.56,41.38],[9.56,43.01],[8.54,43.01]];
  const indonesia=[[96,-6],[140,-6],[140,7],[96,7],[96,-6]];
- const geometry={FRA:{type:'MultiPolygon',coordinates:[[mainland],[guyane]]},IDN:{type:'Polygon',coordinates:[indonesia]}};
  const points=ring=>ring.map(([x,y])=>({x,y}));
- const C={
-  Cartesian3:{
-   fromDegrees:(x,y)=>({x,y}),
-   distance:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)
-  },
-  BoundingSphere:{fromPoints(ps){
-   const center={x:ps.reduce((a,p)=>a+p.x,0)/ps.length,y:ps.reduce((a,p)=>a+p.y,0)/ps.length};
-   return {center,radius:Math.max(...ps.map(p=>Math.hypot(p.x-center.x,p.y-center.y)))*100000};
-  }}
- };
+ const C={Cartesian3:{fromDegrees:(x,y)=>({x,y}),distance:(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)},
+  BoundingSphere:{fromPoints(ps){const center={x:ps.reduce((a,p)=>a+p.x,0)/ps.length,y:ps.reduce((a,p)=>a+p.y,0)/ps.length};
+   return {center,radius:Math.max(...ps.map(p=>Math.hypot(p.x-center.x,p.y-center.y)))*100000};}}};
+ const geometry={FRA:{type:'MultiPolygon',coordinates:[[mainland],[corsica]]},
+  IDN:{type:'Polygon',coordinates:[indonesia]}};
  const G={viewer:{scene:{canvas:{clientWidth:690,clientHeight:378}}}};
  const ctx=vm.createContext({C,G,good:(a,b)=>Number.isFinite(+a)&&Number.isFinite(+b),
-  polygons:f=>f.type==='MultiPolygon'?f.coordinates:f.type==='Polygon'?[f.coordinates]:[],
+  polygons:f=>f.type==='MultiPolygon'?f.coordinates:[f.coordinates],
   raw:iso=>geometry[iso],
-  carts:iso=>iso==='FRA'?[...points(mainland),...points(guyane)]:points(indonesia),
+  carts:iso=>iso==='FRA'?[...points(mainland),...points(corsica)]:points(indonesia),
   area:ring=>Math.abs(ring.reduce((a,p,i)=>{const q=ring[(i+1)%ring.length];return a+p[0]*q[1]-q[0]*p[1];},0)/2)});
  vm.runInContext(between('const DISPERSED_TERRITORIES=', '/* Fill follows'),ctx);
  const fra=vm.runInContext('countryFramePoints("FRA",{lon:2.35,lat:48.85})',ctx);
- assert.equal(fra.length,mainland.length,'Paris event must fit all of metropolitan France, not distant Guiana');
- const overseas=vm.runInContext('countryFramePoints("FRA",{lon:-52.4,lat:4.0})',ctx);
- assert.equal(overseas.length,guyane.length,'a real overseas event must frame its own landmass');
+ assert.equal(fra.length,mainland.length+corsica.length,'France camera must frame ALL metropolitan territory');
+ const withoutFocus=vm.runInContext('countryFramePoints("FRA")',ctx);
+ assert.equal(withoutFocus.length,mainland.length+corsica.length);
  const idn=vm.runInContext('countryFramePoints("IDN")',ctx);
- assert.equal(idn.length,indonesia.length,'archipelagos outside the dispersed-overseas policy remain complete');
- assert.match(engine,/drawCountry\(iso,color,\.14,2\.4\)/,'country geometry must still draw all polygons');
+ assert.equal(idn.length,indonesia.length,'other countries must retain existing regional policy');
+ assert.ok(!engine.includes("new Set(['FRA','USA'"));
 });
 
 test('small-state impact camera height is lower than large-country camera height',()=>{
