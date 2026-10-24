@@ -161,10 +161,15 @@ try{
     const inside=projected.filter(p=>p&&p.x>=8&&p.y>=8&&
       p.x<=canvas.clientWidth-8&&p.y<=canvas.clientHeight-8).length;
     return {iso:G.__v52CountryFrame.iso,inside,total:main.length,
+      metropolitanPolygonCount:polygons.length,
+      overseasVertices:polygons.flatMap(poly=>poly[0]||[]).filter(p=>
+        p[0]<-7||p[0]>11||p[1]<40||p[1]>52.5).length,
       cameraHeight:G.viewer.camera.positionCartographic.height,navSerial:G.navSerial};
   });
   report.franceCountryOverview=france;
   assert.ok(france.total>=4,'real metropolitan France polygon must be loaded');
+  assert.equal(france.metropolitanPolygonCount,2,'France should show mainland plus Corsica only');
+  assert.equal(france.overseasVertices,0,'French Guiana and overseas territories must not appear in France outlines');
   assert.equal(france.inside,france.total,'all mainland France outline vertices must fit the mobile canvas');
   await page.screenshot({path:dir+'/france-country-overview.png',fullPage:true});
   await page.waitForFunction(()=>{
