@@ -60,7 +60,7 @@ function impactHeight(ctx){
  const canvas=G.viewer.scene.canvas,aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
  const pts=countryFramePoints(ctx.data.vic,ctx.data.target);
  const radius=pts.length?C.BoundingSphere.fromPoints(pts).radius:Infinity;
- const scale=radius<180000?.30:radius<350000?.45:radius<700000?.70:1;
+ const scale=radius<180000?.30:radius<350000?.45:1;
  // Tight enough for the West Bank, Israel and other small states, but not so
  // tight that a portrait phone loses all geographic context.
  return Math.round(Math.max(aspect<.8?500000:350000,(aspect<.8?2400000:1650000)*scale));
