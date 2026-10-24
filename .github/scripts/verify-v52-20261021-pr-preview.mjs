@@ -130,6 +130,54 @@ try{
   report.top1Replay=replay;
   await page.screenshot({path:dir+'/top-01-replay.png',fullPage:true});
   console.log('TOP1_REPLAY',JSON.stringify(replay));
+
+  // Country camera regression: the imported record claims the hierarchy was
+  // already shown, but a new navigation must first frame all mainland France.
+  await page.evaluate(()=>{
+    const G=window.NG14,previous=G.news[5];
+    G.news[5]={...previous,id:6,title:'法国全境然后巴黎',location:'巴黎',focusLabel:'巴黎',
+      countryIso3:'FRA',lon:2.3522,lat:48.8566,placeType:'城市',
+      sceneMode:'POINT',noPoint:false,
+      scenePlan:{primaryIso3:'FRA',hierarchyPresented:true,finalLocation:true}};
+    G.focus(5,true);
+  });
+  await page.waitForFunction(()=>{
+    const G=window.NG14,frame=G.__v52CountryFrame;
+    return G.current===5&&frame?.serial===G.navSerial&&frame?.iso==='FRA' &&
+      !G.viewer.camera._currentFlight;
+  },null,{timeout:50000});
+  const france=await page.evaluate(()=>{
+    const G=window.NG14,C=window.Cesium,c=G.countries.get('FRA'),
+      canvas=G.viewer.scene.canvas;
+    const geometry=c?.feature?.geometry;
+    const polygons=geometry?.type==='MultiPolygon'?geometry.coordinates:
+      geometry?.type==='Polygon'?[geometry.coordinates]:[];
+    const area=ring=>Math.abs(ring.reduce((n,p,i)=>{
+      const q=ring[(i+1)%ring.length];return n+p[0]*q[1]-q[0]*p[1];
+    },0)/2);
+    const main=polygons.map(p=>p[0]).filter(Boolean).sort((a,b)=>area(b)-area(a))[0]||[];
+    const projected=main.map(p=>C.SceneTransforms.worldToWindowCoordinates(
+      G.viewer.scene,C.Cartesian3.fromDegrees(p[0],p[1])));
+    const inside=projected.filter(p=>p&&p.x>=8&&p.y>=8&&
+      p.x<=canvas.clientWidth-8&&p.y<=canvas.clientHeight-8).length;
+    return {iso:G.__v52CountryFrame.iso,inside,total:main.length,
+      cameraHeight:G.viewer.camera.positionCartographic.height,navSerial:G.navSerial};
+  });
+  report.franceCountryOverview=france;
+  assert.ok(france.total>=4,'real metropolitan France polygon must be loaded');
+  assert.equal(france.inside,france.total,'all mainland France outline vertices must fit the mobile canvas');
+  await page.screenshot({path:dir+'/france-country-overview.png',fullPage:true});
+  await page.waitForFunction(()=>{
+    const G=window.NG14,state=G.v52Director?.getState?.();
+    return G.current===5&&state?.status==='complete';
+  },null,{timeout:50000});
+  const franceFinal=await page.evaluate(inspect);
+  report.franceLocation=franceFinal;
+  assert.equal(franceFinal.status,'complete');
+  assert.ok(franceFinal.center&&Math.abs(franceFinal.center.x-.5)<.25 &&
+    Math.abs(franceFinal.center.y-.5)<.25,'Paris must be centered only after France overview');
+  await page.screenshot({path:dir+'/france-paris-final.png',fullPage:true});
+  console.log('FRANCE_CAMERA_PASS',JSON.stringify({overview:france,cameraFinal:franceFinal.center}));
   assert.deepEqual(report.errors,[],report.errors.join('; '));
   report.status='PASS';
 }catch(e){
