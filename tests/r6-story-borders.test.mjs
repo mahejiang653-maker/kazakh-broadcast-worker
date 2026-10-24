@@ -71,6 +71,8 @@ test('French country polygons, national outlines and flash exclude overseas terr
   assert.ok(G.borderEntities.filter(e=>e.show).every(e=>
     e.polyline.positions.every(p=>p.lon>=-7&&p.lon<=11&&p.lat>=40&&p.lat<=52.5)),
   'White national border must never include French overseas territory');
+  // Mock fixture omits Cesium label rendering; geometry and border behavior remain real.
+  G.label=()=>null;
   G.flashCountry('FRA',story('FRA'));
   assert.equal(G.countryFillEntities.length,2,'country highlight must contain only mainland and Corsica');
   assert.equal(G.resolveIso({lon:-52.3,lat:4.1}), '',
