@@ -53,6 +53,31 @@ function assertScope(G,isos) {
   assert.equal(G.borderEntities.filter(e=>e.show).length,selected.size);
 }
 
+
+test('French country polygons, national outlines and flash exclude overseas territories',async()=>{
+  const {G}=harness();await G.loadBorders();
+  const f=G.countries.get('FRA')?.feature,coordinates=f?.geometry?.coordinates||[];
+  assert.equal(f?.geometry?.type,'MultiPolygon');
+  assert.equal(coordinates.length,2,'mainland France and Corsica must remain, French Guiana removed');
+  const all=coordinates.flatMap(poly=>poly[0]);
+  assert.ok(all.length>40,'full mainland outline should remain detailed');
+  assert.ok(all.every(([lon,lat])=>lon>=-7&&lon<=11&&lat>=40&&lat<=52.5));
+  assert.ok(!all.some(([lon,lat])=>lon < -40&&lat < 10));
+  const recorded=G.countries.get('FRA').entities.flatMap(e=>
+    e.polyline?.positions||[]).filter(Boolean);
+  assert.ok(recorded.length>20);
+  assert.ok(recorded.every(p=>p.lon>=-7&&p.lon<=11&&p.lat>=40&&p.lat<=52.5));
+  installNews(G,[story('FRA')]);G.focus(0);assertScope(G,['FRA']);
+  assert.ok(G.borderEntities.filter(e=>e.show).every(e=>
+    e.polyline.positions.every(p=>p.lon>=-7&&p.lon<=11&&p.lat>=40&&p.lat<=52.5)),
+  'White national border must never include French overseas territory');
+  G.flashCountry('FRA',story('FRA'));
+  assert.equal(G.countryFillEntities.length,2,'country highlight must contain only mainland and Corsica');
+  assert.equal(G.resolveIso({lon:-52.3,lat:4.1}), '',
+    'location inference must not silently reselect French overseas territories');
+  assert.equal(G.resolveIso({lon:2.35,lat:48.86}), 'FRA');
+});
+
 test('USA alone keeps its shared frontiers and hides Canada, Mexico and unrelated coastlines',async()=>{
   const {G}=harness();await G.loadBorders();
   const n={...story('USA','飓风逼近美国墨西哥湾，油气企业撤离人员。'),
@@ -69,11 +94,13 @@ test('USA alone keeps its shared frontiers and hides Canada, Mexico and unrelate
 test('switching stories and repeated scene cleanup never restore every country',async()=>{
   const {G}=harness();await G.loadBorders();installNews(G,[story('USA'),story('CHN')]);
   const positions=new Map(G.borderEntities.map(e=>[e,e.polyline.positions]));
+  const initialBorderCount=G.borderEntities.length;
   for(let i=0;i<40;i++) {
     const iso=i%2?'CHN':'USA';G.focus(i%2);G.clearLocal();G.setCountry(iso==='CHN'?'USA':'CHN',true);
     assertScope(G,[iso]);
   }
-  assert.equal(G.borderEntities.length,8132);
+  assert.equal(G.borderEntities.length,initialBorderCount,'navigation must not recreate or leak border entities');
+  assert.ok(initialBorderCount>8000,'real world borders must not be truncated');
   for(const e of G.borderEntities) {
     assert.equal(e.polyline.positions,positions.get(e));assert.equal(e.polyline.clampToGround,false);
     assert.ok(e.polyline.positions.every(p=>p.height===(e._chinaAuthoritativeOutline?22000:18000)));
