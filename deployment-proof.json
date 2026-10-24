@@ -1,0 +1,22 @@
+{
+  "applicationCommit": "1357888deac7f3ab62f526d15142e91a8bc81539",
+  "ci": "https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/40082568995",
+  "visualWorkflow": "https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/40082569000",
+  "cloudflareVersion": "a09f2452-d607-483b-a49f-28a5f2606cca",
+  "unitSummary": [
+    "2026-10-24T09:36:29.3309205Z # tests 267",
+    "2026-10-24T09:36:29.3309579Z # pass 265",
+    "2026-10-24T09:36:29.3309765Z # fail 0",
+    "2026-10-24T09:36:29.3310285Z # skipped 2"
+  ],
+  "productionChecks": 45,
+  "localOverrides": false,
+  "fixtureSHA256": "800747c8c5bf101b2bb4a4157d2d09ab92fe4b5cc884329ebd39c7572b9a2a00",
+  "video": {
+    "source": "top2-mobile.webm",
+    "startSeconds": 30.477999999999998,
+    "endSeconds": 43.722,
+    "durationSeconds": 13.28,
+    "transform": "time crop and H.264 encode only; original animation speed; no compositing"
+  }
+}
