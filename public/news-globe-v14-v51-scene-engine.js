@@ -32,10 +32,11 @@ function area(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(+r[j][0])
 function mainRing(iso){let best=null,ba=-1;for(const p of polygons(raw(iso))){const r=p?.[0]||[],a=area(r);if(r.length>3&&a>ba){best=r;ba=a}}return best}
 function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1])){x+=+p[0];y+=+p[1];n++}}return n?[x/n,y/n]:null}
 function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[103.8,35.4];return centroid(mainRing(iso))||G.countries?.get?.(iso)?.center||null}
-// Countries with distant overseas territories need a camera that frames the
-// relevant territorial component. Keep every real polygon rendered: only the
-// overview CAMERA chooses its local group (e.g. metropolitan France).
-const DISPERSED_TERRITORIES=new Set(['FRA','USA','GBR','ESP','PRT','NLD','NOR']);
+// For countries outside France, use the relevant territorial component for camera
+// framing when faraway overseas land would otherwise make the main region tiny.
+// France has already been reduced to metropolitan France (including Corsica)
+// during world geometry loading, so its camera fits ALL retained polygons.
+const DISPERSED_TERRITORIES=new Set(['USA','GBR','ESP','PRT','NLD','NOR']);
 function countryFramePoints(iso,focus=null){
  iso=String(iso||'').toUpperCase();const all=carts(iso);
  if(!DISPERSED_TERRITORIES.has(iso)||all.length<4)return all;
