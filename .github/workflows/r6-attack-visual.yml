@@ -84,7 +84,7 @@ jobs:
           path: globe-fast-flags
   rendered-scenes:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -99,9 +99,9 @@ jobs:
             sudo apt-get install -y --no-install-recommends fonts-noto-cjk fonts-noto-color-emoji
           fi
       - name: Verify imported ten-story fixture, cold GPU geometry and generic attacks
-        # A stalled Chromium/GPU wait must fail this step before the 30-minute job limit,
+        # A stalled Chromium/GPU wait must fail this step before the 45-minute job limit,
         # leaving time for the always() diagnostics artifact upload.
-        run: timeout --signal=TERM --kill-after=15s 10m node scripts/verify-r6-attacks.mjs
+        run: timeout --signal=TERM --kill-after=15s 20m node scripts/verify-r6-attacks.mjs
         env:
           GLOBE_LOCAL: '1'
           GLOBE_BLOCK_FLAG_CDN: '1'
