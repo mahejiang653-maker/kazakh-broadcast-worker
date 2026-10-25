@@ -202,3 +202,27 @@ test('local diplomatic partner context does not add off-camera country borders',
     scenePlan:{primaryIso3:'CHN',contextCountries:['KGZ'],showPartnerCountryOverview:true}};
   installNews(G,[n]);G.focus(0);assertScope(G,['CHN']);
 });
+
+test('Gaza regional outline is loaded from a real polygon and selected with West Bank',async()=>{
+ const {G,context}=harness();
+ const gaza=JSON.parse(source('news-globe-gaza-strip-outline-v1.geojson'));
+ context.fetch=async url=>{
+  assert.match(url,/news-globe-gaza-strip-outline-v1\.geojson/);
+  return {ok:true,json:async()=>structuredClone(gaza)};
+ };
+ await G.loadBorders();
+ const pieces=G.countries.get('PSE').entities.filter(e=>e.__v52GazaOutline);
+ assert.equal(pieces.length,1);
+ assert.equal(pieces[0].polyline.width,1.65);
+ assert.equal(G.countries.get('PSE').feature.geometry.type,'MultiPolygon');
+ assert.equal(G.countries.get('PSE').feature.geometry.coordinates.length,2,'PSE camera must contain both West Bank and Gaza');
+ const points=pieces[0].polyline.positions;
+ assert.ok(points.length>=12&&points.every(p=>p.lon>=34.1&&p.lon<=34.8&&p.lat>=31.1&&p.lat<=31.8));
+ const west=G.countries.get('PSE').entities.filter(e=>!e.__v52GazaOutline);
+ assert.ok(west.length>0,'original West Bank boundary must remain');
+ installNews(G,[story('PSE','希伯伦拆迁事件')]);G.focus(0);
+ assert.equal(pieces[0].show,true,'Gaza must be white when PSE story selected');
+ assertScope(G,['PSE']);
+ installNews(G,[story('IDN','印尼天然气出口')]);G.focus(0);
+ assert.equal(pieces[0].show,false,'Gaza outline must hide for unrelated stories');
+});
