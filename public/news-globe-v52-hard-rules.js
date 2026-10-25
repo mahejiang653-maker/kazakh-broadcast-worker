@@ -26,6 +26,23 @@ if(usNewMexico && !p.allowContextCountryBorders){
   if(String(n.focusLabel||'').trim()==='墨西哥')n.focusLabel='新墨西哥州';
   if(String(n.location||'').trim()==='墨西哥')n.location='美国新墨西哥州';
 }
+// Imported records may incorrectly say COUNTRY/ADMIN_REGION even though the
+// visible chip and coordinates unambiguously describe a real city (e.g. 乌鲁木齐).
+// Preserve true country/region summaries and exact administrative polygons.
+const cityType=/^(城市|市|地级市|县城|城镇|乡镇|县|city|town|county|municipality)$/i.test(String(n.placeType||'').trim());
+const cityName=String(n.city?.location||n.city?.focusLabel||n.city||n.focusLabel||n.location||'').trim();
+const cityPoint=n.lon!==null&&n.lon!==undefined&&n.lon!==''&&n.lat!==null&&n.lat!==undefined&&n.lat!==''&&
+  Number.isFinite(+n.lon)&&Number.isFinite(+n.lat)&&Math.abs(+n.lon)<=180&&Math.abs(+n.lat)<=90 &&
+  !(+n.lon===0&&+n.lat===0);
+const countryName=G.countryNameZh?.(p.primaryIso3||n.countryIso3)||'';
+if(cityType&&cityPoint&&cityName&&cityName!==countryName&&
+   (mode==='COUNTRY'||mode==='ADMIN_REGION')&&
+   !n.focusGeometry&&!p.focusGeometry&&!n.forceAreaBoundary){
+  n.sceneMode='POINT';n.noPoint=false;n.countryOnly=false;
+  p.finalLocation=true;p.regionalContext=false;p.adminChain=[];n.adminChain=[];
+  p.hierarchyPresented=false;
+  trace('city-mode-corrected',{from:mode,to:'POINT',city:cityName,lon:+n.lon,lat:+n.lat});
+}
 if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
 if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
