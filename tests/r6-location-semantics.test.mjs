@@ -263,3 +263,58 @@ test('invalid or explicitly absent locality never flies to a fabricated coordina
   assert.equal(await h.G.runSequence(n,'CHN',9),true);
   assert.deepEqual(h.stages.map(x=>x.mode),['DIPLOMACY_2']);
 });
+
+test('Urumqi CITY import wrongly marked COUNTRY becomes country-first POINT',async()=>{
+  const h=sceneHarness();
+  const n={title:'自治区党委常委会召开会议并参观乌鲁木齐馆',sceneMode:'COUNTRY',
+    countryIso3:'CHN',location:'乌鲁木齐',placeType:'城市',lon:87.62,lat:43.82,
+    scenePlan:{primaryIso3:'CHN',finalLocation:false,regionalContext:true}};
+  h.G.applyV52HardRules([n]);
+  assert.equal(n.sceneMode,'POINT');
+  assert.equal(n.noPoint,false);
+  assert.equal(n.scenePlan.finalLocation,true);
+  assert.equal(n.scenePlan.regionalContext,false);
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(s=>s.mode),['POINT']);
+  assert.equal(h.stages.at(-1).lon,87.62);
+});
+test('other cities are corrected without an Urumqi special case',async()=>{
+  const h=sceneHarness();
+  const n={title:'Indonesia local briefing',sceneMode:'ADMIN_REGION',placeType:'city',
+    countryIso3:'IDN',location:'雅加达',lon:106.82,lat:-6.18,
+    scenePlan:{primaryIso3:'IDN',finalLocation:false}};
+  h.G.applyV52HardRules([n]);
+  assert.equal(n.sceneMode,'POINT');
+  assert.deepEqual(h.G.getV52SceneTrace().filter(x=>x.type==='city-mode-corrected').length,1);
+});
+test('province-wide polygon coverage and invalid city coordinates remain region-only',async()=>{
+  const h=sceneHarness();
+  const n={sceneMode:'ADMIN_REGION',countryIso3:'CHN',placeType:'自治区',
+    location:'新疆维吾尔自治区',lon:86,lat:42,scenePlan:{primaryIso3:'CHN'}};
+  h.G.applyV52HardRules([n]);assert.equal(n.sceneMode,'ADMIN_REGION');
+  const fake={sceneMode:'COUNTRY',countryIso3:'CHN',placeType:'城市',
+    location:'乌鲁木齐',lon:null,lat:null,scenePlan:{primaryIso3:'CHN'}};
+  h.G.applyV52HardRules([fake]);assert.equal(fake.sceneMode,'COUNTRY');
+});
+test('missing country flag and regional red-dot label are restored at the real anchor',async()=>{
+  const entries=[],C={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},
+    Cartesian2:class{constructor(x,y){this.x=x;this.y=y;}},
+    Color:{WHITE:{},BLACK:{},fromCssColorString:()=>({withAlpha:()=>({})})},
+    HorizontalOrigin:{CENTER:1},VerticalOrigin:{CENTER:1},LabelStyle:{FILL_AND_OUTLINE:1}};
+  const G={navSerial:7,overviewMode:false,countries:new Map([['IDN',{iso2:'ID',center:[117,-2]}]]),
+    v52FlagImages:{id:'data:image/png;base64,ABC'},v51SceneEntities:entries,
+    viewer:{entities:{add:e=>e,contains:e=>entries.includes(e)},
+      clock:{currentTime:0},scene:{requestRender(){}}},
+    runSequence:async()=>true,countryNameZh:()=> '印度尼西亚'};
+  vm.runInNewContext(source('news-globe-v52-final-annotation-guard.js'),{
+    window:{NG14:G,Cesium:C},console
+  });
+  const n={sceneMode:'REGION',placeType:'地区',countryIso3:'IDN',
+    location:'新加坡/印度尼西亚',lon:104.02,lat:1.35};
+  await G.runSequence(n,'IDN',7);
+  assert.ok(entries.some(e=>e.label?.text==='新加坡/印度尼西亚'));
+  assert.ok(entries.some(e=>String(e.billboard?.image||'').startsWith('data:image/png')));
+  assert.equal(G.v52FinalAnnotationGuard.getDiagnostics().status,'point-annotated');
+  // Replaying an already labelled scene must not leave duplicate text.
+  const count=entries.length;await G.runSequence(n,'IDN',7);assert.equal(entries.length,count);
+});
