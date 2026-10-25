@@ -181,6 +181,9 @@ async function finalLocation(n,s,{text=null,flagIso=null}={}){if(s!==G.navSerial
     await flyPoint(lon,lat,Math.max(eventHeight(n),400000),s,1.05);
   if(!ok)return false;
   G.v52StartDetailedBorders?.(s);
+  // Some legacy detailed-border hooks reselect only the primary country.
+  // Reapply both white outlines in the same terminal camera.
+  G.selectCountryOverviewBordersBatch?.(pair);
   return wait(2100,s);
  }
  if(!['city','town','village','城市','城镇','乡镇','村庄','市','县城'].includes(String(n.placeType||'').trim().toLowerCase()) && G.v52RenderGeographicFeature&&await G.v52RenderGeographicFeature(n,s)){if(s===G.navSerial)flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(G.v52Director&&s===G.navSerial)return wait(2100,s);return s===G.navSerial;}if(s!==G.navSerial)return false;mark(+n.lon,+n.lat,text||placeLabel(n),{size:10,dy:-29});flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(!await flyPoint(+n.lon,+n.lat,eventHeight(n),s,1.02))return false;G.v52StartDetailedBorders?.(s);return wait(2100,s)}
