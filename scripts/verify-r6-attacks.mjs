@@ -88,8 +88,8 @@ function verifyTop2(s){
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);assert.equal(s.attack.geometryReady,true);assert.equal(s.attack.geometryTimedOut,false);
  assert.deepEqual(s.scope.countries,['RUS','UKR']);assert.equal(s.invalidBorders,0);
  for(const iso of ['RUS','UKR']){
-  const c=s.countries.find(c=>c.iso===iso);assert.ok(c?.exists&&c.fills>0&&c.borderPoints>10,iso+' must be rendered in the viewport');
-  assert.equal(c.readyFills,c.fills,iso+' country meshes must be present in ready GPU primitives');assert.equal(c.borderReady,true,iso+' border must be present in a ready GPU primitive');
+  const c=s.countries.find(c=>c.iso===iso);assert.ok(c?.exists&&c.fills===0&&c.borderPoints>10,iso+' must be rendered in the viewport');
+  assert.equal(c.readyFills,0,iso+' must not have a whole-country fill');assert.equal(c.borderReady,true,iso+' border must be present in a ready GPU primitive');
   const f=s.flags.find(f=>f.iso===iso);assert.equal(f?.source,'bundled',iso+' must not depend on the remote flag CDN');assert.ok(f?.visible&&f.complete&&f.naturalWidth>0,iso+' flag image must be visible');
   assert.ok(f.rect.left>=s.canvas.left&&f.rect.right<=s.canvas.right&&f.rect.top>=s.canvas.top&&f.rect.bottom<=s.canvas.bottom,iso+' flag must remain inside globe');
   assert.ok(!(s.target.x>=f.rect.left-6&&s.target.x<=f.rect.right+6&&s.target.y>=f.rect.top-6&&s.target.y<=f.rect.bottom+6),iso+' flag must not cover the target');
@@ -131,7 +131,7 @@ async function genericCase(name,story){
  const a=story.scenePlan.attackerIso3,b=story.countryIso3;
  await select(1);await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='country-overview'&&!NG14.viewer.camera._currentFlight,null,{timeout:120000});
  await flagsReady([a,b]);const overview=await state();
- assert.ok(overview.countries.every(c=>c.borderPoints>0&&c.fills>0&&c.readyFills===c.fills&&c.borderReady),'both countries must actually render in the overview');
+ assert.ok(overview.countries.every(c=>c.borderPoints>0&&c.fills===0&&c.borderReady),'both countries must actually render in the overview');
  log(name+'-country-overview',overview);await page.screenshot({path:path.join(dir,name+'-overview.png')});
  // Capture the one-shot effect in a separate take so screenshot encoding
  // cannot consume its transient stage. An unknown-origin target close-up may
@@ -147,7 +147,7 @@ async function genericCase(name,story){
   log(name+'-spherical-path',{minimumAltitude:Math.min(...paths[0]),maximumAltitude:Math.max(...paths[0])});
  }
  await page.screenshot({path:path.join(dir,name+'.png')});await settled();
- const final=await state();assert.ok(final.countries.every(c=>c.fills>0&&c.readyFills===c.fills&&c.borderReady));assert.ok(final.countries.find(c=>c.iso===b)?.borderPoints>0);assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
+ const final=await state();assert.ok(final.countries.every(c=>c.fills===0&&c.borderReady));assert.ok(final.countries.find(c=>c.iso===b)?.borderPoints>0);assert.ok(final.attack.impactCount>=3);assert.equal(final.attack.pendingTimers,0);
  log(name,final);
 }
 try{
@@ -157,7 +157,7 @@ try{
   await select(0);await ordinaryReady(0);await select(1);
   if(name==='mobile'){
    await page.waitForFunction(()=>NG14.v52Attack.getDiagnostics()?.stage==='geometry',null,{timeout:20000});
-   const pending=await state();assert.equal(pending.attack.geometryReady,false);assert.equal(pending.attack.impactCount,0);assert.ok(pending.countries.some(c=>c.readyFills<c.fills));log('cold-workers-defer-animation',pending);
+   const pending=await state();assert.equal(pending.attack.geometryReady,false);assert.equal(pending.attack.impactCount,0);assert.ok(pending.countries.every(c=>c.fills===0));log('cold-workers-defer-animation',pending);
    await select(2);assert.equal((await state()).attack,null);assert.equal((await state()).staleAttackEntities,0);log('navigation-cancels-pending-geometry',{});
    await select(1);releaseWorkers();
   }
