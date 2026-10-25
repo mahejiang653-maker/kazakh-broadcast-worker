@@ -100,6 +100,8 @@ test('R6 red-inside-white China framing keeps authoritative border ownership and
   await h.G.runSequence({sceneMode:'COUNTRY',countryIso3:'CHN'},'CHN',h.G.navSerial);
   const fills=h.G.v51SceneEntities.filter(e=>e.polygon);
   assert.ok(fills.length>0,'red must fill authoritative country polygon');assert.equal(fittingPoints,points);
+  assert.ok(fills.every(e=>e.polygon?.height===13500&&e.polygon?.perPositionHeight===false),
+    'country fill must be curved and remain above the satellite globe');
   assert.equal(h.G.countries.get('CHN').feature,original,'do not replace camera or event country geometry');
   assert.ok(h.G.countries.get('CHN').entities.some(e=>e._chinaAuthoritativeOutline),
     'authoritative white border remains visible');

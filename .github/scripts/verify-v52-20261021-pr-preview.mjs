@@ -235,6 +235,34 @@ try{
   assert.ok(dual.finalSync,'both country flags must be created before final camera movement');
   assert.ok(dual.frameCountries.includes('SGP'),'last camera must fit the entire Singapore territory');
   await page.screenshot({path:dir+'/singapore-indonesia-dual-flags.png',fullPage:true});
+  // Exercise GPU picking well INSIDE the territory, not just successful
+  // polygon entity creation. This catches globe-occluded flat fill triangles.
+  const coverage=[];
+  for(const sample of [
+    {iso:'CHN',lon:110,lat:30,height:8000000},
+    {iso:'BRA',lon:-53,lat:-12,height:7600000},
+    {iso:'IDN',lon:114.5,lat:-1,height:5200000}
+  ]){
+    await page.evaluate(p=>{
+      const G=window.NG14,C=window.Cesium;
+      G.viewer.camera.cancelFlight?.();
+      G.flashCountry(p.iso,{countryIso3:p.iso,scenePlan:{primaryIso3:p.iso}});
+      G.viewer.camera.setView({destination:C.Cartesian3.fromDegrees(p.lon,p.lat,p.height),
+        orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0}});
+      G.viewer.scene.requestRender();
+    },sample);
+    await page.waitForFunction(p=>{
+      const G=window.NG14,C=window.Cesium,scene=G.viewer.scene;
+      const ground=C.Cartesian3.fromDegrees(p.lon,p.lat,13500);
+      const xy=C.SceneTransforms.worldToWindowCoordinates(scene,ground);
+      if(!xy||xy.x<0||xy.y<0||xy.x>scene.canvas.clientWidth||xy.y>scene.canvas.clientHeight)return false;
+      return scene.drillPick(xy,32).some(hit=>hit.id?.__v52TerritoryFill===true);
+    },sample,{timeout:16000,polling:500});
+    coverage.push({...sample,interiorRendered:true});
+    await page.screenshot({path:dir+'/curved-fill-'+sample.iso.toLowerCase()+'.png'});
+  }
+  report.globalCountryFillCoverage=coverage;
+  console.log('GLOBAL_COUNTRY_FILL_COVERAGE',JSON.stringify(coverage));
   assert.deepEqual(report.errors,[],report.errors.join('; '));
   report.status='PASS';
 }catch(e){

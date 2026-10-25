@@ -13,16 +13,20 @@ G.countryHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarch
 G.addCountryFill=(geometry,tint='#ed3e50',opacity=.25)=>{
  const C=Cesium,polys=geometry?.type==='Polygon'?[geometry.coordinates]:
    geometry?.type==='MultiPolygon'?geometry.coordinates:[];
- const col=C.Color.fromCssColorString(tint).withAlpha(opacity);
+ // Every country is triangulated on a CURVED ellipsoid at a fixed height.
+ // perPositionHeight=true builds large flat triangles that disappear BELOW
+ // the globe across Brazil, China, Russia and archipelagos (patchy red fill).
+ const col=C.Color.fromCssColorString(tint).withAlpha(Math.max(.48,Math.min(.58,opacity*2)));
  for(const rings of polys){
   const positions=ring=>(ring||[]).filter(p=>Number.isFinite(+p[0])&&Number.isFinite(+p[1]))
-    .map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],8500));
+    .map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
   const outer=positions(rings?.[0]);if(outer.length<3)continue;
   const holes=(rings||[]).slice(1).map(positions).filter(x=>x.length>=3)
     .map(x=>new C.PolygonHierarchy(x));
   const entity=G.viewer.entities.add({__v52TerritoryFill:true,
     polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
-      perPositionHeight:true,material:col,outline:false}});
+      height:13500,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
+      material:col,outline:false}});
   G.countryFillEntities.push(entity);
  }
 };
