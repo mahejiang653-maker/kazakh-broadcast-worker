@@ -74,14 +74,18 @@ function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35){
  const geometry=iso==='CHN'&&G.countries?.get('CHN')?.authoritativeOutline?.geometry?
    G.countries.get('CHN').authoritativeOutline.geometry:raw(iso)?.geometry;
  if(!geometry)return false;
- const material=C.Color.fromCssColorString(color).withAlpha(Math.max(.18,Math.min(.38,alpha)));
+ // A fixed-height curved polygon is essential for ANY large country:
+ // free-altitude polygon vertices form planar triangles under the globe,
+ // creating the observed red/blue patches instead of complete coverage.
+ const material=C.Color.fromCssColorString(color).withAlpha(Math.max(.48,Math.min(.58,alpha*2)));
  for(const rings of polygons(geometry)){
-  const coords=ring=>(ring||[]).filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],11000));
+  const coords=ring=>(ring||[]).filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
   const outer=coords(rings?.[0]);if(outer.length<3)continue;
   const holes=(rings||[]).slice(1).map(coords).filter(v=>v.length>=3).map(v=>new C.PolygonHierarchy(v));
   add(G.viewer.entities.add({__v52TerritoryFill:true,__v52CountryIso:iso,
     polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
-      perPositionHeight:true,material,outline:false}}));
+      height:13500,perPositionHeight:false,arcType:C.ArcType.GEODESIC,
+      material,outline:false}}));
  }
  return true;
 }
