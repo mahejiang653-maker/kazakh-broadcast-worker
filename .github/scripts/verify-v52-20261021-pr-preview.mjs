@@ -100,7 +100,7 @@ try{
     if(n.dataCount!==10)mistakes.push('top10 count');
     if(!n.displayedTitle?.includes(n.title))mistakes.push('title out of sync');
     if(index===0||index===5){
-      if(!n.trace.includes('two-country-location'))mistakes.push('missing city-venue final stage');
+      if(!n.trace.some(stage=>stage==='two-country-location'||stage==='two-country-locality'))mistakes.push('missing city-venue final stage');
       if(!n.center||Math.abs(n.center.x-.5)>.25||Math.abs(n.center.y-.5)>.25)mistakes.push('not framed at venue');
     }
     if(index===4&&n.trace.filter(s=>s==='multi-location').length!==2)
