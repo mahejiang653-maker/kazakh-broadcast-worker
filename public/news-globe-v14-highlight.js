@@ -31,7 +31,7 @@ G.flashCountry=(iso,n)=>{
    const label=G.label(name,p[0],p[1],'country');
    if(label?.label){label.label.pixelOffset=new C.Cartesian2(24,0);label.__v52FixedLabelOffset=new C.Cartesian2(24,0);}
    G.countryLabelEntity=label;
-   const cc=String(c.iso2||'').toLowerCase(),img=G.v52FlagImages?.[cc]||(/^[a-z]{2}$/.test(cc)?'https://flagcdn.com/w40/'+cc+'.png':'');
+   const cc=String(G.v52FlagIso2?.[iso]||c.iso2||'').toLowerCase(),img=G.v52FlagImages?.[cc]||(/^[a-z]{2}$/.test(cc)?'https://flagcdn.com/w40/'+cc+'.png':'');
    if(img)G.countryFlagEntity=G.viewer.entities.add({__v52StoryFlag:true,position:C.Cartesian3.fromDegrees(+p[0],+p[1],90000),
      billboard:{image:img,width:28,height:18,pixelOffset:new C.Cartesian2(-44,0),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
  }
