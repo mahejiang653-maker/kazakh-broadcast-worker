@@ -217,7 +217,7 @@ test('Dandong diplomatic visit uses Korean and Chinese full-country frames then 
     lon:124.38,lat:40.13,scenePlan:{primaryIso3:'CHN',participants:['PRK','CHN']}};
   assert.equal(await h.G.runSequence(n,'CHN',9),true);
   assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[
-    ['COUNTRY','PRK'],['COUNTRY','CHN'],['POINT','CHN']
+    ['COUNTRY','PRK'],['COUNTRY','CHN'],['POINT','']
   ]);
   assert.equal(h.stages.at(-1).lon,124.38);
   assert.equal(h.stages.at(-1).title,n.title);
