@@ -125,6 +125,7 @@
       if(!G.borderEntities.includes(gazaBorder))G.borderEntities.push(gazaBorder);
       return;
     }
+    if(typeof fetch!=='function'){gazaStatus='fetch-unavailable';return;}
     try {
       const response=await fetch('/news-globe-gaza-strip-outline-v1.geojson?v=20261025-r1',{cache:'force-cache'});
       if(!response.ok)throw Error('HTTP '+response.status);
