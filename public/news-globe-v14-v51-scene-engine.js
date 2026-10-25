@@ -405,7 +405,7 @@ async function renderAttack(n,iso,s){
   attacker:a.att&&a.att!==a.vic?attackAnchor(a.att,a.target):null,victim:mainland(a.vic)}};
  const country=(code,color)=>{const before=G.v51SceneEntities.length;drawCountry(code,color,.18);
   for(const e of G.v51SceneEntities.slice(before)){e.__v52AttackSerial=s;e.__v52AttackKind='country-'+code;}};
- if(a.att&&a.att!==a.vic)country(a.att,COLOR.attack);country(a.vic,COLOR.victim);
+ if(a.att&&a.att!==a.vic)country(a.att,COLOR.second);country(a.vic,COLOR.main);
  ctx.badges=[];
  if(ctx.anchors.attacker){const [lon,lat]=ctx.anchors.attacker;
   ctx.badges.push({label:label(countryLabel(a.att),lon,lat,{dx:27,dy:0,font:13,height:30000}),flag:flag(a.att,lon,lat,{dx:-45,dy:0,w:30,h:20})});}
