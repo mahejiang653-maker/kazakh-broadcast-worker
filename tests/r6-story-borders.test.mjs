@@ -214,6 +214,8 @@ test('Gaza regional outline is loaded from a real polygon and selected with West
  const pieces=G.countries.get('PSE').entities.filter(e=>e.__v52GazaOutline);
  assert.equal(pieces.length,1);
  assert.equal(pieces[0].polyline.width,1.65);
+ assert.equal(G.countries.get('PSE').feature.geometry.type,'MultiPolygon');
+ assert.equal(G.countries.get('PSE').feature.geometry.coordinates.length,2,'PSE camera must contain both West Bank and Gaza');
  const points=pieces[0].polyline.positions;
  assert.ok(points.length>=12&&points.every(p=>p.lon>=34.1&&p.lon<=34.8&&p.lat>=31.1&&p.lat<=31.8));
  const west=G.countries.get('PSE').entities.filter(e=>!e.__v52GazaOutline);
