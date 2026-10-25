@@ -167,9 +167,9 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  const configuredPartners=Array.isArray(p.contextCountries)?p.contextCountries:[];
  const diplomaticPartners=/^DIPLOMACY(?:_2|_MULTI)?$/.test(mode)&&Array.isArray(p.participants)?p.participants:[];
  const partnerCodes=[...configuredPartners,...diplomaticPartners,...(kashgarKgCooperation?['KGZ']:[])];
- const explicitPartners=[...new Set(partnerCodes.map(x=>String(x?.countryIso3||x?.iso3||x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??false)))];
+ const explicitPartners=[...new Set(partnerCodes.map(x=>String(x?.countryIso3||x?.iso3||x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??true)))];
  if(locality && p.showPartnerCountryOverview!==false &&
-     (p.showPartnerCountryOverview===true || diplomaticPartners.length>0 || (kashgarKgCooperation && p.showPartnerCountryOverview!==false)) &&
+     (p.showPartnerCountryOverview===true || configuredPartners.length>0 || diplomaticPartners.length>0 || kashgarKgCooperation) &&
      p.contextDisplay!==false && explicitPartners.length){
    for(const partner of explicitPartners){if(!await runCountry(partner,n,s,950,'diplomacy-country'))return false;}
    if(!await runCountry(primary,n,s,950,'diplomacy-country'))return false;
@@ -177,7 +177,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
      scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
    trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
-   return oldRun?oldRun.call(this,q,primary,s):false;
+   return oldRun?oldRun.call(this,q,'',s):false;
  }
  if(locality && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
