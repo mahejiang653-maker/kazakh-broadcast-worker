@@ -120,7 +120,7 @@
   async function ensureGazaBoundary() {
     const C=window.Cesium,viewer=G.viewer,ps=G.countries?.get('PSE');
     if(!C||!viewer?.entities||!ps){gazaStatus='country-unavailable';return;}
-    if(gazaBorder && viewer.entities.contains(gazaBorder)){
+    if(gazaBorder && (viewer.entities.contains?.(gazaBorder)||viewer.entities.values?.includes(gazaBorder))){
       if(!ps.entities.includes(gazaBorder))ps.entities.push(gazaBorder);
       if(!G.borderEntities.includes(gazaBorder))G.borderEntities.push(gazaBorder);
       return;
