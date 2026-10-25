@@ -1,0 +1,23 @@
+name: V52 Locality Camera Regression
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'tests/r6-location-semantics.test.mjs'
+      - 'tests/r6-attack-camera-stages.test.mjs'
+      - '.github/workflows/r6-locality-camera-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify camera stage and location semantics
+        run: node --test tests/r6-location-semantics.test.mjs tests/r6-attack-camera-stages.test.mjs

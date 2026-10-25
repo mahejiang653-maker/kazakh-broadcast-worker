@@ -147,24 +147,39 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  }
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
- const locality=/县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(String(n.focusLabel||n.location||'')) || /^(city|county|town|village|point)$/i.test(String(n.placeType||''));
+ const placeLabel=String(n.focusLabel||n.location||'').trim(),placeType=String(n.placeType||'').trim();
+ const hasPoint=n.noPoint!==true && n.countryOnly!==true && n.lon!=null && n.lat!=null &&
+   n.lon!=='' && n.lat!=='' && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) &&
+   Math.abs(Number(n.lon))<=180 && Math.abs(Number(n.lat))<=90;
+ // A Chinese placeType ("城市") and a city name without a suffix ("丹东")
+ // must be treated as a precise endpoint, including on diplomatic visits.
+ const namedDiplomaticPlace=/^DIPLOMACY(?:_2|_MULTI)?$/.test(mode) && !!placeLabel &&
+   placeLabel!==G.countryName(primary) && placeLabel!==primary &&
+   !/^(全国|全境|国家|两国|多国)$/.test(placeLabel) && !/外交关系|国家关系|双边关系/.test(placeLabel);
+ const locality=hasPoint && (p.finalLocation===true ||
+   /县|自治县|市|镇|乡|村|伽师|喀什|乌鲁木齐/.test(placeLabel) ||
+   /^(city|county|town|village|point|locality|venue|port|airport|城市|城镇|县城|县|乡镇|乡|镇|村庄|村|地点|会场|港口|机场)$/i.test(placeType) ||
+   namedDiplomaticPlace);
  // Explicit diplomatic partner overview for a precise locality: display both
  // sovereign-country stages before the final city camera. A country mentioned
  // only in prose does not opt in; importers must supply scenePlan.contextCountries.
  const kashgarKgCooperation=primary==='CHN' && /喀什|Kashgar/i.test([n.focusLabel,n.location,n.title].join(' ')) && /吉尔吉斯|Kyrgyz/i.test([n.title,n.summary].join(' ')) && /合作|贸易|经贸|协作|cooperat|trade/i.test([n.title,n.summary].join(' '));
  const configuredPartners=Array.isArray(p.contextCountries)?p.contextCountries:[];
- const partnerCodes=kashgarKgCooperation?[...configuredPartners,'KGZ']:configuredPartners;
- const explicitPartners=[...new Set(partnerCodes.map(x=>String(x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??false)))];
- if(locality && (p.showPartnerCountryOverview===true || (kashgarKgCooperation && p.showPartnerCountryOverview!==false)) && p.contextDisplay!==false && explicitPartners.length && n.lon!=null && n.lat!=null && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat))){
+ const diplomaticPartners=/^DIPLOMACY(?:_2|_MULTI)?$/.test(mode)&&Array.isArray(p.participants)?p.participants:[];
+ const partnerCodes=[...configuredPartners,...diplomaticPartners,...(kashgarKgCooperation?['KGZ']:[])];
+ const explicitPartners=[...new Set(partnerCodes.map(x=>String(x?.countryIso3||x?.iso3||x).trim().toUpperCase()).filter(x=>/^[A-Z]{3}$/.test(x)&&x!==primary&&(G.countries?.has(x)??true)))];
+ if(locality && p.showPartnerCountryOverview!==false &&
+     (p.showPartnerCountryOverview===true || configuredPartners.length>0 || diplomaticPartners.length>0 || kashgarKgCooperation) &&
+     p.contextDisplay!==false && explicitPartners.length){
    for(const partner of explicitPartners){if(!await runCountry(partner,n,s,950,'diplomacy-country'))return false;}
    if(!await runCountry(primary,n,s,950,'diplomacy-country'))return false;
    if(s!==G.navSerial)return false;
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
      scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
    trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
-   return oldRun?oldRun.call(this,q,primary,s):false;
+   return oldRun?oldRun.call(this,q,mode==='POINT'?primary:'',s):false;
  }
- if(locality && Number.isFinite(Number(n.lon)) && Number.isFinite(Number(n.lat)) && n.lon!=null && n.lat!=null && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
+ if(locality && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
      adminChain:[],forceAdminChain:false,
      scenePlan:{...p,regionalContext:false,contextCountries:[],participants:[],adminChain:[],
