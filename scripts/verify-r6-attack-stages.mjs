@@ -46,7 +46,7 @@ async function state(){return page.evaluate(()=>{
   target:p?{x:p.x,y:p.y,visible:occluder.isPointVisible(C.Cartesian3.fromDegrees(target.lon,target.lat,30000))}:null,
   canvas:rect.toJSON(),viewport:{width:innerWidth,height:innerHeight},scope,
   countries:(a?[a.attacker,a.victim]:[]).filter(Boolean).map(iso=>{
-   const c=G.countries.get(iso),fills=G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e));
+   const c=G.countries.get(iso),fills=G.v51SceneEntities.filter(e=>e.__v52TerritoryFill&&e.__v52CountryIso===iso&&v.entities.contains(e));
    return {iso,fills:fills.length,readyFills:fills.filter(gpuReady).length,
     outlineSegments:(c?.entities||[]).filter(e=>e.polyline).length,
     visibleBorderPoints:(c?.entities||[]).filter(e=>e.show&&e.polyline).flatMap(e=>e.polyline.positions.getValue(t)).filter(p=>within(project(p))&&occluder.isPointVisible(p)).length};
@@ -76,7 +76,7 @@ function verify(s,index,scope){
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);
  // The no-red-fill V52 renderer intentionally removes sovereign polygon meshes.
  // Verify real white border geometry remains available for both countries.
- assert.ok(s.countries.every(c=>c.fills===0&&c.readyFills===0),'no country red GPU fill meshes are allowed');
+ assert.ok(s.countries.every(c=>c.fills>0),'each attack participant must have a real clipped sovereign colour polygon');
  assert.ok(s.countries.every(c=>c.outlineSegments>0),'countries must have real white-outline geometry');
  assert.ok(s.flags.every(f=>scope.includes(f.iso)),'no unrelated national flags');
  for(const label of s.countryLabels.filter(l=>l.anchorVisible)){
