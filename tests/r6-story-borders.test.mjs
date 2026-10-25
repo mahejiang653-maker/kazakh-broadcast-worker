@@ -74,7 +74,7 @@ test('French country polygons, national outlines and flash exclude overseas terr
   // Mock fixture omits Cesium label rendering; geometry and border behavior remain real.
   G.label=()=>null;
   G.flashCountry('FRA',story('FRA'));
-  assert.equal(G.countryFillEntities.length,2,'country highlight must contain only mainland and Corsica');
+  assert.equal(G.countryFillEntities.length,0,'sovereign territories must never be filled red');
   assert.equal(G.resolveIso({lon:-52.3,lat:4.1}), '',
     'location inference must not silently reselect French overseas territories');
   assert.equal(G.resolveIso({lon:2.35,lat:48.86}), 'FRA');
