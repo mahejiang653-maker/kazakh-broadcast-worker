@@ -355,10 +355,10 @@ async function renderAttack(n,iso,s){
  if(a.att&&a.att!==a.vic)country(a.att,COLOR.attack);country(a.vic,COLOR.victim);
  ctx.badges=[];
  if(ctx.anchors.attacker){const [lon,lat]=ctx.anchors.attacker;
-  ctx.badges.push({label:label(countryLabel(a.att),lon,lat,{dy:18,font:13,height:30000}),flag:flag(a.att,lon,lat,{dx:0,dy:-8,w:30,h:20})});}
+  ctx.badges.push({label:label(countryLabel(a.att),lon,lat,{dx:27,dy:0,font:13,height:30000}),flag:flag(a.att,lon,lat,{dx:-45,dy:0,w:30,h:20})});}
  // Keep the victim flag on a stable country anchor, apart from the impact marker.
  const victim=ctx.anchors.victim||[a.target.lon,a.target.lat];
- ctx.badges.push({label:label(countryLabel(a.vic),victim[0],victim[1],{dy:18,font:13,height:30000}),flag:flag(a.vic,victim[0],victim[1],{dx:0,dy:-8,w:30,h:20})});
+ ctx.badges.push({label:label(countryLabel(a.vic),victim[0],victim[1],{dx:27,dy:0,font:13,height:30000}),flag:flag(a.vic,victim[0],victim[1],{dx:-45,dy:0,w:30,h:20})});
  mark(a.target.lon,a.target.lat,a.targetLabel,{size:11,dy:-28});
  G.v52SceneTrace?.push({type:'attack-render',serial:s,index:(G.current??0)+1,at:Date.now(),attacker:a.att,victim:a.vic,source:a.source,target:a.target});
  // Establish the geographic relationship before moving to the impact site.
