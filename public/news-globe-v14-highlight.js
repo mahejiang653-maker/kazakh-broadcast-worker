@@ -25,7 +25,7 @@ G.addCountryFill=(geometry,tint='#ed3e50',opacity=.25)=>{
     .map(x=>new C.PolygonHierarchy(x));
   const entity=G.viewer.entities.add({__v52TerritoryFill:true,
     polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
-      height:13500,perPositionHeight:false,arcType:C.ArcType.GEODESIC,
+      height:13500,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
       material:col,outline:false}});
   G.countryFillEntities.push(entity);
  }
