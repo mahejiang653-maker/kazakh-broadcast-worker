@@ -84,7 +84,7 @@ function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35){
   const holes=(rings||[]).slice(1).map(coords).filter(v=>v.length>=3).map(v=>new C.PolygonHierarchy(v));
   add(G.viewer.entities.add({__v52TerritoryFill:true,__v52CountryIso:iso,
     polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
-      height:13500,perPositionHeight:false,arcType:C.ArcType.GEODESIC,
+      height:13500,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
       material,outline:false}}));
  }
  return true;
