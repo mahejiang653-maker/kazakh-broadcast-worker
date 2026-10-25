@@ -226,3 +226,26 @@ test('Gaza regional outline is loaded from a real polygon and selected with West
  installNews(G,[story('IDN','印尼天然气出口')]);G.focus(0);
  assert.equal(pieces[0].show,false,'Gaza outline must hide for unrelated stories');
 });
+
+test('country overview has no red fill and puts the flag next to the name',async()=>{
+ const {G}=harness();await G.loadBorders();
+ installNews(G,[story('IDN','印尼最新报道')]);G.focus(0);
+ G.flashCountry('IDN',story('IDN'));
+ assert.equal(G.countryFillEntities.length,0,'country polygons must never receive a red material');
+ assert.ok(G.countryLabelEntity?.label,'country name remains visible');
+ assert.ok(G.countryFlagEntity?.billboard,'country name must have an adjacent national flag');
+ const f=G.countryFlagEntity.billboard.pixelOffset;
+ const l=G.countryLabelEntity.label.pixelOffset;
+ assert.ok(f.x<0&&l.x>0,'label and flag must be on different sides of same center');
+ assert.ok(G.countries.get('IDN').entities.some(e=>e.show===true));
+ assert.ok(G.countries.get('IDN').entities.every(e=>e.polyline.width<=2),
+  'white national border must stay thin without full-territory red outline');
+});
+test('explicit dual-country border scoping shows only Singapore and Indonesia',async()=>{
+ const {G}=harness();await G.loadBorders();
+ installNews(G,[story('IDN')]);G.focus(0);
+ assert.equal(G.selectCountryOverviewBordersBatch(['SGP','IDN']),true);
+ assertScope(G,['SGP','IDN']);
+ assert.equal(G.selectCountryOverviewBorders('IDN'),true);
+ assertScope(G,['IDN']);
+});
