@@ -208,3 +208,58 @@ test('a genuine user navigation cancellation must never retry the retired camera
   assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[['COUNTRY','CHN']]);
   assert.equal(h.G.getV52SceneTrace().filter(e=>e.type==='country-camera-retry').length,0);
 });
+
+
+test('Dandong diplomatic visit uses Korean and Chinese full-country frames then zooms to city',async()=>{
+  const h=sceneHarness();h.G.countries=new Map([['PRK',{}],['CHN',{}]]);
+  const n={title:'王沪宁陪同金正恩访问丹东',sceneMode:'DIPLOMACY_2',
+    countryIso3:'CHN',location:'丹东',focusLabel:'丹东',placeType:'城市',
+    lon:124.38,lat:40.13,scenePlan:{primaryIso3:'CHN',participants:['PRK','CHN']}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[
+    ['COUNTRY','PRK'],['COUNTRY','CHN'],['POINT','CHN']
+  ]);
+  assert.equal(h.stages.at(-1).lon,124.38);
+  assert.equal(h.stages.at(-1).title,n.title);
+  assert.equal(h.stages.at(-1).context.length,0);
+  assert.equal(h.G.getV52SceneTrace().filter(x=>x.type==='two-country-locality').length,1);
+});
+
+test('Dandong without English city type still finishes at the exact city',async()=>{
+  const h=sceneHarness();h.G.countries=new Map([['CHN',{}]]);
+  const n={title:'丹东外交访问',sceneMode:'DIPLOMACY_2',countryIso3:'CHN',
+    location:'丹东',lon:124.38,lat:40.13,scenePlan:{primaryIso3:'CHN'}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>x.mode),['POINT']);
+  assert.equal(h.stages.at(-1).lon,124.38);
+  assert.equal(h.stages.at(-1).lat,40.13);
+});
+
+test('Chinese type city with ordinary point mode advances to location',async()=>{
+  const h=sceneHarness();const n={title:'丹东口岸',sceneMode:'POINT',
+    countryIso3:'CHN',location:'丹东',placeType:'城市',lon:124.38,lat:40.13,
+    scenePlan:{primaryIso3:'CHN'}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>x.mode),['POINT']);
+});
+
+test('explicit country-only and administratively bounded news do not invent city closeups',async()=>{
+  const h=sceneHarness();
+  const a={sceneMode:'COUNTRY',countryIso3:'CHN',placeType:'国家',
+    location:'中国',lon:103.8,lat:35.4,scenePlan:{primaryIso3:'CHN',finalLocation:false}};
+  assert.equal(await h.G.runSequence(a,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>x.mode),['COUNTRY']);
+  h.stages.length=0;
+  const b={sceneMode:'ADMIN_REGION',countryIso3:'CHN',placeType:'自治区',
+    location:'新疆维吾尔自治区',lon:85,lat:42,scenePlan:{primaryIso3:'CHN',finalLocation:false}};
+  assert.equal(await h.G.runSequence(b,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>x.mode),['COUNTRY']);
+});
+
+test('invalid or explicitly absent locality never flies to a fabricated coordinate',async()=>{
+  const h=sceneHarness();
+  const n={sceneMode:'DIPLOMACY_2',countryIso3:'CHN',placeType:'城市',
+    location:'丹东',lon:null,lat:null,scenePlan:{primaryIso3:'CHN'}};
+  assert.equal(await h.G.runSequence(n,'CHN',9),true);
+  assert.deepEqual(h.stages.map(x=>x.mode),['DIPLOMACY_2']);
+});
