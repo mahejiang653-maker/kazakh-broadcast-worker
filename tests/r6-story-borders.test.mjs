@@ -265,6 +265,8 @@ test('all sovereign fills follow globe curvature across continents and islands, 
  context.fetch=async url=>({ok:true,json:async()=>structuredClone(
    String(url).includes('singapore-outline')?singapore:gaza)});
  await G.loadBorders();
+ // Geometry-only harness has no text-label renderer.
+ G.label=()=>null;
  // Representative large states, small states and fractured archipelagos.
  for(const iso of ['CHN','USA','RUS','BRA','KAZ','AUS','IDN','JPN','SGP','PSE']){
    const entry=G.countries.get(iso);
