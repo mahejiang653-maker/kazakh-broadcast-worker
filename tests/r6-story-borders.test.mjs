@@ -267,6 +267,7 @@ test('all sovereign fills follow globe curvature across continents and islands, 
  await G.loadBorders();
  // Geometry-only harness has no text-label renderer.
  G.label=()=>null;
+ G.overviewMode=false;G.started=true;
  // Representative large states, small states and fractured archipelagos.
  for(const iso of ['CHN','USA','RUS','BRA','KAZ','AUS','IDN','JPN','SGP','PSE']){
    const entry=G.countries.get(iso);
