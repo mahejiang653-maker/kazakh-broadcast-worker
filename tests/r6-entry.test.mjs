@@ -47,7 +47,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(scripts.length, 40);
   assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261018-director-v1'));
   assert.ok(scripts.at(-1).startsWith('/news-globe-v52-director.js?'));
-  assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-r1'));
+  assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-dual-flags-r2'));
   assert.ok(namesOrder(scripts,'/news-globe-v52-hard-rules.js','/news-globe-v52-final-annotation-guard.js','/news-globe-v52-director.js'));
   assert.equal(new Set(scripts).size, scripts.length);
   assert.ok(!scripts.some(s => /scene-controller|releases\/y1/.test(s)));
@@ -66,13 +66,15 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   for (const name of ['news-globe-v52-china-border-ownership.js']) assert.ok(scripts.includes(`/${name}?v=20261013-r6-foreign-frontier-r14`));
   assert.ok(names.indexOf('/news-globe-v14-main.js') < names.indexOf('/news-globe-v52-hard-rules.js'));
   assert.ok(scripts.includes('/news-globe-v14-core.js?v=20261024-france-mainland-v1'));
+  assert.ok(scripts.includes('/news-globe-v14-highlight.js?v=20261025-neutral-outline-r1'));
+  assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-dual-flags-r2'));
   for (const name of ['news-globe-v14-ui.js','news-globe-v14-highlight.js','news-globe-v52-geographic-features.js']) assert.ok(scripts.includes(`/${name}?v=20261013-r6-foreign-frontier-r14`));
   assert.ok(names.indexOf('/news-globe-v52-r6-performance.js') < names.indexOf('/news-globe-v52-story-borders.js'));
   assert.ok(names.indexOf('/news-globe-v52-story-borders.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-elevated-width150-r7`));
-  assert.ok(scripts.some(src => /^\/news-globe-v14-v51-scene-engine\.js\?v=20261024-country-camera-v1$/.test(src)));
-  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261025-urumqi-locality-r2'));
-  assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261025-gaza-strip-boundary-r1'));
+  assert.ok(scripts.some(src => /^\/news-globe-v14-v51-scene-engine\.js\?v=20261025-neutral-outline-r1$/.test(src)));
+  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261025-two-country-r1'));
+  assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261025-dual-outline-r1'));
   assert.ok(names.indexOf('/news-globe-v52-flag-images.js') < names.indexOf('/news-globe-v52-attack-model.js'));
   assert.ok(names.indexOf('/news-globe-v52-attack-model.js') < names.indexOf('/news-globe-v14-v51-scene-engine.js'));
   for (const name of ['news-globe-v14-v44-regression-guard.js','news-globe-v52-screen-collision-hotfix.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-fixed-place-labels-r9`));
