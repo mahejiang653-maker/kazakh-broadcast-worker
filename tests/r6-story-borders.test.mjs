@@ -17,7 +17,7 @@ function harness() {
     Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height}),
       fromDegreesArrayHeights:a=>Array.from({length:a.length/3},(_,i)=>({lon:a[i*3],lat:a[i*3+1],height:a[i*3+2]}))},
     BoundingSphere:{fromPoints:points=>({points,radius:2000000})},
-    PolygonHierarchy:class {},Cartesian2:class {},HeadingPitchRange:class {},
+    PolygonHierarchy:class {},Cartesian2:class {constructor(x,y){this.x=x;this.y=y}},HeadingPitchRange:class {},
     PolylineOutlineMaterialProperty:class {constructor(options){Object.assign(this,options);}},
     Math:{toRadians:n=>n*Math.PI/180}};
   const context = vm.createContext({window:{Cesium:C,addEventListener(){}},Cesium:C,
