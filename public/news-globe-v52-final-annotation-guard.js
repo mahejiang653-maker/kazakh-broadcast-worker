@@ -48,6 +48,13 @@ function ensure(n,serial){
  const mode=String(n.sceneMode||'').toUpperCase(),iso=countryCode(n),place=named(n);
  if(/ATTACK|CARRIER|ORGANIZATION/.test(mode))return;
  const entities=visibleScene();
+ const flagNear=(lon,lat)=>entities.some(e=>{
+  if(!e.billboard||!e.position)return false;
+  const pos=e.position.getValue?.(G.viewer.clock?.currentTime)||e.position;
+  if(!pos)return false;
+  if(typeof C.Cartesian3?.distance!=='function')return true; // legacy test harness
+  return C.Cartesian3.distance(pos,C.Cartesian3.fromDegrees(lon,lat,34000))<95000;
+ });
  const hasFlag=entities.some(e=>!!e.billboard);
  const hasLabel=name=>entities.some(e=>textOf(e)===name);
  const hasPlace=valid(n.lon,n.lat)&&n.noPoint!==true&&n.countryOnly!==true;
@@ -57,7 +64,7 @@ function ensure(n,serial){
  if(isLocality){
   const name=place||'新闻定位点';
   if(!hasLabel(name))addName(name,+n.lon,+n.lat);
-  if(!hasFlag)addFlag(iso,+n.lon,+n.lat);
+  if(!flagNear(+n.lon,+n.lat))addFlag(iso,+n.lon,+n.lat);
   G.__v52FinalAnnotation={serial,iso,location:name,status:'point-annotated'};
  }else if(iso&&G.countries?.has(iso)){
   const name=G.countryNameZh?.(iso)||G.countries.get(iso)?.name||iso;
