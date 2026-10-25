@@ -184,8 +184,8 @@ try{
   await page.screenshot({path:dir+'/france-paris-final.png',fullPage:true});
   console.log('FRANCE_CAMERA_PASS',JSON.stringify({overview:france,cameraFinal:franceFinal.center}));
   // Dedicated regression from the 2026-10-25 Android Top8 screenshot:
-  // full Singapore and Indonesia sovereign intros followed by dual flags
-  // at the actual event point; absolutely no whole-country red polygons.
+  // real Singapore+Indonesia interiors clipped inside WHITE national borders,
+  // synchronous red-first blue-second fill/flag finale, full small-country outline.
   await page.evaluate(()=>{
     const G=window.NG14;
     G.news[7]={...G.news[7],
@@ -209,8 +209,17 @@ try{
       singaporeBorder:G.v52StoryBorders?.getDiagnostics()?.singaporeStatus||'',
       stages:G.getV52SceneTrace?.().filter(e=>e.serial===G.navSerial&&e.type==='authored-country-overview').map(e=>e.iso)||[],
       flags:[...new Set(entities.filter(e=>e.billboard&&e.show!==false).map(e=>e.__v52FlagIso).filter(Boolean))],
-      nationalFills:(G.countryFillEntities||[]).length+
-        entities.filter(e=>!!e.polygon).length,
+      nationalFills:entities.filter(e=>e.__v52TerritoryFill).map(e=>{
+        const c=e.polygon?.material?.color?.getValue?.(G.viewer.clock.currentTime);
+        return {iso:e.__v52CountryIso,red:c?.red||0,blue:c?.blue||0,
+          alpha:c?.alpha||0,clipped:!!e.polygon?.hierarchy};
+      }),
+      finalSync:G.__v52DualFinal?.flagsSynchronous===true,
+      frameCountries:G.__v52DualFinal?.frameCountries||[],
+      whiteBorders:{
+        singapore:G.countries.get('SGP')?.entities?.filter(e=>e.show&&e.polyline).length||0,
+        indonesia:G.countries.get('IDN')?.entities?.filter(e=>e.show&&e.polyline).length||0
+      },
       originalPlace:n.location,
       finalAnnotation:G.v52FinalAnnotationGuard?.getDiagnostics?.()
     };
@@ -220,7 +229,11 @@ try{
   assert.ok(dual.sgNationalEdges>0&&dual.singaporeGeometry,'Singapore needs a real outline, not a point');
   assert.deepEqual(dual.stages,['SGP','IDN'],'both countries must receive independent full-country camera stages');
   assert.ok(dual.flags.includes('SGP')&&dual.flags.includes('IDN'),'two flags must remain at the final location');
-  assert.equal(dual.nationalFills,0,'never overlay entire country with red polygons');
+  assert.ok(dual.nationalFills.some(e=>e.iso==='SGP'&&e.red>e.blue&&e.clipped),'Singapore must be red within its real polygon');
+  assert.ok(dual.nationalFills.some(e=>e.iso==='IDN'&&e.blue>e.red&&e.clipped),'Indonesia must be blue within its real polygon');
+  assert.ok(dual.whiteBorders.singapore>0&&dual.whiteBorders.indonesia>0,'both national white borders must remain in final scene');
+  assert.ok(dual.finalSync,'both country flags must be created before final camera movement');
+  assert.ok(dual.frameCountries.includes('SGP'),'last camera must fit the entire Singapore territory');
   await page.screenshot({path:dir+'/singapore-indonesia-dual-flags.png',fullPage:true});
   assert.deepEqual(report.errors,[],report.errors.join('; '));
   report.status='PASS';
