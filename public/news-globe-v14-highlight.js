@@ -8,9 +8,24 @@ G.clearCountry=()=>{if(G.highlightTimer){clearTimeout(G.highlightTimer);G.highli
 G.centerOf=g=>{const p=G.collect(g,[]);if(!p.length)return null;let a=0,b=0;for(const c of p){a+=+c[0];b+=+c[1]}return[a/p.length,b/p.length]};
 G.outerHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],7000)))};
 G.countryHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],0)))};
-// Sovereign territory is NEVER filled red. This applies globally to
-// national intros, flash stages, diplomacy, organizations and attacks.
-G.addCountryFill=()=>{};
+// Country colour is a CLIPPED polygon fill, never a red border stroke.
+// MultiPolygon islands and polygon holes follow the actual sovereign geometry.
+G.addCountryFill=(geometry,tint='#ed3e50',opacity=.25)=>{
+ const C=Cesium,polys=geometry?.type==='Polygon'?[geometry.coordinates]:
+   geometry?.type==='MultiPolygon'?geometry.coordinates:[];
+ const col=C.Color.fromCssColorString(tint).withAlpha(opacity);
+ for(const rings of polys){
+  const positions=ring=>(ring||[]).filter(p=>Number.isFinite(+p[0])&&Number.isFinite(+p[1]))
+    .map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],8500));
+  const outer=positions(rings?.[0]);if(outer.length<3)continue;
+  const holes=(rings||[]).slice(1).map(positions).filter(x=>x.length>=3)
+    .map(x=>new C.PolygonHierarchy(x));
+  const entity=G.viewer.entities.add({__v52TerritoryFill:true,
+    polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
+      perPositionHeight:true,material:col,outline:false}});
+  G.countryFillEntities.push(entity);
+ }
+};
 G.setCountry=(iso,on,phase=1)=>{iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(!c)return;
  for(const e of c.entities||[]){if(!e?.polyline)continue;
   e.show=G.isStoryBorder?G.isStoryBorder(e):true;
@@ -25,6 +40,9 @@ G.flashCountry=(iso,n)=>{
  // border must not hide Singapore when the overview camera enters it.
  G.selectCountryOverviewBorders?.(iso);
  G.setCountry(iso,true);
+ const color=n?.scenePlan?.territoryRole==='blue'?'#38a7f6':'#ec4150';
+ const geometry=iso==='CHN'&&c.authoritativeOutline?.geometry?c.authoritativeOutline.geometry:c.feature?.geometry;
+ G.addCountryFill(geometry,color,.26);
  const p=iso==='CHN'?[103.5,35.5]:(c.center||G.centerOf(c.feature?.geometry));
  if(p){
    const name=G.countryNameZh?.(iso)||G.storyCountryName(n,iso);

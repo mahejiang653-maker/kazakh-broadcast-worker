@@ -45,6 +45,9 @@ function addName(name,lon,lat){
 }
 function ensure(n,serial){
  if(serial!==G.navSerial||G.overviewMode||!G.viewer?.entities||!C)return;
+ // The dedicated V52 dual final scene creates both flags BEFORE camera motion.
+ // Do not add a late duplicate or shift them several seconds after playback.
+ if(G.__v52DualFinal?.serial===serial && G.__v52DualFinal?.flagsSynchronous)return;
  const mode=String(n.sceneMode||'').toUpperCase(),iso=countryCode(n),place=named(n);
  if(/ATTACK|CARRIER|ORGANIZATION/.test(mode))return;
  const entities=visibleScene();

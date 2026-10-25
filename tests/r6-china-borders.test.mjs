@@ -90,7 +90,7 @@ test('missing authoritative data never suppresses foreign geometry',async()=>{
   assert.equal(h.values.length,before);
 });
 
-test('R6 no-fill China framing keeps authoritative border ownership and original camera geometry',async()=>{
+test('R6 red-inside-white China framing keeps authoritative border ownership and original camera geometry',async()=>{
   const h=harness();h.install();await h.G.loadBorders();
   const original=h.G.countries.get('CHN').feature;
   const points=h.G.collect(original,[]).length;
@@ -99,7 +99,7 @@ test('R6 no-fill China framing keeps authoritative border ownership and original
   vm.runInContext(source('news-globe-v14-v51-scene-engine.js'),h.context);
   await h.G.runSequence({sceneMode:'COUNTRY',countryIso3:'CHN'},'CHN',h.G.navSerial);
   const fills=h.G.v51SceneEntities.filter(e=>e.polygon);
-  assert.equal(fills.length,0,'red country fill forbidden');assert.equal(fittingPoints,points);
+  assert.ok(fills.length>0,'red must fill authoritative country polygon');assert.equal(fittingPoints,points);
   assert.equal(h.G.countries.get('CHN').feature,original,'do not replace camera or event country geometry');
   assert.ok(h.G.countries.get('CHN').entities.some(e=>e._chinaAuthoritativeOutline),
     'authoritative white border remains visible');
