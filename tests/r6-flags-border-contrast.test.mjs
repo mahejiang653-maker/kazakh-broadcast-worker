@@ -17,7 +17,8 @@ test('shared China–Kazakhstan edges remain available to Kazakhstan while China
   assert.match(core,/G\.positions\(\[a,b\],18000\)/);
   assert.match(core,/G\.positions\(r,22000\)/);
   const highlight=source('news-globe-v14-highlight.js');
-  assert.match(highlight,/const width=on\?\.80:\.42/);
+  assert.match(highlight,/e\.polyline\.width=on\?1\.65:\.42/);
+  assert.doesNotMatch(highlight,/#b70f1f/,'country-wide red tint must be removed');
 });
 
 test('China ownership cleanup cannot delete foreign-owned edges',()=>{

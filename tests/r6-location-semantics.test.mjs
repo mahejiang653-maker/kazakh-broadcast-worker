@@ -318,3 +318,33 @@ test('missing country flag and regional red-dot label are restored at the real a
   // Replaying an already labelled scene must not leave duplicate text.
   const count=entries.length;await G.runSequence(n,'IDN',7);assert.equal(entries.length,count);
 });
+
+test('slash-authored Singapore/Indonesia policy shows both countries before location',async()=>{
+ const h=sceneHarness();h.G.countries=new Map([['SGP',{}],['IDN',{}]]);
+ const n={title:'印尼削减对新加坡天然气管道出口',sceneMode:'REGION',
+   countryIso3:'IDN',region:'新加坡/印度尼西亚',location:'新加坡/印度尼西亚',
+   placeType:'地区',lon:104.02,lat:1.35,
+   scenePlan:{primaryIso3:'IDN',finalLocation:true,regionalContext:true}};
+ assert.equal(await h.G.runSequence(n,'IDN',9),true);
+ assert.deepEqual(h.stages.map(x=>[x.mode,x.iso]),[
+   ['COUNTRY','SGP'],['COUNTRY','IDN'],['POINT','IDN']
+ ]);
+ assert.deepEqual([...n.scenePlan.focusCountries],['SGP','IDN']);
+ assert.equal(h.stages.at(-1).lat,1.35);
+ assert.equal(h.G.getV52SceneTrace().filter(x=>x.type==='authored-country-overview').length,2);
+ assert.equal(h.G.getV52SceneTrace().filter(x=>x.type==='authored-country-location').length,1);
+});
+test('country-separated label without coordinates visits both borders but fabricates no dot',async()=>{
+ const h=sceneHarness();h.G.countries=new Map([['SGP',{}],['IDN',{}]]);
+ const n={sceneMode:'COUNTRY',countryIso3:'IDN',country:'新加坡／印度尼西亚',
+   lon:null,lat:null,scenePlan:{primaryIso3:'IDN',finalLocation:false}};
+ assert.equal(await h.G.runSequence(n,'IDN',9),true);
+ assert.deepEqual(h.stages.map(x=>x.mode),['COUNTRY','COUNTRY']);
+});
+test('single-country location and headlines containing two countries do not create implied partners',async()=>{
+ const h=sceneHarness();h.G.countries=new Map([['SGP',{}],['IDN',{}]]);
+ const n={title:'新加坡宣布对印尼投资',sceneMode:'POINT',countryIso3:'IDN',
+   location:'雅加达',placeType:'城市',lon:106.82,lat:-6.2,scenePlan:{primaryIso3:'IDN'}};
+ await h.G.runSequence(n,'IDN',9);
+ assert.equal(h.stages.filter(x=>x.mode==='COUNTRY'&&x.iso==='SGP').length,0);
+});

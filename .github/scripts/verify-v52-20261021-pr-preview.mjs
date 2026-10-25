@@ -183,6 +183,45 @@ try{
     Math.abs(franceFinal.center.y-.5)<.25,'Paris must be centered only after France overview');
   await page.screenshot({path:dir+'/france-paris-final.png',fullPage:true});
   console.log('FRANCE_CAMERA_PASS',JSON.stringify({overview:france,cameraFinal:franceFinal.center}));
+  // Dedicated regression from the 2026-10-25 Android Top8 screenshot:
+  // full Singapore and Indonesia sovereign intros followed by dual flags
+  // at the actual event point; absolutely no whole-country red polygons.
+  await page.evaluate(()=>{
+    const G=window.NG14;
+    G.news[7]={...G.news[7],
+      id:8,title:'印尼削减对新加坡天然气管道出口',
+      location:'新加坡/印度尼西亚',focusLabel:'新加坡/印度尼西亚',
+      region:'新加坡/印度尼西亚',country:'新加坡/印度尼西亚',
+      countryIso3:'IDN',placeType:'地区',sceneMode:'REGION',
+      lon:104.02,lat:1.35,noPoint:false,
+      scenePlan:{primaryIso3:'IDN',finalLocation:true,regionalContext:true}};
+    G.focus(7,true);
+  });
+  await page.waitForFunction(()=>{
+    const G=window.NG14,state=G.v52Director?.getState?.();
+    return G.current===7&&state?.status==='complete';
+  },null,{timeout:75000});
+  const dual=await page.evaluate(()=>{
+    const G=window.NG14,n=G.news[7],entities=G.v51SceneEntities||[];
+    return {
+      singaporeGeometry:G.countries.get('SGP')?.feature?.geometry?.type||'',
+      sgNationalEdges:G.countries.get('SGP')?.entities?.length||0,
+      singaporeBorder:G.v52StoryBorders?.getDiagnostics()?.singaporeStatus||'',
+      stages:G.getV52SceneTrace?.().filter(e=>e.serial===G.navSerial&&e.type==='authored-country-overview').map(e=>e.iso)||[],
+      flags:[...new Set(entities.filter(e=>e.billboard&&e.show!==false).map(e=>e.__v52FlagIso).filter(Boolean))],
+      nationalFills:(G.countryFillEntities||[]).length+
+        entities.filter(e=>!!e.polygon).length,
+      originalPlace:n.location,
+      finalAnnotation:G.v52FinalAnnotationGuard?.getDiagnostics?.()
+    };
+  });
+  report.singaporeIndonesia=dual;
+  console.log('SINGAPORE_INDONESIA_DUAL_COUNTRY',JSON.stringify(dual));
+  assert.ok(dual.sgNationalEdges>0&&dual.singaporeGeometry,'Singapore needs a real outline, not a point');
+  assert.deepEqual(dual.stages,['SGP','IDN'],'both countries must receive independent full-country camera stages');
+  assert.ok(dual.flags.includes('SGP')&&dual.flags.includes('IDN'),'two flags must remain at the final location');
+  assert.equal(dual.nationalFills,0,'never overlay entire country with red polygons');
+  await page.screenshot({path:dir+'/singapore-indonesia-dual-flags.png',fullPage:true});
   assert.deepEqual(report.errors,[],report.errors.join('; '));
   report.status='PASS';
 }catch(e){

@@ -17,7 +17,7 @@ function harness() {
     Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height}),
       fromDegreesArrayHeights:a=>Array.from({length:a.length/3},(_,i)=>({lon:a[i*3],lat:a[i*3+1],height:a[i*3+2]}))},
     BoundingSphere:{fromPoints:points=>({points,radius:2000000})},
-    PolygonHierarchy:class {},Cartesian2:class {},HeadingPitchRange:class {},
+    PolygonHierarchy:class {},Cartesian2:class {constructor(x,y){this.x=x;this.y=y}},HeadingPitchRange:class {},
     PolylineOutlineMaterialProperty:class {constructor(options){Object.assign(this,options);}},
     Math:{toRadians:n=>n*Math.PI/180}};
   const context = vm.createContext({window:{Cesium:C,addEventListener(){}},Cesium:C,
@@ -74,7 +74,7 @@ test('French country polygons, national outlines and flash exclude overseas terr
   // Mock fixture omits Cesium label rendering; geometry and border behavior remain real.
   G.label=()=>null;
   G.flashCountry('FRA',story('FRA'));
-  assert.equal(G.countryFillEntities.length,2,'country highlight must contain only mainland and Corsica');
+  assert.equal(G.countryFillEntities.length,0,'sovereign territories must never be filled red');
   assert.equal(G.resolveIso({lon:-52.3,lat:4.1}), '',
     'location inference must not silently reselect French overseas territories');
   assert.equal(G.resolveIso({lon:2.35,lat:48.86}), 'FRA');
@@ -225,4 +225,35 @@ test('Gaza regional outline is loaded from a real polygon and selected with West
  assertScope(G,['PSE']);
  installNews(G,[story('IDN','印尼天然气出口')]);G.focus(0);
  assert.equal(pieces[0].show,false,'Gaza outline must hide for unrelated stories');
+});
+
+test('country overview has no red fill and puts the flag next to the name',async()=>{
+ const {G}=harness();await G.loadBorders();
+ G.v52FlagIso2={IDN:'id',SGP:'sg'};
+ G.label=(text,lon,lat)=>G.viewer.entities.add({position:{lon,lat},label:{text,pixelOffset:{x:0,y:0}}});
+ installNews(G,[story('IDN','印尼最新报道')]);G.focus(0);
+ G.flashCountry('IDN',story('IDN'));
+ assert.equal(G.countryFillEntities.length,0,'country polygons must never receive a red material');
+ assert.ok(G.countryLabelEntity?.label,'country name remains visible');
+ assert.ok(G.countryFlagEntity?.billboard,'country name must have an adjacent national flag');
+ const f=G.countryFlagEntity.billboard.pixelOffset;
+ const l=G.countryLabelEntity.label.pixelOffset;
+ assert.ok(f.x<0&&l.x>0,'label and flag must be on different sides of same center');
+ assert.ok(G.countries.get('IDN').entities.some(e=>e.show===true));
+ assert.ok(G.countries.get('IDN').entities.every(e=>e.polyline.width<=2),
+  'white national border must stay thin without full-territory red outline');
+});
+test('explicit dual-country border scoping shows only Singapore and Indonesia',async()=>{
+ const {G,context}=harness();
+ const singapore=JSON.parse(source('news-globe-singapore-outline-v1.geojson'));
+ const gaza=JSON.parse(source('news-globe-gaza-strip-outline-v1.geojson'));
+ context.fetch=async url=>({ok:true,json:async()=>structuredClone(
+    String(url).includes('singapore-outline')?singapore:gaza)});
+ await G.loadBorders();
+ installNews(G,[story('IDN')]);G.focus(0);
+ assert.ok(G.countries.get('SGP')?.feature?.geometry,'Singapore must be a real country polygon');
+ assert.equal(G.selectCountryOverviewBordersBatch(['SGP','IDN']),true);
+ assertScope(G,['SGP','IDN']);
+ assert.equal(G.selectCountryOverviewBorders('IDN'),true);
+ assertScope(G,['IDN']);
 });
