@@ -99,6 +99,15 @@
   };
   // The diplomatic sequence needs one country's full outline at a time.
   // Never derive this selection from the original story's locality metadata.
+  // For an authored two-country overview, keep both actual national
+  // outlines visible. Single-country introductions still isolate one.
+  G.selectCountryOverviewBordersBatch = function (isos) {
+    const codes=[...new Set((Array.isArray(isos)?isos:[]).map(x=>String(x||'').toUpperCase())
+      .filter(x=>G.countries?.has(x)))];
+    if(!codes.length)return false;
+    selected=new Set(codes);collectSelected();G.applyStoryBorders(true);
+    return codes.every(code=>(G.countries.get(code)?.entities||[]).some(e=>e.show===true));
+  };
   G.selectCountryOverviewBorders = function (iso) {
     const code = String(iso || '').trim().toUpperCase();
     if (!G.countries?.has(code)) return false;
