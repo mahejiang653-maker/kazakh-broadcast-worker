@@ -206,10 +206,9 @@ test('local diplomatic partner context does not add off-camera country borders',
 test('Gaza regional outline is loaded from a real polygon and selected with West Bank',async()=>{
  const {G,context}=harness();
  const gaza=JSON.parse(source('news-globe-gaza-strip-outline-v1.geojson'));
- context.fetch=async url=>{
-  assert.match(url,/news-globe-gaza-strip-outline-v1\.geojson/);
-  return {ok:true,json:async()=>structuredClone(gaza)};
- };
+ const singapore=JSON.parse(source('news-globe-singapore-outline-v1.geojson'));
+ context.fetch=async url=>({ok:true,json:async()=>structuredClone(
+    String(url).includes('singapore-outline')?singapore:gaza)});
  await G.loadBorders();
  const pieces=G.countries.get('PSE').entities.filter(e=>e.__v52GazaOutline);
  assert.equal(pieces.length,1);
