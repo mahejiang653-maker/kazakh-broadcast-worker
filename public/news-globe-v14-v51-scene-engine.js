@@ -68,9 +68,23 @@ function impactHeight(ctx){
  return Math.round(Math.max(aspect<.8?500000:350000,(aspect<.8?2400000:1650000)*scale));
 }
 /* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
-// Keep the globe's satellite texture and white sovereign outlines intact.
-// No country or group is represented by an opaque/translucent red fill.
-function drawCountry(iso,color,alpha=.14,width=2.35){return false}
+// Use real country Polygon/MultiPolygon boundaries. Colour lives INSIDE the
+// white outline, never as a coloured country border or enclosing rectangle.
+function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35){
+ const geometry=iso==='CHN'&&G.countries?.get('CHN')?.authoritativeOutline?.geometry?
+   G.countries.get('CHN').authoritativeOutline.geometry:raw(iso)?.geometry;
+ if(!geometry)return false;
+ const material=C.Color.fromCssColorString(color).withAlpha(Math.max(.18,Math.min(.38,alpha)));
+ for(const rings of polygons(geometry)){
+  const coords=ring=>(ring||[]).filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],11000));
+  const outer=coords(rings?.[0]);if(outer.length<3)continue;
+  const holes=(rings||[]).slice(1).map(coords).filter(v=>v.length>=3).map(v=>new C.PolygonHierarchy(v));
+  add(G.viewer.entities.add({__v52TerritoryFill:true,__v52CountryIso:iso,
+    polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
+      perPositionHeight:true,material,outline:false}}));
+ }
+ return true;
+}
 function label(text,lon,lat,{dx=0,dy=-27,font=14,bg=.43,color='#f5f9ff',height=65000}={}){if(!text||!good(lon,lat))return;const e=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,height),label:{text:String(text),font:`600 ${font}px "Microsoft YaHei","PingFang SC",sans-serif`,fillColor:C.Color.fromCssColorString(color),outlineColor:C.Color.BLACK.withAlpha(.94),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#030a12').withAlpha(bg),padding:new C.Cartesian2(7,4),pixelOffset:new C.Cartesian2(dx,dy),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));e.__v52FixedLabelOffset=new C.Cartesian2(dx,dy);return e}
 function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
  const key=String(iso||'').toUpperCase(),cc=ISO2[key]||String(G.countries?.get(key)?.iso2||'').toLowerCase();
@@ -125,15 +139,51 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
 function mark(lon,lat,text,{size=10,color=COLOR.victim,dy=-29}={}){if(!good(lon,lat))return;add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),point:{pixelSize:size,color:C.Color.fromCssColorString(color),outlineColor:C.Color.WHITE,outlineWidth:1.8,disableDepthTestDistance:Number.POSITIVE_INFINITY}}));add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,700),ellipse:{semiMajorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),semiMinorAxis:new C.CallbackProperty(()=>8500+((Math.sin((G.pulsePhase||0)*2.1)+1)/2)*14500,false),material:new C.ColorMaterialProperty(new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.08),false)),outline:true,outlineColor:new C.CallbackProperty(()=>C.Color.fromCssColorString(color).withAlpha(.48),false)}}));if(text)label(text,lon,lat,{dy,font:14,bg:.46,height:30000})}
 async function flyPoint(lon,lat,height,s,duration=1.0){if(s!==G.navSerial||!good(lon,lat))return false;const completed=await new Promise(r=>G.viewer.camera.flyTo({destination:C.Cartesian3.fromDegrees(+lon,+lat,+height),orientation:{heading:0,pitch:C.Math.toRadians(-90),roll:0},duration,complete:()=>r(true),cancel:()=>r(false)}));return completed&&s===G.navSerial}
 async function flyFit(ps,s,{factor=2.15,min=450000,max=15000000,duration=1.0}={}){if(s!==G.navSerial||!ps.length)return false;const sp=C.BoundingSphere.fromPoints(ps),range=Math.max(min,Math.min(max,sp.radius*factor));const completed=await new Promise(r=>G.viewer.camera.flyToBoundingSphere(sp,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-89),range),duration,complete:()=>r(true),cancel:()=>r(false)}));return completed&&s===G.navSerial}
-function countryMin(iso,ps=countryFramePoints(iso)){if(!ps.length)return 800000;const r=C.BoundingSphere.fromPoints(ps).radius;if(r<180000)return 390000;if(r<400000)return 600000;if(r<800000)return 930000;if(r<1600000)return 1380000;return 1900000}
+function countryMin(iso,ps=countryFramePoints(iso)){
+ if(!ps.length)return 800000;
+ const r=C.BoundingSphere.fromPoints(ps).radius;
+ // Full island stays inside the frame; zoomed enough to read Singapore.
+ if(iso==='SGP')return Math.max(108000,Math.min(195000,r*3.4));
+ if(r<180000)return 235000;if(r<400000)return 480000;
+ if(r<800000)return 930000;if(r<1600000)return 1380000;return 1900000
+}
 function placeLabel(n){if(G.v52PlaceLabel)return G.v52PlaceLabel(n);let s=String(n.scenePlan?.targetLabel||n.focusLabel||n.location||'').trim();if(!s||/^(事件发生地|冲突发生地|新闻地点|实际发生地)$/.test(s))s=String(n.location||n.region||'').trim();return s||'新闻地点'}
-async function countryStage(iso,s,{color=COLOR.main,hold=800,event=null,focus=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('country',s);clearScene();hideBase();const ps=countryFramePoints(iso,focus);if(!ps.length)return false;drawCountry(iso,color,.14,2.4);G.selectCountryOverviewBorders?.(iso);const a=mainland(iso);if(a){label(countryLabel(iso),a[0],a[1],{dx:25,dy:0,font:15,bg:.34});flag(iso,a[0],a[1],{dx:-45,dy:0,w:28,h:18})}if(event&&good(event.lon,event.lat))mark(event.lon,event.lat,event.label,{size:8.5,dy:-25});if(!await flyFit(ps,s,{factor:iso==='CHN'?3.20:2.42,min:countryMin(iso,ps),max:14500000,duration:1.0}))return false;G.__v52CountryFrame={serial:s,iso};return wait(hold,s)}
+async function countryStage(iso,s,{color=COLOR.main,hold=800,event=null,focus=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('country',s);clearScene();hideBase();const ps=countryFramePoints(iso,focus);if(!ps.length)return false;drawCountry(iso,focus?.scenePlan?.territoryRole==='blue'?COLOR.second:COLOR.main,.26,2.4);G.selectCountryOverviewBorders?.(iso);const a=mainland(iso);if(a){
+ const tiny=iso==='SGP'||C.BoundingSphere.fromPoints(ps).radius<170000;
+ label(countryLabel(iso),a[0],a[1],{dx:tiny?85:25,dy:tiny?-34:0,font:tiny?13:15,bg:.34});
+ flag(iso,a[0],a[1],{dx:tiny?45:-45,dy:tiny?-34:0,w:28,h:18})
+}if(event&&good(event.lon,event.lat))mark(event.lon,event.lat,event.label,{size:8.5,dy:-25});if(!await flyFit(ps,s,{factor:iso==='CHN'?3.20:(iso==='SGP'?3.35:2.42),min:countryMin(iso,ps),max:14500000,duration:1.0}))return false;G.__v52CountryFrame={serial:s,iso};return wait(hold,s)}
 function sample(r,max=220){if(!r)return[];if(r.length<=max)return r;const step=Math.ceil(r.length/max),out=[];for(let i=0;i<r.length;i+=step)out.push(r[i]);return out}
 function closestMainland(a,b){const A=sample(mainRing(a)),B=sample(mainRing(b));if(!A.length||!B.length)return null;let best=null,bd=Infinity;for(const p of A)for(const q0 of B){let qx=+q0[0],px=+p[0];let dl=qx-px;if(dl>180)qx-=360;if(dl<-180)qx+=360;const lat=(+p[1]+ +q0[1])/2,dx=(qx-px)*Math.cos(lat*Math.PI/180),dy=+q0[1]-+p[1],d=dx*dx+dy*dy;if(d<bd){bd=d;best={p:[px,+p[1]],q:[qx,+q0[1]],gap:Math.sqrt(d)}}}if(!best)return null;const ca=mainland(a)||best.p,cb=mainland(b)||best.q;const p=[best.p[0]*.9+ca[0]*.1,best.p[1]*.9+ca[1]*.1],q=[best.q[0]*.9+cb[0]*.1,best.q[1]*.9+cb[1]*.1];let lon=(p[0]+q[0])/2;while(lon>180)lon-=360;while(lon<-180)lon+=360;return{p,q,mid:[lon,(p[1]+q[1])/2],gap:best.gap}}
-async function pairStage(a,b,s,{attack=false,primary=a,hold=950}={}){G.v52Director?.stage('country',s);const g=closestMainland(a,b);if(!g||g.gap>32)return false;clearScene();hideBase();drawCountry(a,attack?COLOR.attack:(a===primary?COLOR.main:COLOR.second),.13,2.3);drawCountry(b,attack?COLOR.victim:(b===primary?COLOR.main:COLOR.second),.13,2.3);G.selectCountryOverviewBordersBatch?.([a,b]);const h=Math.max(700000,Math.min(4100000,680000+g.gap*165000));if(!await flyPoint(g.mid[0],g.mid[1],h,s,.95))return false;flag(a,g.p[0],g.p[1],{dx:-40,dy:0,w:26,h:17});flag(b,g.q[0],g.q[1],{dx:-40,dy:0,w:26,h:17});label(countryLabel(a),g.p[0],g.p[1],{dx:24,dy:0,font:12,bg:.3});label(countryLabel(b),g.q[0],g.q[1],{dx:24,dy:0,font:12,bg:.3});return wait(hold,s)}
+async function pairStage(a,b,s,{attack=false,primary=a,hold=950}={}){G.v52Director?.stage('country',s);const g=closestMainland(a,b);if(!g||g.gap>32)return false;clearScene();hideBase();drawCountry(a,a===primary?COLOR.main:COLOR.second,.25,2.3);drawCountry(b,b===primary?COLOR.main:COLOR.second,.25,2.3);G.selectCountryOverviewBordersBatch?.([a,b]);const h=Math.max(700000,Math.min(4100000,680000+g.gap*165000));if(!await flyPoint(g.mid[0],g.mid[1],h,s,.95))return false;flag(a,g.p[0],g.p[1],{dx:-40,dy:0,w:26,h:17});flag(b,g.q[0],g.q[1],{dx:-40,dy:0,w:26,h:17});label(countryLabel(a),g.p[0],g.p[1],{dx:24,dy:0,font:12,bg:.3});label(countryLabel(b),g.q[0],g.q[1],{dx:24,dy:0,font:12,bg:.3});return wait(hold,s)}
 function directionalOrigin(attacker,targetLon,targetLat){const r=mainRing(attacker),ca=mainland(attacker);if(!r||!ca)return null;let best=null,bd=Infinity;for(const p of sample(r,320)){let dx=+p[0]-targetLon;if(dx>180)dx-=360;if(dx<-180)dx+=360;const dy=+p[1]-targetLat,d=(dx*Math.cos(targetLat*Math.PI/180))**2+dy**2;if(d<bd){bd=d;best=[+p[0],+p[1]]}}if(!best)return null;return{lon:best[0]*.9+ca[0]*.1,lat:best[1]*.9+ca[1]*.1}}
 function eventHeight(n){const t=String(n.scenePlan?.finalType||n.placeType||'').toLowerCase();if(/port|港/.test(t))return 150000;if(/airport|机场/.test(t))return 185000;if(/炼油厂|核设施|facility|设施|会场|venue|大学|学校|机构/.test(t))return 170000;if(/city|城市|市$/.test(t))return 235000;if(/空袭|海峡|海域|border|边境/.test(t))return 315000;return Number(n.pointHeight)||250000}
-async function finalLocation(n,s,{text=null,flagIso=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('location',s);clearScene();hideBase();if(!['city','town','village','城市','城镇','乡镇','村庄','市','县城'].includes(String(n.placeType||'').trim().toLowerCase()) && G.v52RenderGeographicFeature&&await G.v52RenderGeographicFeature(n,s)){if(s===G.navSerial)flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(G.v52Director&&s===G.navSerial)return wait(2100,s);return s===G.navSerial;}if(s!==G.navSerial)return false;mark(+n.lon,+n.lat,text||placeLabel(n),{size:10,dy:-29});flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(!await flyPoint(+n.lon,+n.lat,eventHeight(n),s,1.02))return false;G.v52StartDetailedBorders?.(s);return wait(2100,s)}
+async function finalLocation(n,s,{text=null,flagIso=null}={}){if(s!==G.navSerial)return false;G.v52Director?.stage('location',s);clearScene();hideBase();
+ const pair=Array.isArray(n.scenePlan?.focusCountries)?
+   [...new Set(n.scenePlan.focusCountries.map(x=>String(x).toUpperCase()).filter(x=>G.countries?.has(x)))]:[];
+ // Dual-country final frame is an atomic scene: borders, territory fills,
+ // country flags and target marker exist BEFORE the first camera frame.
+ if(pair.length===2&&good(n.lon,n.lat)){
+  G.selectCountryOverviewBordersBatch?.(pair);
+  pair.forEach((iso,i)=>drawCountry(iso,i===0?COLOR.main:COLOR.second,.25));
+  const lon=+n.lon,lat=+n.lat,anchor=placeLabel(n);
+  // The camera should contain the complete SMALL country and the event,
+  // rather than fitting Indonesia's full archipelago and shrinking SGP.
+  const tiny=pair.filter(iso=>countryFramePoints(iso).length &&
+    C.BoundingSphere.fromPoints(countryFramePoints(iso)).radius<170000);
+  const frame=tiny.flatMap(iso=>countryFramePoints(iso));
+  frame.push(C.Cartesian3.fromDegrees(lon,lat,0));
+  // Add flags together in one synchronous stage, beside the final label.
+  pair.forEach((iso,i)=>flag(iso,lon,lat,{dx:i===0?-48:48,dy:-7,w:27,h:18}));
+  mark(lon,lat,anchor,{size:10,dy:-39});
+  G.__v52DualFinal={serial:s,countries:pair.slice(),flagsSynchronous:true,frameCountries:tiny.slice()};
+  const ok=tiny.length?await flyFit(frame,s,{factor:3.3,min:125000,max:1350000,duration:1.05}):
+    await flyPoint(lon,lat,Math.max(eventHeight(n),400000),s,1.05);
+  if(!ok)return false;
+  G.v52StartDetailedBorders?.(s);
+  return wait(2100,s);
+ }
+ if(!['city','town','village','城市','城镇','乡镇','村庄','市','县城'].includes(String(n.placeType||'').trim().toLowerCase()) && G.v52RenderGeographicFeature&&await G.v52RenderGeographicFeature(n,s)){if(s===G.navSerial)flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(G.v52Director&&s===G.navSerial)return wait(2100,s);return s===G.navSerial;}if(s!==G.navSerial)return false;mark(+n.lon,+n.lat,text||placeLabel(n),{size:10,dy:-29});flag(flagIso||n.scenePlan?.primaryIso3||n.countryIso3,+n.lon,+n.lat,{dx:25,dy:-11,w:20,h:12});if(!await flyPoint(+n.lon,+n.lat,eventHeight(n),s,1.02))return false;G.v52StartDetailedBorders?.(s);return wait(2100,s)}
 async function runAdmins(n,iso,s,steps=null){const arr=Array.isArray(steps)?steps:(G.adminSteps?.(n)||[]);for(const st of arr){if(s!==G.navSerial)return false;await G.flashAdmin?.(st,iso,s,1750,{keepVisible:true,beforeShow:G.v51PrepareAdmin});if(s!==G.navSerial)return false;await wait(300,s)}return true}
 async function localFit(a,b,s){const ps=[];if(a&&good(a.lon,a.lat))ps.push(C.Cartesian3.fromDegrees(a.lon,a.lat,0));if(b&&good(b.lon,b.lat))ps.push(C.Cartesian3.fromDegrees(b.lon,b.lat,0));return flyFit(ps,s,{factor:3.0,min:290000,max:2450000,duration:.95})}
 // Attack context remains visible after the one-shot animation has finished.
