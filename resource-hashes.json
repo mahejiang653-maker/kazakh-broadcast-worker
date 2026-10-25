@@ -1,0 +1,60 @@
+{
+  "commit": "d7814070b3912cd1b734399d746b0e1e5b35ae28",
+  "checkedAt": "2026-10-25T11:23:52.765Z",
+  "resources": [
+    {
+      "path": "news-globe-v52-flag-images.js",
+      "expectedSHA256": "4fc0c07d22fb9534c76ab9b1204f045d8ad45bd41cc6138d71dcc692a5cec634",
+      "productionSHA256": "4fc0c07d22fb9534c76ab9b1204f045d8ad45bd41cc6138d71dcc692a5cec634",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-attack-model.js",
+      "expectedSHA256": "5d909b53508c5a59c0f195ef6b762cd0e9ec364c68dbbee8ef024032003bd680",
+      "productionSHA256": "5d909b53508c5a59c0f195ef6b762cd0e9ec364c68dbbee8ef024032003bd680",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v14-v51-scene-engine.js",
+      "expectedSHA256": "8e693b143539799667435790dad76ed1625665132b0de535884aadbd7139346e",
+      "productionSHA256": "8e693b143539799667435790dad76ed1625665132b0de535884aadbd7139346e",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-hard-rules.js",
+      "expectedSHA256": "aedd7aa326cb46fea5f55d0c756f877178ce8dae7e8665a1a52c93a2097a1e42",
+      "productionSHA256": "aedd7aa326cb46fea5f55d0c756f877178ce8dae7e8665a1a52c93a2097a1e42",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-story-borders.js",
+      "expectedSHA256": "b8d9c84e0a8158aa5b69fe8c677347dd4407bd7d59d23683b778d1abb5fbba8b",
+      "productionSHA256": "b8d9c84e0a8158aa5b69fe8c677347dd4407bd7d59d23683b778d1abb5fbba8b",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-flags-overview-clean.js",
+      "expectedSHA256": "4269c5af405e88973dab0ae43db5f9623e228f73f28f1feeff3096fbd4164c64",
+      "productionSHA256": "4269c5af405e88973dab0ae43db5f9623e228f73f28f1feeff3096fbd4164c64",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-daily10.js",
+      "expectedSHA256": "29173c622b8d89c51c156af976af7a478a83603fe36b38523a4e8a500703c66e",
+      "productionSHA256": "29173c622b8d89c51c156af976af7a478a83603fe36b38523a4e8a500703c66e",
+      "matches": true
+    },
+    {
+      "path": "news-globe-v52-director.js",
+      "expectedSHA256": "e79cae689db37fad953a04200d5babf32182ca493e1367e53bf4ca6e900c7135",
+      "productionSHA256": "e79cae689db37fad953a04200d5babf32182ca493e1367e53bf4ca6e900c7135",
+      "matches": true
+    },
+    {
+      "path": "news-globe-run-20260920-v52-r1.html",
+      "expectedSHA256": "212758259230b217e1bb55560008f6248d876de70398fb669de8bce2b4bb12f0",
+      "productionSHA256": "212758259230b217e1bb55560008f6248d876de70398fb669de8bce2b4bb12f0",
+      "matches": true
+    }
+  ]
+}
