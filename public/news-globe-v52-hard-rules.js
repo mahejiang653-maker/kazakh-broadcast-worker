@@ -1,6 +1,24 @@
 (function(G){
 if(!G||G.__v52HardRules)return;G.__v52HardRules=true;
 const COUNTRY_ZH={CHN:'中国',USA:'美国',RUS:'俄罗斯',UKR:'乌克兰',IRN:'伊朗',ISR:'以色列',PSE:'巴勒斯坦',LTU:'立陶宛',BLR:'白俄罗斯',YEM:'也门',SAU:'沙特阿拉伯',DNK:'丹麦',IRQ:'伊拉克',KOR:'韩国',KAZ:'哈萨克斯坦',KGZ:'吉尔吉斯斯坦',ARE:'阿联酋',QAT:'卡塔尔',MDA:'摩尔多瓦',BEL:'比利时',OMN:'阿曼',DEU:'德国',FRA:'法国',GBR:'英国',POL:'波兰',ROU:'罗马尼亚',TUR:'土耳其',SYR:'叙利亚',LBN:'黎巴嫩',JOR:'约旦',EGY:'埃及',IND:'印度',PAK:'巴基斯坦',AFG:'阿富汗',JPN:'日本',PRK:'朝鲜',AUS:'澳大利亚',CAN:'加拿大',MEX:'墨西哥',BRA:'巴西',VEN:'委内瑞拉',THA:'泰国',SGP:'新加坡',MYS:'马来西亚',IDN:'印度尼西亚',PHL:'菲律宾',VNM:'越南',MMR:'缅甸'};
+// A slash-delimited structured location such as "新加坡/印度尼西亚"
+// expressly identifies two sovereign countries. Never infer partners from
+// casual headline mentions or a single country's centroid.
+function authoredPair(n){
+ const fields=[n?.region,n?.country,n?.countryName,n?.location,n?.focusLabel].filter(x=>typeof x==='string');
+ for(const source of fields){
+   const parts=source.trim().split(/\s*[\/／|]\s*/).map(x=>x.trim()).filter(Boolean);
+   if(parts.length!==2)continue;
+   const codes=parts.map(part=>{
+     const iso=Object.keys(COUNTRY_ZH).find(x=>COUNTRY_ZH[x]===part)||
+       (/^[A-Z]{3}$/i.test(part)?part.toUpperCase():'');
+     return iso&&G.countries?.has(iso)?iso:'';
+   });
+   if(codes.every(Boolean)&&codes[0]!==codes[1])return codes;
+ }
+ return [];
+}
+G.v52AuthoredCountryPair=authoredPair;
 const oldCountryName=G.countryName;G.countryNameZh=iso=>COUNTRY_ZH[String(iso||'').toUpperCase()]||(oldCountryName?oldCountryName.call(G,iso):'')||'未知国家';G.countryName=function(iso){return G.countryNameZh(iso)};
 G.v52SceneTrace=[];function trace(type,data={}){const e={type,serial:G.navSerial,index:(G.current??0)+1,at:Date.now(),...data};G.v52SceneTrace.push(e);if(G.v52SceneTrace.length>300)G.v52SceneTrace.splice(0,G.v52SceneTrace.length-300);return e}G.getV52SceneTrace=()=>G.v52SceneTrace.slice();
 const wait=(ms,s)=>G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(s===G.navSerial),ms));
@@ -161,6 +179,27 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
      if(result===false||s!==G.navSerial)return false;
    }
    return true;
+ }
+ // Explicit two-country metadata must introduce BOTH sovereign outlines
+ // individually before moving to an accurately supplied locality. This
+ // precedes the legacy 'regionalContext' early return which dropped SGP.
+ const pair=authoredPair(n);
+ if(pair.length===2 && p.contextDisplay!==false &&
+   !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
+   p.focusCountries=pair.slice();
+   for(const code of pair){
+     if(s!==G.navSerial)return false;
+     if(!await runCountry(code,n,s,1050,'authored-country-overview'))return false;
+   }
+   const accurate=n.lon!=null&&n.lon!==''&&n.lat!=null&&n.lat!==''&&
+     Number.isFinite(+n.lon)&&Number.isFinite(+n.lat)&&Math.abs(+n.lon)<=180&&Math.abs(+n.lat)<=90;
+   const countryOnly=n.countryOnly===true||n.noPoint===true||mode==='COUNTRY'||mode==='ADMIN_REGION';
+   if(countryOnly||!accurate){trace('authored-country-complete',{countries:pair});return s===G.navSerial;}
+   const q={...n,sceneMode:'POINT',noPoint:false,countryOnly:false,secondaryCountryIso3:null,
+     scenePlan:{...p,focusCountries:pair.slice(),participants:[],contextCountries:[],
+       regionalContext:false,hierarchyPresented:true,finalLocation:true}};
+   trace('authored-country-location',{countries:pair,location:String(n.focusLabel||n.location||'')});
+   return oldRun?oldRun.call(this,q,String(p.primaryIso3||n.countryIso3||'').toUpperCase(),s):false;
  }
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
