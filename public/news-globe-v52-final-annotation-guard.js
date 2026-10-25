@@ -23,12 +23,12 @@ function addEntity(spec){
  if(Array.isArray(G.v51SceneEntities))G.v51SceneEntities.push(e);
  return e;
 }
-function addFlag(iso,lon,lat){
+function addFlag(iso,lon,lat,offsetX=32,offsetY=-21){
  const cc=ISO2[iso]||String(G.countries?.get(iso)?.iso2||'').trim().toLowerCase();
  if(!/^[a-z]{2}$/.test(cc))return false;
  const image=G.v52FlagImages?.[cc]||'https://flagcdn.com/w40/'+cc+'.png';
- addEntity({__v52FinalFlag:true,position:C.Cartesian3.fromDegrees(lon,lat,34000),
-  billboard:{image,width:28,height:18,pixelOffset:new C.Cartesian2(32,-21),
+ addEntity({__v52FinalFlag:true,__v52FlagIso:iso,position:C.Cartesian3.fromDegrees(lon,lat,34000),
+  billboard:{image,width:25,height:17,pixelOffset:new C.Cartesian2(offsetX,offsetY),
    disableDepthTestDistance:Number.POSITIVE_INFINITY}});
  return true;
 }
@@ -64,8 +64,18 @@ function ensure(n,serial){
  if(isLocality){
   const name=place||'新闻定位点';
   if(!hasLabel(name))addName(name,+n.lon,+n.lat);
-  if(!flagNear(+n.lon,+n.lat))addFlag(iso,+n.lon,+n.lat);
-  G.__v52FinalAnnotation={serial,iso,location:name,status:'point-annotated'};
+  const countryPair=Array.isArray(n.scenePlan?.focusCountries)?[...new Set(n.scenePlan.focusCountries.map(x=>String(x||'').toUpperCase()))]:[];
+  if(countryPair.length===2){
+    // The v51 final frame already has the primary flag. Add the partner
+    // directly beside it (rather than at the unrelated country's centroid).
+    // Both flags remain tethered to the exact event anchor as the camera moves.
+    const nearIso=code=>entities.some(e=>e.billboard&&e.__v52FlagIso===code&&e.show!==false);
+    countryPair.forEach((code,i)=>{if(!nearIso(code))addFlag(code,+n.lon,+n.lat,i===0?-24:26,-10)});
+    G.__v52FinalAnnotation={serial,iso,location:name,countries:countryPair,status:'dual-country-point'};
+  }else{
+    if(!flagNear(+n.lon,+n.lat))addFlag(iso,+n.lon,+n.lat);
+    G.__v52FinalAnnotation={serial,iso,location:name,status:'point-annotated'};
+  }
  }else if(iso&&G.countries?.has(iso)){
   const name=G.countryNameZh?.(iso)||G.countries.get(iso)?.name||iso;
   const center=G.countries.get(iso)?.center;
