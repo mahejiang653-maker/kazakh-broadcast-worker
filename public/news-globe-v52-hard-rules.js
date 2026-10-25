@@ -43,7 +43,7 @@ if(cityType&&cityPoint&&cityName&&cityName!==countryName&&
   p.hierarchyPresented=false;
   trace('city-mode-corrected',{from:mode,to:'POINT',city:cityName,lon:+n.lon,lat:+n.lat});
 }
-if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(mode==='ADMIN_REGION'||mode==='COUNTRY'){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
+if(p.registryOnly||p.contextDisplay===false){p.regionalContext=false}if(p.registryOnly){delete p.victimIso3;delete n.targetCountryIso3}if(p.sourceUnconfirmed){/* Unknown launch coordinates do not erase known attacker/victim identities. */delete n.sourceLon;delete n.sourceLat;p.sourcePrecision='unknown'}if(p.nonStateActor){delete p.attackerIso3;delete p.victimIso3}if(['ADMIN_REGION','COUNTRY'].includes(String(n.sceneMode||'').toUpperCase())){p.finalLocation=false;n.noPoint=true}if(Array.isArray(p.adminChain)&&p.adminChain.length){n.forceAdminChain=true;p.forceAdminChain=true}return n}
 G.applyV52HardRules=news=>(Array.isArray(news)?news:[]).map(normalize);
 if(Array.isArray(G.news))G.news=G.applyV52HardRules(G.news);
 if(Array.isArray(G.demo))G.demo=G.applyV52HardRules(G.demo);
