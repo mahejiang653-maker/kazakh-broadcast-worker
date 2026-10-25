@@ -143,6 +143,24 @@
       gazaBorder.__v52GazaOutline=true;
       gazaBorder._countryIsos=new Set(['PSE']);
       ps.entities.push(gazaBorder);G.borderEntities.push(gazaBorder);
+      // The country camera and red polygon fill must also know that PSE
+      // has two geographically separate areas. The low-resolution world
+      // source only supplies the West Bank, so extend the country geometry
+      // using the same vetted Gaza ring (without inventing a rectangle).
+      const base=ps.feature?.geometry,polys=base?.type==='Polygon'?[base.coordinates]:
+        base?.type==='MultiPolygon'?base.coordinates:[];
+      if(polys.length && !polys.some(p=>p?.[0]?.some(q=>+q[0]<34.65&&+q[0]>34.1&&+q[1]<31.8&&+q[1]>31.1))){
+        const feature={...ps.feature,geometry:{type:'MultiPolygon',coordinates:[...polys,[ring]]}};
+        ps.feature=feature;
+        const all=G.collect?.(feature.geometry)||[];
+        if(all.length>3){
+          ps.sphere=C.BoundingSphere.fromPoints(all.map(q=>C.Cartesian3.fromDegrees(+q[0],+q[1],0)));
+          const xs=all.map(q=>+q[0]),ys=all.map(q=>+q[1]);
+          ps.bbox=[Math.min(...xs),Math.min(...ys),Math.max(...xs),Math.max(...ys)];
+        }
+        if(Array.isArray(G.worldGeo?.features))G.worldGeo.features=G.worldGeo.features.map(x=>
+          G.featureIso?.(x)==='PSE'?feature:x);
+      }
       gazaVertices=ring.length;gazaStatus='ready';
     }catch(error){gazaStatus='unavailable:'+String(error?.message||error);console.warn('[V52 Gaza boundary]',error);}
   }
