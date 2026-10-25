@@ -257,3 +257,30 @@ test('explicit dual-country border scoping shows only Singapore and Indonesia',a
  assert.equal(G.selectCountryOverviewBorders('IDN'),true);
  assertScope(G,['IDN']);
 });
+
+test('all sovereign fills follow globe curvature across continents and islands, never flat chord triangles',async()=>{
+ const {G,context}=harness();
+ const singapore=JSON.parse(source('news-globe-singapore-outline-v1.geojson'));
+ const gaza=JSON.parse(source('news-globe-gaza-strip-outline-v1.geojson'));
+ context.fetch=async url=>({ok:true,json:async()=>structuredClone(
+   String(url).includes('singapore-outline')?singapore:gaza)});
+ await G.loadBorders();
+ // Representative large states, small states and fractured archipelagos.
+ for(const iso of ['CHN','USA','RUS','BRA','KAZ','AUS','IDN','JPN','SGP','PSE']){
+   const entry=G.countries.get(iso);
+   assert.ok(entry?.feature?.geometry,'country geometry missing: '+iso);
+   G.flashCountry(iso,{countryIso3:iso,scenePlan:{primaryIso3:iso}});
+   const fills=G.countryFillEntities;
+   const polies=entry.authoritativeOutline?.geometry||entry.feature.geometry;
+   const polygons=polies.type==='MultiPolygon'?polies.coordinates.length:1;
+   assert.equal(fills.length,polygons,iso+' must fill ALL mainland/island parts');
+   assert.ok(fills.every(e=>e.__v52TerritoryFill&&e.polygon?.hierarchy),
+     iso+' colour must be clipped to the actual country shape');
+   assert.ok(fills.every(e=>e.polygon?.height===13500&&e.polygon?.perPositionHeight===false),
+     iso+' must use globe-curved fixed-height tessellation, never flat triangles');
+   assert.ok(fills.every(e=>e.polygon?.arcType===1&&e.polygon?.outline===false),
+     iso+' fill must follow geodesics and leave the white border independent');
+   assert.ok(entry.entities.some(e=>e.show&&e.polyline),
+     iso+' border line must remain visible above coloured interior');
+ }
+});
