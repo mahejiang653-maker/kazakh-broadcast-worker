@@ -1,7 +1,7 @@
 (function (G) {
   'use strict';
   if (!G || G.v52StoryBorders) return;
-  const VERSION = '20261015-r6-attack-scope-r11';
+  const VERSION = '20261025-r6-gaza-two-territories-r1';
   const shortNames = {中:'CHN',美:'USA',俄:'RUS',乌:'UKR',英:'GBR',法:'FRA',德:'DEU',日:'JPN',
     印:'IND',韩:'KOR',朝:'PRK',伊:'IRN',以:'ISR',沙:'SAU'};
   const aliases = {CHN:['中华人民共和国','中国'],USA:['美国'],RUS:['俄罗斯'],UKR:['乌克兰'],
@@ -112,9 +112,43 @@
     collectSelected();
     G.applyStoryBorders();
   };
+  // Natural Earth 110m PSE geometry in this app has only the West Bank;
+  // add the Gaza Strip from an independently sourced real polygon rather
+  // than drawing a guessed rectangle or treating Gaza as an event dot.
+  // This line represents a geographic outline, not a changing front line.
+  let gazaBorder=null,gazaStatus='not-loaded',gazaVertices=0;
+  async function ensureGazaBoundary() {
+    const C=window.Cesium,viewer=G.viewer,ps=G.countries?.get('PSE');
+    if(!C||!viewer?.entities||!ps){gazaStatus='country-unavailable';return;}
+    if(gazaBorder && viewer.entities.contains(gazaBorder)){
+      if(!ps.entities.includes(gazaBorder))ps.entities.push(gazaBorder);
+      if(!G.borderEntities.includes(gazaBorder))G.borderEntities.push(gazaBorder);
+      return;
+    }
+    try {
+      const response=await fetch('/news-globe-gaza-strip-outline-v1.geojson?v=20261025-r1',{cache:'force-cache'});
+      if(!response.ok)throw Error('HTTP '+response.status);
+      const f=await response.json(),rings=f?.geometry?.type==='Polygon'?f.geometry.coordinates:[];
+      const ring=rings[0];
+      const valid=Array.isArray(ring)&&ring.length>=12&&ring.every(p=>
+        Array.isArray(p)&&Number.isFinite(+p[0])&&Number.isFinite(+p[1])&&
+        +p[0]>=34.1&&+p[0]<=34.8&&+p[1]>=31.1&&+p[1]<=31.8);
+      if(!valid)throw Error('Invalid Gaza GeoJSON ring');
+      const positions=G.positions?.(ring,24000)||[];
+      if(positions.length<12)throw Error('Gaza boundary coordinates failed');
+      gazaBorder=viewer.entities.add({show:false,
+        polyline:{positions,width:1.65,arcType:C.ArcType.GEODESIC,
+          material:C.Color.fromCssColorString('#e5f6ff').withAlpha(.9)}});
+      gazaBorder.__v52GazaOutline=true;
+      gazaBorder._countryIsos=new Set(['PSE']);
+      ps.entities.push(gazaBorder);G.borderEntities.push(gazaBorder);
+      gazaVertices=ring.length;gazaStatus='ready';
+    }catch(error){gazaStatus='unavailable:'+String(error?.message||error);console.warn('[V52 Gaza boundary]',error);}
+  }
   const loadBorders = G.loadBorders;
   G.loadBorders = async function (...args) {
     const result = await loadBorders.apply(this,args);
+    await ensureGazaBoundary();
     for (const e of G.borderEntities || []) e.show = false;
     visible.clear();
     selected = G.started ? countriesForStory(G.news?.[G.current]) : new Set();
@@ -124,5 +158,5 @@
   };
   G.v52StoryBorders = {version:VERSION,countriesForStory,
     getDiagnostics:() => ({version:VERSION,enabled,countries:[...selected].sort(),
-      visibleBorders:[...visible].filter(e => e.show).length,totalBorders:G.borderEntities?.length || 0})};
+      visibleBorders:[...visible].filter(e => e.show).length,totalBorders:G.borderEntities?.length || 0,gazaStatus,gazaVertices,gazaVisible:!!gazaBorder?.show})};
 })(window.NG14);
