@@ -48,6 +48,7 @@ async function state(){return page.evaluate(()=>{
   countries:(a?[a.attacker,a.victim]:[]).filter(Boolean).map(iso=>{
    const c=G.countries.get(iso),fills=G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e));
    return {iso,fills:fills.length,readyFills:fills.filter(gpuReady).length,
+    outlineSegments:(c?.entities||[]).filter(e=>e.polyline).length,
     visibleBorderPoints:(c?.entities||[]).filter(e=>e.show&&e.polyline).flatMap(e=>e.polyline.positions.getValue(t)).filter(p=>within(project(p))&&occluder.isPointVisible(p)).length};
   }),
   flags:[...document.querySelectorAll('img[alt$=" flag"]')].filter(e=>getComputedStyle(e).display!=='none').map(e=>({iso:e.alt.split(' ')[0],complete:e.complete,width:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()})),
@@ -73,7 +74,10 @@ function verify(s,index,scope){
  assert.deepEqual([...s.scope.countries].sort(),scope.slice().sort());
  assert.equal(s.invalidBorders,0);assert.equal(s.staleEntities,0);
  assert.equal(s.attack.source,null);assert.equal(s.attack.trajectory,false);
- assert.ok(s.countries.every(c=>c.fills>0&&c.readyFills===c.fills),'countries must have actual ready GPU instances');
+ // The no-red-fill V52 renderer intentionally removes sovereign polygon meshes.
+ // Verify real white border geometry remains available for both countries.
+ assert.ok(s.countries.every(c=>c.fills===0&&c.readyFills===0),'no country red GPU fill meshes are allowed');
+ assert.ok(s.countries.every(c=>c.outlineSegments>0),'countries must have real white-outline geometry');
  assert.ok(s.flags.every(f=>scope.includes(f.iso)),'no unrelated national flags');
  for(const label of s.countryLabels.filter(l=>l.anchorVisible)){
   assert.ok(label.left>=0&&label.right<=s.canvas.width&&label.top>=0&&label.bottom<=s.canvas.height,'country label must not be clipped: '+label.text);
