@@ -177,7 +177,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,adminChain:[],forceAdminChain:false,
      scenePlan:{...p,participants:[],contextCountries:[],regionalContext:false,adminChain:[],forceAdminChain:false,finalLocation:true,hierarchyPresented:true}};
    trace('two-country-locality',{countries:[...explicitPartners,primary],location:String(n.focusLabel||n.location||'')});
-   return oldRun?oldRun.call(this,q,'',s):false;
+   return oldRun?oldRun.call(this,q,mode==='POINT'?primary:'',s):false;
  }
  if(locality && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
