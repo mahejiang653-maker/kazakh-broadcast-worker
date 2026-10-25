@@ -74,7 +74,7 @@ test('French country polygons, national outlines and flash exclude overseas terr
   // Mock fixture omits Cesium label rendering; geometry and border behavior remain real.
   G.label=()=>null;
   G.flashCountry('FRA',story('FRA'));
-  assert.equal(G.countryFillEntities.length,0,'sovereign territories must never be filled red');
+  assert.equal(G.countryFillEntities.length,2,'only mainland France and Corsica must receive clipped territory color');
   assert.equal(G.resolveIso({lon:-52.3,lat:4.1}), '',
     'location inference must not silently reselect French overseas territories');
   assert.equal(G.resolveIso({lon:2.35,lat:48.86}), 'FRA');
@@ -227,13 +227,14 @@ test('Gaza regional outline is loaded from a real polygon and selected with West
  assert.equal(pieces[0].show,false,'Gaza outline must hide for unrelated stories');
 });
 
-test('country overview has no red fill and puts the flag next to the name',async()=>{
+test('country overview paints clipped red territory inside white border and pairs flag with name',async()=>{
  const {G}=harness();await G.loadBorders();
  G.v52FlagIso2={IDN:'id',SGP:'sg'};
  G.label=(text,lon,lat)=>G.viewer.entities.add({position:{lon,lat},label:{text,pixelOffset:{x:0,y:0}}});
  installNews(G,[story('IDN','印尼最新报道')]);G.focus(0);
  G.flashCountry('IDN',story('IDN'));
- assert.equal(G.countryFillEntities.length,0,'country polygons must never receive a red material');
+ assert.ok(G.countryFillEntities.length>0,'single country must receive clipped red interior');
+ assert.ok(G.countryFillEntities.every(e=>!!e.polygon?.hierarchy),'filled geometry must be polygons, not red border strokes');
  assert.ok(G.countryLabelEntity?.label,'country name remains visible');
  assert.ok(G.countryFlagEntity?.billboard,'country name must have an adjacent national flag');
  const f=G.countryFlagEntity.billboard.pixelOffset;
