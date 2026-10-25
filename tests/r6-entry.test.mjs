@@ -9,6 +9,8 @@ const loader = entry.match(/<script>([\s\S]*?)<\/script>/)[1];
 const shell = fs.readFileSync(new URL('news-globe-v34.html', root), 'utf8');
 const data = fs.readFileSync(new URL('news-globe-data-20260920-v52-r1.js', root), 'utf8');
 const dataPath = '/news-globe-data-20260920-v52-r1.js';
+const namesOrder=(scripts,...paths)=>{const all=scripts.map(x=>x.split('?')[0]);return paths.every((x,i)=>i===0||all.indexOf(paths[i-1])<all.indexOf(x));};
+
 
 async function assemble(source = data, failure) {
   const requests = [], errors = [];
@@ -42,9 +44,11 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(requests.length, 2);
   for (const request of requests) assert.equal(request.options.cache, 'no-store');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(scripts.length, 39);
+  assert.equal(scripts.length, 40);
   assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261018-director-v1'));
   assert.ok(scripts.at(-1).startsWith('/news-globe-v52-director.js?'));
+  assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-r1'));
+  assert.ok(namesOrder(scripts,'/news-globe-v52-hard-rules.js','/news-globe-v52-final-annotation-guard.js','/news-globe-v52-director.js'));
   assert.equal(new Set(scripts).size, scripts.length);
   assert.ok(!scripts.some(s => /scene-controller|releases\/y1/.test(s)));
   const names = scripts.map(s => s.split('?')[0]);
@@ -67,8 +71,8 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v52-story-borders.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-elevated-width150-r7`));
   assert.ok(scripts.some(src => /^\/news-globe-v14-v51-scene-engine\.js\?v=20261024-country-camera-v1$/.test(src)));
-  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261025-dandong-city-final-v1'));
-  assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261018-director-v1'));
+  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261025-urumqi-locality-r2'));
+  assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261025-gaza-strip-boundary-r1'));
   assert.ok(names.indexOf('/news-globe-v52-flag-images.js') < names.indexOf('/news-globe-v52-attack-model.js'));
   assert.ok(names.indexOf('/news-globe-v52-attack-model.js') < names.indexOf('/news-globe-v14-v51-scene-engine.js'));
   for (const name of ['news-globe-v14-v44-regression-guard.js','news-globe-v52-screen-collision-hotfix.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-fixed-place-labels-r9`));
