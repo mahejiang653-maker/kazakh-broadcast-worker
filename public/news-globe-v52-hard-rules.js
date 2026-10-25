@@ -99,7 +99,7 @@ if(typeof baseApplySettings==='function')G.applySettings=function(...args){
  return result;
 };
 const oldRun=G.runSequence;
-async function runCountry(iso,n,s,hold=1700,traceType='country'){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;
+async function runCountry(iso,n,s,hold=1700,traceType='country',role=null){if(!iso||typeof oldRun!=='function')return false;iso=String(iso).toUpperCase();const countryLabel=G.countryName(iso);trace(traceType,{iso,label:countryLabel,whole:true});const q={...n,title:countryLabel,summary:'',location:countryLabel,focusLabel:countryLabel,region:iso==='CHN'?'全国':'',placeType:'国家',countryOnly:true,countryIso3:iso,secondaryCountryIso3:null,noPoint:true,forceAdminChain:false,adminChain:[],sceneMode:'COUNTRY',scenePlan:{...(n.scenePlan||{}),primaryIso3:iso,territoryRole:role||(iso===String(n.scenePlan?.primaryIso3||n.countryIso3||'').toUpperCase()?'red':'blue'),participants:[],contextCountries:[],adminChain:[],forceAdminChain:false,finalLocation:false,regionalContext:false}};G.__v52SuppressAdminTrace=true;let r;
 try{
   // Scope the white sovereign outline to the country being introduced.
   // The legacy sequence otherwise reselects the original locality's borders.
@@ -187,9 +187,10 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  if(pair.length===2 && p.contextDisplay!==false &&
    !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    p.focusCountries=pair.slice();
-   for(const code of pair){
+   for(let i=0;i<pair.length;i++){
+     const code=pair[i];
      if(s!==G.navSerial)return false;
-     if(!await runCountry(code,n,s,1050,'authored-country-overview'))return false;
+     if(!await runCountry(code,n,s,1050,'authored-country-overview',i===0?'red':'blue'))return false;
    }
    const accurate=n.lon!=null&&n.lon!==''&&n.lat!=null&&n.lat!==''&&
      Number.isFinite(+n.lon)&&Number.isFinite(+n.lat)&&Math.abs(+n.lon)<=180&&Math.abs(+n.lat)<=90;
