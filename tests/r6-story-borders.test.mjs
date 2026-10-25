@@ -229,6 +229,8 @@ test('Gaza regional outline is loaded from a real polygon and selected with West
 
 test('country overview has no red fill and puts the flag next to the name',async()=>{
  const {G}=harness();await G.loadBorders();
+ G.v52FlagIso2={IDN:'id',SGP:'sg'};
+ G.label=(text,lon,lat)=>G.viewer.entities.add({position:{lon,lat},label:{text,pixelOffset:{x:0,y:0}}});
  installNews(G,[story('IDN','印尼最新报道')]);G.focus(0);
  G.flashCountry('IDN',story('IDN'));
  assert.equal(G.countryFillEntities.length,0,'country polygons must never receive a red material');
@@ -242,8 +244,14 @@ test('country overview has no red fill and puts the flag next to the name',async
   'white national border must stay thin without full-territory red outline');
 });
 test('explicit dual-country border scoping shows only Singapore and Indonesia',async()=>{
- const {G}=harness();await G.loadBorders();
+ const {G,context}=harness();
+ const singapore=JSON.parse(source('news-globe-singapore-outline-v1.geojson'));
+ const gaza=JSON.parse(source('news-globe-gaza-strip-outline-v1.geojson'));
+ context.fetch=async url=>({ok:true,json:async()=>structuredClone(
+    String(url).includes('singapore-outline')?singapore:gaza)});
+ await G.loadBorders();
  installNews(G,[story('IDN')]);G.focus(0);
+ assert.ok(G.countries.get('SGP')?.feature?.geometry,'Singapore must be a real country polygon');
  assert.equal(G.selectCountryOverviewBordersBatch(['SGP','IDN']),true);
  assertScope(G,['SGP','IDN']);
  assert.equal(G.selectCountryOverviewBorders('IDN'),true);
