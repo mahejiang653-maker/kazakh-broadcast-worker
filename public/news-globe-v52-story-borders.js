@@ -125,6 +125,40 @@
   // add the Gaza Strip from an independently sourced real polygon rather
   // than drawing a guessed rectangle or treating Gaza as an event dot.
   // This line represents a geographic outline, not a changing front line.
+  let singaporeStatus='not-loaded',singaporeVertices=0;
+  async function ensureSingaporeBoundary(){
+    if(G.countries?.get('SGP')?.entities?.length){singaporeStatus='already-present';return;}
+    if(typeof fetch!=='function'){singaporeStatus='fetch-unavailable';return;}
+    const C=window.Cesium,viewer=G.viewer;if(!C||!viewer?.entities)return;
+    try{
+      const response=await fetch('/news-globe-singapore-outline-v1.geojson?v=20261025-r1',{cache:'force-cache'});
+      if(!response.ok)throw Error('HTTP '+response.status);
+      const feature=await response.json(),rings=G.outerRings?.(feature.geometry)||[];
+      if(!rings.length)throw Error('Singapore geometry missing');
+      const all=G.collect?.(feature.geometry)||[];
+      if(all.length<20||all.some(p=>!Number.isFinite(+p[0])||!Number.isFinite(+p[1])||
+        +p[0]<103.4||+p[0]>104.2||+p[1]<1.1||+p[1]>1.6))
+        throw Error('Singapore country coordinates outside expected bounds');
+      const lines=[];
+      for(const ring of rings){
+        const points=G.positions?.(ring,23000)||[];
+        if(points.length<4)continue;
+        const e=viewer.entities.add({show:false,polyline:{
+          positions:points,width:1.65,arcType:C.ArcType.GEODESIC,
+          material:C.Color.fromCssColorString('#e5f6ff').withAlpha(.94)}});
+        e._countryIsos=new Set(['SGP']);e.__v52SingaporeOutline=true;
+        lines.push(e);G.borderEntities.push(e);
+      }
+      if(!lines.length)throw Error('Singapore line geometry missing');
+      const centroid=[103.8198,1.3521],xyz=all.map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
+      G.countries.set('SGP',{feature,entities:lines,
+        sphere:C.BoundingSphere.fromPoints(xyz),center:centroid,
+        bbox:[103.640391,1.264309,104.003429,1.448635],
+        name:'新加坡',iso2:'SG'});
+      if(Array.isArray(G.worldGeo?.features))G.worldGeo.features.push(feature);
+      singaporeVertices=all.length;singaporeStatus='ready';
+    }catch(error){singaporeStatus='unavailable:'+String(error?.message||error);console.warn('[V52 Singapore border]',error)}
+  }
   let gazaBorder=null,gazaStatus='not-loaded',gazaVertices=0;
   async function ensureGazaBoundary() {
     const C=window.Cesium,viewer=G.viewer,ps=G.countries?.get('PSE');
@@ -176,6 +210,7 @@
   const loadBorders = G.loadBorders;
   G.loadBorders = async function (...args) {
     const result = await loadBorders.apply(this,args);
+    await ensureSingaporeBoundary();
     await ensureGazaBoundary();
     for (const e of G.borderEntities || []) e.show = false;
     visible.clear();
@@ -186,5 +221,5 @@
   };
   G.v52StoryBorders = {version:VERSION,countriesForStory,
     getDiagnostics:() => ({version:VERSION,enabled,countries:[...selected].sort(),
-      visibleBorders:[...visible].filter(e => e.show).length,totalBorders:G.borderEntities?.length || 0,gazaStatus,gazaVertices,gazaVisible:!!gazaBorder?.show})};
+      visibleBorders:[...visible].filter(e => e.show).length,totalBorders:G.borderEntities?.length || 0,gazaStatus,gazaVertices,gazaVisible:!!gazaBorder?.show,singaporeStatus,singaporeVertices,singaporeVisible:!!G.countries?.get('SGP')?.entities?.some(e=>e.show)})};
 })(window.NG14);
