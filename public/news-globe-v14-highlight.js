@@ -4,13 +4,39 @@ G.zh=(a,b)=>String(a||'').trim()||String(b||'').trim()||'';
 G.countryName=iso=>{iso=String(iso||'').toUpperCase();if(iso==='CHN')return'中华人民共和国';const c=G.countries.get(iso);try{if(c?.iso2&&c.iso2!=='-99'){const d=new Intl.DisplayNames(['zh-CN'],{type:'region'}),z=d.of(c.iso2);if(z)return z}}catch{}return c?.name||iso};
 G.storyCountryName=(n,iso)=>iso==='CHN'?'中华人民共和国':G.zh(n.country,G.countryName(iso))||'海域/跨境地区';
 G.label=(text,lon,lat,mode)=>{if(!text||!Number.isFinite(+lon)||!Number.isFinite(+lat))return null;const col=mode==='conflict'?'#ffb0b0':mode==='country'?'#fff3d2':'#d9eeff';return G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,90000),label:{text:String(text),font:'15px "PingFang SC","Microsoft YaHei",sans-serif',fillColor:C.Color.fromCssColorString(col),outlineColor:C.Color.fromCssColorString('#05111c').withAlpha(.88),outlineWidth:2,style:C.LabelStyle.FILL_AND_OUTLINE,showBackground:true,backgroundColor:C.Color.fromCssColorString('#04101b').withAlpha(.22),padding:new C.Cartesian2(10,6),horizontalOrigin:C.HorizontalOrigin.CENTER,verticalOrigin:C.VerticalOrigin.CENTER,disableDepthTestDistance:Number.POSITIVE_INFINITY}})};
-G.clearCountry=()=>{if(G.highlightTimer){clearTimeout(G.highlightTimer);G.highlightTimer=null}if(G.countryBlinkTimer){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null}if(G.countryLabelEntity)try{G.viewer.entities.remove(G.countryLabelEntity)}catch{}G.countryLabelEntity=null;for(const e of G.countryFillEntities)try{G.viewer.entities.remove(e)}catch{}G.countryFillEntities=[];if(G.activeIso){G.setCountry(G.activeIso,false);G.activeIso=null}};
+G.clearCountry=()=>{if(G.highlightTimer){clearTimeout(G.highlightTimer);G.highlightTimer=null}if(G.countryBlinkTimer){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null}if(G.countryLabelEntity)try{G.viewer.entities.remove(G.countryLabelEntity)}catch{}G.countryLabelEntity=null;if(G.countryFlagEntity)try{G.viewer.entities.remove(G.countryFlagEntity)}catch{}G.countryFlagEntity=null;for(const e of G.countryFillEntities)try{G.viewer.entities.remove(e)}catch{}G.countryFillEntities=[];if(G.activeIso){G.setCountry(G.activeIso,false);G.activeIso=null}};
 G.centerOf=g=>{const p=G.collect(g,[]);if(!p.length)return null;let a=0,b=0;for(const c of p){a+=+c[0];b+=+c[1]}return[a/p.length,b/p.length]};
 G.outerHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],7000)))};
 G.countryHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],0)))};
-G.addCountryFill=g=>{if(!g)return;const add=poly=>{const h=G.countryHierarchy(poly);if(h)G.countryFillEntities.push(G.viewer.entities.add({polygon:{hierarchy:h,height:8500,perPositionHeight:false,arcType:C.ArcType.GEODESIC,granularity:C.Math.RADIANS_PER_DEGREE/4,material:C.Color.fromCssColorString('#b70f1f').withAlpha(.34),outline:false}}))};if(g.type==='Polygon')add(g.coordinates);else if(g.type==='MultiPolygon')for(const p of g.coordinates||[])add(p)};
-G.setCountry=(iso,on,phase=1)=>{iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(c){const isChina=iso==='CHN';const width=on?.80:.42;const alpha=on?1:.38;for(const e of c.entities){if(!e?.polyline)continue;e.show=G.isStoryBorder?G.isStoryBorder(e):true;e.polyline.width=width;e.polyline.material=on?C.Color.fromCssColorString('#ff6670').withAlpha(alpha):C.Color.fromCssColorString('#d8f3ff').withAlpha(.38)}}};
-G.flashCountry=(iso,n)=>{G.clearCountry();iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(!c)return false;G.activeIso=iso;if(iso==='CHN'&&c.authoritativeOutline?.geometry)G.addCountryFill(c.authoritativeOutline.geometry);else if(iso==='CHN'&&Array.isArray(G.chinaLevel1Geo?.features)){for(const f of G.chinaLevel1Geo.features)G.addCountryFill(f.geometry)}else G.addCountryFill(c.feature?.geometry);G.setCountry(iso,true);const p=iso==='CHN'?[103.5,35.5]:(c.center||G.centerOf(c.feature?.geometry));if(p)G.countryLabelEntity=G.label(G.storyCountryName(n,iso),p[0],p[1],'country');return true};
+// Sovereign territory is NEVER filled red. This applies globally to
+// national intros, flash stages, diplomacy, organizations and attacks.
+G.addCountryFill=()=>{};
+G.setCountry=(iso,on,phase=1)=>{iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(!c)return;
+ for(const e of c.entities||[]){if(!e?.polyline)continue;
+  e.show=G.isStoryBorder?G.isStoryBorder(e):true;
+  e.polyline.width=on?1.65:.42;
+  e.polyline.material=C.Color.fromCssColorString('#e5f6ff').withAlpha(on?.94:.38);
+ }
+};
+G.flashCountry=(iso,n)=>{
+ G.clearCountry();iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(!c)return false;
+ G.activeIso=iso;
+ // Select exactly the displayed country: an unrelated selected story
+ // border must not hide Singapore when the overview camera enters it.
+ G.selectCountryOverviewBorders?.(iso);
+ G.setCountry(iso,true);
+ const p=iso==='CHN'?[103.5,35.5]:(c.center||G.centerOf(c.feature?.geometry));
+ if(p){
+   const name=G.countryNameZh?.(iso)||G.storyCountryName(n,iso);
+   const label=G.label(name,p[0],p[1],'country');
+   if(label?.label){label.label.pixelOffset=new C.Cartesian2(24,0);label.__v52FixedLabelOffset=new C.Cartesian2(24,0);}
+   G.countryLabelEntity=label;
+   const cc=String(c.iso2||'').toLowerCase(),img=G.v52FlagImages?.[cc]||(/^[a-z]{2}$/.test(cc)?'https://flagcdn.com/w40/'+cc+'.png':'');
+   if(img)G.countryFlagEntity=G.viewer.entities.add({__v52StoryFlag:true,position:C.Cartesian3.fromDegrees(+p[0],+p[1],90000),
+     billboard:{image:img,width:28,height:18,pixelOffset:new C.Cartesian2(-44,0),disableDepthTestDistance:Number.POSITIVE_INFINITY}});
+ }
+ return true;
+};
 G.blinkCountryBorder=(iso,cycles=3,interval=240)=>{iso=String(iso||'').toUpperCase();if(!iso)return;try{if(G.countryBlinkTimer)clearInterval(G.countryBlinkTimer)}catch{}let tick=0;G.countryBlinkTimer=setInterval(()=>{if(iso!==G.activeIso){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null;return}tick++;G.setCountry(iso,true,tick%2===1);if(tick>=cycles*2){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null;G.setCountry(iso,true,1)}},interval)};
 G.pointInRing=(x,y,r)=>{let k=false;for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[i],b=r[j];if(((+a[1]>y)!=(+b[1]>y))&&(x<((+b[0]-+a[0])*(y-+a[1])/((+b[1]-+a[1])||1e-9)+ +a[0])))k=!k}return k};
 G.pointInGeom=(x,y,g)=>g?.type==='Polygon'?G.pointInRing(x,y,g.coordinates[0]||[]):g?.type==='MultiPolygon'?(g.coordinates||[]).some(p=>G.pointInRing(x,y,p?.[0]||[])):false;
