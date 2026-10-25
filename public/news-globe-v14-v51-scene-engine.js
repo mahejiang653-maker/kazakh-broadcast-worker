@@ -89,7 +89,7 @@ function flag(iso,lon,lat,{dx=0,dy=-17,w=21,h=13}={}){
     ctx.fillText(emoji,32,21);initial=canvas.toDataURL('image/png')}
   }
  }catch{}
- const entity=add(G.viewer.entities.add({position:C.Cartesian3.fromDegrees(+lon,+lat,30000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
+ const entity=add(G.viewer.entities.add({__v52StoryFlag:true,__v52FlagIso:key,position:C.Cartesian3.fromDegrees(+lon,+lat,30000),billboard:{image:initial,width:w,height:h,pixelOffset:new C.Cartesian2(dx,dy),disableDepthTestDistance:Number.POSITIVE_INFINITY}}));
 
 // Viewport-level fallback avoids Cesium container stacking and clipping.
  try{
