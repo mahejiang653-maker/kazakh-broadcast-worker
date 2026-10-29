@@ -40,6 +40,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(G.demo.length, 13);
   assert.ok(html.includes(`<title>全球新闻地球仪 · V52·A1 R6 · ${G.meta.date}</title>`));
   assert.ok(html.includes(`V52·A1 R6 · ${G.meta.date} Top10条新闻`));
+  assert.ok(html.includes('影像采集日期未提供'));
   assert.ok(html.includes(`${dataPath}?v=${encodeURIComponent(G.DATA_KEY)}`));
   assert.equal(requests.length, 2);
   for (const request of requests) assert.equal(request.options.cache, 'no-store');
