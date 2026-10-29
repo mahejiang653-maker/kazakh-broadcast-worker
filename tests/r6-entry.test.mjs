@@ -47,6 +47,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
   assert.equal(scripts.length, 41);
   assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261028-event-detail-v1'));
+  assert.ok(scripts.includes('/news-globe-v52-event-detail.js?v=20261030-mobile-clarity-v1'));
   assert.ok(namesOrder(scripts,dataPath,'/news-globe-v52-event-detail.js','/news-globe-v52-daily10.js','/news-globe-v52-director.js'));
   assert.ok(scripts.at(-1).startsWith('/news-globe-v52-director.js?'));
   assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-dual-flags-r2'));
