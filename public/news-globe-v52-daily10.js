@@ -9,6 +9,8 @@
   G.__v52Daily10 = true;
   const COUNT = 10;
   const oldNews = Array.isArray(G.demo) ? G.demo : [];
+  const displayStory = n => G.v52EventDetail?.normalizeStory(n) || n;
+  const displayNews = news => Array.isArray(news) ? news.map(displayStory) : news;
   if (oldNews.length !== COUNT && oldNews.length !== 13) {
     throw new Error('V52 DAILY LOCK must contain exactly ten stories (or a read-only legacy thirteen-story edition)');
   }
@@ -34,6 +36,7 @@
     const errors=[];
     p.news.forEach((n,i)=>{
       if(!n || typeof n!=='object'){errors.push('Top'+(i+1)+' 不是有效对象');return;}
+      n=displayStory(n);
       if(!String(n.title||'').trim())errors.push('Top'+(i+1)+' 缺少标题');
       if(!String(n.location||n.focusLabel||'').trim())errors.push('Top'+(i+1)+' 缺少定位名称');
       // COUNTRY-only news has no factually established single incident site.
@@ -80,6 +83,21 @@
     G.payload = {meta: G.meta, news: G.demo};
     G.news = G.demo;
   }
+  G.news=displayNews(G.news);
+  G.payload={...G.payload,news:G.news};
+
+  // The old renderer reads lon/lat. Normalize a verified optional eventLocation
+  // before the unchanged renderer builds markers; retain all source fields.
+  const baseApplySettings=G.applySettings;
+  G.applySettings=function(...args){
+    const area=G.$('jsonInput'),original=area.value;
+    try{
+      try{const payload=JSON.parse(original);if(Array.isArray(payload?.news))
+        area.value=JSON.stringify({...payload,news:displayNews(payload.news)});
+      }catch{}
+      return baseApplySettings.apply(this,args);
+    }finally{area.value=original;}
+  };
 
   G.DAILY_COUNT = COUNT;
   G.daily10Window = windowFor;

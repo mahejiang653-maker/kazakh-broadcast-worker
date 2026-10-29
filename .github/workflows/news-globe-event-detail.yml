@@ -1,0 +1,38 @@
+name: V52 event detail browser verification
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'public/news-globe-v52-event-detail.js'
+      - 'public/news-globe-v52-director.js'
+      - 'public/news-globe-v52-daily10.js'
+      - 'public/news-globe-v52-hard-rules.js'
+      - 'scripts/verify-r6-event-detail-browser.mjs'
+      - 'tests/fixtures/v52-event-detail-sites.json'
+      - '.github/workflows/news-globe-event-detail.yml'
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  event-detail-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify four sourced sites and playback controls in Chromium
+        run: V52_QA_DIR=globe-event-detail-qa node scripts/verify-r6-event-detail-browser.mjs
+      - name: Save browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v52-event-detail-${{ github.sha }}
+          path: globe-event-detail-qa
+          if-no-files-found: warn
+          retention-days: 30

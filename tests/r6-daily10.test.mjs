@@ -23,7 +23,7 @@ function daily(news, day = '2026-10-12') {
 }
 function harness({news = Array.from({length:13},(_,i)=>story(i+1,modes[i%modes.length])),
   date='2026-10-11', lock='20261011-LOCK13',now='2026-10-12T11:00:00Z',
-  saved = null} = {}) {
+  saved = null, detail = false, hardRules = false} = {}) {
   const nodes = new Map(), timers = new Map(), arcs = [], visited = [], sceneKinds = [];
   let nextId = 0, lastSaved = null, overviewCount = 0;
   const storage = new Map();
@@ -63,7 +63,9 @@ function harness({news = Array.from({length:13},(_,i)=>story(i+1,modes[i%modes.l
   G.restyle=()=>{};G.overlays=()=>{};G.showArc=(a,b)=>arcs.push([a,b]);
   G.buildScene=()=>{};
   G.storyDuration=()=>20;
+  if(detail)vm.runInContext(read('news-globe-v52-event-detail.js'),context);
   vm.runInContext(adapter,context);
+  if(hardRules)vm.runInContext(read('news-globe-v52-hard-rules.js'),context);
   return {G,context,node,arcs,visited,sceneKinds,timers,storage,
     drain(){const jobs=[...timers.values()];timers.clear();jobs.forEach(fn=>fn());},
     get overviewCount(){return overviewCount;},get lastSaved(){return lastSaved;}};
@@ -226,4 +228,30 @@ test('country-only news can omit a fictional city coordinate but real point scen
  assert.match(h.G.validate(pack).join('|'),/国家代码/);
  pack.news[7]=story(8);pack.news[7].lon=null;
  assert.match(h.G.validate(pack).join('|'),/经度无效/);
+});
+
+test('new verified event coordinates are normalized on import and reload without changing legacy JSON',()=>{
+  const h=harness({detail:true});
+  const p=daily(Array.from({length:10},(_,i)=>story(i+1)));
+  p.news[0]={...p.news[0],lon:null,lat:null,locationPrecision:'site',eventLocation:{
+    lon:116.4,lat:39.9,verified:true,sourceUrl:'https://example.org/location'}};
+  assert.deepEqual(Array.from(h.G.validate(p)),[]);
+  h.node('jsonInput').value=JSON.stringify(p);h.G.applySettings();
+  assert.equal(h.G.news[0].lon,116.4);assert.equal(h.G.news[0].lat,39.9);
+  assert.equal(h.G.news.length,10);
+});
+
+test('hard rules see verified event coordinates before correcting a stale country mode during import',()=>{
+  const h=harness({detail:true,hardRules:true});
+  const p=daily(Array.from({length:10},(_,i)=>story(i+1)));
+  p.news[0]={...p.news[0],sceneMode:'COUNTRY',placeType:'city',lon:null,lat:null,
+    locationPrecision:'site',eventLocation:{lon:116.4,lat:39.9,verified:true,sourceUrl:'https://example.org/location'}};
+  assert.deepEqual(Array.from(h.G.validate(p)),[]);
+  h.node('jsonInput').value=JSON.stringify(p);h.G.applySettings();
+  assert.equal(h.G.news[0].sceneMode,'POINT');assert.equal(h.G.news[0].noPoint,false);
+  assert.equal(h.G.news[0].lon,116.4);assert.equal(h.G.news[0].lat,39.9);
+  const stored=JSON.parse(h.lastSaved);
+  const again=harness({detail:true,hardRules:true,saved:stored});
+  assert.equal(again.G.news[0].sceneMode,'POINT');assert.equal(again.G.news[0].noPoint,false);
+  assert.equal(again.G.news[0].lon,116.4);assert.equal(again.G.news[0].lat,39.9);
 });

@@ -40,12 +40,14 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(G.demo.length, 13);
   assert.ok(html.includes(`<title>全球新闻地球仪 · V52·A1 R6 · ${G.meta.date}</title>`));
   assert.ok(html.includes(`V52·A1 R6 · ${G.meta.date} Top10条新闻`));
+  assert.ok(html.includes('影像采集日期未提供'));
   assert.ok(html.includes(`${dataPath}?v=${encodeURIComponent(G.DATA_KEY)}`));
   assert.equal(requests.length, 2);
   for (const request of requests) assert.equal(request.options.cache, 'no-store');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(scripts.length, 40);
-  assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261018-director-v1'));
+  assert.equal(scripts.length, 41);
+  assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261028-event-detail-v1'));
+  assert.ok(namesOrder(scripts,dataPath,'/news-globe-v52-event-detail.js','/news-globe-v52-daily10.js','/news-globe-v52-director.js'));
   assert.ok(scripts.at(-1).startsWith('/news-globe-v52-director.js?'));
   assert.ok(scripts.includes('/news-globe-v52-final-annotation-guard.js?v=20261025-dual-flags-r2'));
   assert.ok(namesOrder(scripts,'/news-globe-v52-hard-rules.js','/news-globe-v52-final-annotation-guard.js','/news-globe-v52-director.js'));
@@ -73,7 +75,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(names.indexOf('/news-globe-v52-story-borders.js') < names.indexOf('/news-globe-v14-main.js'));
   for (const name of ['news-globe-v52-r6-performance.js']) assert.ok(scripts.includes(`/${name}?v=20261010-r6-elevated-width150-r7`));
   assert.ok(scripts.some(src => /^\/news-globe-v14-v51-scene-engine\.js\?v=20261025-global-curved-fill-r2$/.test(src)));
-  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261025-territory-roles-r1'));
+  assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261029-event-detail-r1'));
   assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261025-singapore-border-r2'));
   assert.ok(names.indexOf('/news-globe-v52-flag-images.js') < names.indexOf('/news-globe-v52-attack-model.js'));
   assert.ok(names.indexOf('/news-globe-v52-attack-model.js') < names.indexOf('/news-globe-v14-v51-scene-engine.js'));
