@@ -223,3 +223,30 @@ test('pausing a completed scene preserves the remaining auto-play countdown',asy
   await h.tick(699);assert.equal(h.G.current,0);
   await h.tick(501);assert.equal(h.G.current,1);h.G.pause();h.d.dispose();
 });
+
+test('the director waits for the optional site sequence and cancels it on navigation',async()=>{
+  const h=harness();let finish;const calls=[];
+  h.G.v52EventDetail={prepare:(n,s)=>calls.push(['prepare',s]),
+    run:(n,s)=>{calls.push(['run',s]);return new Promise(r=>{finish=r;});},
+    cancel:()=>calls.push(['cancel']),setPaused:()=>{}};
+  const done=h.start();await flush();
+  assert.ok(calls.some(x=>x[0]==='prepare'));assert.ok(calls.some(x=>x[0]==='run'));
+  assert.equal(h.d.getState().status,'running');
+  finish(true);await flush();assert.equal(await done,true);
+  h.G.focus(1);assert.ok(calls.some(x=>x[0]==='cancel'));
+});
+test('the existing scene receives the detail module’s safe map view while the detail uses the original story',async()=>{
+  let baseStory,detailStory;
+  const h=harness(async(G,n)=>{baseStory=n;return true;});
+  h.G.v52EventDetail={prepare(){},cancel(){},setPaused(){},
+    storyForMap:n=>({...n,safeView:true}),run:async n=>{detailStory=n;return true;}};
+  assert.equal(await h.start(),true);
+  assert.equal(baseStory.safeView,true);assert.equal(detailStory.safeView,undefined);
+});
+test('the director reports a same-story cancelled detail flight instead of completing',async()=>{
+  const h=harness();
+  h.G.v52EventDetail={prepare(){},cancel(){},setPaused(){},run:async()=>false};
+  assert.equal(await h.start(),false);
+  assert.equal(h.d.getState().status,'cancelled');
+  assert.notEqual(h.d.getState().phase,'end');
+});

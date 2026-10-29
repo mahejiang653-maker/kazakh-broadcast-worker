@@ -1,0 +1,182 @@
+[
+  {
+    "id": 1,
+    "title": "测试地点：美国拜伦核电站（不代表当日新闻）",
+    "location": "拜伦核电站",
+    "focusLabel": "拜伦核电站",
+    "countryIso3": "USA",
+    "country": "美国",
+    "placeType": "核设施",
+    "sceneMode": "POINT",
+    "lon": -89.2811,
+    "lat": 42.075,
+    "state": {
+      "location": "伊利诺伊州",
+      "placeType": "州",
+      "lon": -89.398528,
+      "lat": 40.633125,
+      "sourceUrl": "https://developers.google.com/public-data/docs/canonical/states_csv"
+    },
+    "scenePlan": {
+      "primaryIso3": "USA",
+      "finalLocation": true
+    },
+    "locationPrecision": "site",
+    "detailEnabled": true,
+    "eventLocation": {
+      "lon": -89.2811,
+      "lat": 42.075,
+      "verified": true,
+      "sourceUrl": "https://downloads.regulations.gov/NRC-2020-0101-0144/content.pdf"
+    },
+    "targetBounds": [
+      -89.294,
+      42.065,
+      -89.27,
+      42.085
+    ],
+    "detailImage": {
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/c/ca/2009-0913-ByronNuclear.jpg/1280px-2009-0913-ByronNuclear.jpg?utm_campaign=index&utm_content=thumbnail&utm_source=commons.wikimedia.org",
+      "kind": "historical",
+      "source": "Bobak Ha'Eri / Wikimedia Commons（对比度及尺寸调整）",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:2009-0913-ByronNuclear.jpg",
+      "date": "2009-09-13",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "verified": true,
+      "locationMatch": true
+    },
+    "city": {
+      "location": "拜伦市",
+      "placeType": "城市",
+      "lon": -89.25566,
+      "lat": 42.12697,
+      "sourceUrl": "https://mapcarta.com/22118054"
+    }
+  },
+  {
+    "id": 2,
+    "title": "历史测试：2025年2月切尔诺贝利新安全封闭结构遭无人机击中",
+    "location": "切尔诺贝利核电站",
+    "focusLabel": "切尔诺贝利核电站",
+    "countryIso3": "UKR",
+    "country": "乌克兰",
+    "placeType": "核设施",
+    "sceneMode": "POINT",
+    "lon": 30.0991,
+    "lat": 51.3895,
+    "scenePlan": {
+      "primaryIso3": "UKR",
+      "finalLocation": true
+    },
+    "locationPrecision": "site",
+    "detailEnabled": true,
+    "eventLocation": {
+      "lon": 30.0991,
+      "lat": 51.3895,
+      "verified": true,
+      "sourceUrl": "https://flexrisk.boku.ac.at/en/sites/cher/"
+    },
+    "targetBounds": [
+      30.087,
+      51.383,
+      30.112,
+      51.396
+    ],
+    "detailImage": {
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/30/NSC-Oct-2017.jpg/1280px-NSC-Oct-2017.jpg?utm_campaign=index&utm_content=thumbnail&utm_source=commons.wikimedia.org",
+      "kind": "historical",
+      "source": "Tim Porter / Wikimedia Commons（对比度及尺寸调整）",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:NSC-Oct-2017.jpg",
+      "date": "2017-10-13",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "verified": true,
+      "locationMatch": true
+    },
+    "articleUrls": [
+      "https://www.iaea.org/sites/default/files/documents/gov2025-11.pdf"
+    ]
+  },
+  {
+    "id": 3,
+    "title": "历史测试：2011年霍尔果斯铁路口岸站全面开工",
+    "location": "霍尔果斯站",
+    "focusLabel": "霍尔果斯站",
+    "countryIso3": "CHN",
+    "country": "中国",
+    "placeType": "铁路站",
+    "sceneMode": "POINT",
+    "lon": 80.45435,
+    "lat": 44.15622,
+    "scenePlan": {
+      "primaryIso3": "CHN",
+      "finalLocation": true
+    },
+    "locationPrecision": "site",
+    "detailEnabled": true,
+    "eventLocation": {
+      "lon": 80.45435,
+      "lat": 44.15622,
+      "verified": true,
+      "sourceUrl": "https://mapcarta.com/W588500137"
+    },
+    "targetBounds": [
+      80.447,
+      44.15,
+      80.464,
+      44.162
+    ],
+    "articleUrls": [
+      "https://xjdrc.xinjiang.gov.cn/xjfgw/c108387/201110/239c5dba85e84866bac938644acba6c5.shtml"
+    ],
+    "city": {
+      "location": "霍尔果斯市",
+      "placeType": "城市",
+      "lon": 80.40972,
+      "lat": 44.2125,
+      "sourceUrl": "https://en.wikipedia.org/wiki/Khorgos"
+    }
+  },
+  {
+    "id": 4,
+    "title": "测试地点：新加坡樟宜机场",
+    "location": "樟宜机场",
+    "focusLabel": "樟宜机场",
+    "countryIso3": "SGP",
+    "country": "新加坡",
+    "placeType": "机场",
+    "sceneMode": "POINT",
+    "lon": 103.989325,
+    "lat": 1.359211,
+    "scenePlan": {
+      "primaryIso3": "SGP",
+      "finalLocation": true
+    },
+    "locationPrecision": "site",
+    "detailEnabled": true,
+    "eventLocation": {
+      "lon": 103.989325,
+      "lat": 1.359211,
+      "verified": true,
+      "sourceUrl": "https://aim-sg.caas.gov.sg/aim-content/uploads/aip/17-SEP-2026/AIP/2026-09-03-000000/html/eAIP/SG-AD-2-WSSS-en-GB.html"
+    },
+    "targetBounds": [
+      103.97,
+      1.335,
+      104.015,
+      1.382
+    ],
+    "detailImage": {
+      "url": "https://thumb.wikimedia.org/wikipedia/commons/thumb/8/84/Aerial_view_of_Singapore_Changi_Airport_and_Changi_Air_Base_-_20110523.jpg/1280px-Aerial_view_of_Singapore_Changi_Airport_and_Changi_Air_Base_-_20110523.jpg?utm_campaign=index&utm_content=thumbnail&utm_source=commons.wikimedia.org",
+      "kind": "historical",
+      "source": "Pulkitsangal / Wikimedia Commons（尺寸调整）",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Aerial_view_of_Singapore_Changi_Airport_and_Changi_Air_Base_-_20110523.jpg",
+      "date": "2011-05-23",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "verified": true,
+      "locationMatch": true
+    }
+  }
+]

@@ -4,7 +4,7 @@
   if(!G || G.v52Director) return;
   const VERSION='20261018-director-v1',KEY='news-globe-v52-director-timing-v1';
   const DEFAULTS=Object.freeze({travel:1,country:1,admin:1,location:1,finalHold:0});
-  const PHASES={country:'国家总览',admin:'行政区',location:'实际地点',event:'事件效果',end:'结束画面'};
+  const PHASES={country:'国家总览',admin:'行政区',location:'实际地点',event:'事件效果',approach:'地点推进',site:'地点特写',detail:'地点影像',end:'结束画面'};
   const originals={},restorers=[],listeners=[];
   let active=null,disposed=false,attachTimer=null,settings=readSettings(),ui=null;
   const now=()=>performance.now();
@@ -34,6 +34,7 @@
       timing:{...(run?.timing||settings)},disposed};
   }
   function notify(){
+    G.v52EventDetail?.setPaused?.(!!active?.paused);
     if(ui){
       const s=state(),enabled=!!active&&!disposed&&!G.overviewMode;
       ui.pause.disabled=!enabled||s.status==='cancelled'||s.status==='failed';
@@ -100,6 +101,7 @@
     });
   }
   function cancel(){
+    G.v52EventDetail?.cancel?.();
     const run=active;if(!run)return;
     run.cancelled=true;
     for(const id of run.timers)clearTimeout(id);
@@ -210,7 +212,9 @@
     if(disposed||serial!==G.navSerial)return false;
     const run=begin(serial);
     try{
-      const result=await before.call(this,story,iso,serial);
+      G.v52EventDetail?.prepare?.(story,serial);
+      const mapStory=G.v52EventDetail?.storyForMap?.(story)||story;
+      const result=await before.call(this,mapStory,iso,serial);
       if(!live(run))return false;
       if(result===false || !await waitForAttack(run)){
         if(live(run)){run.status='cancelled';run.pauseRequested=false;notify();}
@@ -218,6 +222,15 @@
       }
       if(!live(run))return false;
       if(!await waitForCamera(run))return false;
+      // The optional sequence is part of this run, so autoplay and pause wait
+      // for it. A failed image or optional closeup leaves the map usable.
+      let detailResult=true;
+      try{detailResult=await G.v52EventDetail?.run?.(story,serial);}catch(error){
+        console.warn('[V52 detail] using the current map view',error);
+        G.v52EventDetail?.cancel?.();
+      }
+      if(!live(run))return false;
+      if(detailResult===false){run.status='cancelled';run.pauseRequested=false;notify();return false;}
       stage('end',serial);
       if(!await delay(run,run.timing.finalHold*1000,{scaled:false}))return false;
       if(!live(run))return false;

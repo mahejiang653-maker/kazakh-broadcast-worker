@@ -42,9 +42,13 @@ jobs:
       - name: M3 strict TypeScript static check
         run: npx tsc -p tsconfig.m3.json --noEmit --pretty false
 
+  verify-globe-before-deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/news-globe-event-detail.yml
+
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: build-and-test
+    needs: [build-and-test, verify-globe-before-deploy]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
