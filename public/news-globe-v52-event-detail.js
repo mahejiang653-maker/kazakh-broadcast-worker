@@ -143,11 +143,13 @@
         if(Number.isFinite(height))annotationTop=Math.max(annotationTop,height);
       }catch{}
     }
-    const fadeEnd=Math.max(p.siteHeight*1.02,Math.min(annotationTop+5000,start*.98));
+    const clearance=Math.min(5000,Math.max(1,(start-annotationTop)*.5));
+    const annotationEnd=Math.min(annotationTop+clearance,start-1);
+    const fadeEnd=Math.max(p.siteHeight*1.02,annotationEnd);
     const fadeStart=Math.max(fadeEnd+1,Math.min(start,Math.max(fadeEnd*1.8,p.siteHeight*12)));
     const ascending=p.siteHeight>start+100,level=Math.abs(p.siteHeight-start)<=100,began=Date.now();
     const shortDescent=p.siteHeight<start-100&&p.siteHeight>=start*.75;
-    const shortEnd=Math.max(p.siteHeight,Math.min(annotationTop+5000,start-1));
+    const shortEnd=Math.max(p.siteHeight,annotationEnd);
     const travel=G.v52Director?.getState?.()?.timing?.travel||1;
     const duration=(p.approachDuration+p.siteDuration)*travel*1000;
     const opacity=()=>{const height=Number(camera?.positionCartographic?.height);
@@ -203,8 +205,16 @@
       // A single eased flight prevents the camera from stopping and starting
       // at an artificial intermediate altitude. Labels fade as it descends.
       stopFade=fadeDuringDescent(p,serial,owner,C,close);
+      const beforeHeight=Number(G.viewer?.camera?.positionCartographic?.height),started=Date.now();
       if(!await fly(p,p.siteHeight,p.approachDuration+p.siteDuration,serial,C))return false;
-      stopFade();close();
+      stopFade();
+      if(!live(serial)||current!==owner)return false;
+      // Cesium completes instantly if a wide regional target is already at
+      // the current pose. Keep its annotations rather than making them pop.
+      if((p.precision==='city'||p.precision==='region')&&Number.isFinite(beforeHeight)&&
+        Math.abs(beforeHeight-p.siteHeight)<=100&&Date.now()-started<100){
+        restore();G.v52Director?.stage('site',serial);
+      }else close();
       if(!await G.v52Director?.checkpoint('site',serial))return false;
       const result=await G.wait(p.detailDuration*1000,serial);
       completed=!!result;return result;

@@ -138,6 +138,35 @@ test('high annotations fade before the camera crosses their elevation',async()=>
   flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
 });
 
+test('annotations close to camera height fade before they pass behind the camera',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,position:{getValue:()=>({height:99000})},label:{fillColor:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartographic:{fromCartesian:position=>position},Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:100000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  G.v52EventDetail.prepare(story(),1);const done=G.v52EventDetail.run(story(),1,C);await new Promise(setImmediate);
+  camera.positionCartographic.height=99750;
+  const middle=marker.label.fillColor.getValue(0).alpha;assert.ok(middle>0&&middle<1);
+  camera.positionCartographic.height=99500;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
+});
+
+test('a camera already at the regional target keeps annotations instead of hiding them instantly',async()=>{
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,point:{color:original}},stages=[];
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){o.complete();}};
+  const scene={requestRender(){},preRender:{addEventListener(){return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(name){stages.push(name);},checkpoint:async()=>true},wait:async()=>true});
+  const n={...story('region'),cameraPreset:{siteHeight:170000}};
+  G.v52EventDetail.prepare(n,1);assert.equal(await G.v52EventDetail.run(n,1,C),true);
+  assert.equal(marker.show,true);assert.equal(marker.point.color,original);assert.ok(stages.includes('site'));
+});
+
 test('verified facility coordinates replace a legacy city marker',()=>{
   const d=setup().v52EventDetail;assert.ok(d,'detail module is installed');
   const n=d.normalizeStory(story());
