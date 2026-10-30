@@ -143,15 +143,18 @@
         if(Number.isFinite(height))annotationTop=Math.max(annotationTop,height);
       }catch{}
     }
-    const fadeEnd=Math.max(p.siteHeight*1.02,Math.min(annotationTop+5000,start*.8));
-    const fadeStart=Math.max(fadeEnd+1,Math.min(start*.94,Math.max(fadeEnd*1.8,p.siteHeight*12)));
+    const fadeEnd=Math.max(p.siteHeight*1.02,Math.min(annotationTop+5000,start*.98));
+    const fadeStart=Math.max(fadeEnd+1,Math.min(start,Math.max(fadeEnd*1.8,p.siteHeight*12)));
     const ascending=p.siteHeight>start+100,level=Math.abs(p.siteHeight-start)<=100,began=Date.now();
+    const shortDescent=p.siteHeight<start-100&&p.siteHeight>=start*.75;
+    const shortEnd=Math.max(p.siteHeight,Math.min(annotationTop+5000,start-1));
     const travel=G.v52Director?.getState?.()?.timing?.travel||1;
     const duration=(p.approachDuration+p.siteDuration)*travel*1000;
     const opacity=()=>{const height=Number(camera?.positionCartographic?.height);
       if(!Number.isFinite(height))return 1;
       if(ascending)return clamp((p.siteHeight-height)/(p.siteHeight-start),0,1);
       if(level)return clamp(1-(Date.now()-began)/duration,0,1);
+      if(shortDescent)return clamp((height-shortEnd)/(start-shortEnd),0,1);
       return clamp((height-fadeEnd)/(fadeStart-fadeEnd),0,1);};
     const fadeColor=(graphic,field,defaultWhite=false)=>{
       const original=graphic?.[field];if(original==null&&!defaultWhite)return;
