@@ -13,6 +13,160 @@ function setup(extra = {}, globals = {}) {
 const verified={lon:-89.2811,lat:42.075,verified:true,sourceUrl:'https://www.nrc.gov/example'};
 const story=(precision='site')=>({title:'地点测试',location:'Byron',lon:-89.25,lat:42.08,locationPrecision:precision,eventLocation:{...verified}});
 
+test('mobile closeups retain the established map and label rendering quality',async()=>{
+  const viewer={resolutionScale:2.2,scene:{msaaSamples:4,globe:{maximumScreenSpaceError:.75,tileCacheSize:100},requestRender(){}}};
+  const G=setup({viewer,initViewer:async()=>true});
+  await G.initViewer();
+  assert.equal(viewer.resolutionScale,2.2);
+  assert.equal(viewer.scene.globe.maximumScreenSpaceError,.75);
+  assert.equal(viewer.scene.msaaSamples,4);
+});
+
+test('the facility descent is one continuous camera flight rather than two stop-start flights',async()=>{
+  const calls=[],C={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const G=setup({viewer:{camera:{flyTo(o){calls.push(o);o.complete();}},scene:{requestRender(){}}},
+    v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  G.v52EventDetail.prepare(story(),1);
+  assert.equal(await G.v52EventDetail.run(story(),1,C),true);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].destination.lon,verified.lon);
+  assert.equal(calls[0].destination.height,4000);
+});
+
+test('a story with a verified historical image never downloads or overlays a photo',async()=>{
+  let imageRequests=0;class TrackingImage{constructor(){imageRequests++;}}
+  const C={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const G=setup({viewer:{camera:{flyTo(o){o.complete();}},scene:{requestRender(){}}},
+    v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true},{Image:TrackingImage});
+  const n={...story(),detailImage:{url:'https://example.org/a.jpg',source:'Photographer',sourceUrl:'https://example.org/a',
+    date:'2025-02-14',license:'CC BY 4.0',licenseUrl:'https://creativecommons.org/licenses/by/4.0/',kind:'historical',verified:true,locationMatch:true}};
+  G.v52EventDetail.prepare(n,1);
+  assert.equal(imageRequests,0);
+  assert.equal(await G.v52EventDetail.run(n,1,C),true);
+});
+
+test('yellow map text becomes white while non-yellow labels and red markers keep their colors',async()=>{
+  const listeners=[],white={red:1,green:1,blue:1,alpha:1,withAlpha(alpha){return {...this,alpha};}};
+  const entities={values:[],collectionChanged:{addEventListener(fn){listeners.push(fn);return ()=>{};}},
+    add(e){this.values.push(e);for(const fn of listeners)fn(this,[e],[],[]);return e;}};
+  const viewer={resolutionScale:2.2,clock:{currentTime:0},entities,
+    scene:{msaaSamples:4,globe:{maximumScreenSpaceError:.75,tileCacheSize:100},requestRender(){}}};
+  const G={navSerial:1,current:0,overviewMode:false,viewer,initViewer:async()=>true};
+  const window={NG14:G,innerWidth:390,devicePixelRatio:3,Cesium:{Color:{WHITE:white}}};
+  vm.runInNewContext(fs.readFileSync(path,'utf8'),{window,URL,Date,Number,Math,Promise,console,setTimeout,clearTimeout});
+  await G.initViewer();
+  const warm={red:1,green:.953,blue:.824,alpha:1},blue={red:.65,green:.8,blue:1,alpha:1};
+  const country=entities.add({label:{fillColor:warm},point:{color:'red'}});
+  const other=entities.add({label:{fillColor:blue}});
+  assert.equal(country.label.fillColor.red,1);assert.equal(country.label.fillColor.green,1);assert.equal(country.label.fillColor.blue,1);
+  assert.equal(country.point.color,'red');assert.equal(other.label.fillColor,blue);
+});
+
+test('the incident marker fades during the descent and is restored if the flight is cancelled',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,position:{getValue:()=>({height:30000})},point:{color:original}};
+  const pulse={show:true,ellipse:{material:{color:original},outlineColor:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartographic:{fromCartesian:position=>position},Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>callbacks.splice(callbacks.indexOf(fn),1);}}};
+  const G=setup({markers:[marker],pulses:[pulse],viewer:{camera,scene,clock:{currentTime:0}},
+    v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  G.v52EventDetail.prepare(story(),1);const done=G.v52EventDetail.run(story(),1,C);
+  await new Promise(setImmediate);
+  assert.equal(typeof marker.point.color.getValue,'function','the marker has a gradual opacity');
+  camera.positionCartographic.height=55000;
+  const mid=marker.point.color.getValue(0).alpha;assert.ok(mid>0&&mid<1);assert.equal(marker.show,true);
+  assert.ok(pulse.ellipse.material.color.getValue(0).alpha>0&&pulse.ellipse.material.color.getValue(0).alpha<1);
+  assert.ok(pulse.ellipse.outlineColor.getValue(0).alpha>0&&pulse.ellipse.outlineColor.getValue(0).alpha<1);
+  // Fade to zero before the camera crosses the 30 km marker elevation.
+  camera.positionCartographic.height=35000;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);assert.equal(marker.point.color,original);
+  assert.equal(pulse.ellipse.material.color,original);assert.equal(pulse.ellipse.outlineColor,original);
+});
+
+test('a wider region preset fades annotations gradually when the camera must move upwards',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,point:{color:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  const n={...story('region'),cameraPreset:{siteHeight:300000}};
+  G.v52EventDetail.prepare(n,1);const done=G.v52EventDetail.run(n,1,C);await new Promise(setImmediate);
+  assert.equal(marker.point.color.getValue(0).alpha,1,'the wider shot must start with annotations visible');
+  camera.positionCartographic.height=235000;
+  const middle=marker.point.color.getValue(0).alpha;assert.ok(middle>0&&middle<1);
+  camera.positionCartographic.height=300000;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
+});
+
+test('a small regional descent fades annotations gradually instead of dropping them at one altitude',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,point:{color:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  const n={...story('region'),cameraPreset:{siteHeight:160000}};
+  G.v52EventDetail.prepare(n,1);const done=G.v52EventDetail.run(n,1,C);await new Promise(setImmediate);
+  assert.equal(marker.point.color.getValue(0).alpha,1);
+  camera.positionCartographic.height=165000;
+  const middle=marker.point.color.getValue(0).alpha;assert.ok(middle>.2&&middle<.8,'opacity should reflect the gradual movement');
+  camera.positionCartographic.height=160000;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
+});
+
+test('high annotations fade before the camera crosses their elevation',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,position:{getValue:()=>({height:90000})},label:{fillColor:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartographic:{fromCartesian:position=>position},Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:100000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  G.v52EventDetail.prepare(story(),1);const done=G.v52EventDetail.run(story(),1,C);await new Promise(setImmediate);
+  camera.positionCartographic.height=97000;
+  const middle=marker.label.fillColor.getValue(0).alpha;assert.ok(middle>0&&middle<1);
+  camera.positionCartographic.height=95000;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
+});
+
+test('annotations close to camera height fade before they pass behind the camera',async()=>{
+  const callbacks=[];let flight;
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,position:{getValue:()=>({height:99000})},label:{fillColor:original}};
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartographic:{fromCartesian:position=>position},Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:100000},flyTo(o){flight=o;}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){callbacks.push(fn);return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
+  G.v52EventDetail.prepare(story(),1);const done=G.v52EventDetail.run(story(),1,C);await new Promise(setImmediate);
+  camera.positionCartographic.height=99750;
+  const middle=marker.label.fillColor.getValue(0).alpha;assert.ok(middle>0&&middle<1);
+  camera.positionCartographic.height=99500;callbacks[0]();assert.equal(marker.show,false);
+  flight.cancel();assert.equal(await done,false);assert.equal(marker.show,true);
+});
+
+test('a camera already at the regional target keeps annotations instead of hiding them instantly',async()=>{
+  const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};
+  const marker={show:true,point:{color:original}},stages=[];
+  const C={Color:{WHITE:original},CallbackProperty:class {constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){o.complete();}};
+  const scene={requestRender(){},preRender:{addEventListener(){return ()=>{};}}};
+  const G=setup({markers:[marker],viewer:{camera,scene},v52Director:{stage(name){stages.push(name);},checkpoint:async()=>true},wait:async()=>true});
+  const n={...story('region'),cameraPreset:{siteHeight:170000}};
+  G.v52EventDetail.prepare(n,1);assert.equal(await G.v52EventDetail.run(n,1,C),true);
+  assert.equal(marker.show,true);assert.equal(marker.point.color,original);assert.ok(stages.includes('site'));
+});
+
 test('verified facility coordinates replace a legacy city marker',()=>{
   const d=setup().v52EventDetail;assert.ok(d,'detail module is installed');
   const n=d.normalizeStory(story());
@@ -80,7 +234,7 @@ test('an image needs explicit source, date, license and verified location match'
   for(const change of [{verified:false},{locationMatch:false},{license:''},{licenseUrl:''},{date:''},{url:'javascript:alert(1)'},{sourceUrl:''},{kind:'live'}])
     assert.equal(d.imageSpec({...n,detailImage:{...image,...change}}),null);
 });
-test('detail flights move from the approach to the verified site in order',async()=>{
+test('the uninterrupted descent retains the configured travel time and ends at the verified site',async()=>{
   const flights=[],stages=[];
   const camera={flyTo(o){flights.push(o);o.complete();}};
   const Cesium={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n*Math.PI/180}};
@@ -89,60 +243,42 @@ test('detail flights move from the approach to the verified site in order',async
   G.v52EventDetail.setCesiumForTest?.(Cesium);
   const n=G.v52EventDetail.normalizeStory(story());
   assert.equal(await G.v52EventDetail.run(n,1,Cesium),true);
-  assert.deepEqual(stages,['approach','site']);assert.equal(flights.length,2);
-  assert.ok(flights[0].destination.height>flights[1].destination.height);
-  assert.equal(flights[1].destination.lon,verified.lon);
+  assert.deepEqual(stages,['approach','site']);assert.equal(flights.length,1);
+  assert.equal(flights[0].duration,6);
+  assert.equal(flights[0].destination.lon,verified.lon);
 });
 test('a cancelled site flight restores annotations and relinquishes an old attack camera',async()=>{
-  const marker={show:true};let flights=0,attackReleased=0;
+  const marker={show:true};let attackReleased=0;
   const C={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
   const G=setup({markers:[marker],v52Attack:{clear(){attackReleased++;}},
-    viewer:{camera:{flyTo(o){if(++flights===1)o.complete();else o.cancel();}},scene:{requestRender(){}}},
+    viewer:{camera:{flyTo(o){o.cancel();}},scene:{requestRender(){}}},
     v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
   const n=story();G.v52EventDetail.prepare(n,1);
   assert.equal(await G.v52EventDetail.run(n,1,C),false);
   assert.equal(attackReleased,1);assert.equal(marker.show,true);
 });
 test('a stale cancelled site flight cannot restore annotations belonging to a replacement run',async()=>{
-  const marker={show:true},pending=[];
-  const C={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
-  const G=setup({markers:[marker],viewer:{camera:{flyTo(o){pending.push(o);}},scene:{requestRender(){}}},
+  const color={alpha:1,withAlpha(alpha){return {...this,alpha};}},marker={show:true,point:{color}},pending=[],listeners=new Set();
+  const C={Color:{WHITE:color},CallbackProperty:class{constructor(fn){this.fn=fn;}getValue(t){return this.fn(t);}},
+    Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
+  const camera={positionCartographic:{height:170000},flyTo(o){pending.push(o);}};
+  const scene={requestRender(){},preRender:{addEventListener(fn){listeners.add(fn);return()=>listeners.delete(fn);}}};
+  const G=setup({markers:[marker],viewer:{camera,scene,clock:{currentTime:0}},
     v52Director:{stage(){},checkpoint:async()=>true},wait:async()=>true});
   const n=story();G.v52EventDetail.prepare(n,1);const old=G.v52EventDetail.run(n,1,C);
-  await new Promise(setImmediate);pending.shift().complete();await new Promise(setImmediate);
-  assert.equal(marker.show,false);const oldSite=pending.shift();
+  await new Promise(setImmediate);const oldSite=pending.shift();camera.positionCartographic.height=8000;
+  for(const fn of [...listeners])fn();assert.equal(marker.show,false);
   G.v52EventDetail.cancel();G.navSerial=2;G.v52EventDetail.prepare(n,2);const next=G.v52EventDetail.run(n,2,C);
-  await new Promise(setImmediate);pending.shift().complete();await new Promise(setImmediate);
-  assert.equal(marker.show,false);const newSite=pending.shift();
+  camera.positionCartographic.height=170000;await new Promise(setImmediate);const newSite=pending.shift();
+  camera.positionCartographic.height=8000;for(const fn of [...listeners])fn();assert.equal(marker.show,false);
   oldSite.cancel();assert.equal(await old,false);assert.equal(marker.show,false);
   newSite.complete();assert.equal(await next,true);G.v52EventDetail.cancel();assert.equal(marker.show,true);
 });
-test('mobile viewer caps render density and tile cache while desktop retains its settings',async()=>{
+test('mobile tile cache is bounded without lowering the original rendering quality',async()=>{
   const viewer={resolutionScale:2.2,scene:{msaaSamples:4,globe:{maximumScreenSpaceError:.75,tileCacheSize:200},requestRender(){}}};
   const G=setup({viewer,initViewer:async()=>true});
   await G.initViewer();
-  assert.ok(viewer.resolutionScale<=1.4);assert.ok(viewer.scene.msaaSamples<=2);
-  assert.ok(viewer.scene.globe.maximumScreenSpaceError>=1);
+  assert.equal(viewer.resolutionScale,2.2);assert.equal(viewer.scene.msaaSamples,4);
+  assert.equal(viewer.scene.globe.maximumScreenSpaceError,.75);
   assert.ok(viewer.scene.globe.tileCacheSize<=100);
-});
-test('a verified image that loads during the site hold appears without extending playback',async()=>{
-  let image,finishHold;const layers=[];
-  class FakeImage{constructor(){image=this;this.naturalWidth=1200;this.naturalHeight=800;}set src(value){this.url=value;}}
-  const node=()=>({style:{},children:[],classList:{items:new Set(),add(v){this.items.add(v);},remove(v){this.items.delete(v);},toggle(){}},
-    append(...xs){this.children.push(...xs);},appendChild(x){this.children.push(x);layers.push(x);},remove(){}});
-  const frame=node(),head=node(),body=node();
-  const document={body,head,querySelector:()=>frame,querySelectorAll:()=>[],getElementById:()=>null,
-    createElement:()=>node(),createTextNode:text=>({textContent:text})};
-  const Cesium={Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height})},Math:{toRadians:n=>n}};
-  const G=setup({viewer:{camera:{flyTo(o){o.complete();}},scene:{requestRender(){}}},
-    v52Director:{stage(){},checkpoint:async()=>true},wait:()=>new Promise(r=>{finishHold=r;})},
-    {document,Image:FakeImage,requestAnimationFrame:fn=>fn()});
-  const n={...story(),detailImage:{url:'https://example.org/a.jpg',source:'Photographer',sourceUrl:'https://example.org/a',
-    date:'2025-02-14',license:'CC BY 4.0',licenseUrl:'https://creativecommons.org/licenses/by/4.0/',kind:'historical',verified:true,locationMatch:true}};
-  G.v52EventDetail.prepare(n,1);const done=G.v52EventDetail.run(n,1,Cesium);
-  await new Promise(setImmediate);
-  assert.ok(finishHold,'site hold starts without waiting for the image');image.onload();
-  assert.ok(frame.children.some(x=>x.classList.items.has('visible')),'late image appears during the existing hold');
-  assert.equal(frame.children[0].children[0],image,'display reuses the preloaded image');
-  finishHold(true);assert.equal(await done,true);
 });

@@ -26,6 +26,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
+      - name: Install Chinese fonts for screenshot verification
+        run: sudo apt-get install --yes fonts-noto-cjk
       - name: Verify four sourced sites and playback controls in Chromium
         run: V52_QA_DIR=globe-event-detail-qa node scripts/verify-r6-event-detail-browser.mjs
       - name: Save browser evidence

@@ -4,7 +4,7 @@
   if(!G || G.v52EventDetail)return;
   const precisions=new Set(['exact','site','city','region']);
   const kinds={satellite:'卫星或航空影像',news:'新闻现场图片',historical:'历史 / 公开设施照片'};
-  let current=null,hidden=[],hiddenDom=[],overlay=null,occlusion=null;
+  let current=null,hidden=[],hiddenDom=[],faded=[],fadedDom=[],occlusion=null;
   const https=value=>{try{const u=new URL(String(value||''));return u.protocol==='https:' && !!u.hostname && !u.username && !u.password;}catch{return false;}};
   const numeric=value=>typeof value==='number'?Number.isFinite(value):
     typeof value==='string'&&/^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(value.trim())&&Number.isFinite(Number(value));
@@ -76,6 +76,10 @@
   }
   function live(serial){return serial===G.navSerial&&!G.overviewMode;}
   function restore(){
+    for(const item of faded){try{if(item.graphic[item.field]===item.callback)item.graphic[item.field]=item.original;}catch{}}
+    faded=[];
+    for(const item of fadedDom){try{item.element.style.opacity=item.opacity;}catch{}}
+    fadedDom=[];
     for(const item of hidden){try{item.entity.show=item.show;}catch{}}
     hidden=[];
     for(const item of hiddenDom){try{item.element.style.visibility=item.visibility;}catch{}}
@@ -105,47 +109,15 @@
     }
     G.viewer?.scene?.requestRender?.();
   }
-  function hideOverlay(){
-    if(overlay){overlay.remove();overlay=null;}
-    if(typeof document!=='undefined')document.getElementById('v52-detail-style')?.remove();
-  }
   function cancel(){
-    if(current?.image){current.image.onload=null;current.image.onerror=null;current.image.removeAttribute?.('src');}
-    current=null;hideOverlay();restore();
+    current=null;restore();
   }
   function prepare(n,serial){
-    cancel();
-    const spec=imageSpec(n);current={serial,spec,image:null,ready:false,failed:false};
-    if(!spec||typeof Image==='undefined')return;
-    const owner=current,img=new Image();owner.image=img;img.decoding='async';img.referrerPolicy='no-referrer';
-    img.onload=()=>{
-      if(current!==owner||!live(serial))return;
-      owner.ready=img.naturalWidth>0&&img.naturalHeight>0&&img.naturalWidth*img.naturalHeight<=32000000;owner.failed=!owner.ready;
-      if(owner.ready&&owner.siteReady&&!owner.finished&&showImage(serial)){
-        G.v52Director?.stage('detail',serial);setPaused(G.v52Director?.getState?.().paused);
-      }
-    };
-    img.onerror=()=>{if(current===owner)owner.failed=true;};
-    img.src=spec.url;
+    // Existing JSON may still carry image metadata, but the final view is the
+    // satellite map. Do not request, decode or overlay those photographs.
+    cancel();current={serial};
   }
-  function showImage(serial){
-    if(overlay||!current||current.serial!==serial||!current.ready||!live(serial)||typeof document==='undefined')return false;
-    const frame=document.querySelector('.map-frame');if(!frame)return false;
-    const style=document.createElement('style');style.id='v52-detail-style';
-    style.textContent='.v52-detail-photo{position:absolute;inset:0;z-index:8;pointer-events:none;opacity:0;transition:opacity .7s ease}.v52-detail-photo.visible{opacity:1}.v52-detail-photo img{width:100%;height:100%;object-fit:contain;display:block;animation:v52-detail-push 8s ease-out both}.v52-detail-photo.paused img{animation-play-state:paused}.v52-detail-caption{position:absolute;left:8px;bottom:6px;max-width:90%;padding:3px 6px;border-radius:4px;background:#071321e8;color:white;font:11px/1.35 system-ui,sans-serif;pointer-events:auto}.v52-detail-caption a{color:#b6eaff}.v52-detail-close img[data-flag-source]{visibility:hidden!important}@keyframes v52-detail-push{from{transform:scale(1)}to{transform:scale(1.035)}}';
-    document.head.appendChild(style);
-    const layer=document.createElement('div');layer.className='v52-detail-photo';
-    const photo=current.image;photo.alt=kinds[current.spec.kind];
-    const caption=document.createElement('div');caption.className='v52-detail-caption';
-    caption.append(document.createTextNode(kinds[current.spec.kind]+' · '+current.spec.date+' · '));
-    const source=document.createElement('a');source.href=current.spec.sourceUrl;source.target='_blank';source.rel='noopener noreferrer';source.textContent=current.spec.source;
-    const license=document.createElement('a');license.href=current.spec.licenseUrl;license.target='_blank';license.rel='noopener noreferrer';license.textContent=current.spec.license;
-    caption.append(source,document.createTextNode(' · '),license);
-    layer.append(photo,caption);frame.appendChild(layer);overlay=layer;
-    requestAnimationFrame(()=>{if(overlay===layer&&live(serial))layer.classList.add('visible');});
-    return true;
-  }
-  function setPaused(value){overlay?.classList.toggle('paused',!!value);}
+  function setPaused(){}
   async function fly(point,height,duration,serial,C){
     if(!live(serial)||!C||!G.viewer?.camera)return false;
     return await new Promise(resolve=>{
@@ -155,30 +127,120 @@
         easingFunction:C.EasingFunction?.CUBIC_IN_OUT,complete:()=>done(true),cancel:()=>done(false)});}catch{done(false);}
     });
   }
+  function fadeDuringDescent(p,serial,owner,C,onClose){
+    const scene=G.viewer?.scene,camera=G.viewer?.camera,event=scene?.preRender;
+    if(!event?.addEventListener||!C?.CallbackProperty||!C?.Color?.WHITE)return ()=>{};
+    const start=Number(camera?.positionCartographic?.height)||p.siteHeight*25;
+    const lists=[G.v51SceneEntities,G.markers,G.pulses,G.localHighlightEntities];
+    // V51 markers are often 30 km above the surface. Finish fading before
+    // the camera reaches their elevation, or they pop out behind the camera.
+    let annotationTop=30000;
+    for(const list of lists)for(const entity of Array.isArray(list)?list:[]){
+      if(!entity||entity.show===false||!(entity.point||entity.billboard||entity.label))continue;
+      try{
+        const position=entity.position?.getValue?.(G.viewer?.clock?.currentTime);
+        const height=position&&C.Cartographic?.fromCartesian?.(position)?.height;
+        if(Number.isFinite(height))annotationTop=Math.max(annotationTop,height);
+      }catch{}
+    }
+    const clearance=Math.min(5000,Math.max(1,(start-annotationTop)*.5));
+    const annotationEnd=Math.min(annotationTop+clearance,start-1);
+    const fadeEnd=Math.max(p.siteHeight*1.02,annotationEnd);
+    const fadeStart=Math.max(fadeEnd+1,Math.min(start,Math.max(fadeEnd*1.8,p.siteHeight*12)));
+    const ascending=p.siteHeight>start+100,level=Math.abs(p.siteHeight-start)<=100,began=Date.now();
+    const shortDescent=p.siteHeight<start-100&&p.siteHeight>=start*.75;
+    const shortEnd=Math.max(p.siteHeight,annotationEnd);
+    const travel=G.v52Director?.getState?.()?.timing?.travel||1;
+    const duration=(p.approachDuration+p.siteDuration)*travel*1000;
+    const opacity=()=>{const height=Number(camera?.positionCartographic?.height);
+      if(!Number.isFinite(height))return 1;
+      if(ascending)return clamp((p.siteHeight-height)/(p.siteHeight-start),0,1);
+      if(level)return clamp(1-(Date.now()-began)/duration,0,1);
+      if(shortDescent)return clamp((height-shortEnd)/(start-shortEnd),0,1);
+      return clamp((height-fadeEnd)/(fadeStart-fadeEnd),0,1);};
+    const fadeColor=(graphic,field,defaultWhite=false)=>{
+      const original=graphic?.[field];if(original==null&&!defaultWhite)return;
+      const callback=new C.CallbackProperty((time,result)=>{
+        let color;try{color=original?.getValue?original.getValue(time):original||C.Color.WHITE;}catch{return C.Color.WHITE;}
+        return color?.withAlpha?color.withAlpha((Number.isFinite(color.alpha)?color.alpha:1)*opacity(),result):color;
+      },false);
+      graphic[field]=callback;faded.push({graphic,field,original,callback});
+    };
+    const seen=new Set();
+    for(const list of lists){
+      for(const entity of Array.isArray(list)?list:[]){
+        if(!entity||seen.has(entity)||entity.show===false)continue;seen.add(entity);
+        for(const [type,fields] of [['point',['color','outlineColor']],['billboard',['color']],['label',['fillColor','outlineColor','backgroundColor']],['ellipse',['outlineColor']]]){
+          const graphic=entity[type];if(!graphic)continue;
+          for(const field of fields)fadeColor(graphic,field,type==='billboard'&&field==='color');
+        }
+        // Preserve the pulse's original dynamic color property and restore it
+        // when navigation changes; other material types are left untouched.
+        if(entity.ellipse?.material?.color)fadeColor(entity.ellipse.material,'color');
+      }
+    }
+    if(typeof document!=='undefined')for(const element of document.querySelectorAll?.('img[data-flag-source]')||[])
+      fadedDom.push({element,opacity:element.style.opacity});
+    let remove,stopped=false;
+    const stop=()=>{if(stopped)return;stopped=true;remove?.();};
+    remove=event.addEventListener(()=>{
+      if(!live(serial)||current!==owner){stop();return;}
+      const amount=opacity();
+      for(const item of fadedDom){const base=item.opacity===''?1:Number(item.opacity);item.element.style.opacity=String((Number.isFinite(base)?base:1)*amount);}
+      if(amount<=0){stop();onClose();}
+    });
+    return stop;
+  }
   async function run(n,serial,C=window.Cesium){
     const p=cameraPlan(n);if(!p)return true;
     if(!live(serial))return false;
-    const owner=current;let completed=false;
+    const owner=current;let completed=false,stopFade=()=>{},closeReady=false;
+    const close=()=>{if(closeReady||!live(serial)||current!==owner)return;closeReady=true;hideAnnotations();G.v52Director?.stage('site',serial);};
     try{
       // A settled attack may still own a resize handler which would otherwise
       // start an old wide camera flight during the new closeup.
       G.v52Attack?.clear?.();
       G.v52Director?.stage('approach',serial);
       if(!await G.v52Director?.checkpoint('approach',serial))return false;
-      if(!await fly(p,p.approachHeight,p.approachDuration,serial,C))return false;
+      // A single eased flight prevents the camera from stopping and starting
+      // at an artificial intermediate altitude. Labels fade as it descends.
+      stopFade=fadeDuringDescent(p,serial,owner,C,close);
+      const beforeHeight=Number(G.viewer?.camera?.positionCartographic?.height),started=Date.now();
+      if(!await fly(p,p.siteHeight,p.approachDuration+p.siteDuration,serial,C))return false;
+      stopFade();
+      if(!live(serial)||current!==owner)return false;
+      // Cesium completes instantly if a wide regional target is already at
+      // the current pose. Keep its annotations rather than making them pop.
+      if((p.precision==='city'||p.precision==='region')&&Number.isFinite(beforeHeight)&&
+        Math.abs(beforeHeight-p.siteHeight)<=100&&Date.now()-started<100){
+        restore();G.v52Director?.stage('site',serial);
+      }else close();
       if(!await G.v52Director?.checkpoint('site',serial))return false;
-      hideAnnotations();G.v52Director?.stage('site',serial);
-      if(!await fly(p,p.siteHeight,p.siteDuration,serial,C))return false;
-      if(!await G.v52Director?.checkpoint('site',serial))return false;
-      if(owner?.serial===serial)owner.siteReady=true;
-      if(showImage(serial))G.v52Director?.stage('detail',serial);
       const result=await G.wait(p.detailDuration*1000,serial);
-      if(owner?.serial===serial)owner.finished=true;
       completed=!!result;return result;
     }finally{
+      stopFade();
       // Never let an obsolete run restore entities belonging to a newer one.
       if(!completed&&current===owner&&live(serial))cancel();
     }
+  }
+  function whitenYellowLabels(viewer,C){
+    const entities=viewer?.entities,white=C?.Color?.WHITE;
+    if(!entities?.collectionChanged?.addEventListener||!white)return;
+    const fix=e=>{
+      const label=e?.label,property=label?.fillColor;
+      if(!property)return;
+      let color;try{color=property.getValue?property.getValue(viewer.clock?.currentTime):property;}catch{return;}
+      if(!color||![color.red,color.green,color.blue].every(Number.isFinite))return;
+      if(color.red>=.75&&color.green>=.67&&color.red-color.blue>=.09&&color.green-color.blue>=.07)
+        label.fillColor=white.withAlpha(Number.isFinite(color.alpha)?color.alpha:1);
+    };
+    for(const e of entities.values||[])fix(e);
+    const remove=entities.collectionChanged.addEventListener((_,added,removed,changed)=>{
+      for(const e of added||[])fix(e);
+      for(const e of changed||[])fix(e);
+    });
+    window.addEventListener?.('pagehide',event=>{if(!event.persisted)remove?.();});
   }
   if(typeof G.initViewer==='function'){
     const init=G.initViewer;
@@ -186,15 +248,14 @@
       const result=await init.apply(this,args),viewer=G.viewer;
       const mobile=window.innerWidth<=760||!!window.matchMedia?.('(pointer: coarse)')?.matches;
       if(mobile&&viewer?.scene?.globe){
-        const lowMemory=Number(window.navigator?.deviceMemory)>0&&Number(window.navigator.deviceMemory)<=4;
-        viewer.resolutionScale=Math.min(viewer.resolutionScale,lowMemory?1:1.35);
-        viewer.scene.globe.maximumScreenSpaceError=Math.max(viewer.scene.globe.maximumScreenSpaceError,lowMemory?2:1.4);
-        viewer.scene.globe.tileCacheSize=Math.min(viewer.scene.globe.tileCacheSize||100,80);
-        try{viewer.scene.msaaSamples=Math.min(viewer.scene.msaaSamples||1,2);}catch{}
+        // Preserve the original V52 pixel density, terrain detail and MSAA.
+        // Only cap the tile cache; lowering resolution blurred map labels.
+        viewer.scene.globe.tileCacheSize=Math.min(viewer.scene.globe.tileCacheSize||100,100);
         viewer.scene.requestRender?.();
       }
+      whitenYellowLabels(viewer,window.Cesium);
       return result;
     };
   }
-  G.v52EventDetail={version:'20261028-event-detail-v1',normalizeStory,cameraPlan,imageSpec,storyForMap,prepare,run,cancel,setPaused};
+  G.v52EventDetail={version:'20261030-mobile-clarity-v1',normalizeStory,cameraPlan,imageSpec,storyForMap,prepare,run,cancel,setPaused};
 })(window.NG14);

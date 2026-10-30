@@ -30,12 +30,14 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const address=server.address();
 const browser=await chromium.launch({headless:true,args:['--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
-const report={results:[],errors:[],imageryRequests:0,imagerySuccess:0,photoSuccess:0};
+const report={results:[],errors:[],imageryRequests:0,imagerySuccess:0,photoRequests:0};
 page.on('pageerror',e=>report.errors.push(e.message));
+page.on('request',request=>{
+  if(request.url().includes('thumb.wikimedia.org')||request.url().includes('example.invalid/missing.jpg'))report.photoRequests++;
+});
 page.on('response',response=>{
   const url=response.url();
   if(/arcgisonline\.com\/.*\/tile\//.test(url)){report.imageryRequests++;if(response.ok())report.imagerySuccess++;}
-  if(url.includes('thumb.wikimedia.org')&&response.ok())report.photoSuccess++;
 });
 // Optional local environment bridge: Cesium comes from the exact official npm
 // release and curl performs TLS-verified external requests through the managed
@@ -61,7 +63,7 @@ if(process.env.V52_LOCAL_CESIUM_DIR){
 try{
   await page.goto(`http://127.0.0.1:${address.port}/news-globe-run-20260920-v52-r1.html`,{waitUntil:'domcontentloaded',timeout:60000});
   await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
-  const payload={meta:{date:'2026-10-28',edition:'test-only',dataLock:'TEST-NOT-NEWS'},news:Array.from({length:10},(_,i)=>({...fixtures[i%4],id:i+1,cameraPreset:{approachDuration:.7,siteDuration:.7,detailDuration:6}}))};
+  const payload={meta:{date:'2026-10-28',edition:'test-only',dataLock:'TEST-NOT-NEWS'},news:Array.from({length:10},(_,i)=>({...fixtures[i%4],id:i+1,cameraPreset:{approachDuration:2.8,siteDuration:3.2,detailDuration:6}}))};
   await page.locator('#settingsBtn').click();
   await page.locator('#jsonInput').fill(JSON.stringify(payload));
   await page.locator('#applyBtn').click();
@@ -69,11 +71,32 @@ try{
   await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
   const imported=await page.evaluate(payload=>{
     const G=window.NG14,errors=G.validate(payload);
-    G.v52Director.saveSettings({travel:.25,country:1,admin:.25,location:.25,finalHold:0});
+    // Check visible intermediate frames at the normal six-second travel
+    // duration; a 0.25 speed multiplier can leave software WebGL no frames.
+    G.v52Director.saveSettings({travel:1,country:1,admin:.25,location:.25,finalHold:0});
     window.__detailStages=[];const stage=G.v52Director.stage;G.v52Director.stage=(p,s,...rest)=>{window.__detailStages.push({p,s});return stage(p,s,...rest);};
-    return {errors,count:G.news.length,resolution:G.viewer.resolutionScale,firstTitle:G.news[0].title};
+    window.__closeupFlights=[];window.__closeupFrames=[];window.__adminLabelColors=[];
+    const fly=G.viewer.camera.flyTo;
+    G.viewer.camera.flyTo=function(options){
+      if(G.v52Director.getState().phase==='approach')window.__closeupFlights.push({serial:G.navSerial,duration:options.duration});
+      return fly.apply(this,arguments);
+    };
+    G.viewer.scene.preRender.addEventListener(()=>{
+      const state=G.v52Director.getState();
+      if(['approach','site'].includes(state.phase)&&state.moving)
+        window.__closeupFrames.push({serial:G.navSerial,height:G.viewer.camera.positionCartographic.height});
+      const entity=G.localLabelEntity,label=entity?.label,text=label?.text?.getValue?.(G.viewer.clock.currentTime);
+      if(text==='伊利诺伊州'&&entity.show!==false){
+        const color=label.fillColor?.getValue?.(G.viewer.clock.currentTime);
+        if(color)window.__adminLabelColors.push([color.red,color.green,color.blue]);
+      }
+    });
+    const canvas=G.viewer.scene.canvas;
+    return {errors,count:G.news.length,resolution:G.viewer.resolutionScale,screenSpaceError:G.viewer.scene.globe.maximumScreenSpaceError,
+      canvasRatio:canvas.width/canvas.clientWidth,firstTitle:G.news[0].title};
   },payload);
-  assert.deepEqual(imported.errors,[]);assert.equal(imported.count,10);assert.equal(imported.firstTitle,fixtures[0].title);assert.ok(imported.resolution<=1.35);
+  assert.deepEqual(imported.errors,[]);assert.equal(imported.count,10);assert.equal(imported.firstTitle,fixtures[0].title);
+  assert.equal(imported.resolution,2);assert.equal(imported.screenSpaceError,.75);assert.ok(imported.canvasRatio>=1.9,JSON.stringify(imported));
   const indexes=process.env.V52_ONLY_SCENE?[Number(process.env.V52_ONLY_SCENE)-1]:[0,1,2,3];
   for(const i of indexes){
     await page.evaluate(index=>window.NG14.focus(index,true),i);
@@ -93,10 +116,11 @@ try{
       const canvas=G.viewer.scene.canvas;
       return {title:n.title,status:s.status,precision:n.locationPrecision,lon:C.Math.toDegrees(c.longitude),lat:C.Math.toDegrees(c.latitude),height:c.height,
         center:p?{x:p.x/canvas.clientWidth,y:p.y/canvas.clientHeight}:null,stages:window.__detailStages.filter(x=>x.s===G.navSerial).map(x=>x.p),
-        photo:document.querySelector('.v52-detail-photo')?.classList.contains('visible')||false,
-        caption:document.querySelector('.v52-detail-caption')?.innerText||'',mapAspect:canvas.clientWidth/canvas.clientHeight,
+        photo:!!document.querySelector('.v52-detail-photo'),mapAspect:canvas.clientWidth/canvas.clientHeight,
+        closeupFlights:window.__closeupFlights.filter(x=>x.serial===G.navSerial),
+        closeupFrames:window.__closeupFrames.filter(x=>x.serial===G.navSerial),
+        adminLabelColors:window.__adminLabelColors,
         trace:(G.getV52SceneTrace?.()||[]).filter(x=>x.serial===G.navSerial).map(x=>({type:x.type,name:x.name||x.location||''})),
-        links:[...document.querySelectorAll('.v52-detail-caption a')].map(a=>a.href),
         tilesLoaded:G.viewer.scene.globe.tilesLoaded,
         renderTiles:(G.viewer.scene.globe._surface?._tilesToRender||[]).map(t=>({level:t.level,imagery:(t.data?.imagery||[]).map(i=>({ready:i.readyImagery?.state,loading:i.loadingImagery?.state}))})).slice(0,12)};
     });
@@ -108,16 +132,24 @@ try{
     assert.ok(result.height<40000&&result.height>300,JSON.stringify(result));
     assert.ok(result.center&&Math.abs(result.center.x-.5)<.15&&Math.abs(result.center.y-.5)<.15,JSON.stringify(result));
     assert.ok(Math.abs(result.mapAspect-16/9)<.04,JSON.stringify(result));
+    assert.equal(result.photo,false,JSON.stringify(result));
+    assert.equal(result.closeupFlights.length,1,'facility descent must be a single flight: '+JSON.stringify(result.closeupFlights));
+    assert.ok(result.closeupFrames.length>=2,'facility descent produced fewer than two visible intermediate frames: '+JSON.stringify(result.closeupFrames));
+    assert.ok(result.closeupFrames[0].height>result.closeupFrames.at(-1).height,'the camera did not descend');
+    if(i===0){
+      assert.ok(result.adminLabelColors.length>0,'the Illinois label was never observed');
+      assert.ok(result.adminLabelColors.every(rgb=>rgb.every(channel=>channel===1)),JSON.stringify(result.adminLabelColors));
+    }
     const requiredAdmin=i===0?'伊利诺伊州':i===2?'霍尔果斯市':null;
     if(requiredAdmin)assert.ok(result.trace.some(x=>x.type==='admin-visible-hold'&&x.name===requiredAdmin),
       'the verified intermediate location did not display: '+JSON.stringify(result.trace));
-    if(!fixtures[i].detailImage)assert.equal(result.photo,false);
-    if(fixtures[i].detailImage){assert.ok(result.photo,'verified photo did not display: '+JSON.stringify(result));assert.ok(result.caption.includes(fixtures[i].detailImage.date));
-      assert.ok(result.links.includes(fixtures[i].detailImage.sourceUrl)&&result.links.includes(fixtures[i].detailImage.licenseUrl));}
+    // Keep reports compact while retaining evidence of visible motion.
+    result.closeupFrameCount=result.closeupFrames.length;delete result.closeupFrames;delete result.adminLabelColors;
     report.results.push(result);await page.screenshot({path:path.join(out,`site-${i+1}.png`),fullPage:true});
     console.log('SCENE',JSON.stringify(result));
   }
   if(!process.env.V52_ONLY_SCENE){
+    await page.evaluate(()=>window.NG14.v52Director.saveSettings({travel:.25,country:1,admin:.25,location:.25,finalHold:0}));
     await page.evaluate(fixture=>{
       const G=window.NG14;
       G.news[8]={...fixture,id:9,title:'测试：新加坡与印度尼西亚双国镜头',region:'新加坡/印度尼西亚',
@@ -136,11 +168,11 @@ try{
     await page.evaluate(()=>window.NG14.focus(3,true));
     await page.waitForFunction(()=>window.NG14.current===3,null,{timeout:10000});
     await page.locator('#directorReplay').click();
-    await page.waitForFunction(()=>window.NG14.v52Director.getState().phase==='detail',null,{timeout:100000});
+    await page.waitForFunction(()=>{const s=window.NG14.v52Director.getState();return s.phase==='site'&&!s.moving&&s.status==='running';},null,{timeout:100000});
     await page.locator('#directorPause').click();
     await page.waitForFunction(()=>window.NG14.v52Director.getState().paused,null,{timeout:30000});
     const pausedSerial=await page.evaluate(()=>window.NG14.navSerial);
-    assert.equal(await page.locator('.v52-detail-photo.paused').count(),1);
+    assert.equal(await page.locator('.v52-detail-photo').count(),0);
     await page.waitForTimeout(500);assert.equal(await page.evaluate(()=>window.NG14.navSerial),pausedSerial);
     await page.locator('#directorPause').click();
     await page.waitForFunction(()=>!window.NG14.v52Director.getState().paused,null,{timeout:10000});
@@ -152,7 +184,7 @@ try{
     await page.locator('#prev').click();await page.waitForFunction(()=>window.NG14.current===4,null,{timeout:10000});
     await page.route('https://example.invalid/**',route=>route.abort('failed'));
     await page.evaluate(fixture=>{const G=window.NG14;
-      G.news[9]={...fixture,id:10,title:'测试：图片加载失败',detailImage:{...fixture.detailImage,url:'https://example.invalid/missing.jpg'},
+      G.news[9]={...fixture,id:10,title:'测试：忽略旧图片字段',detailImage:{...fixture.detailImage,url:'https://example.invalid/missing.jpg'},
         cameraPreset:{approachDuration:.7,siteDuration:.7,detailDuration:2}};G.focus(9,true);
     },fixtures[3]);
     await page.waitForFunction(()=>{const G=window.NG14,s=G.v52Director.getState();return G.current===9&&s.index===9&&s.status==='complete';},null,{timeout:100000});
@@ -160,7 +192,7 @@ try{
     // Cancellation by direct user interaction must restore the current map's
     // annotations; a cancelled flight is not a completed scene.
     await page.evaluate(fixture=>{const G=window.NG14;
-      G.news[6]={...fixture,id:7,cameraPreset:{approachDuration:1,siteDuration:10,detailDuration:2}};G.focus(6,true);
+      G.news[6]={...fixture,id:7,cameraPreset:{approachDuration:5,siteDuration:15,detailDuration:2}};G.focus(6,true);
     },fixtures[3]);
     await page.waitForFunction(()=>{const s=window.NG14.v52Director.getState();return s.phase==='site'&&s.moving;},null,{timeout:100000});
     await page.evaluate(()=>window.NG14.viewer.camera.cancelFlight());
@@ -174,14 +206,14 @@ try{
         scenePlan:{primaryIso3:'UKR',victimIso3:'UKR',sourceUnconfirmed:true},
         cameraPreset:{approachDuration:1,siteDuration:4,detailDuration:6}};G.focus(7,true);
     },fixtures[1]);
-    await page.waitForFunction(()=>{const s=window.NG14.v52Director.getState();return s.phase==='site'&&s.moving;},null,{timeout:120000});
+    await page.waitForFunction(()=>{const s=window.NG14.v52Director.getState();return s.phase==='approach'&&s.moving;},null,{timeout:120000});
     await page.setViewportSize({width:410,height:844});
     await page.waitForFunction(()=>window.NG14.v52Director.getState().status==='complete',null,{timeout:100000});
     await page.waitForTimeout(800);
     const attack=await page.evaluate(()=>{clearInterval(window.__syntheticWatch);const G=window.NG14;
       return {height:G.viewer.camera.positionCartographic.height,synthetic:window.__syntheticSeen,diagnostics:G.v52Attack?.getDiagnostics()};});
     assert.ok(attack.height<12000,JSON.stringify(attack));assert.equal(attack.synthetic,false);assert.equal(attack.diagnostics,null);
-    assert.equal(await page.locator('.v52-detail-photo.visible').count(),1);
+    assert.equal(await page.locator('.v52-detail-photo').count(),0);
     console.log('ATTACK_RESIZE_AND_CANCEL',JSON.stringify(attack));
     // City and region precision must never use a facility photo or altitude.
     for(const [precision,minHeight] of [['city',18000],['region',70000]]){
@@ -197,11 +229,12 @@ try{
     },fixtures[3]);
     await page.waitForFunction(()=>window.NG14.v52Director.getState().status==='complete',null,{timeout:100000});
     assert.equal(await page.locator('.v52-detail-photo').count(),0);
-    console.log('CONTROLS import, reload, replay, detail pause/resume, autoplay, next, previous, failed image: PASS');
+    console.log('CONTROLS import, reload, replay, site pause/resume, autoplay, next, previous, ignored image: PASS');
     console.log('PRECISION city, region and country-only: PASS');
   }
   assert.equal(report.errors.length,0,JSON.stringify(report.errors));
   assert.ok(report.imagerySuccess>0,'real Esri satellite tiles were not retrieved');
-  console.log('NETWORK',JSON.stringify({imageryRequests:report.imageryRequests,imagerySuccess:report.imagerySuccess,photoSuccess:report.photoSuccess}));
+  assert.equal(report.photoRequests,0,'a legacy detail photograph was requested');
+  console.log('NETWORK',JSON.stringify({imageryRequests:report.imageryRequests,imagerySuccess:report.imagerySuccess,photoRequests:report.photoRequests}));
 }catch(error){report.errors.push(error.stack||error.message);console.error('VERIFY_FAILED',error.stack||error.message);process.exitCode=1;}
 finally{fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));await browser.close();server.close();}
