@@ -63,7 +63,7 @@ if(process.env.V52_LOCAL_CESIUM_DIR){
 try{
   await page.goto(`http://127.0.0.1:${address.port}/news-globe-run-20260920-v52-r1.html`,{waitUntil:'domcontentloaded',timeout:60000});
   await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
-  const payload={meta:{date:'2026-10-28',edition:'test-only',dataLock:'TEST-NOT-NEWS'},news:Array.from({length:10},(_,i)=>({...fixtures[i%4],id:i+1,cameraPreset:{approachDuration:2,siteDuration:2,detailDuration:6}}))};
+  const payload={meta:{date:'2026-10-28',edition:'test-only',dataLock:'TEST-NOT-NEWS'},news:Array.from({length:10},(_,i)=>({...fixtures[i%4],id:i+1,cameraPreset:{approachDuration:2.8,siteDuration:3.2,detailDuration:6}}))};
   await page.locator('#settingsBtn').click();
   await page.locator('#jsonInput').fill(JSON.stringify(payload));
   await page.locator('#applyBtn').click();
@@ -71,7 +71,9 @@ try{
   await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
   const imported=await page.evaluate(payload=>{
     const G=window.NG14,errors=G.validate(payload);
-    G.v52Director.saveSettings({travel:.25,country:1,admin:.25,location:.25,finalHold:0});
+    // Check visible intermediate frames at the normal six-second travel
+    // duration; a 0.25 speed multiplier can leave software WebGL no frames.
+    G.v52Director.saveSettings({travel:1,country:1,admin:.25,location:.25,finalHold:0});
     window.__detailStages=[];const stage=G.v52Director.stage;G.v52Director.stage=(p,s,...rest)=>{window.__detailStages.push({p,s});return stage(p,s,...rest);};
     window.__closeupFlights=[];window.__closeupFrames=[];window.__adminLabelColors=[];
     const fly=G.viewer.camera.flyTo;
@@ -132,7 +134,7 @@ try{
     assert.ok(Math.abs(result.mapAspect-16/9)<.04,JSON.stringify(result));
     assert.equal(result.photo,false,JSON.stringify(result));
     assert.equal(result.closeupFlights.length,1,'facility descent must be a single flight: '+JSON.stringify(result.closeupFlights));
-    assert.ok(result.closeupFrames.length>=2,'facility descent produced no visible intermediate frames');
+    assert.ok(result.closeupFrames.length>=2,'facility descent produced fewer than two visible intermediate frames: '+JSON.stringify(result.closeupFrames));
     assert.ok(result.closeupFrames[0].height>result.closeupFrames.at(-1).height,'the camera did not descend');
     if(i===0){
       assert.ok(result.adminLabelColors.length>0,'the Illinois label was never observed');
@@ -147,6 +149,7 @@ try{
     console.log('SCENE',JSON.stringify(result));
   }
   if(!process.env.V52_ONLY_SCENE){
+    await page.evaluate(()=>window.NG14.v52Director.saveSettings({travel:.25,country:1,admin:.25,location:.25,finalHold:0}));
     await page.evaluate(fixture=>{
       const G=window.NG14;
       G.news[8]={...fixture,id:9,title:'测试：新加坡与印度尼西亚双国镜头',region:'新加坡/印度尼西亚',
