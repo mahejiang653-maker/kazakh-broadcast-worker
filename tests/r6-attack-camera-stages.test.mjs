@@ -210,7 +210,7 @@ test('foreign Iran incident cannot frame a tiny US overseas island',()=>{
   raw:iso=>polygonsByIso[iso],polygons:g=>g.coordinates,
   carts:iso=>polygonsByIso[iso].coordinates.flatMap(poly=>poly[0].map(([lon,lat])=>({lon,lat}))),
   area:ring=>Math.abs(ring.reduce((s,p,i)=>{const q=ring[(i+1)%ring.length];return s+p[0]*q[1]-q[0]*p[1]},0)/2)});
- vm.runInContext(between('const DISPERSED_TERRITORIES=', 'function impactHeight(ctx){'),ctx);
+ vm.runInContext(between('function contiguousUsRing(', 'function impactHeight(ctx){'),ctx);
  const foreign=vm.runInContext('countryFramePoints("USA",{lon:55.891,lat:26.958})',ctx);
  assert.ok(foreign.every(p=>p.lon< -60),'foreign incident must frame US mainland');
  const domestic=vm.runInContext('countryFramePoints("USA",{lon:-100,lat:38})',ctx);
