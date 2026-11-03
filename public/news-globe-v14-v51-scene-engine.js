@@ -30,7 +30,28 @@ function polygons(g){if(!g)return[];if(g.type==='Feature')return polygons(g.geom
 function collect(g,out=[]){if(!g)return out;if(Array.isArray(g)){if(g.length>=2&&typeof g[0]==='number'&&typeof g[1]==='number')out.push(g);else for(const x of g)collect(x,out)}else if(g.coordinates)collect(g.coordinates,out);else if(g.geometry)collect(g.geometry,out);else if(Array.isArray(g.features))for(const f of g.features)collect(f,out);return out}
 function carts(iso){const a=[];for(const f of viewFeatures(iso))for(const p of collect(f,[]))if(good(p[0],p[1]))a.push(C.Cartesian3.fromDegrees(+p[0],+p[1],0));return a}
 function area(r){let a=0;for(let i=0,j=r.length-1;i<r.length;j=i++)a+=(+r[j][0])*(+r[i][1])-(+r[i][0])*(+r[j][1]);return Math.abs(a/2)}
-function mainRing(iso){let best=null,ba=-1;for(const p of polygons(raw(iso))){const r=p?.[0]||[],a=area(r);if(r.length>3&&a>ba){best=r;ba=a}}return best}
+// Mainland US must not be inferred from planar lon/lat area: Alaska and
+// dateline-crossing islands can otherwise win the polygon ranking.
+function contiguousUsRing(){
+ const pieces=polygons(raw('USA')).map(p=>p?.[0]).filter(r=>r?.length>=3);
+ let best=null,bestScore=-1;
+ for(const ring of pieces){
+  const points=ring.filter(p=>good(p?.[0],p?.[1]));
+  if(points.length<3)continue;
+  const mainland=points.filter(p=>+p[0]>=-125.5&&+p[0]<=-66&&+p[1]>=24&&+p[1]<=50.5);
+  // Require the vast majority of vertices in the lower 48; never accept a
+  // tiny island merely because one coordinate falls inside the bbox.
+  if(mainland.length/points.length<.85)continue;
+  const xs=mainland.map(p=>+p[0]),ys=mainland.map(p=>+p[1]);
+  const width=Math.max(...xs)-Math.min(...xs),height=Math.max(...ys)-Math.min(...ys);
+  if(width<20||height<10)continue;
+  const score=width*height;
+  if(score>bestScore){best=ring;bestScore=score}
+ }
+ return best;
+}
+function mainRing(iso){if(String(iso||'').toUpperCase()==='USA'){const lower48=contiguousUsRing();if(lower48)return lower48}
+ let best=null,ba=-1;for(const p of polygons(raw(iso))){const r=p?.[0]||[],a=area(r);if(r.length>3&&a>ba){best=r;ba=a}}return best}
 function centroid(r){let x=0,y=0,n=0;for(const p of r||[]){if(good(p?.[0],p?.[1])){x+=+p[0];y+=+p[1];n++}}return n?[x/n,y/n]:null}
 function mainland(iso){iso=String(iso||'').toUpperCase();if(iso==='CHN')return[103.8,35.4];return centroid(mainRing(iso))||G.countries?.get?.(iso)?.center||null}
 // For countries outside France, use the relevant territorial component for camera
@@ -41,6 +62,7 @@ const DISPERSED_TERRITORIES=new Set(['USA','GBR','ESP','PRT','NLD','NOR']);
 function countryFramePoints(iso,focus=null){
  iso=String(iso||'').toUpperCase();const all=carts(iso);
  if(!DISPERSED_TERRITORIES.has(iso)||all.length<4)return all;
+ if(iso==='USA'){const lower48=contiguousUsRing();if(lower48)return lower48.map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));}
  const pieces=polygons(raw(iso)).map(poly=>poly?.[0]).filter(r=>r?.length>=3);
  if(pieces.length<2)return all;
  const target=good(focus?.lon,focus?.lat)?[+focus.lon,+focus.lat]:null;
