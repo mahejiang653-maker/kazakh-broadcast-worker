@@ -197,3 +197,22 @@ test('confirmed attack routes keep projectile animation then end on an incident 
  assert.ok(flightCode.indexOf('showImpacts(ctx)')<flightCode.indexOf('flyPoint(a.target.lon,a.target.lat,impactHeight(ctx),ctx.serial,1.05)'));
  assert.match(flightCode,/activeAttack===ctx&&ctx.serial===G.navSerial/);
 });
+
+test('foreign Iran incident cannot frame a tiny US overseas island',()=>{
+ const mainland=[[-125,25],[-66,25],[-66,49],[-125,49],[-125,25]];
+ const island=[[54,26],[56,26],[56,28],[54,28],[54,26]];
+ const polygonsByIso={USA:{type:'MultiPolygon',coordinates:[[mainland],[island]]}};
+ const C={Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},BoundingSphere:{fromPoints(ps){
+  const lon=ps.reduce((s,p)=>s+p.lon,0)/ps.length,lat=ps.reduce((s,p)=>s+p.lat,0)/ps.length;
+  return{center:{lon,lat},radius:Math.max(...ps.map(p=>Math.hypot(p.lon-lon,p.lat-lat)))*100000};
+ }}};
+ const ctx=vm.createContext({C,good:(a,b)=>Number.isFinite(+a)&&Number.isFinite(+b),
+  raw:iso=>polygonsByIso[iso],polygons:g=>g.coordinates,
+  carts:iso=>polygonsByIso[iso].coordinates.flatMap(poly=>poly[0].map(([lon,lat])=>({lon,lat}))),
+  area:ring=>Math.abs(ring.reduce((s,p,i)=>{const q=ring[(i+1)%ring.length];return s+p[0]*q[1]-q[0]*p[1]},0)/2)});
+ vm.runInContext(between('const DISPERSED_TERRITORIES=', 'function impactHeight(ctx){'),ctx);
+ const foreign=vm.runInContext('countryFramePoints("USA",{lon:55.891,lat:26.958})',ctx);
+ assert.ok(foreign.every(p=>p.lon< -60),'foreign incident must frame US mainland');
+ const domestic=vm.runInContext('countryFramePoints("USA",{lon:-100,lat:38})',ctx);
+ assert.ok(domestic.every(p=>p.lon< -60));
+});
