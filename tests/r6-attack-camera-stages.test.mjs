@@ -200,7 +200,7 @@ test('confirmed attack routes keep projectile animation then end on an incident 
 
 test('foreign Iran incident cannot frame a tiny US overseas island',()=>{
  const mainland=[[-125,25],[-66,25],[-66,49],[-125,49],[-125,25]];
- const island=[[54,26],[56,26],[56,28],[54,28],[54,26]];
+ const island=[[57,26],[58,26],[58,28],[57,28],[57,26]];
  const polygonsByIso={USA:{type:'MultiPolygon',coordinates:[[mainland],[island]]}};
  const C={Cartesian3:{fromDegrees:(lon,lat)=>({lon,lat})},BoundingSphere:{fromPoints(ps){
   const lon=ps.reduce((s,p)=>s+p.lon,0)/ps.length,lat=ps.reduce((s,p)=>s+p.lat,0)/ps.length;
@@ -215,4 +215,10 @@ test('foreign Iran incident cannot frame a tiny US overseas island',()=>{
  assert.ok(foreign.every(p=>p.lon< -60),'foreign incident must frame US mainland');
  const domestic=vm.runInContext('countryFramePoints("USA",{lon:-100,lat:38})',ctx);
  assert.ok(domestic.every(p=>p.lon< -60));
+});
+
+test('approximate island-region news uses contextual point camera, not a false exact polygon',()=>{
+ const body=between('async function finalLocation(', 'async function runAdmins(');
+ assert.match(body,/n\.geoEvidence\?\.isIncidentCoordinates!==false/);
+ assert.match(body,/n\.geoEvidence\?\.isIncidentCoordinates===false\?Math\.max\(eventHeight\(n\),850000\)/);
 });
