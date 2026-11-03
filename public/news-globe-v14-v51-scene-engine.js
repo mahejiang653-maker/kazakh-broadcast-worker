@@ -44,15 +44,29 @@ function countryFramePoints(iso,focus=null){
  const pieces=polygons(raw(iso)).map(poly=>poly?.[0]).filter(r=>r?.length>=3);
  if(pieces.length<2)return all;
  const target=good(focus?.lon,focus?.lat)?[+focus.lon,+focus.lat]:null;
- let best=null,score=Infinity;
- for(const ring of pieces){
+ // A foreign incident must NEVER select the nearest tiny overseas island as
+ // the country's overview. Only use an overseas component if the incident is
+ // actually inside it; otherwise prefer the country's largest landmass.
+ function contains(ring,point){
+  const [lon,lat]=point;let inside=false;
+  const adjusted=ring.map(p=>{
+   let x=+p[0];while(x-lon>180)x-=360;while(x-lon< -180)x+=360;
+   return[x,+p[1]];
+  });
+  for(let i=0,j=adjusted.length-1;i<adjusted.length;j=i++){
+   const [xi,yi]=adjusted[i],[xj,yj]=adjusted[j];
+   if((yi>lat)!==(yj>lat)&&lon<(xj-xi)*(lat-yi)/(yj-yi)+xi)inside=!inside;
+  }
+  return inside;
+ }
+ const inside=target?pieces.filter(ring=>contains(ring,target)):[];
+ const candidates=inside.length?inside:pieces;
+ let best=null,score=-Infinity;
+ for(const ring of candidates){
   const pts=ring.filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
   if(pts.length<3)continue;
-  const sphere=C.BoundingSphere.fromPoints(pts);
-  // Without a known incident, prefer the largest landmass. With one, frame
-  // the nearest component, including real incidents in overseas territories.
-  const d=target?C.Cartesian3.distance(sphere.center,C.Cartesian3.fromDegrees(target[0],target[1],0)):-area(ring);
-  if(d<score){best=pts;score=d}
+  const size=area(ring);
+  if(size>score){best=pts;score=size}
  }
  if(!best)return all;
  const whole=C.BoundingSphere.fromPoints(all),regional=C.BoundingSphere.fromPoints(best);
