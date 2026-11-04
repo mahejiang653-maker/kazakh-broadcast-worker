@@ -62,13 +62,38 @@ if(process.env.V52_LOCAL_CESIUM_DIR){
 }
 try{
   await page.goto(`http://127.0.0.1:${address.port}/news-globe-run-20260920-v52-r1.html`,{waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
+  await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile')&&typeof document.querySelector('#settingsBtn')?.onclick==='function',null,{timeout:120000});
+  if(process.env.V52_FIRST_PLAY_ONLY){
+  // Exercise the first playback on a fresh page before any import/reload: the
+  // original production-only defect occurred in this initialization path.
+  await page.evaluate(fixture=>{
+    const G=window.NG14;
+    G.v52Director.saveSettings({travel:.5,country:1,admin:.5,location:.25,finalHold:0});
+    window.__firstPlayLabelColors=[];
+    window.__removeFirstPlaySample=G.viewer.scene.preRender.addEventListener(()=>{
+      const label=G.localLabelEntity?.label;
+      if(G.localLabelEntity?.show!==false&&label?.text?.getValue?.(G.viewer.clock.currentTime)==='伊利诺伊州'){
+        const color=label.fillColor?.getValue?.(G.viewer.clock.currentTime);
+        if(color)window.__firstPlayLabelColors.push([color.red,color.green,color.blue]);
+      }
+    });
+    G.news[0]={...fixture,id:1};G.focus(0,true);
+  },fixtures[0]);
+  await page.waitForFunction(()=>window.__firstPlayLabelColors?.length>0,null,{timeout:120000});
+  const firstPlayColors=await page.evaluate(()=>{
+    window.__removeFirstPlaySample?.();return window.__firstPlayLabelColors;
+  });
+  assert.ok(firstPlayColors.every(rgb=>rgb.every(channel=>channel===1)),
+    'first-play Illinois label was not white: '+JSON.stringify(firstPlayColors));
+  console.log('FIRST_PLAY_WHITE_LABEL PASS',JSON.stringify(firstPlayColors[0]));
+  assert.equal(report.errors.length,0,JSON.stringify(report.errors));
+  }else{
   const payload={meta:{date:'2026-10-28',edition:'test-only',dataLock:'TEST-NOT-NEWS'},news:Array.from({length:10},(_,i)=>({...fixtures[i%4],id:i+1,cameraPreset:{approachDuration:2.8,siteDuration:3.2,detailDuration:6}}))};
   await page.locator('#settingsBtn').click();
   await page.locator('#jsonInput').fill(JSON.stringify(payload));
   await page.locator('#applyBtn').click();
   await page.reload({waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile'),null,{timeout:120000});
+  await page.waitForFunction(()=>window.NG14?.viewer&&window.NG14?.v52Director&&window.NG14?.v52EventDetail&&window.NG14?.countries?.size>0&&document.querySelector('#dailyLockFile')&&typeof document.querySelector('#settingsBtn')?.onclick==='function',null,{timeout:120000});
   const imported=await page.evaluate(payload=>{
     const G=window.NG14,errors=G.validate(payload);
     // Check visible intermediate frames at the normal six-second travel
@@ -236,5 +261,6 @@ try{
   assert.ok(report.imagerySuccess>0,'real Esri satellite tiles were not retrieved');
   assert.equal(report.photoRequests,0,'a legacy detail photograph was requested');
   console.log('NETWORK',JSON.stringify({imageryRequests:report.imageryRequests,imagerySuccess:report.imagerySuccess,photoRequests:report.photoRequests}));
+  }
 }catch(error){report.errors.push(error.stack||error.message);console.error('VERIFY_FAILED',error.stack||error.message);process.exitCode=1;}
 finally{fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(report,null,2));await browser.close();server.close();}
