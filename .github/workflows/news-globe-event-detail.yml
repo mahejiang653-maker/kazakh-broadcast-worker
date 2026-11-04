@@ -28,6 +28,8 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Install Chinese fonts for screenshot verification
         run: sudo apt-get install --yes fonts-noto-cjk
+      - name: Verify the first playback uses white map text
+        run: V52_FIRST_PLAY_ONLY=1 V52_QA_DIR=globe-event-detail-qa/first-play node scripts/verify-r6-event-detail-browser.mjs
       - name: Verify four sourced sites and playback controls in Chromium
         run: V52_QA_DIR=globe-event-detail-qa node scripts/verify-r6-event-detail-browser.mjs
       - name: Save browser evidence

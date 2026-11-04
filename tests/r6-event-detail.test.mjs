@@ -62,6 +62,23 @@ test('yellow map text becomes white while non-yellow labels and red markers keep
   assert.equal(country.point.color,'red');assert.equal(other.label.fillColor,blue);
 });
 
+test('the label factory whitens warm text even when the collection event misses the nested label',async()=>{
+  const white={red:1,green:1,blue:1,alpha:1,withAlpha(alpha){return {...this,alpha};}};
+  const warm={red:1,green:.953,blue:.824,alpha:.7};
+  const blue={red:.65,green:.8,blue:1,alpha:1};
+  const entities={values:[],collectionChanged:{addEventListener(){return ()=>{};}}};
+  const viewer={clock:{currentTime:0},entities,scene:{globe:{tileCacheSize:100},requestRender(){}}};
+  const G={navSerial:1,current:0,overviewMode:false,viewer,initViewer:async()=>true,
+    label(_text,_lon,_lat,mode){return {label:{fillColor:mode==='country'?warm:blue}};}};
+  const window={NG14:G,innerWidth:390,devicePixelRatio:3,Cesium:{Color:{WHITE:white}}};
+  vm.runInNewContext(fs.readFileSync(path,'utf8'),{window,URL,Date,Number,Math,Promise,console,setTimeout,clearTimeout});
+  await G.initViewer();
+  const country=G.label('伊利诺伊州',-89.4,40.6,'country');
+  assert.equal(country.label.fillColor.red,1);assert.equal(country.label.fillColor.green,1);assert.equal(country.label.fillColor.blue,1);
+  assert.equal(country.label.fillColor.alpha,.7);
+  assert.equal(G.label('test',0,0,'local').label.fillColor,blue);
+});
+
 test('the incident marker fades during the descent and is restored if the flight is cancelled',async()=>{
   const callbacks=[];let flight;
   const original={alpha:1,withAlpha(alpha){return {alpha,withAlpha:this.withAlpha};}};

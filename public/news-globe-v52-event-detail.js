@@ -240,6 +240,13 @@
       for(const e of added||[])fix(e);
       for(const e of changed||[])fix(e);
     });
+    // A label can be attached after the collection event. Inspect the final
+    // value returned by the shared factory as well, including first playback.
+    const labelFactory=G.label;
+    if(typeof labelFactory==='function'&&!labelFactory.__v52WhiteWarmLabel){
+      const wrapped=function(...args){const entity=labelFactory.apply(this,args);fix(entity);return entity;};
+      wrapped.__v52WhiteWarmLabel=true;G.label=wrapped;
+    }
     window.addEventListener?.('pagehide',event=>{if(!event.persisted)remove?.();});
   }
   if(typeof G.initViewer==='function'){
@@ -257,5 +264,5 @@
       return result;
     };
   }
-  G.v52EventDetail={version:'20261030-mobile-clarity-v1',normalizeStory,cameraPlan,imageSpec,storyForMap,prepare,run,cancel,setPaused};
+  G.v52EventDetail={version:'20261104-first-play-white-v1',normalizeStory,cameraPlan,imageSpec,storyForMap,prepare,run,cancel,setPaused};
 })(window.NG14);
