@@ -1,0 +1,49 @@
+name: Deploy isolated M3 remix evaluation disabled
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+permissions:
+  contents: read
+jobs:
+  deploy:
+    if: "github.event.head_commit.message == 'ci(m3): deploy disabled remix evaluation 20261105' && github.run_attempt == 1"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Verify isolated contracts
+        run: node --experimental-strip-types --test tests/m3-probe-account-check.test.mjs tests/m3-probe-secret-check.test.mjs tests/m3-voice-probe.test.mjs tests/m3-remix-eval.test.mjs tests/m3-remix-runner.test.mjs
+      - name: Verify target account and existing key names only
+        env:
+          M3_PROBE_MODE: live
+          M3_PROBE_MUST_EXIST: 'true'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          node scripts/m3-probe-account-check.mjs
+          node scripts/m3-probe-secret-check.mjs
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Deploy disabled endpoints to the isolated Worker only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node -e 'const c=JSON.parse(require("fs").readFileSync("wrangler.m3-remix-eval.jsonc")); if(c.name!=="kazakh-broadcast-m3-remix-probe-20261105" || c.main!=="./worker/m3-remix-eval.mjs" || c.observability?.enabled!==false || c.vars?.M3_EVAL_ENABLED!=="disabled") process.exit(1)'
+          npx wrangler deploy --config wrangler.m3-remix-eval.jsonc --keep-vars
+      - name: Create independent administrative token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))' > "$RUNNER_TEMP/m3-probe-token"
+          npx wrangler secret put M3_VOICE_PROBE_TOKEN --config wrangler.m3-remix-eval.jsonc < "$RUNNER_TEMP/m3-probe-token"
+      - name: Verify all generation routes are disabled
+        run: node scripts/m3-remix-disabled-check.mjs

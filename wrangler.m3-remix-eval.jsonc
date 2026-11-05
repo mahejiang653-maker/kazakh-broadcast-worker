@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kazakh-broadcast-m3-remix-probe-20261105",
+  "main": "./worker/m3-remix-eval.mjs",
+  "compatibility_date": "2026-05-22",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "vars": { "M3_EVAL_ENABLED": "disabled" }
+}
