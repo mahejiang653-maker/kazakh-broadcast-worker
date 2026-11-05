@@ -6,8 +6,11 @@ const MAX_AUDIO_BYTES = 64 * 1024 * 1024;
 const MAX_FRAME_CHARS = 48 * 1024 * 1024;
 
 const fail = code => { throw new Error(code); };
-const validBase64 = data => typeof data === "string" && data.length > 0 &&
-  /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(data);
+const validBase64 = data => {
+  if (typeof data !== "string" || !data.length || data.length % 4 || /[^A-Za-z0-9+/=]/.test(data)) return false;
+  const pad = data.indexOf("=");
+  return pad < 0 || (pad >= data.length - 2 && /^={1,2}$/.test(data.slice(pad)));
+};
 const varied = bytes => {
   for (let i = 2; i < bytes.length; i += 2) if (bytes[i] !== bytes[0] || bytes[i + 1] !== bytes[1]) return true;
   return false;
