@@ -1,0 +1,19 @@
+name: M3 voice experiment unit tests
+on:
+  push:
+    branches:
+      - experiment/voice-remix-evaluation
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run offline Voice API and A/B tests
+        run: node --test tests/m3-voices-preflight.test.mjs tests/m3-voice-ab-plan.test.mjs
