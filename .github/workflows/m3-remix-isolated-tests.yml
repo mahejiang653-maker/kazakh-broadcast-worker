@@ -1,0 +1,32 @@
+name: M3 isolated remix offline verification
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+    paths:
+      - 'worker/m3-remix-eval.mjs'
+      - 'tests/m3-remix-eval.test.mjs'
+      - 'tests/fixtures/m3-remix-eval-10news.txt'
+      - '.github/workflows/m3-remix-isolated-tests.yml'
+permissions:
+  contents: read
+  statuses: write
+jobs:
+  offline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test isolated safety and request contract without Google
+        run: node --experimental-strip-types --test tests/m3-remix-eval.test.mjs
+      - name: Publish offline test status
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TEST_STATUS: ${{ job.status }}
+        run: |
+          if [ "$TEST_STATUS" = success ]; then result=success; else result=failure; fi
+          body="{\"state\":\"$result\",\"context\":\"M3 Remix isolated offline\",\"target_url\":\"https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
+          curl --fail --silent --show-error --output /dev/null -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" -H "Content-Type: application/json" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" --data "$body"
