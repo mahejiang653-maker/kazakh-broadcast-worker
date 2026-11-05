@@ -101,3 +101,11 @@ test("failed baseline stops before remix and invalid inputs make no requests", a
   await assert.rejects(() => runner.runRemixComparison({ text: "short", token: "t".repeat(48), fetcher }));
   assert.equal(calls, 0);
 });
+
+test("large valid audio frame is decoded without recursion or lost bytes", async () => {
+  const pcm = Buffer.alloc(1024 * 1024, 3);
+  const encoded = new TextEncoder().encode(encode(audio(pcm)) + encode(stop));
+  const one = new ReadableStream({ start(controller) { controller.enqueue(encoded); controller.close(); } });
+  const result = await runner.decodeAudioStream(one, { minimumSeconds: 0 });
+  assert.deepEqual(result.pcm, pcm);
+});
