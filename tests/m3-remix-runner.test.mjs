@@ -52,7 +52,7 @@ test("incomplete, corrupted, or post-stop streams never become completed WAVs", 
 test("duplicate large non-silent audio is rejected rather than silently removed", async () => {
   assert.equal(typeof runner.decodeAudioStream, "function");
   const block = Buffer.alloc(48000); block[2] = 1; block[4] = 2;
-  await assert.rejects(() => runner.decodeAudioStream(parts(encode(audio(block)) + encode(audio(block)) + encode(stop), { minimumSeconds: 0 }), /REPEATED_AUDIO/);
+  await assert.rejects(() => runner.decodeAudioStream(parts(encode(audio(block)) + encode(audio(block)) + encode(stop)), { minimumSeconds: 0 }), /REPEATED_AUDIO/);
 });
 
 test("one comparison makes one creation and two ordered single synthesis calls", async () => {
