@@ -17,3 +17,16 @@ jobs:
           node-version: '22'
       - name: Run offline Voice API and A/B tests
         run: node --experimental-strip-types --test tests/m3-voices-preflight.test.mjs tests/m3-voice-ab-plan.test.mjs tests/m3-remix-request-preview.test.mjs tests/m3-voice-evaluation-gate.test.mjs tests/m3-voice-probe.test.mjs
+  credential-presence:
+    # Only expose presence, never credential values; this job performs no API call.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether isolated deployment inputs exist
+        env:
+          CF_TOKEN_PRESENT: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+          CF_ACCOUNT_PRESENT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          GEMINI_KEY_PRESENT: ${{ secrets.GEMINI_API_KEY != '' }}
+        run: |
+          printf 'Cloudflare deployment token present: %s\n' "$CF_TOKEN_PRESENT"
+          printf 'Cloudflare account ID present: %s\n' "$CF_ACCOUNT_PRESENT"
+          printf 'Gemini project key present in GitHub Secrets: %s\n' "$GEMINI_KEY_PRESENT"

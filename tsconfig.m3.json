@@ -8,7 +8,8 @@
   },
   "include": [
     "app/lib/m3-*.ts",
-    "worker/m3-regional-session.ts"
+    "worker/m3-regional-session.ts",
+    "worker/m3-voice-probe.ts"
   ],
   "exclude": [
     "node_modules"
