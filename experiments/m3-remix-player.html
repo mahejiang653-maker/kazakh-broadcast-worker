@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>M3 录音对照</title>
+  <style>
+    body{font:16px/1.6 system-ui,sans-serif;max-width:680px;margin:32px auto;padding:0 18px;color:#192033;background:#f6f7fb}
+    main{background:white;padding:24px;border-radius:14px;box-shadow:0 2px 12px #0001}
+    h1{font-size:1.45rem} label{display:block;margin:16px 0 6px;font-weight:600}
+    input,button{box-sizing:border-box;width:100%;padding:12px;border:1px solid #bbc2d1;border-radius:8px;font:inherit}
+    button{background:#1e4daa;color:white;border:0;margin:18px 0 4px}
+    button:disabled{opacity:.5} audio{width:100%;margin-top:12px} p{color:#39445a}
+    .row{margin:18px 0;padding:14px;background:#f2f5fb;border-radius:10px}
+  </style>
+</head>
+<body><main>
+  <h1>哈萨克语播音音色对照</h1>
+  <p>选择下载并解压后的两个加密录音，输入你设置的录音密码。解密只在此设备上进行。</p>
+  <label for="password">录音密码</label><input id="password" type="password" autocomplete="off">
+  <label for="baseline">原始 Iapetus 录音</label><input id="baseline" type="file" accept=".m3enc">
+  <label for="remix">Remix 录音</label><input id="remix" type="file" accept=".m3enc">
+  <button id="open">解密并播放</button><p id="status" role="status"></p>
+  <div class="row" id="original" hidden><b>原始 Iapetus</b><audio controls></audio><a download="Iapetus-original.wav">下载录音</a></div>
+  <div class="row" id="altered" hidden><b>Remix</b><audio controls></audio><a download="Iapetus-remix.wav">下载录音</a></div>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+async function decryptFile(file, password) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  if (bytes.length < 52 || new TextDecoder().decode(bytes.slice(0, 8)) !== "M3EVAL01") throw Error("INVALID_FILE");
+  const source = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey({name:"PBKDF2",hash:"SHA-256",salt:bytes.slice(8,24),iterations:310000}, source, {name:"AES-GCM",length:256}, false, ["decrypt"]);
+  const plain = await crypto.subtle.decrypt({name:"AES-GCM",iv:bytes.slice(24,36),tagLength:128}, key, bytes.slice(36));
+  const wave = new Uint8Array(plain);
+  if (wave.length < 44 || new TextDecoder().decode(wave.slice(0,4)) !== "RIFF" || new TextDecoder().decode(wave.slice(8,12)) !== "WAVE") throw Error("INVALID_WAV");
+  return new Blob([wave], {type:"audio/wav"});
+}
+function present(id, blob) {
+  const panel = $(id), url = URL.createObjectURL(blob);
+  panel.querySelector("audio").src = url;
+  panel.querySelector("a").href = url;
+  panel.hidden = false;
+}
+$("open").onclick = async () => {
+  const pass = $("password").value, original = $("baseline").files[0], remix = $("remix").files[0];
+  if (!pass || !original || !remix) { $("status").textContent = "请填写密码并选择两个录音文件。"; return; }
+  if (!globalThis.crypto?.subtle) { $("status").textContent = "浏览器不支持本地解密，请换用较新的浏览器。"; return; }
+  $("open").disabled = true; $("status").textContent = "正在本机解密，请稍候。";
+  try {
+    const a = await decryptFile(original, pass);
+    const b = await decryptFile(remix, pass);
+    present("original", a); present("altered", b);
+    $("status").textContent = "解密完成，可以播放或保存两段录音。";
+    $("password").value = "";
+  } catch {
+    $("status").textContent = "解密失败：密码不正确或文件已损坏。";
+  } finally { $("open").disabled = false; }
+};
+</script>
+</body></html>
