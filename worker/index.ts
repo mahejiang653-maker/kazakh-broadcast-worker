@@ -1,5 +1,6 @@
 /** Cloudflare Worker entry point for the Kazakh broadcast site. */
 import handler from "vinext/server/app-router-entry";
+import { handleVoiceProbe } from "./m3-voice-probe";
 import { fishStatus, handleFishTest } from "./fish-test";
 import { independentFishStatus, handleIndependentFishTest } from "./fish-independent-test";
 export { M3RegionalSession } from "./m3-regional-session";
@@ -30,6 +31,7 @@ function withM2IsolationHeaders(response: Response) {
 export default {
   async fetch(request: Request, env: Parameters<typeof handler.fetch>[1], ctx: Parameters<typeof handler.fetch>[2]) {
     const url = new URL(request.url);
+    if (url.pathname === "/api/internal/m3-voice-probe") return withM2IsolationHeaders(await handleVoiceProbe(request, env as { GEMINI_API_KEY?: string; M3_VOICE_PROBE_TOKEN?: string }));
     if (url.pathname === "/api/fish-independent-status" && request.method === "GET") return withM2IsolationHeaders(independentFishStatus(env));
     if (url.pathname === "/api/fish-independent-test" && request.method === "POST") return withM2IsolationHeaders(await handleIndependentFishTest(request, env));
     if (url.pathname === "/api/fish-s21-status" && request.method === "GET") return withM2IsolationHeaders(fishStatus(env));
