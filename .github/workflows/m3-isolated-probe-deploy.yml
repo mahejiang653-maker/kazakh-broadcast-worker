@@ -1,0 +1,60 @@
+name: Create isolated M3 voice probe once
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+permissions:
+  contents: read
+jobs:
+  deploy-isolated-probe:
+    if: "github.event.head_commit.message == 'ci(m3): create isolated probe 20261105'"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Test security guards
+        run: node --experimental-strip-types --test tests/m3-probe-account-check.test.mjs tests/m3-voice-probe.test.mjs
+      - name: Verify target account and absence of the test Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/m3-probe-account-check.mjs
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Deploy only the dedicated probe Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          node -e 'const c=JSON.parse(require("fs").readFileSync("wrangler.m3-probe.jsonc")); if(c.name!=="kazakh-broadcast-m3-remix-probe-20261105" || c.main!=="./worker/m3-voice-probe.ts" || c.observability?.enabled!==false) process.exit(1)'
+          npx wrangler deploy --config wrangler.m3-probe.jsonc
+      - name: Configure a random independent probe token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))' > "$RUNNER_TEMP/m3-probe-token"
+          npx wrangler secret put M3_VOICE_PROBE_TOKEN --config wrangler.m3-probe.jsonc < "$RUNNER_TEMP/m3-probe-token"
+      - name: Verify isolated access without calling Google
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const url = 'https://kazakh-broadcast-m3-remix-probe-20261105.mahejiang653.workers.dev/api/internal/m3-voice-probe';
+          const token = await readFile(`${process.env.RUNNER_TEMP}/m3-probe-token`, 'utf8');
+          const checks = [
+            { method: 'GET', expected: 405, code: 'METHOD_NOT_ALLOWED' },
+            { method: 'POST', supplied: 'wrong', expected: 401, code: 'UNAUTHORIZED' },
+            { method: 'POST', supplied: token, expected: 503, code: 'GEMINI_KEY_MISSING' },
+          ];
+          for (const check of checks) {
+            const headers = check.supplied ? { 'X-M3-Probe-Token': check.supplied } : {};
+            const response = await fetch(url, { method: check.method, headers });
+            const body = await response.json();
+            console.log(`${check.method}: HTTP ${response.status}, ${body.code}`);
+            if (response.status !== check.expected || body.code !== check.code) throw new Error('Isolated probe verification failed');
+          }
+          NODE
