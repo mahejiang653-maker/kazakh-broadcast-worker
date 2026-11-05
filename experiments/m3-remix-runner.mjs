@@ -105,9 +105,9 @@ export async function decodeAudioStream(readable, { minimumSeconds = 0.25 } = {}
  * Explicitly invoked only: create one voice, then one baseline and one remix.
  * No retries, no alternate endpoint, no publication, no credentials in errors.
  */
-export async function runRemixComparison({ text, token, fetcher = fetch, minimumSeconds } = {}) {
+export async function runRemixComparison({ text, token, fetcher = fetch, minimumSeconds, onTake = async () => {} } = {}) {
   if (typeof text !== "string" || text.trim().length < 5000 || text.trim().length > 5300 ||
-      typeof token !== "string" || !token || typeof fetcher !== "function") fail("INVALID_INPUT");
+      typeof token !== "string" || !token || typeof fetcher !== "function" || typeof onTake !== "function") fail("INVALID_INPUT");
   const manuscript = text.trim();
   const words = manuscript.match(/\S+/g)?.length ?? 0;
   const min = minimumSeconds ?? Math.max(0.25, words / 5);
@@ -143,10 +143,12 @@ export async function runRemixComparison({ text, token, fetcher = fetch, minimum
     const a = await post("synthesize", { text: manuscript, voice: "Iapetus" }, 550000);
     if (!a.headers.get("content-type")?.includes("text/event-stream")) fail("INVALID_AUDIO_STREAM");
     const baseline = await decodeAudioStream(a.body, { minimumSeconds: min });
+    await onTake("baseline", baseline);
     phase = "remix";
     const b = await post("synthesize", { text: manuscript, voice: creation.id }, 550000);
     if (!b.headers.get("content-type")?.includes("text/event-stream")) fail("INVALID_AUDIO_STREAM");
     const remix = await decodeAudioStream(b.body, { minimumSeconds: min });
+    await onTake("remix", remix);
     return { voiceId: creation.id, creationUsage: creation.usage ?? {}, calls, baseline, remix };
   } catch (error) {
     if (!(error instanceof Error)) error = new Error("COMPARISON_FAILED");
