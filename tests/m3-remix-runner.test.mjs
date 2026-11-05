@@ -109,3 +109,19 @@ test("large valid audio frame is decoded without recursion or lost bytes", async
   const result = await runner.decodeAudioStream(one, { minimumSeconds: 0 });
   assert.deepEqual(result.pcm, pcm);
 });
+
+test("completed baseline is handed off before remix and handoff failure stops further calls", async () => {
+  let calls = 0;
+  const fetcher = async url => {
+    calls++;
+    if (String(url).endsWith("/create")) return Response.json({ code: "VOICE_CREATED", id: "voice_safe123" });
+    return streamResponse(valid);
+  };
+  const saved = [];
+  await assert.rejects(() => runner.runRemixComparison({
+    text, token: "t".repeat(48), fetcher, minimumSeconds: 0,
+    onTake: async (name, take) => { saved.push([name, take.wav.length]); throw new Error("SAVE_FAILED"); },
+  }));
+  assert.deepEqual(saved, [["baseline", 52]]);
+  assert.equal(calls, 2);
+});
