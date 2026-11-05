@@ -1,0 +1,73 @@
+name: One approved M3 remix comparison
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+permissions:
+  contents: read
+jobs:
+  comparison:
+    if: "github.event.head_commit.message == 'ci(m3): run one approved remix comparison 20261106' && github.run_attempt == 1"
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Run offline safeguards
+        run: node --experimental-strip-types --test tests/m3-probe-account-check.test.mjs tests/m3-probe-secret-check.test.mjs tests/m3-voice-probe.test.mjs tests/m3-remix-eval.test.mjs tests/m3-remix-runner.test.mjs tests/m3-remix-encryption.test.mjs
+      - name: Verify target account
+        env:
+          M3_PROBE_MUST_EXIST: 'true'
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/m3-probe-account-check.mjs
+      - name: Verify key names
+        env:
+          M3_PROBE_MODE: live
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/m3-probe-secret-check.mjs
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Set one independent admin token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))' > "$RUNNER_TEMP/m3-probe-token"
+          npx wrangler secret put M3_VOICE_PROBE_TOKEN --config wrangler.m3-remix-eval.jsonc < "$RUNNER_TEMP/m3-probe-token"
+      - name: Verify token without Google
+        env:
+          M3_PROBE_MODE: verify
+        run: node scripts/m3-probe-run.mjs
+      - name: Enable isolated routes for at most 29 minutes
+        id: enable
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          node -e 'const fs=require("fs"),c=JSON.parse(fs.readFileSync("wrangler.m3-remix-eval.jsonc")); if(c.name!=="kazakh-broadcast-m3-remix-probe-20261105"||c.main!=="./worker/m3-remix-eval.mjs"||c.vars.M3_EVAL_ENABLED!=="disabled")process.exit(1); c.vars.M3_EVAL_ENABLED="enabled"; c.vars.M3_EVAL_NOT_AFTER=String(Date.now()+29*60000); fs.writeFileSync("wrangler.m3-live.generated.jsonc",JSON.stringify(c))'
+          npx wrangler deploy --config wrangler.m3-live.generated.jsonc --keep-vars
+      - name: Verify readiness without Google
+        run: node scripts/m3-remix-live-check.mjs
+      - name: Run exactly one creation and two syntheses, stopping on failure
+        id: run
+        run: node experiments/m3-once.mjs
+      - name: Disable isolated evaluation
+        if: always() && steps.enable.outcome != 'skipped'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: npx wrangler deploy --config wrangler.m3-remix-eval.jsonc --keep-vars
+      - name: Upload encrypted output only
+        if: always() && steps.run.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: m3-encrypted-comparison-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/m3-encrypted-output/*.m3enc
+            ${{ runner.temp }}/m3-encrypted-output/key.enc
+            ${{ runner.temp }}/m3-encrypted-output/metadata.json
+          if-no-files-found: error
+          retention-days: 7
