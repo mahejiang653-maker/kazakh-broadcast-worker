@@ -7,6 +7,13 @@ const VOICES = "https://generativelanguage.googleapis.com/v1beta/voices";
 const TTS = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:streamGenerateContent?alt=sse";
 const json = (body, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
 
+function evaluationEnabled(env) {
+  if (env.M3_EVAL_ENABLED !== "enabled") return false;
+  const expires = Number(env.M3_EVAL_NOT_AFTER);
+  const now = Date.now();
+  return Number.isSafeInteger(expires) && expires > now && expires <= now + 30 * 60_000;
+}
+
 const cleanText = text => text.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/gu, "")
   .replace(/[\r\n\t\u00A0\u202F\u3000]+/gu, " ").replace(/ {2,}/g, " ").trim();
 
@@ -41,8 +48,8 @@ export async function handleEvaluation(request, env, upstreamFetch = fetch) {
   });
   const auth = await handleVoiceProbe(authRequest, env);
   if (!auth.ok) return auth;
-  if (path === STATUS_PATH) return json({ code: "EVALUATION_STATUS", enabled: env.M3_EVAL_ENABLED === "enabled" });
-  if (env.M3_EVAL_ENABLED !== "enabled") return json({ code: "EVALUATION_DISABLED" }, 503);
+  if (path === STATUS_PATH) return json({ code: "EVALUATION_STATUS", enabled: evaluationEnabled(env) });
+  if (!evaluationEnabled(env)) return json({ code: "EVALUATION_DISABLED" }, 503);
   const apiKey = env.GEMINI_API_KEY?.trim();
   if (!apiKey) return json({ code: "GEMINI_KEY_MISSING" }, 503);
 
