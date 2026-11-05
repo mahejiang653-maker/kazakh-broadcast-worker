@@ -16,4 +16,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run offline Voice API and A/B tests
-        run: node --test tests/m3-voices-preflight.test.mjs tests/m3-voice-ab-plan.test.mjs
+        run: node --test tests/m3-voices-preflight.test.mjs tests/m3-voice-ab-plan.test.mjs tests/m3-remix-request-preview.test.mjs
