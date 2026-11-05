@@ -32,7 +32,8 @@ try {
 } catch (e) {
   const allowed = new Set(['INVALID_INPUT','REQUEST_OUTCOME_UNKNOWN','REQUEST_FAILED','CREATION_RESULT_INVALID','INVALID_AUDIO_STREAM','INVALID_STREAM','INVALID_STREAM_JSON','UPSTREAM_STREAM_ERROR','AUDIO_AFTER_STOP','INVALID_BASE64','AUDIO_FORMAT_MISMATCH','AUDIO_SIZE_LIMIT','REPEATED_AUDIO','CUMULATIVE_AUDIO','OVERLAPPING_AUDIO','INCOMPLETE_AUDIO','DUPLICATE_STOP','FRAME_SIZE_LIMIT','STREAM_INTERRUPTED','NO_AUDIO','SUSPICIOUSLY_SHORT_AUDIO']);
   metadata.outcome = 'failed';
-  metadata.error = { code: allowed.has(e?.message) ? e.message : 'COMPARISON_FAILED', phase: ['create','baseline','remix'].includes(e?.phase) ? e.phase : 'local', calls: Number.isSafeInteger(e?.calls) ? e.calls : 0, voiceCreated: e?.voiceCreated === true, outcomeUnknown: e?.outcomeUnknown === true, ...(Number.isInteger(e?.status) ? { status: e.status } : {}) };
+  const errorTypes = ['INVALID_ARGUMENT','FAILED_PRECONDITION','UNAUTHENTICATED','PERMISSION_DENIED','NOT_FOUND','RESOURCE_EXHAUSTED','INTERNAL','UNAVAILABLE','DEADLINE_EXCEEDED','UNKNOWN'];
+  metadata.error = { code: allowed.has(e?.message) ? e.message : 'COMPARISON_FAILED', phase: ['create','baseline','remix'].includes(e?.phase) ? e.phase : 'local', calls: Number.isSafeInteger(e?.calls) ? e.calls : 0, voiceCreated: e?.voiceCreated === true, outcomeUnknown: e?.outcomeUnknown === true, ...(Number.isInteger(e?.status) ? { status: e.status } : {}), ...(errorTypes.includes(e?.upstreamErrorType) ? { upstreamErrorType: e.upstreamErrorType } : {}) };
   await save();
   console.error(JSON.stringify(metadata));
   process.exitCode = 1;

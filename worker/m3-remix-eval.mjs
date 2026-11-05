@@ -6,6 +6,25 @@ const STATUS_PATH = "/api/internal/m3-remix-evaluation/status";
 const VOICES = "https://generativelanguage.googleapis.com/v1beta/voices";
 const TTS = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:streamGenerateContent?alt=sse";
 const json = (body, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+const GOOGLE_ERRORS = new Set(["INVALID_ARGUMENT", "FAILED_PRECONDITION", "UNAUTHENTICATED", "PERMISSION_DENIED", "NOT_FOUND", "RESOURCE_EXHAUSTED", "INTERNAL", "UNAVAILABLE", "DEADLINE_EXCEEDED"]);
+async function upstreamErrorType(response) {
+  try {
+    const reader = response.body?.getReader();
+    if (!reader) return "UNKNOWN";
+    const decoder = new TextDecoder();
+    let bytes = 0, text = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 8192) { await reader.cancel(); return "UNKNOWN"; }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+    const type = JSON.parse(text)?.error?.status;
+    return GOOGLE_ERRORS.has(type) ? type : "UNKNOWN";
+  } catch { return "UNKNOWN"; }
+}
 
 function evaluationEnabled(env) {
   if (env.M3_EVAL_ENABLED !== "enabled") return false;
@@ -101,7 +120,7 @@ export async function handleEvaluation(request, env, upstreamFetch = fetch) {
   } catch {
     return json({ code: "UPSTREAM_NETWORK_ERROR", outcomeUnknown: true }, 502);
   }
-  if (!upstream.ok) return json({ code: "GOOGLE_REQUEST_FAILED", upstreamStatus: upstream.status }, 502);
+  if (!upstream.ok) return json({ code: "GOOGLE_REQUEST_FAILED", upstreamStatus: upstream.status, upstreamErrorType: await upstreamErrorType(upstream) }, 502);
   if (path === CREATE_PATH) {
     let result;
     try { result = await upstream.json(); } catch { return json({ code: "CREATION_RESULT_INVALID", outcomeUnknown: true }, 502); }
@@ -126,3 +145,4 @@ export default {
     return handleEvaluation(request, env);
   },
 };
+

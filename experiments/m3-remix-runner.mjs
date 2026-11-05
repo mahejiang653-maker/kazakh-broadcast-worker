@@ -128,6 +128,7 @@ export async function runRemixComparison({ text, token, fetcher = fetch, minimum
       const status = Number.isInteger(details?.upstreamStatus) ? details.upstreamStatus : response.status;
       const error = new Error("REQUEST_FAILED"); error.status = status;
       error.outcomeUnknown = details?.outcomeUnknown === true;
+      if (["INVALID_ARGUMENT", "FAILED_PRECONDITION", "UNAUTHENTICATED", "PERMISSION_DENIED", "NOT_FOUND", "RESOURCE_EXHAUSTED", "INTERNAL", "UNAVAILABLE", "DEADLINE_EXCEEDED", "UNKNOWN"].includes(details?.upstreamErrorType)) error.upstreamErrorType = details.upstreamErrorType;
       throw error;
     }
     return response;
@@ -157,3 +158,4 @@ export async function runRemixComparison({ text, token, fetcher = fetch, minimum
     throw error;
   }
 }
+

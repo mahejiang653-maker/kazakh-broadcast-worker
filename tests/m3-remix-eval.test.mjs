@@ -97,14 +97,23 @@ test("upstream errors are not retried and never echo arbitrary error text", asyn
   let calls = 0;
   const result = await mod.handleEvaluation(request("/api/internal/m3-remix-evaluation/create"), env, async () => {
     calls++;
-    return Response.json({ error: { message: "test-key private message" } }, { status: 403 });
+    return Response.json({ error: { status: "PERMISSION_DENIED", message: "test-key private message" } }, { status: 403 });
   });
   const raw = await result.text();
   assert.equal(calls, 1);
   assert.equal(result.status, 502);
   assert.equal(JSON.parse(raw).upstreamStatus, 403);
+  assert.equal(JSON.parse(raw).upstreamErrorType, "PERMISSION_DENIED");
   assert.equal(raw.includes("test-key"), false);
   assert.equal(raw.includes("private message"), false);
+});
+
+test("unrecognized upstream error types are never reflected", async () => {
+  const result = await mod.handleEvaluation(request("/api/internal/m3-remix-evaluation/create"), env,
+    async () => Response.json({ error: { status: "test-key", message: "private" } }, { status: 400 }));
+  const raw = await result.text();
+  assert.equal(JSON.parse(raw).upstreamErrorType, "UNKNOWN");
+  assert.equal(raw.includes("test-key"), false);
 });
 
 test("authenticated status reveals only whether evaluation is enabled and never calls Google", async () => {
@@ -128,3 +137,4 @@ test("enabled flag without a short, unexpired authorization window cannot call G
     assert.equal((await result.json()).code, "EVALUATION_DISABLED");
   }
 });
+
