@@ -42,6 +42,8 @@ export async function handleVoiceProbe(request: Request, env: Env, upstreamFetch
   let diff = a.length ^ b.length;
   for (let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
   if (diff !== 0) return json({ code: "UNAUTHORIZED" }, 401);
+  // An authenticated preflight verifies token propagation without calling Google.
+  if (new URL(request.url).searchParams.get("check") === "auth") return json({ code: "AUTH_OK" });
   const key = env.GEMINI_API_KEY?.trim();
   if (!key) return json({ code: "GEMINI_KEY_MISSING" }, 503);
   try {

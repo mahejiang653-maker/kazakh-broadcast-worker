@@ -26,6 +26,12 @@ test("GET requests are refused", async()=>{
  const r=await handleVoiceProbe(req("GET"),{GEMINI_API_KEY:"key",M3_VOICE_PROBE_TOKEN:token});
  assert.equal(r.status,405);
 });
+test("authorized token preflight never calls Google even when a Gemini key exists", async () => {
+ const request = new Request(`${url}?check=auth`, { method: "POST", headers: { "X-M3-Probe-Token": token } });
+ const result = await handleVoiceProbe(request, { GEMINI_API_KEY: "key", M3_VOICE_PROBE_TOKEN: token }, async () => { throw new Error("must not contact Google"); });
+ assert.equal(result.status, 200);
+ assert.equal((await result.json()).code, "AUTH_OK");
+});
 test("refuses to follow redirects while sending the Google API key", async () => {
  let calls = 0;
  const r = await handleVoiceProbe(req(), { GEMINI_API_KEY: "key", M3_VOICE_PROBE_TOKEN: token }, async (url, opts) => {

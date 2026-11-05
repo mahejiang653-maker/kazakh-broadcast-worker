@@ -1,0 +1,51 @@
+name: Verify or run isolated M3 probe once
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: "github.event.head_commit.message == 'ci(m3): verify isolated probe 20261105' || github.event.head_commit.message == 'ci(m3): run one Voices GET 20261105'"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      M3_PROBE_MODE: "${{ github.event.head_commit.message == 'ci(m3): run one Voices GET 20261105' && 'live' || 'verify' }}"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Test probe safety guards
+        run: node --experimental-strip-types --test tests/m3-probe-account-check.test.mjs tests/m3-probe-secret-check.test.mjs tests/m3-probe-run.test.mjs tests/m3-voice-probe.test.mjs
+      - name: Verify account and isolated Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          M3_PROBE_MUST_EXIST: 'true'
+        run: node scripts/m3-probe-account-check.mjs
+      - name: Verify secret names without reading values
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/m3-probe-secret-check.mjs
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Update isolated probe code for authentication-only preflight
+        if: env.M3_PROBE_MODE == 'verify'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          node -e 'const c=JSON.parse(require("fs").readFileSync("wrangler.m3-probe.jsonc")); if(c.name!=="kazakh-broadcast-m3-remix-probe-20261105" || c.main!=="./worker/m3-voice-probe.ts" || c.observability?.enabled!==false) process.exit(1)'
+          npx wrangler deploy --config wrangler.m3-probe.jsonc
+      - name: Set a fresh independent probe token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node -e 'process.stdout.write(require("crypto").randomBytes(48).toString("base64url"))' > "$RUNNER_TEMP/m3-probe-token"
+          npx wrangler secret put M3_VOICE_PROBE_TOKEN --config wrangler.m3-probe.jsonc < "$RUNNER_TEMP/m3-probe-token"
+      - name: Check token or make one read-only Voices request
+        run: node scripts/m3-probe-run.mjs

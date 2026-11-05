@@ -32,3 +32,8 @@ test("refuses ambiguous accounts or insufficient Cloudflare access", async () =>
   await assert.rejects(moduleUnderTest.selectProbeAccount({ token: "test-token", fetcher: api([{ id: "a" }, { id: "b" }], { a: [prod], b: [prod] }) }), /exactly one/);
   await assert.rejects(moduleUnderTest.selectProbeAccount({ token: "test-token", fetcher: api([{ id: "a" }], {}) }), /Cloudflare/);
 });
+test("later verification requires the isolated Worker to already exist", async () => {
+  const account = await moduleUnderTest.selectProbeAccount({ token: "test-token", probeMustExist: true, fetcher: api([{ id: "a" }], { a: [prod, probe] }) });
+  assert.equal(account, "a");
+  await assert.rejects(moduleUnderTest.selectProbeAccount({ token: "test-token", probeMustExist: true, fetcher: api([{ id: "a" }], { a: [prod] }) }), /does not exist/);
+});
