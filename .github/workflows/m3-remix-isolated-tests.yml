@@ -4,6 +4,8 @@ on:
     branches: [experiment/voice-remix-evaluation]
     paths:
       - 'worker/m3-remix-eval.mjs'
+      - 'experiments/m3-remix-runner.mjs'
+      - 'tests/m3-remix-runner.test.mjs'
       - 'tests/m3-remix-eval.test.mjs'
       - 'tests/fixtures/m3-remix-eval-10news.txt'
       - '.github/workflows/m3-remix-isolated-tests.yml'
@@ -20,7 +22,7 @@ jobs:
         with:
           node-version: '22'
       - name: Test isolated safety and request contract without Google
-        run: node --experimental-strip-types --test tests/m3-remix-eval.test.mjs
+        run: node --experimental-strip-types --test tests/m3-remix-eval.test.mjs tests/m3-remix-runner.test.mjs
       - name: Publish offline test status
         if: always()
         env:
