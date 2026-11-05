@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { runProbe } from "./m3-probe-run.mjs";
 const origin = "https://kazakh-broadcast-m3-remix-probe-20261105.mahejiang653.workers.dev";
 const token = (await readFile(process.env.RUNNER_TEMP + "/m3-probe-token", "utf8")).trim();
 async function check(label, path, supplied, expected, expectedCode, extra) {
@@ -15,7 +16,8 @@ async function check(label, path, supplied, expected, expectedCode, extra) {
   if (response.status !== expected || data.code !== expectedCode || (extra && !extra(data))) throw new Error("preflight failed");
 }
 try {
-  await check("authentication", "/api/internal/m3-voice-probe?check=auth", token, 200, "AUTH_OK");
+  await runProbe({ token, mode: "verify" });
+  console.log("Authentication preflight passed without calling Google.");
   await check("unauthorized create", "/api/internal/m3-remix-evaluation/create", "invalid", 401, "UNAUTHORIZED");
   await check("evaluation status", "/api/internal/m3-remix-evaluation/status", token, 200, "EVALUATION_STATUS", x => x.enabled === false);
   console.log("Isolated authorization and disabled evaluation verified; no paid route was invoked.");
