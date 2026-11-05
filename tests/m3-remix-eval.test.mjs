@@ -9,6 +9,7 @@ catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }
 const token = "t".repeat(48);
 const env = { GEMINI_API_KEY: "test-key", M3_VOICE_PROBE_TOKEN: token, M3_EVAL_ENABLED: "enabled" };
 const text = (await readFile("tests/fixtures/m3-remix-eval-10news.txt", "utf8")).trim();
+const cleanText = text.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/gu, "").replace(/[\r\n\t\u00A0\u202F\u3000]+/gu, " ").replace(/ {2,}/g, " ").trim();
 const request = (path, body = {}, supplied = token) => new Request("https://example.test" + path, {
   method: "POST", headers: { "X-M3-Probe-Token": supplied, "Content-Type": "application/json" },
   body: JSON.stringify(body),
@@ -68,18 +69,18 @@ test("synthesis sends the complete manuscript in one streaming request for eithe
   }
   assert.equal(calls.length, 2);
   for (const call of calls) {
-    assert.equal(call.url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+    assert.equal(call.url, "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:streamGenerateContent?alt=sse");
     assert.equal(call.options.method, "POST");
     assert.equal(call.options.redirect, "manual");
-    assert.equal(call.body.model, "gemini-3.8-flash-lite-tts");
-    assert.equal(call.body.stream, true);
-    assert.equal(call.body.input[0].content[0].text, text);
+    assert.equal(call.body.contents[0].parts[0].text, cleanText);
+    assert.equal(call.body.generationConfig.temperature, undefined);
+    assert.equal(call.body.generationConfig.maxOutputTokens, 16384);
   }
-  const originalVoice = calls[0].body.generation_config.speech_config[0].voice;
-  const remixVoice = calls[1].body.generation_config.speech_config[0].voice;
+  const originalVoice = calls[0].body.generationConfig.speechConfig.voiceConfig.voice;
+  const remixVoice = calls[1].body.generationConfig.speechConfig.voiceConfig.voice;
   assert.equal(originalVoice, "Iapetus");
   assert.equal(remixVoice, "voice_example123");
-  calls[0].body.generation_config.speech_config[0].voice = remixVoice;
+  calls[0].body.generationConfig.speechConfig.voiceConfig.voice = remixVoice;
   assert.deepEqual(calls[0].body, calls[1].body);
 });
 
