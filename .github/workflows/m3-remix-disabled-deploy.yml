@@ -17,21 +17,22 @@ jobs:
           cache: npm
       - name: Verify isolated contracts
         run: node --experimental-strip-types --test tests/m3-probe-account-check.test.mjs tests/m3-probe-secret-check.test.mjs tests/m3-voice-probe.test.mjs tests/m3-remix-eval.test.mjs tests/m3-remix-runner.test.mjs
-      - name: Verify target account and existing key names only
+      - name: Verify target account and existing isolated Worker
         env:
-          M3_PROBE_MODE: live
           M3_PROBE_MUST_EXIST: 'true'
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: |
-          node scripts/m3-probe-account-check.mjs
-          node scripts/m3-probe-secret-check.mjs
+        run: node scripts/m3-probe-account-check.mjs
+      - name: Verify existing key names only
+        env:
+          M3_PROBE_MODE: live
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: node scripts/m3-probe-secret-check.mjs
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Deploy disabled endpoints to the isolated Worker only
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           node -e 'const c=JSON.parse(require("fs").readFileSync("wrangler.m3-remix-eval.jsonc")); if(c.name!=="kazakh-broadcast-m3-remix-probe-20261105" || c.main!=="./worker/m3-remix-eval.mjs" || c.observability?.enabled!==false || c.vars?.M3_EVAL_ENABLED!=="disabled") process.exit(1)'
@@ -39,7 +40,6 @@ jobs:
       - name: Create independent administrative token
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           umask 077
