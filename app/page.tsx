@@ -330,8 +330,8 @@ function SafeRange({ ariaLabel, min, max, step, value, onValueChange }: SafeRang
 
 export default function Home() {
   const [text, setText] = useState(SAMPLE_TEXT);
-  const [engine, setEngine] = useState<Engine>("edge");
-  const [voice, setVoice] = useState<string>("kk-KZ-DauletNeural");
+  const [engine, setEngine] = useState<Engine>("gemini");
+  const [voice, setVoice] = useState<string>("m3-persistent-anchor");
   const [preset, setPreset] = useState<PresetId>("news");
   const [speed, setSpeed] = useState(1);
   const [edgePitch, setEdgePitch] = useState(0);
@@ -343,7 +343,7 @@ export default function Home() {
   const [elevenVoices, setElevenVoices] = useState<ElevenVoice[]>([]);
   const [isLoadingVoices, setIsLoadingVoices] = useState(false);
   const [geminiModel, setGeminiModel] = useState<(typeof GEMINI_MODELS)[number]["id"]>(
-    "gemini-3.8-flash-lite-tts",
+    "gemini-3.8-flash-tts",
   );
   const [geminiVoices, setGeminiVoices] = useState<GeminiVoice[]>([
     ...GEMINI_NAMED_MALE_VOICES,
@@ -767,7 +767,7 @@ export default function Home() {
         : nextEngine === "eleven"
           ? elevenVoices[0]?.id ?? ""
           : nextEngine === "gemini"
-            ? "Iapetus"
+            ? "m3-persistent-anchor"
             : "",
     );
     setError("");

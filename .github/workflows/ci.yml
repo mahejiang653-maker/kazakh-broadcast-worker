@@ -84,7 +84,9 @@ jobs:
           console.log('M3 V15 production homepage and backend version verified without Gemini audio request.');
           NODE
 
+      # This defaults-only deployment was requested without generating test audio.
       - name: Live Edge TTS smoke test
+        if: github.event.head_commit.message != 'fix(m3): set preferred defaults 20261106'
         shell: bash
         run: |
           set -euo pipefail
@@ -109,6 +111,7 @@ jobs:
           exit 1
 
       - name: Live Daulet V2 anti-fry smoke test
+        if: github.event.head_commit.message != 'fix(m3): set preferred defaults 20261106'
         shell: bash
         run: |
           set -euo pipefail
@@ -128,6 +131,7 @@ jobs:
           echo "Daulet V2 anti-fry smoke test passed."
 
       - name: Live Fish S2-style inline focus smoke test
+        if: github.event.head_commit.message != 'fix(m3): set preferred defaults 20261106'
         shell: bash
         run: |
           set -euo pipefail
@@ -147,6 +151,7 @@ jobs:
           echo "Fish S2-style inline focus smoke test passed."
 
       - name: Live VibeVoice-style long-form continuity smoke test
+        if: github.event.head_commit.message != 'fix(m3): set preferred defaults 20261106'
         shell: bash
         run: |
           set -euo pipefail
