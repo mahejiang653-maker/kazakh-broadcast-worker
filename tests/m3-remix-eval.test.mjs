@@ -106,3 +106,16 @@ test("upstream errors are not retried and never echo arbitrary error text", asyn
   assert.equal(raw.includes("test-key"), false);
   assert.equal(raw.includes("private message"), false);
 });
+
+test("authenticated status reveals only whether evaluation is enabled and never calls Google", async () => {
+  assert.equal(typeof mod.handleEvaluation, "function");
+  const path = "/api/internal/m3-remix-evaluation/status";
+  const denied = await mod.handleEvaluation(request(path, {}, "wrong"), env, unexpected);
+  assert.equal(denied.status, 401);
+  for (const flag of [undefined, "disabled", "enabled"]) {
+    const result = await mod.handleEvaluation(request(path), { ...env, M3_EVAL_ENABLED: flag }, unexpected);
+    const payload = await result.json();
+    assert.equal(payload.code, "EVALUATION_STATUS");
+    assert.equal(payload.enabled, flag === "enabled");
+  }
+});

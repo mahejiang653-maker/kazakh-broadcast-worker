@@ -2,6 +2,7 @@ import { handleVoiceProbe } from "./m3-voice-probe.ts";
 
 const CREATE_PATH = "/api/internal/m3-remix-evaluation/create";
 const SYNTH_PATH = "/api/internal/m3-remix-evaluation/synthesize";
+const STATUS_PATH = "/api/internal/m3-remix-evaluation/status";
 const VOICES = "https://generativelanguage.googleapis.com/v1beta/voices";
 const TTS = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash-lite-tts:streamGenerateContent?alt=sse";
 const json = (body, status = 200) => Response.json(body, { status, headers: { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
@@ -31,7 +32,7 @@ async function readSmallJson(request) {
 
 export async function handleEvaluation(request, env, upstreamFetch = fetch) {
   const path = new URL(request.url).pathname;
-  if (path !== CREATE_PATH && path !== SYNTH_PATH) return json({ code: "NOT_FOUND" }, 404);
+  if (path !== CREATE_PATH && path !== SYNTH_PATH && path !== STATUS_PATH) return json({ code: "NOT_FOUND" }, 404);
   if (request.method !== "POST") return json({ code: "METHOD_NOT_ALLOWED" }, 405);
 
   // Reuse the independent admin-token check without ever sending a Google request.
@@ -40,6 +41,7 @@ export async function handleEvaluation(request, env, upstreamFetch = fetch) {
   });
   const auth = await handleVoiceProbe(authRequest, env);
   if (!auth.ok) return auth;
+  if (path === STATUS_PATH) return json({ code: "EVALUATION_STATUS", enabled: env.M3_EVAL_ENABLED === "enabled" });
   if (env.M3_EVAL_ENABLED !== "enabled") return json({ code: "EVALUATION_DISABLED" }, 503);
   const apiKey = env.GEMINI_API_KEY?.trim();
   if (!apiKey) return json({ code: "GEMINI_KEY_MISSING" }, 503);
