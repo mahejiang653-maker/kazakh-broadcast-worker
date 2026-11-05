@@ -1,0 +1,17 @@
+name: M3 delivery transfer test
+on:
+  push:
+    branches: [experiment/voice-remix-evaluation]
+permissions:
+  contents: read
+jobs:
+  test:
+    if: "github.event.head_commit.message == 'ci(m3): test artifact transfer 20261106'"
+    runs-on: ubuntu-latest
+    steps:
+      - run: printf 'dummy offline transfer test\n' > transfer-test.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m3-dummy-transfer
+          path: transfer-test.txt
+          retention-days: 1
