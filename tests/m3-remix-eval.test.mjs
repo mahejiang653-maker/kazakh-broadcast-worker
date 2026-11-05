@@ -7,7 +7,7 @@ try { mod = await import("../worker/m3-remix-eval.mjs"); }
 catch (error) { if (error.code !== "ERR_MODULE_NOT_FOUND") throw error; }
 
 const token = "t".repeat(48);
-const env = { GEMINI_API_KEY: "test-key", M3_VOICE_PROBE_TOKEN: token, M3_EVAL_ENABLED: "enabled" };
+const env = { GEMINI_API_KEY: "test-key", M3_VOICE_PROBE_TOKEN: token, M3_EVAL_ENABLED: "enabled", M3_EVAL_NOT_AFTER: String(Date.now() + 10 * 60_000) };
 const text = (await readFile("tests/fixtures/m3-remix-eval-10news.txt", "utf8")).trim();
 const cleanText = text.replace(/[\u200B\u200C\u200D\u2060\uFEFF]/gu, "").replace(/[\r\n\t\u00A0\u202F\u3000]+/gu, " ").replace(/ {2,}/g, " ").trim();
 const request = (path, body = {}, supplied = token) => new Request("https://example.test" + path, {
@@ -117,5 +117,14 @@ test("authenticated status reveals only whether evaluation is enabled and never 
     const payload = await result.json();
     assert.equal(payload.code, "EVALUATION_STATUS");
     assert.equal(payload.enabled, flag === "enabled");
+  }
+});
+
+test("enabled flag without a short, unexpired authorization window cannot call Google", async () => {
+  const path = "/api/internal/m3-remix-evaluation/create";
+  for (const value of [undefined, "invalid", "0", String(Date.now() - 1), String(Date.now() + 31 * 60_000)]) {
+    const result = await mod.handleEvaluation(request(path), { ...env, M3_EVAL_NOT_AFTER: value }, unexpected);
+    assert.equal(result.status, 503);
+    assert.equal((await result.json()).code, "EVALUATION_DISABLED");
   }
 });
