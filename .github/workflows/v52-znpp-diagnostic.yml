@@ -29,11 +29,24 @@ jobs:
           NODE
       - name: Test the plant closeup in mobile Chromium
         run: V52_ONLY_SCENE=4 V52_QA_DIR=v52-znpp-qa node scripts/verify-r6-event-detail-browser.mjs
+      - name: Prepare a public, verified US Capitol test case
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='tests/fixtures/v52-event-detail-sites.json';
+          const a=JSON.parse(fs.readFileSync(path,'utf8'));
+          a[3]={id:4,title:'美国众议院阻止针对防长赫格塞思的弹劾推进',location:'国会大厦',focusLabel:'国会大厦',countryIso3:'USA',country:'美国',countriesIso3:['USA'],eventType:'politics',sceneMode:'POINT',lon:-77.009062,lat:38.889809,scenePlan:{primaryIso3:'USA',finalLocation:true},locationPrecision:'site',detailEnabled:true,eventLocation:{lon:-77.009062,lat:38.889809,verified:true,sourceUrl:'https://www.govinfo.gov/content/pkg/CDIR-2002-10-01/pdf/CDIR-2002-10-01-CAPITOL.pdf'}};
+          fs.writeFileSync(path,JSON.stringify(a,null,2));
+          NODE
+      - name: Test the Capitol closeup in mobile Chromium
+        run: V52_ONLY_SCENE=4 V52_QA_DIR=v52-capitol-qa node scripts/verify-r6-event-detail-browser.mjs
       - name: Save diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: v52-znpp-diagnostic
-          path: v52-znpp-qa
+          path: |
+            v52-znpp-qa
+            v52-capitol-qa
           if-no-files-found: warn
           retention-days: 7
