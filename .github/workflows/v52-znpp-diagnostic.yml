@@ -1,0 +1,39 @@
+name: V52 verified plant closeup diagnostic
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v52-znpp-diagnostic.yml'
+permissions:
+  contents: read
+jobs:
+  verified-plant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: sudo apt-get install --yes fonts-noto-cjk
+      - name: Prepare a public, verified facility test case
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path='tests/fixtures/v52-event-detail-sites.json';
+          const a=JSON.parse(fs.readFileSync(path,'utf8'));
+          a[3]={id:4,title:'扎波罗热核电站恢复外部供电',location:'扎波罗热核电站',focusLabel:'扎波罗热核电站',countryIso3:'UKR',country:'乌克兰',countriesIso3:['UKR','RUS'],eventType:'WAR',sceneMode:'POINT',lon:34.585556,lat:47.507222,scenePlan:{primaryIso3:'UKR',finalLocation:true},locationPrecision:'site',detailEnabled:true,eventLocation:{lon:34.585556,lat:47.507222,verified:true,sourceUrl:'https://www.iaea.org/sites/default/files/23/02/nuclear-safety-security-and-safeguards-in-ukraine-feb-2023.pdf'}};
+          fs.writeFileSync(path,JSON.stringify(a,null,2));
+          NODE
+      - name: Test the plant closeup in mobile Chromium
+        run: V52_ONLY_SCENE=4 V52_QA_DIR=v52-znpp-qa node scripts/verify-r6-event-detail-browser.mjs
+      - name: Save diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v52-znpp-diagnostic
+          path: v52-znpp-qa
+          if-no-files-found: warn
+          retention-days: 7
