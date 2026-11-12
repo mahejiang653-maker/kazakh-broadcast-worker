@@ -6,11 +6,22 @@
 'use strict';
 if(!G||!Semantic||G.v52GeoDirector||!window.Cesium)return;
 const C=window.Cesium, previous=G.runSequence, blue='#38a7f6', red='#ff4555';
-let owned=[],generation=0,trace=[],currentPlan=null,diagnostic=[];
+let owned=[],generation=0,trace=[],currentPlan=null,diagnostic=[],activeSerial=-1;
 const diag=(phase,data={})=>{diagnostic.push({phase,serial:G.navSerial,gen:generation,...data});if(diagnostic.length>40)diagnostic.shift();};
 const live=(s,t)=>s===G.navSerial&&t===generation&&!G.overviewMode;
 const valid=(x,y)=>x!==null&&y!==null&&x!==undefined&&y!==undefined&&Number.isFinite(+x)&&Number.isFinite(+y)&&Math.abs(+x)<=180&&Math.abs(+y)<=90;
 const details=(s)=>G.v52Director?.stage?.(s,G.navSerial);
+// The legacy occlusion restyler re-shows its base marker after every camera move.
+// Semantic scenes own their red event marker, so suppress that reference dot.
+const oldOcclusion=G.updateOcclusion;
+if(typeof oldOcclusion==='function')G.updateOcclusion=function(...args){
+ const result=oldOcclusion.apply(this,args);
+ if(currentPlan&&G.started&&!G.overviewMode&&activeSerial===G.navSerial){
+   const marker=G.markers?.[G.current],pulse=G.pulses?.[G.current];
+   if(marker)marker.show=false;if(pulse)pulse.show=false;
+ }
+ return result;
+};
 const wait=async(ms,s,t)=>{const v=await (G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(true),ms)));return live(s,t)&&v!==false;};
 function cleanup(){
  try{if(G.markers?.[G.current])G.markers[G.current].show=false;if(G.pulses?.[G.current])G.pulses[G.current].show=false;}catch{}
@@ -215,12 +226,12 @@ async function execute(plan,n,s,t){
  return true;
 }
 G.runSequence=async function(story,iso,s){
- const t=++generation;trace=[];currentPlan=null;diagnostic=[];diag('dispatch',{s,t,iso});
+ const t=++generation;trace=[];currentPlan=null;activeSerial=s;diagnostic=[];diag('dispatch',{s,t,iso});
  try{
-   if(!G.viewer||!G.countries?.size)return previous.call(this,story,iso,s);
+   if(!G.viewer||!G.countries?.size){currentPlan=null;return previous.call(this,story,iso,s);}
    const plan=Semantic.validate(Semantic.analyze(story),G.countries.keys());
    currentPlan=plan;
-   if(!plan.steps.length)return previous.call(this,story,iso,s);
+   if(!plan.steps.length){currentPlan=null;return previous.call(this,story,iso,s);}
    if(!live(s,t))return false;
    return await execute(plan,story,s,t);
  }catch(error){
@@ -228,7 +239,7 @@ G.runSequence=async function(story,iso,s){
    if(!live(s,t))return false;
    if(currentPlan?.fallback?.iso3&&G.countries?.has(currentPlan.fallback.iso3))
      return country({iso3:currentPlan.fallback.iso3,hold:1000},story,s,t);
-   return previous.call(this,story,iso,s);
+   currentPlan=null;return previous.call(this,story,iso,s);
  }
 };
 G.v52GeoDirector={version:'20261112-r1',plan:story=>Semantic.analyze(story),
