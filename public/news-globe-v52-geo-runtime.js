@@ -6,7 +6,8 @@
 'use strict';
 if(!G||!Semantic||G.v52GeoDirector||!window.Cesium)return;
 const C=window.Cesium, previous=G.runSequence, blue='#38a7f6', red='#ff4555';
-let owned=[],generation=0,trace=[],currentPlan=null;
+let owned=[],generation=0,trace=[],currentPlan=null,diagnostic=[];
+const diag=(phase,data={})=>{diagnostic.push({phase,serial:G.navSerial,gen:generation,...data});if(diagnostic.length>40)diagnostic.shift();};
 const live=(s,t)=>s===G.navSerial&&t===generation&&!G.overviewMode;
 const valid=(x,y)=>x!==null&&y!==null&&x!==undefined&&y!==undefined&&Number.isFinite(+x)&&Number.isFinite(+y)&&Math.abs(+x)<=180&&Math.abs(+y)<=90;
 const details=(s)=>G.v52Director?.stage?.(s,G.navSerial);
@@ -38,13 +39,14 @@ function cameraFit(points,s,t,{min=400000,max=18000000,duration=1.35}={}){
  if(!points?.length)return Promise.resolve(false);
  const b=points.center&&points.radius?points:C.BoundingSphere.fromPoints(points);
  const mobile=Math.min(window.innerWidth||900,window.innerHeight||900)<700;
+ diag('fit-start',{s,t,radius:b.radius,active:live(s,t),center:!!b.center});
  const range=Math.max(min,Math.min(max,b.radius*(mobile?3.9:3.05)));
  details('approach');
  return new Promise(resolve=>{
-   if(!live(s,t)){resolve(false);return;}
+   if(!live(s,t)){diag('fit-stale',{s,t});resolve(false);return;}
    try{G.viewer.camera.flyToBoundingSphere(b,{offset:new C.HeadingPitchRange(0,C.Math.toRadians(-87),range),
-     duration,easingFunction:C.EasingFunction?.CUBIC_IN_OUT,complete:()=>resolve(live(s,t)),cancel:()=>resolve(false)});}
-   catch(error){console.warn('[V52 Geo] camera fit fallback',error);resolve(false);}
+     duration,easingFunction:C.EasingFunction?.CUBIC_IN_OUT,complete:()=>{diag('fit-complete',{live:live(s,t)});resolve(live(s,t));},cancel:()=>{diag('fit-cancelled',{s,t});resolve(false);}});}
+   catch(error){diag('fit-exception',{message:String(error?.message||error)});console.warn('[V52 Geo] camera fit fallback',error);resolve(false);}
  });
 }
 function cameraPoint(lon,lat,height,s,t){
@@ -75,13 +77,15 @@ function label(text,lon,lat,white=true){
 }
 async function country(step,n,s,t){
  const id=step.iso3,c=G.countries?.get(id);
+ diag('country-start',{id,s,t,c:!!c,active:live(s,t)});
  if(!c||!live(s,t))return false;
  details('country');
  cleanup();
  const view={...n,scenePlan:{...(n.scenePlan||{}),territoryRole:'blue'}};
- if(G.flashCountry?.(id,view)===false)return false;
+ if(G.flashCountry?.(id,view)===false){diag('country-flash-missing',{id});return false;}
+ diag('country-flash-done',{id});
  const sphere=c.sphere||C.BoundingSphere.fromPoints(cartesian(coordinates(c.feature?.geometry)));
- if(!await cameraFit(sphere,s,t,{min:650000,max:22000000}))return false;
+ if(!await cameraFit(sphere,s,t,{min:650000,max:22000000})){diag('country-camera-failed',{id,s,t});return false;}
  trace.push({type:'country-highlight',iso3:id,color:blue,flag:true,entireTerritory:true});
  return wait(step.hold||1300,s,t);
 }
@@ -210,7 +214,7 @@ async function execute(plan,n,s,t){
  return true;
 }
 G.runSequence=async function(story,iso,s){
- const t=++generation;trace=[];currentPlan=null;
+ const t=++generation;trace=[];currentPlan=null;diagnostic=[];diag('dispatch',{s,t,iso});
  try{
    if(!G.viewer||!G.countries?.size)return previous.call(this,story,iso,s);
    const plan=Semantic.validate(Semantic.analyze(story),G.countries.keys());
@@ -227,7 +231,7 @@ G.runSequence=async function(story,iso,s){
  }
 };
 G.v52GeoDirector={version:'20261112-r1',plan:story=>Semantic.analyze(story),
- getState:()=>({generation,plan:currentPlan,trace:trace.slice()}),
+ getState:()=>({generation,plan:currentPlan,trace:trace.slice(),diagnostic:diagnostic.slice()}),
  getTrace:()=>trace.slice(),cancel:()=>{generation++;cleanup();G.viewer?.camera?.cancelFlight?.();}};
 console.info('[V52] universal geographic semantic director installed');
 })(window.NG14,window.V52GeoSemantic);
