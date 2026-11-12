@@ -45,7 +45,8 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.equal(requests.length, 2);
   for (const request of requests) assert.equal(request.options.cache, 'no-store');
   const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map(m => m[1]);
-  assert.equal(scripts.length, 41);
+  assert.equal(scripts.length, 43);
+   assert.ok(namesOrder(scripts,'/news-globe-v52-geo-semantic.js','/news-globe-v52-geo-runtime.js','/news-globe-v52-director.js'));
   assert.ok(scripts.includes('/news-globe-v52-director.js?v=20261028-event-detail-v1'));
   assert.ok(scripts.includes('/news-globe-v52-event-detail.js?v=20261104-first-play-white-v1'));
   assert.ok(namesOrder(scripts,dataPath,'/news-globe-v52-event-detail.js','/news-globe-v52-daily10.js','/news-globe-v52-director.js'));
