@@ -98,6 +98,13 @@ async function country(step,n,s,t){
  diag('country-flash-done',{id});
  const sphere=c.sphere||C.BoundingSphere.fromPoints(cartesian(coordinates(c.feature?.geometry)));
  if(!await cameraFit(sphere,s,t,{min:650000,max:22000000})){diag('country-camera-failed',{id,s,t});return false;}
+ // Paint from clipped authoritative polygons, not the location point.
+ // Existing shared setters may be restyled during animation; reassert after
+ // camera settles without adding a duplicate world-country mesh.
+ const col=C.Color.fromCssColorString(blue).withAlpha(.55);
+ for(const e of G.countryFillEntities||[])if(e?.polygon)e.polygon.material=col;
+ G.setCountry?.(id,true);
+ G.viewer.scene.requestRender?.();
  trace.push({type:'country-highlight',iso3:id,color:blue,flag:true,entireTerritory:true});
  return wait(step.hold||1300,s,t);
 }
@@ -125,6 +132,7 @@ async function region(step,n,s,t){
    const g=f.geometry,polys=g?.type==='Polygon'?[g.coordinates]:g?.type==='MultiPolygon'?g.coordinates:[];
    for(const poly of polys)G.addPolygon?.(poly,col,false);
  }}finally{G.viewer.entities.resumeEvents?.();}
+ for(const e of G.localHighlightEntities||[])if(e?.polygon)e.polygon.material=C.Color.fromCssColorString(blue).withAlpha(.38);
  if(!await cameraFit(cartesian(points),s,t,{min:850000,max:9400000,duration:1.55}))return false;
  const bbox=C.BoundingSphere.fromPoints(cartesian(points)),loc=C.Cartographic.fromCartesian(bbox.center);
  if(loc){const lon=C.Math.toDegrees(loc.longitude),lat=C.Math.toDegrees(loc.latitude);G.localLabelEntity=label(step.label,lon,lat);}
