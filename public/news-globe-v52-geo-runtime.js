@@ -36,7 +36,8 @@ function cartesian(points){
  return points.map(p=>C.Cartesian3.fromDegrees(p[0],p[1],0));
 }
 function cameraFit(points,s,t,{min=400000,max=18000000,duration=1.35}={}){
- if(!points?.length)return Promise.resolve(false);
+ // Country camera receives an existing Cesium BoundingSphere, not an array.
+ if(!points?.center && !points?.length)return Promise.resolve(false);
  const b=points.center&&points.radius?points:C.BoundingSphere.fromPoints(points);
  const mobile=Math.min(window.innerWidth||900,window.innerHeight||900)<700;
  diag('fit-start',{s,t,radius:b.radius,active:live(s,t),center:!!b.center});
