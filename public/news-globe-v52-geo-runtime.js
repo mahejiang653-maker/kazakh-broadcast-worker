@@ -232,6 +232,7 @@ function legacySpecializedScene(story,plan){
  const mode=String(story?.sceneMode||'').toUpperCase();
  const p=story?.scenePlan||{};
  return (mode==='POINT'&&plan?.scenario==='single-place')
+   || (mode==='POINT'&&plan?.scenario==='waterbody'&&p.attackEffect)
    || (mode==='REGION'&&p.regionalContext===true)
    || /^(ADMIN_REGION|CARRIER_PORT|ORG|ORGANIZATION|MISSILE_ATTACK|DRONE_ATTACK|BORDER_CONFLICT|POTENTIAL_ATTACK|ATTACK)$/.test(mode)
    || mode==='DIPLOMACY'
