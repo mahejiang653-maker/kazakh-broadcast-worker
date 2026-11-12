@@ -34,7 +34,7 @@ const REGIONS=[
 const TYPES=['country-highlight','region-highlight','point-focus','country-sequence','country-to-region','region-to-point','cross-border-route','directional-relation','multi-country-overview','waterbody-focus'];
 const ISO=/^[A-Z]{3}$/;
 const coords=(x,y)=>x!==null&&x!==undefined&&y!==null&&y!==undefined&&Number.isFinite(Number(x))&&Number.isFinite(Number(y))&&Math.abs(Number(x))<=180&&Math.abs(Number(y))<=90;
-const iso=(s)=>typeof s==='string'&&ISO.test(s.toUpperCase())&&Object.hasOwn(NAMES,s.toUpperCase())?s.toUpperCase():null;
+const iso=(s)=>typeof s==='string'&&ISO.test(s.toUpperCase())?s.toUpperCase():null;
 const unique=a=>[...new Set(a.filter(Boolean))];
 const text=n=>[n?.title,n?.summary,n?.body,n?.content,n?.description,n?.location,n?.focusLabel].filter(v=>typeof v==='string').join(' ');
 function namedCountries(t){
