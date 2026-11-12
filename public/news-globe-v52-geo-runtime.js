@@ -228,10 +228,11 @@ async function execute(plan,n,s,t){
 // Existing authored V52 speciality shots retain their mature renderer. The
 // semantic engine drives ordinary daily stories; this is based on scene
 // capabilities and evidence fields, never edition, rank, place or headline.
-function legacySpecializedScene(story){
+function legacySpecializedScene(story,plan){
  const mode=String(story?.sceneMode||'').toUpperCase();
  const p=story?.scenePlan||{};
- return /^(ADMIN_REGION|CARRIER_PORT|ORG|ORGANIZATION|MISSILE_ATTACK|DRONE_ATTACK|BORDER_CONFLICT|POTENTIAL_ATTACK|ATTACK)$/.test(mode)
+ return (mode==='POINT'&&plan?.scenario==='single-place')
+   || /^(ADMIN_REGION|CARRIER_PORT|ORG|ORGANIZATION|MISSILE_ATTACK|DRONE_ATTACK|BORDER_CONFLICT|POTENTIAL_ATTACK|ATTACK)$/.test(mode)
    || mode==='DIPLOMACY'
    || (Array.isArray(story?.eventSites)&&story.eventSites.length>1)
    || !!(story?.eventLocation?.verified===true&&story?.eventLocation?.sourceUrl)
@@ -242,10 +243,12 @@ G.runSequence=async function(story,iso,s){
  try{
    if(!G.viewer||!G.countries?.size){currentPlan=null;return previous.call(this,story,iso,s);}
    const plan=Semantic.validate(Semantic.analyze(story),G.countries.keys());
-   if(legacySpecializedScene(story)){diag('legacy-special-scene',{mode:story.sceneMode});currentPlan=null;return previous.call(this,story,iso,s);}
+   if(legacySpecializedScene(story,plan)){diag('legacy-special-scene',{mode:story.sceneMode});currentPlan=null;return previous.call(this,story,iso,s);}
    currentPlan=plan;
    if(!plan.steps.length){currentPlan=null;return previous.call(this,story,iso,s);}
    if(!live(s,t))return false;
+   // Purge specialized legacy points/effects before switching to generic scenes.
+   G.v51PrepareAdmin?.();
    return await execute(plan,story,s,t);
  }catch(error){
    console.error('[V52 Geo] degraded safely',error);
