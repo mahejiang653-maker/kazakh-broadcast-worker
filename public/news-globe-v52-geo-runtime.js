@@ -12,6 +12,7 @@ const valid=(x,y)=>x!==null&&y!==null&&x!==undefined&&y!==undefined&&Number.isFi
 const details=(s)=>G.v52Director?.stage?.(s,G.navSerial);
 const wait=async(ms,s,t)=>{const v=await (G.wait?G.wait(ms,s):new Promise(r=>setTimeout(()=>r(true),ms)));return live(s,t)&&v!==false;};
 function cleanup(){
+ try{if(G.markers?.[G.current])G.markers[G.current].show=false;if(G.pulses?.[G.current])G.pulses[G.current].show=false;}catch{}
  const viewer=G.viewer;
  try{viewer?.entities?.suspendEvents?.();for(const e of owned) viewer.entities.remove(e);}catch{}
  finally{try{viewer?.entities?.resumeEvents?.()}catch{}}
