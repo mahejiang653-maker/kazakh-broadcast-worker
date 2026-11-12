@@ -51,7 +51,7 @@ async function snap(name){const st=await state();await page.screenshot({path:pat
 async function atTrace(type,count=1){
  await page.waitForFunction(({type,count})=>{
    const G=window.NG14;return G?.v52GeoDirector?.getTrace?.().filter(x=>x.type===type).length>=count;
- },{type,count},{timeout:100000});
+ },{type,count},{timeout:25000});
 }
 async function select(i){
  await page.locator('#timeline button').nth(i-1).click();
@@ -96,7 +96,17 @@ try{
  await page.setViewportSize({width:1280,height:720});
  await snap('top10-desktop-16x9');
  report.result='passed';
-}catch(error){report.result='failed';report.failure=String(error.stack||error);
+ }catch(error){report.result='failed';report.failure=String(error.stack||error);
+ try{report.debug=await page.evaluate(()=>({url:location.href,
+  mapState:NG14?.v52GeoDirector?.getState?.(),
+  director:NG14?.v52Director?.getState?.(),
+  navSerial:NG14?.navSerial,overviewMode:NG14?.overviewMode,
+  current:NG14?.current,cameraFlight:!!NG14?.viewer?.camera?._currentFlight,
+  cameraHeight:NG14?.viewer?.camera?.positionCartographic?.height,
+  featureCount:NG14?.chinaLevel1Geo?.features?.length||0,
+  marker:NG14?.markers?.[NG14.current]?.show||false}));
+  console.error('V52_GEO_DEBUG',JSON.stringify(report.debug).slice(0,20000));
+  await page.screenshot({path:path.join(dir,'failure-debug.png')});}catch(e){console.error('V52_GEO_DEBUG_ERROR',String(e))}
  console.error('V52_GEO_VISUAL_FAILED',report.failure);process.exitCode=1;
 }finally{
  report.durationMs=Date.now()-report.start;
