@@ -45,6 +45,15 @@ const state=()=>page.evaluate(()=>{
  return {index:(G?.current??-1)+1,scene:d?.plan?.scenario,trace:d?.trace||[],status:G?.v52Director?.getState?.()?.status,
  camera:c?{lon:C.Math.toDegrees(c.longitude),lat:C.Math.toDegrees(c.latitude),height:c.height}:null,
  localPolygons:(G?.localHighlightEntities||[]).filter(e=>e.polygon).length,
+ fills:(G?.countryFillEntities||[]).filter(e=>e.polygon&&e.show!==false).slice(0,8).map(e=>{
+  const v=e.polygon?.material?.getValue?.(G.viewer.clock.currentTime)?.color;
+  return v?{r:v.red,g:v.green,b:v.blue,a:v.alpha}:null;
+ }),
+ borderColors:(G?.countries?.get(d?.trace?.filter(x=>x.type==='country-highlight').at(-1)?.iso3)?.entities||[])
+   .filter(e=>e.polyline&&e.show!==false).slice(0,5).map(e=>{
+     const v=e.polyline?.material?.getValue?.(G.viewer.clock.currentTime)?.color;
+     return v?{r:v.red,g:v.green,b:v.blue,a:v.alpha}:null;
+   }),
  baseMarker:G?.markers?.[G.current]?.show||false};
 });
 async function snap(name){const st=await state();await page.screenshot({path:path.join(dir,name+'.png'),animations:'disabled'});report.scenes.push({name,...st});console.log('V52_GEO_SCREEN',name,JSON.stringify(st).slice(0,2200));return st;}
