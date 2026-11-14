@@ -94,9 +94,15 @@ try{
  assert.ok(top9.localPolygons>=5,'Northwest must show at least five province polygons');
  assert.equal(top9.trace.some(x=>x.type==='point-focus'),false);
  await select(10);await atTrace('country-highlight',1);
- await snap('top10-mongolia-country');
+ const mongolia=await snap('top10-mongolia-country');
+ assert.ok(mongolia.fills.some(c=>c&&c.b>c.r&&c.b>c.g),'Mongolia must be filled blue');
+ assert.ok(mongolia.borderColors.length>0&&mongolia.borderColors.every(c=>c&&c.r>.85&&c.g>.85&&c.b>.85),
+   'Mongolia real borders must be white, not red');
  await atTrace('country-highlight',2);
- await snap('top10-china-country');
+ const china=await snap('top10-china-country');
+ assert.ok(china.fills.some(c=>c&&c.b>c.r&&c.b>c.g),'China must be filled blue');
+ assert.ok(china.borderColors.length>0&&china.borderColors.every(c=>c&&c.r>.85&&c.g>.85&&c.b>.85),
+   'China real borders must be white, not red');
  await atTrace('point-focus');
  const top10=await snap('top10-takeshken-port');
  assert.deepEqual(top10.trace.filter(x=>x.type==='country-highlight').map(x=>x.iso3),['MNG','CHN']);
