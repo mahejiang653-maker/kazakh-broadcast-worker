@@ -42,7 +42,7 @@ await page.route('**/*',async route=>{
 const state=()=>page.evaluate(()=>{
  const G=window.NG14,d=G?.v52GeoDirector?.getState?.(),C=window.Cesium;
  const c=G?.viewer?.camera?.positionCartographic;
- return {index:(G?.current??-1)+1,scene:d?.plan?.scenario,trace:d?.trace||[],status:G?.v52Director?.getState?.()?.status,
+ return {index:(G?.current??-1)+1,scene:d?.plan?.scenario,trace:d?.trace||[],status:G?.v52Director?.getState?.()?.status,phase:G?.v52Director?.getState?.()?.phase,
  camera:c?{lon:C.Math.toDegrees(c.longitude),lat:C.Math.toDegrees(c.latitude),height:c.height}:null,
  localPolygons:(G?.localHighlightEntities||[]).filter(e=>e.polygon).length,
  fills:(G?.countryFillEntities||[]).filter(e=>e.polygon&&e.show!==false).slice(0,8).map(e=>{
@@ -95,11 +95,13 @@ try{
  assert.equal(top9.trace.some(x=>x.type==='point-focus'),false);
  await select(10);await atTrace('country-highlight',1);
  const mongolia=await snap('top10-mongolia-country');
+ assert.equal(mongolia.phase,'country','Mongolia frame must be an active sovereign-country shot');
  assert.ok(mongolia.fills.some(c=>c&&c.b>c.r&&c.b>c.g),'Mongolia must be filled blue');
  assert.ok(mongolia.borderColors.length>0&&mongolia.borderColors.every(c=>c&&c.r>.85&&c.g>.85&&c.b>.85),
    'Mongolia real borders must be white, not red');
  await atTrace('country-highlight',2);
  const china=await snap('top10-china-country');
+ assert.equal(china.phase,'country','China frame must be captured before port descent');
  assert.ok(china.fills.some(c=>c&&c.b>c.r&&c.b>c.g),'China must be filled blue');
  assert.ok(china.borderColors.length>0&&china.borderColors.every(c=>c&&c.r>.85&&c.g>.85&&c.b>.85),
    'China real borders must be white, not red');
