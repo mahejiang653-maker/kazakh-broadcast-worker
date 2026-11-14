@@ -105,7 +105,7 @@ function analyze(n){
  const lon=hasPoint?Number(n.eventLocation?.lon??n.lon):null,lat=hasPoint?Number(n.eventLocation?.lat??n.lat):null;
  const point={lon,lat,label,precision:precision(n),verified:precision(n)==='verified-point'};
  let sequence=[],scenario='country',relations=[],feature=null;
- const country=(code)=>({type:'country-highlight',iso3:code,role:'country',color:'#38a7f6',hold:1500});
+ const country=(code)=>({type:'country-highlight',iso3:code,role:'country',color:'#38a7f6',hold:3000});
  const region=(r)=>({type:'region-highlight',iso3:r.iso,regionKey:r.key,label:r.label,provinces:r.provinces,approximate:r.approximate,color:'#38a7f6',hold:1800});
  const focus=()=>({type:'point-focus',point,color:'#ff4545',hold:1700,precision:point.precision});
  if(kind==='region'){
