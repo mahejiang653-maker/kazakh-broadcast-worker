@@ -106,6 +106,7 @@ async function country(step,n,s,t){
  diag('country-flash-done',{id});
  const sphere=c.sphere||C.BoundingSphere.fromPoints(cartesian(coordinates(c.feature?.geometry)));
  if(!await cameraFit(sphere,s,t,{min:650000,max:22000000})){diag('country-camera-failed',{id,s,t});return false;}
+ details('country');
  // Paint from clipped authoritative polygons, not the location point.
  // Existing shared setters may be restyled during animation; reassert after
  // camera settles without adding a duplicate world-country mesh.
@@ -142,6 +143,7 @@ async function region(step,n,s,t){
  }}finally{G.viewer.entities.resumeEvents?.();}
  for(const e of G.localHighlightEntities||[])if(e?.polygon)e.polygon.material=C.Color.fromCssColorString(blue).withAlpha(.38);
  if(!await cameraFit(cartesian(points),s,t,{min:850000,max:9400000,duration:1.55}))return false;
+ details('admin');
  const bbox=C.BoundingSphere.fromPoints(cartesian(points)),loc=C.Cartographic.fromCartesian(bbox.center);
  if(loc){const lon=C.Math.toDegrees(loc.longitude),lat=C.Math.toDegrees(loc.latitude);G.localLabelEntity=label(step.label,lon,lat);}
  trace.push({type:'region-highlight',regionKey:step.regionKey,provinces:step.provinces,source:'china-level1-geojson',approximate:true,point:false});
@@ -152,6 +154,7 @@ async function point(step,s,t){
  if(!p||!valid(p.lon,p.lat))return false;
  details('location');cleanup();
  if(!await cameraPoint(p.lon,p.lat,p.verified?270000:440000,s,t))return false;
+ details('location');
  track({position:C.Cartesian3.fromDegrees(p.lon,p.lat,1600),point:{
    pixelSize:12,color:C.Color.fromCssColorString(red),outlineColor:C.Color.WHITE,outlineWidth:2,
    disableDepthTestDistance:Number.POSITIVE_INFINITY}});
