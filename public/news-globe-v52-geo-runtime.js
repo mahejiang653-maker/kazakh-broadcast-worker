@@ -95,6 +95,14 @@ async function country(step,n,s,t){
  cleanup();
  const view={...n,scenePlan:{...(n.scenePlan||{}),territoryRole:'blue'}};
  if(G.flashCountry?.(id,view)===false){diag('country-flash-missing',{id});return false;}
+ const whiteBorder=()=>{
+   for(const e of c.entities||[])if(e?.polyline){
+     e.polyline.width=1.8;
+     e.polyline.material=C.Color.WHITE.withAlpha(.95);
+   }
+   G.viewer.scene.requestRender?.();
+ };
+ whiteBorder();
  diag('country-flash-done',{id});
  const sphere=c.sphere||C.BoundingSphere.fromPoints(cartesian(coordinates(c.feature?.geometry)));
  if(!await cameraFit(sphere,s,t,{min:650000,max:22000000})){diag('country-camera-failed',{id,s,t});return false;}
@@ -104,7 +112,7 @@ async function country(step,n,s,t){
  const col=C.Color.fromCssColorString(blue).withAlpha(.55);
  for(const e of G.countryFillEntities||[])if(e?.polygon)e.polygon.material=col;
  G.setCountry?.(id,true);
- G.viewer.scene.requestRender?.();
+ whiteBorder();
  trace.push({type:'country-highlight',iso3:id,color:blue,flag:true,entireTerritory:true});
  return wait(step.hold||1300,s,t);
 }
