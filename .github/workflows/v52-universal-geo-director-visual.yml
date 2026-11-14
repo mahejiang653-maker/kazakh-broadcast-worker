@@ -1,0 +1,34 @@
+name: V52 Universal Geographic Director Visual QA
+on:
+  pull_request:
+    paths:
+      - 'public/news-globe-v52-geo-*.js'
+      - 'public/news-globe-run-20260920-v52-r1.html'
+      - 'scripts/verify-r6-universal-geo-director.mjs'
+      - '.github/workflows/v52-universal-geo-director-visual.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: General geographic semantics regression
+        run: node --test tests/r6-universal-geo-director.test.mjs
+      - name: Real globe Top9/Top10 mobile and desktop shots
+        run: node scripts/verify-r6-universal-geo-director.mjs
+      - name: Preserve screenshots, status and errors
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v52-universal-geo-visual-${{ github.sha }}
+          path: globe-verify-universal-20261112
+          retention-days: 30
