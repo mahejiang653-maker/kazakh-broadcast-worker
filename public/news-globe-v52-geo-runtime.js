@@ -243,7 +243,8 @@ function legacySpecializedScene(story,plan){
    || (mode==='POINT'&&plan?.scenario==='waterbody'&&p.attackEffect)
    || (mode==='REGION'&&p.regionalContext===true)
    || /^(ADMIN_REGION|CARRIER_PORT|ORG|ORGANIZATION|MISSILE_ATTACK|DRONE_ATTACK|BORDER_CONFLICT|POTENTIAL_ATTACK|ATTACK)$/.test(mode)
-   || mode==='DIPLOMACY'
+   || mode==='DIPLOMACY' || mode==='ADMIN'
+   || story?.forceAdminChain===true || p.forceAdminChain===true || (Array.isArray(p.adminChain)&&p.adminChain.length>0)
    || (Array.isArray(story?.eventSites)&&story.eventSites.length>1)
    || !!(story?.eventLocation?.verified===true&&story?.eventLocation?.sourceUrl)
    || !!p.hierarchyPresented;
