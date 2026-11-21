@@ -361,3 +361,20 @@ test('precise China locality preserves and plays verified administrative chain b
  assert.equal(h.stages.at(-1).mode,'POINT','final stage must be the red point');
  assert.equal(h.stages.at(-1).lon,88.1396);
 });
+
+test('foreign city shows verified polygon before event point, without inventing boundaries',async()=>{
+ const h=sceneHarness();
+ const polygon={type:'Polygon',coordinates:[[[13.3,52.4],[13.6,52.4],[13.6,52.6],[13.3,52.6],[13.3,52.4]]]};
+ const n={title:'柏林事件',sceneMode:'POINT',countryIso3:'DEU',
+   location:'柏林',focusLabel:'柏林',placeType:'city',lon:13.405,lat:52.52,
+   scenePlan:{primaryIso3:'DEU',adminChain:[{location:'柏林',focusLabel:'柏林',placeType:'city',focusGeometry:polygon}]}};
+ assert.equal(await h.G.runSequence(n,'DEU',9),true);
+ assert.equal(h.admins.length,1);
+ assert.equal(h.admins[0].iso,'DEU');
+ assert.equal(h.stages.at(-1).mode,'POINT');
+ const missing={...n,scenePlan:{primaryIso3:'DEU',adminChain:[{location:'柏林',placeType:'city'}]}};
+ const next=sceneHarness();
+ assert.equal(await next.G.runSequence(missing,'DEU',9),true);
+ assert.equal(next.admins.length,0,'no blue area without real geometry');
+ assert.equal(next.stages.at(-1).mode,'POINT');
+});
