@@ -6,7 +6,9 @@ import vm from 'node:vm';
 const source = name => fs.readFileSync(new URL('../public/' + name,import.meta.url),'utf8');
 const world = JSON.parse(fs.readFileSync(new URL('./fixtures/r6-world-borders-20261007.geojson',import.meta.url)));
 const china = JSON.parse(source('news-globe-china-outline-v52.geojson'));
-function harness() {
+const atlasRoot = 'news-globe-country-borders-v2/';
+const atlasIndex = JSON.parse(source(atlasRoot+'index.json'));
+function harness({atlas=false,onFetch=()=>{}}={}) {
   const values = [], nodes = new Map();
   const node = id => {
     if (!nodes.has(id)) nodes.set(id,{textContent:'',children:[],classList:{remove(){},add(){},toggle(){}}});
@@ -20,9 +22,10 @@ function harness() {
     PolygonHierarchy:class {},Cartesian2:class {constructor(x,y){this.x=x;this.y=y}},HeadingPitchRange:class {},
     PolylineOutlineMaterialProperty:class {constructor(options){Object.assign(this,options);}},
     Math:{toRadians:n=>n*Math.PI/180}};
+  let hideAnnotations = false;
   const context = vm.createContext({window:{Cesium:C,addEventListener(){}},Cesium:C,
-    localStorage:{getItem:()=>null},document:{getElementById:node},console,
-    setTimeout,clearTimeout,setInterval,clearInterval,AbortController});
+    localStorage:{getItem:()=>null},document:{getElementById:node,body:{classList:{contains:()=>hideAnnotations}}},console,
+    setTimeout,clearTimeout,setInterval,clearInterval,AbortController,AbortSignal,atob});
   vm.runInContext(source('news-globe-v14-core.js'),context);
   const G = context.window.NG14;
   G.viewer = {entities:{values,add(e){values.push(e);return e;},
@@ -37,21 +40,111 @@ function harness() {
   };
   for (const file of ['news-globe-v14-highlight.js','news-globe-v14-ui.js','news-globe-v52-china-border-ownership.js',
     'news-globe-v52-geographic-features.js','news-globe-v52-attack-model.js','news-globe-v52-story-borders.js']) vm.runInContext(source(file),context);
+  if(atlas){
+    context.fetch = async (url,options) => {
+      const name = url.slice(1).split('?')[0];
+      await onFetch(name,options);
+      return {ok:true,json:async()=>JSON.parse(source(name))};
+    };
+    vm.runInContext(source('news-globe-v52-detailed-borders.js'),context);
+  }
   G.runSequence = (_n,iso) => { G.activeIso=iso;G.setCountry(iso,true);G.clearLocal(); };
-  return {G,context,values};
+  return {G,context,values,hide(value){hideAnnotations=value;}};
 }
 const story = (iso,title='新闻') => ({countryIso3:iso,scenePlan:{primaryIso3:iso},title,location:'新闻地点',lon:0,lat:0});
 function installNews(G,news) { G.news=Array.from({length:13},(_,i)=>news[i%news.length]); }
 function visibleCountries(G) { return [...G.v52StoryBorders.getDiagnostics().countries]; }
 function assertScope(G,isos) {
   const expected = new Set(isos);
-  const selected = new Set(isos.flatMap(iso=>G.countries.get(iso).entities));
+  const selected = new Set(isos.flatMap(iso=>G.storyBorderEntities(iso)));
   for (const e of G.borderEntities) {
     assert.equal(e.show,selected.has(e),'Country ownership must determine every border segment');
     if(e.show) assert.ok([...e._countryIsos].some(iso=>expected.has(iso)));
   }
   assert.equal(G.borderEntities.filter(e=>e.show).length,selected.size);
 }
+
+test('the high detail atlas covers every existing country, plus countries absent from the older map',()=>{
+  const files = new Set(fs.readdirSync(new URL('../public/'+atlasRoot,import.meta.url)));
+  for(const f of world.features){
+    const sourceIso=f.properties.iso_a3, iso=sourceIso==='-99'?
+      ({France:'FRA',Norway:'NOR',Kosovo:'XKX'}[f.properties.name]):sourceIso;
+    if(!iso||iso==='CHN')continue;
+    const rings=f.geometry.type==='MultiPolygon'?f.geometry.coordinates:[f.geometry.coordinates];
+    const coarse=rings.reduce((n,poly)=>n+poly[0].length-1,0);
+    assert.ok(atlasIndex.packs[iso][0]>coarse,iso+' did not get a more detailed outline');
+  }
+  for(const [iso,[segments,parts]] of Object.entries(atlasIndex.packs)){
+    assert.ok(segments>0&&parts.length&&parts.every(file=>file.startsWith(iso+'-')&&files.has(file)),iso+' has missing parts');
+  }
+  for(const iso of ['VAT','MCO','LIE','AND','MLT','MDV','SGP'])assert.ok(atlasIndex.packs[iso]);
+  assert.equal(atlasIndex.packs.CHN,undefined,'China must use its existing authoritative outline');
+});
+
+const settled = () => new Promise(resolve=>setImmediate(resolve));
+test('Hague switches to real detailed coastlines; fast navigation and overview remove stale detail',async()=>{
+  let delay,loadSignal;
+  const {G,hide}=harness({atlas:true,onFetch:(name,options)=>{
+    if(name===atlasRoot+'NLD-0.json'&&delay){loadSignal=options.signal;return delay;}
+  }});
+  await G.loadBorders();
+  assert.ok(G.countries.has('VAT'),'new country must be resolvable before its first story');
+  const baseline=G.borderEntities.length;
+  const n={...story('NLD'),sceneMode:'POINT',title:'海牙国际法庭举行听证',location:'海牙',lon:4.3,lat:52.08};
+  installNews(G,[n,story('LIE')]);
+  let release;delay=new Promise(resolve=>{release=resolve;});
+  G.focus(0);assertScope(G,['NLD']);
+  assert.equal(G.borderEntities.filter(e=>e.show).length,14);
+  G.focus(1);
+  assert.equal(loadSignal.aborted,true);
+  release();delay=null;await settled();
+  assertScope(G,['LIE']);assert.deepEqual([...G.v52DetailedBorders.getDiagnostics().countries],['LIE']);
+  G.focus(0);await settled();assertScope(G,['NLD']);
+  const lines=G.storyBorderEntities('NLD');
+  assert.equal(lines.reduce((n,e)=>n+e.polyline.positions.length-1,0),842);
+  assert.ok(lines.every(e=>!e.polyline.clampToGround&&e.polyline.positions.every(p=>p.height===18000)));
+  const hague=lines.flatMap(e=>e.polyline.positions).filter(p=>p.lon>=3.9&&p.lon<=4.6&&p.lat>=51.9&&p.lat<=52.35);
+  assert.ok(hague.length>=12,'real coast vertices near the reported close-up');
+  G.clearLocal();assertScope(G,['NLD']);
+  assert.equal(G.storyBorderEntities('NLD'),lines,'scene cleanup must keep the installed geometry');
+  hide(true);for(const e of lines)e.show=false;G.applyStoryBorders();assert.ok(lines.every(e=>!e.show));
+  hide(false);G.overview();assert.equal(G.borderEntities.length,baseline);
+  assert.ok(G.borderEntities.every(e=>!e.show));
+});
+
+test('high detail draws shared frontiers once and preserves existing China and France coverage',async()=>{
+  const {G}=harness({atlas:true});await G.loadBorders();
+  const original=[...G.countries.get('CHN').entities];
+  const choose=(...codes)=>{G.overviewMode=false;G.selectCountryOverviewBordersBatch(codes);};
+  choose('BEL','NLD');await settled();assertScope(G,['BEL','NLD']);
+  const nl=G.storyBorderEntities('NLD'),bel=G.storyBorderEntities('BEL');
+  assert.ok(nl.some(e=>e._countryIsos.has('BEL')&&bel.includes(e)),'both sides reuse one polyline');
+  assert.ok(nl.every(e=>e.__v52DetailedBorder));
+  choose('KGZ');await settled();assertScope(G,['KGZ']);
+  assert.ok(G.storyBorderEntities('KGZ').some(e=>e._countryIsos.has('CHN')));
+  choose('CHN','KGZ');assertScope(G,['CHN','KGZ']);
+  assert.deepEqual([...G.storyBorderEntities('CHN')],original);
+  assert.ok(G.storyBorderEntities('KGZ').every(e=>!e._countryIsos.has('CHN')));
+  choose('FRA');await settled();assertScope(G,['FRA']);
+  assert.ok(G.storyBorderEntities('FRA').every(e=>e.polyline.positions.every(p=>p.lon>=-7&&p.lon<=11&&p.lat>=40&&p.lat<=52.5)));
+  choose('PSE');await settled();assertScope(G,['PSE']);
+  const ps=G.storyBorderEntities('PSE').flatMap(e=>e.polyline.positions);
+  assert.ok(ps.some(p=>p.lon<34.65&&p.lat<31.8)&&ps.some(p=>p.lon>34.97&&p.lat>31.8),'Gaza and the West Bank remain visible');
+  choose('FJI');await settled();assertScope(G,['FJI']);
+  const fiji=G.storyBorderEntities('FJI').map(e=>e.polyline.positions);
+  assert.ok(fiji.flat().some(p=>p.lon< -179)&&fiji.flat().some(p=>p.lon>179));
+  assert.ok(fiji.every(line=>line.slice(1).every((p,i)=>Math.abs(p.lon-line[i].lon)<180&&
+    !(Math.abs(p.lon)===180&&Math.abs(line[i].lon)===180))),'the dateline seam is not a country border');
+});
+
+test('if a fine pack fails, a two-country view retains both working coarse outlines',async()=>{
+  const {G}=harness({atlas:true,onFetch:name=>{if(name===atlasRoot+'BEL-0.json')throw Error('offline');}});
+  await G.loadBorders();G.overviewMode=false;
+  G.selectCountryOverviewBordersBatch(['BEL','NLD']);await settled();
+  assertScope(G,['BEL','NLD']);assert.equal(G.v52DetailedBorders.getDiagnostics().lines,0);
+  G.selectCountryOverviewBorders('NLD');await settled();
+  assert.equal(G.v52DetailedBorders.getDiagnostics().segments,842);
+});
 
 
 test('French country polygons, national outlines and flash exclude overseas territories',async()=>{

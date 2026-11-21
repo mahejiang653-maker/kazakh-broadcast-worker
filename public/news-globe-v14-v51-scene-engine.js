@@ -411,10 +411,7 @@ function waitAttackGeometry(ctx){
  const viewer=G.viewer,display=viewer.dataSourceDisplay;
  if(typeof display?.getBoundingSphere!=='function'){ctx.geometryReady=true;return Promise.resolve(true);}
  ctx.stage='geometry';const start=performance.now(),bounds=new C.BoundingSphere();
- const entities=G.v51SceneEntities.filter(e=>e.__v52AttackSerial===ctx.serial&&e.polygon);
- for(const iso of [ctx.data.att,ctx.data.vic]){
-  const border=G.countries?.get(iso)?.entities?.find(e=>e.show&&e.polyline);if(border)entities.push(border);
- }
+ const fills=G.v51SceneEntities.filter(e=>e.__v52AttackSerial===ctx.serial&&e.polygon);
  return new Promise(resolve=>{
   let finished=false;
   const finish=ready=>{if(finished)return;finished=true;ctx.cancelGeometry=null;ctx.geometryReady=ready;ctx.geometryWaitMs=Math.round(performance.now()-start);resolve(ready);};
@@ -422,6 +419,13 @@ function waitAttackGeometry(ctx){
   const check=()=>{
    if(activeAttack!==ctx||ctx.serial!==G.navSerial||G.overviewMode){finish(false);return;}
    viewer.scene.requestRender();
+   // A more detailed outline can replace a coarse border while the geometry
+   // is preparing. Wait for the border currently selected, not the old entity.
+   const entities=fills.slice();
+   for(const iso of new Set([ctx.data.att,ctx.data.vic])){
+    const borders=G.storyBorderEntities?.(iso)??G.countries?.get(iso)?.entities;
+    const border=borders?.find(e=>e.show&&e.polyline);if(border)entities.push(border);
+   }
    if(entities.length&&entities.every(e=>viewer.entities.contains(e)&&attackGeometryReady(e,display,bounds))){finish(true);return;}
    if(performance.now()-start>=90000){ctx.geometryTimedOut=true;finish(false);return;}
    const id=setTimeout(()=>{ctx.timers.delete(id);check();},100);ctx.timers.add(id);

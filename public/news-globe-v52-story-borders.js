@@ -80,20 +80,24 @@
     for (const match of text.matchAll(/(?:对|赴|访)([美俄乌英法德日印韩朝伊以沙])(?=封锁|访问|制裁|施压|援助)/g)) add(shortNames[match[1]]);
     return result;
   }
-  function collectSelected() {
-    selectedEntities = new Set();
-    for (const iso of selected) for (const e of G.countries?.get(iso)?.entities || []) selectedEntities.add(e);
-  }
+  let details;
+  G.storyBorderEntities = iso => details?.get(iso) ?? G.countries?.get(iso)?.entities ?? [];
   G.isStoryBorder = e => enabled && !G.overviewMode && selectedEntities.has(e);
   G.applyStoryBorders = function (show = enabled) {
     enabled = !!show;
-    const next = enabled && !G.overviewMode ? selectedEntities : new Set();
+    const showBorders = enabled && !G.overviewMode;
+    if (showBorders && G.v52DetailedBorders?.annotationsHidden()) return;
     const entities = G.viewer?.entities;
     entities?.suspendEvents?.();
     try {
+      const codes = showBorders ? selected : new Set();
+      details = G.v52DetailedBorders?.forCountries(codes);
+      const next = new Set();
+      for (const iso of codes) for (const e of G.storyBorderEntities(iso)) next.add(e);
+      selectedEntities = next;
       for (const e of visible) if (!next.has(e)) e.show = false;
       for (const e of next) if (e.show !== true) e.show = true;
-      visible = new Set(next);
+      visible = next;
     } finally { entities?.resumeEvents?.(); }
     G.viewer?.scene?.requestRender?.();
   };
@@ -105,20 +109,18 @@
     const codes=[...new Set((Array.isArray(isos)?isos:[]).map(x=>String(x||'').toUpperCase())
       .filter(x=>G.countries?.has(x)))];
     if(!codes.length)return false;
-    selected=new Set(codes);collectSelected();G.applyStoryBorders(true);
-    return codes.every(code=>(G.countries.get(code)?.entities||[]).some(e=>e.show===true));
+    selected=new Set(codes);G.applyStoryBorders(true);
+    return codes.every(code=>G.storyBorderEntities(code).some(e=>e.show===true));
   };
   G.selectCountryOverviewBorders = function (iso) {
     const code = String(iso || '').trim().toUpperCase();
     if (!G.countries?.has(code)) return false;
     selected = new Set([code]);
-    collectSelected();
     G.applyStoryBorders(true);
     return [...selectedEntities].some(e => e.show === true);
   };
   G.selectStoryBorders = function (n) {
     selected = countriesForStory(n);
-    collectSelected();
     G.applyStoryBorders();
   };
   // Natural Earth 110m PSE geometry in this app has only the West Bank;
@@ -215,7 +217,6 @@
     for (const e of G.borderEntities || []) e.show = false;
     visible.clear();
     selected = G.started ? countriesForStory(G.news?.[G.current]) : new Set();
-    collectSelected();
     G.applyStoryBorders();
     return result;
   };
