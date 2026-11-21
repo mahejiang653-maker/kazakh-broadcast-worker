@@ -145,7 +145,7 @@ async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scene
  let selected=step;
  // For region-wide news, never replace a province polygon with a guessed dot
  // or an imprecise geocoder match. Render the bundled level-one boundary.
- if(String(n.sceneMode||'').toUpperCase()==='ADMIN_REGION'){
+ if(primary==='CHN'&&String(n.sceneMode||'').toUpperCase()==='ADMIN_REGION'){
    const geo=chinaLevelOne(step?.location||step?.focusLabel);
    if(!geo){trace('admin-unavailable',{name:String(step?.location||''),reason:'missing-exact-China-level1-geometry'});return false}
    selected={...step,focusGeometry:geo};
