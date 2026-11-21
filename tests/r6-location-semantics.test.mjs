@@ -348,3 +348,16 @@ test('single-country location and headlines containing two countries do not crea
  await h.G.runSequence(n,'IDN',9);
  assert.equal(h.stages.filter(x=>x.mode==='COUNTRY'&&x.iso==='SGP').length,0);
 });
+
+test('precise China locality preserves and plays verified administrative chain before red point',async()=>{
+ const h=sceneHarness();
+ const n={title:'阿勒泰城市新闻',sceneMode:'POINT',countryIso3:'CHN',
+   lon:88.1396,lat:47.8484,location:'阿勒泰市',focusLabel:'阿勒泰市',
+   placeType:'城市',scenePlan:{primaryIso3:'CHN',
+     adminChain:[{location:'新疆维吾尔自治区',focusLabel:'新疆',placeType:'自治区'}],
+     finalLocation:true}};
+ assert.equal(await h.G.runSequence(n,'CHN',9),true);
+ assert.equal(h.admins.length,1,'administrative stage must render');
+ assert.equal(h.stages.at(-1).mode,'POINT','final stage must be the red point');
+ assert.equal(h.stages.at(-1).lon,88.1396);
+});
