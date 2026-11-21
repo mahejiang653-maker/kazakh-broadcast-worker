@@ -140,7 +140,7 @@ function chinaLevelOne(name){
  }
  return null;
 }
-async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(primary!=='CHN'||!chain.length||!oldFlashAdmin)return null;await runCountry('CHN',n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){
+async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(!chain.length||!oldFlashAdmin)return null;if(primary!=='CHN'&&chain.some(step=>!step?.focusGeometry||!['Polygon','MultiPolygon'].includes(step.focusGeometry.type))){trace('admin-unavailable',{iso:primary,reason:'verified-geometry-required'});return null;}await runCountry(primary,n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){
  if(s!==G.navSerial)return false;
  let selected=step;
  // For region-wide news, never replace a province polygon with a guessed dot
@@ -150,7 +150,7 @@ async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scene
    if(!geo){trace('admin-unavailable',{name:String(step?.location||''),reason:'missing-exact-China-level1-geometry'});return false}
    selected={...step,focusGeometry:geo};
  }
- const shown=await G.flashAdmin(selected,'CHN',s);
+ const shown=await G.flashAdmin(selected,primary,s);
  if(shown===false){trace('admin-unavailable',{name:String(step?.location||step?.focusLabel||'')});return false}
  if(s!==G.navSerial)return false;
 }trace('admin-hierarchy-complete',{chain:chain.slice()});return true}
@@ -240,7 +240,7 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
  }
  if(locality && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
    // Run an existing verified China administrative hierarchy before the final city point.
-   if(primary==='CHN'&&Array.isArray(p.adminChain)&&p.adminChain.length){
+   if(Array.isArray(p.adminChain)&&p.adminChain.length){
      const shown=await runAdminHierarchy(n,primary,s);
      if(shown===false)return false;
      if(s!==G.navSerial)return false;
