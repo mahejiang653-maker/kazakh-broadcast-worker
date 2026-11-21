@@ -1,15 +1,25 @@
 # 全球新闻地球仪：项目状态档案
 
-> 核对日期：2026-10-19（北京时间）。依据：GitHub应用提交、Actions部署日志、完整npm test及独立正式站WebGL浏览器验收。
+> 核对日期：2026-11-22（北京时间）。依据：GitHub应用提交、构建及部署日志、正式站浏览器验收和线上资源核对。
 
 ## 当前代码与生产
 
 - 现有项目：全球新闻地球仪 V52·A1 R6；仓库 mahejiang653-maker/kazakh-broadcast-worker，分支main；与哈萨克语播音共享Worker。
-- 最新已验证应用提交：`3eda3c1653ab2dd284bafc60a5342dfe8fbded75`（PR #65）；完整构建、合同、部署及独立正式站三视口分镜验收通过。
-- Cloudflare正式版本：`3634ceab-aabe-4ba4-b685-c220ded76a47`，2026-10-19 00:09北京时间部署成功。
+- 最新已验证应用提交：`a2064e16c75e34ffe2882c0f2c72eb3f2c1444e3`；[构建、分镜及部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385871)、[Top10离线合同](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385900)通过。
+- Cloudflare正式版本：`6ae7ce60-e266-4ff0-a1d8-ba0368e5f95d`，2026-11-21 17:03北京时间部署成功。
 - 正式入口：https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html 。
-- 当前入口/分镜控制缓存版本：`20261018-director-v1`；攻击几何诊断版本仍为`20261018-attack-v7`。共享攻击解析器、国旗资源、场景引擎按原有顺序加载，新增分镜控制最后加载；daily10直接导入规则不变。
+- 入口加载边境模块 `20261121-detailed-country-borders-v2-r2`，其余分镜和daily10直接导入沿用当前生产基线。
 - 默认数据仍为2026-10-11历史预览Top10；本轮通过选择文件导入攻击回归数据验收。不要声称系统已自动发布当天日报。
+
+## 全球高精度边境（2026-11-21）
+
+- 已按需加载 Natural Earth 1:1000 万真实国家和地区外形，238 个数据包覆盖原有国家，并补足旧图无几何的部分小国和岛屿。荷兰从14段增至842段。原有中国514条高精度轮廓和法国仅本土及科西嘉的规则保留。
+- 只显示当前新闻所涉国界。共用边界用同一绘制实体，日界线切缝不画；取消旧请求、清理离场边界、缺包时保持原有粗线。沿用悬空绘制和原像素设置。新版索引在后台加载；慢网时先显示底图及原有边线，数据返回后自动切换至细线。
+- `scripts/package-r6-country-borders.py` 使用固定 Natural Earth v5.1.2 GeoJSON 及 SHA-256 构建资源；下载与构建地址见脚本。逐包解码验证238个包、5192条唯一线组、527865个带归属的真实线段。没有用插值填充顶点。
+- 本地完整 `npm test`：317通过、0失败、2项既有测试跳过。390×844手机视口模拟延迟索引，仍可选取荷兰新闻；放行索引后，海牙画面绘制15条含842段的多段线，旧粗线隐藏。
+- 正式入口、绘制脚本和地图样本等8个线上资源与部署提交一致。[正式站视觉验收](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385864)的 `production-scenes` 作业通过：手机竖屏、横屏和桌面场景以及快速切条、总览清理、跨日界线场景均通过。
+- 独立访问正式入口，在390×844视口按海牙近景复验：荷兰842个线段均纳入当前图层，旧粗线及无关国家边线为0，Cesium完成实际绘制。另核对法国、日本、加拿大、中国、快速连切、横屏和总览清理，独立正式站8项均通过。
+- [正式站截图和诊断](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385864/artifacts/14701608451)已保存。额外的录像封装作业因Ubuntu镜像依赖返回404未完成，单独重试结果相同；构建、正式部署和线上绘制验收均已完成。
 
 ## 第一批分镜控制（2026-10-19）
 
