@@ -57,7 +57,7 @@ if(cityType&&cityPoint&&cityName&&cityName!==countryName&&
    (mode==='COUNTRY'||mode==='ADMIN_REGION')&&
    !n.focusGeometry&&!p.focusGeometry&&!n.forceAreaBoundary){
   n.sceneMode='POINT';n.noPoint=false;n.countryOnly=false;
-  p.finalLocation=true;p.regionalContext=false;p.adminChain=[];n.adminChain=[];
+  p.finalLocation=true;p.regionalContext=false;if(!Array.isArray(p.adminChain)||!p.adminChain.length){p.adminChain=[];n.adminChain=[];}
   p.hierarchyPresented=false;
   trace('city-mode-corrected',{from:mode,to:'POINT',city:cityName,lon:+n.lon,lat:+n.lat});
 }
@@ -140,17 +140,17 @@ function chinaLevelOne(name){
  }
  return null;
 }
-async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(primary!=='CHN'||!chain.length||!oldFlashAdmin)return null;await runCountry('CHN',n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){
+async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(!chain.length||!oldFlashAdmin)return null;if(primary!=='CHN'&&chain.some(step=>!step?.focusGeometry||!['Polygon','MultiPolygon'].includes(step.focusGeometry.type))){trace('admin-unavailable',{iso:primary,reason:'verified-geometry-required'});return null;}if(!await runCountry(primary,n,s,1500,'admin-country'))return false;if(s!==G.navSerial)return false;for(const step of chain){
  if(s!==G.navSerial)return false;
  let selected=step;
  // For region-wide news, never replace a province polygon with a guessed dot
  // or an imprecise geocoder match. Render the bundled level-one boundary.
- if(String(n.sceneMode||'').toUpperCase()==='ADMIN_REGION'){
+ if(primary==='CHN'&&String(n.sceneMode||'').toUpperCase()==='ADMIN_REGION'){
    const geo=chinaLevelOne(step?.location||step?.focusLabel);
    if(!geo){trace('admin-unavailable',{name:String(step?.location||''),reason:'missing-exact-China-level1-geometry'});return false}
    selected={...step,focusGeometry:geo};
  }
- const shown=await G.flashAdmin(selected,'CHN',s);
+ const shown=await G.flashAdmin(selected,primary,s);
  if(shown===false){trace('admin-unavailable',{name:String(step?.location||step?.focusLabel||'')});return false}
  if(s!==G.navSerial)return false;
 }trace('admin-hierarchy-complete',{chain:chain.slice()});return true}
@@ -197,12 +197,16 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    const accurate=n.lon!=null&&n.lon!==''&&n.lat!=null&&n.lat!==''&&
      Number.isFinite(+n.lon)&&Number.isFinite(+n.lat)&&Math.abs(+n.lon)<=180&&Math.abs(+n.lat)<=90;
    const countryOnly=n.countryOnly===true||n.noPoint===true||mode==='COUNTRY'||mode==='ADMIN_REGION';
-   if(countryOnly||!accurate){trace('authored-country-complete',{countries:pair});return s===G.navSerial;}
+   if(countryOnly||!accurate){if(s===G.navSerial&&!G.overviewMode)G.selectCountryOverviewBordersBatch?.(pair);trace('authored-country-complete',{countries:pair});return s===G.navSerial;}
    const q={...n,sceneMode:'POINT',noPoint:false,countryOnly:false,secondaryCountryIso3:null,
      scenePlan:{...p,focusCountries:pair.slice(),participants:[],contextCountries:[],
        regionalContext:false,hierarchyPresented:true,finalLocation:true}};
    trace('authored-country-location',{countries:pair,location:String(n.focusLabel||n.location||'')});
-   return oldRun?oldRun.call(this,q,String(p.primaryIso3||n.countryIso3||'').toUpperCase(),s):false;
+   const rendered=oldRun?await oldRun.call(this,q,String(p.primaryIso3||n.countryIso3||'').toUpperCase(),s):false;
+   // Legacy POINT playback selects only its primary country. Restore the two
+   // authored sovereign outlines after the final camera stage has settled.
+   if(rendered!==false&&s===G.navSerial&&!G.overviewMode)G.selectCountryOverviewBordersBatch?.(pair);
+   return rendered;
  }
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
@@ -239,6 +243,12 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    return oldRun?oldRun.call(this,q,mode==='POINT'?primary:'',s):false;
  }
  if(locality && !['ATTACK','MISSILE_ATTACK','DRONE_ATTACK','POTENTIAL_ATTACK'].includes(mode)){
+   // Run an existing verified China administrative hierarchy before the final city point.
+   if(Array.isArray(p.adminChain)&&p.adminChain.length){
+     const shown=await runAdminHierarchy(n,primary,s);
+     if(shown===false)return false;
+     if(s!==G.navSerial)return false;
+   }
    const q={...n,sceneMode:'POINT',countryOnly:false,noPoint:false,secondaryCountryIso3:null,
      adminChain:[],forceAdminChain:false,
      scenePlan:{...p,regionalContext:false,contextCountries:[],participants:[],adminChain:[],
