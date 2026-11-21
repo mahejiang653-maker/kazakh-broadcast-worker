@@ -128,7 +128,7 @@ try{
     await page.waitForFunction(index=>{const G=window.NG14;return G.current===index&&G.__v52CountryFrame?.serial===G.navSerial&&!G.v52Director.getState().moving;},i,{timeout:60000});
     const country=await page.evaluate(()=>{const G=window.NG14,iso=G.news[G.current].countryIso3;
       return {iso,flags:G.v51SceneEntities.filter(e=>e.__v52StoryFlag&&e.show!==false).map(e=>e.__v52FlagIso),
-        borders:(G.countries.get(iso)?.entities||[]).filter(e=>e.show&&e.polyline).length};});
+        borders:G.storyBorderEntities(iso).filter(e=>e.show&&e.polyline).length};});
     assert.ok(country.flags.includes(country.iso),JSON.stringify(country));
     assert.ok(country.borders>0,JSON.stringify(country));
     await page.waitForFunction(index=>{const G=window.NG14,s=G.v52Director.getState();return G.current===index&&s.index===index&&['complete','cancelled','failed'].includes(s.status);},i,{timeout:100000});
@@ -184,8 +184,8 @@ try{
     await page.waitForFunction(()=>{const G=window.NG14,s=G.v52Director.getState();return G.current===8&&s.index===8&&s.status==='complete';},null,{timeout:100000});
     const pair=await page.evaluate(()=>{const G=window.NG14;
       return {flags:[...new Set(G.v51SceneEntities.filter(e=>e.__v52StoryFlag&&e.show!==false).map(e=>e.__v52FlagIso))],
-        sgBorders:(G.countries.get('SGP')?.entities||[]).filter(e=>e.show&&e.polyline).length,
-        idBorders:(G.countries.get('IDN')?.entities||[]).filter(e=>e.show&&e.polyline).length,
+        sgBorders:G.storyBorderEntities('SGP').filter(e=>e.show&&e.polyline).length,
+        idBorders:G.storyBorderEntities('IDN').filter(e=>e.show&&e.polyline).length,
         synchronous:G.__v52DualFinal?.serial===G.navSerial&&G.__v52DualFinal.flagsSynchronous};});
     assert.ok(pair.flags.includes('SGP')&&pair.flags.includes('IDN'),JSON.stringify(pair));
     assert.ok(pair.sgBorders>0&&pair.idBorders>0&&pair.synchronous,JSON.stringify(pair));
