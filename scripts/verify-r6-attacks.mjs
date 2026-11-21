@@ -32,11 +32,12 @@ async function state(){return page.evaluate(()=>{
  const occluder=new C.EllipsoidalOccluder(C.Ellipsoid.WGS84,v.camera.positionWC);
  const countries=(a?[a.attacker,a.victim]:[current.countryIso3]).filter(Boolean).map(iso=>{
   const c=G.countries.get(iso),coords=G.collect(c?.feature?.geometry||{},[]);
+  const borders=G.storyBorderEntities?.(iso)??c?.entities??[];
   const projected=coords.map(q=>project(C.Cartesian3.fromDegrees(q[0],q[1])));
-  let borderPoints=0;for(const e of c?.entities||[])if(e.show)for(const p of e.polyline.positions.getValue(t))if(within(project(p))&&occluder.isPointVisible(p))borderPoints++;
+  let borderPoints=0;for(const e of borders)if(e.show)for(const p of e.polyline.positions.getValue(t))if(within(project(p))&&occluder.isPointVisible(p))borderPoints++;
   const fills=G.v51SceneEntities.filter(e=>e.__v52AttackKind==='country-'+iso&&v.entities.contains(e));
   return {iso,exists:!!c,coordinates:coords.length,inside:projected.filter(within).length,screenInside:projected.filter(p=>p&&rect.left+p.x>=0&&rect.left+p.x<=innerWidth&&rect.top+p.y>=0&&rect.top+p.y<=innerHeight).length,borderPoints,
-   fills:fills.length,readyFills:fills.filter(gpuReady).length,borderReady:(c?.entities||[]).some(e=>e.show&&gpuReady(e))};
+   fills:fills.length,readyFills:fills.filter(gpuReady).length,borderReady:borders.some(e=>e.show&&gpuReady(e))};
  });
  const flags=[...document.querySelectorAll('img[alt$=" flag"]')].map(e=>({iso:e.alt.split(' ')[0],source:e.dataset.flagSource,visible:getComputedStyle(e).display!=='none',complete:e.complete,naturalWidth:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()}));
  const target=a?.target||{lon:+current.lon,lat:+current.lat};

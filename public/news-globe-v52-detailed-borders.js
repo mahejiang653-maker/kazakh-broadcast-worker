@@ -2,12 +2,14 @@
   'use strict';
   if (!G || !C || G.v52DetailedBorders) return;
   const ROOT = '/news-globe-country-borders-v2/';
-  const VERSION = '20261121-detailed-country-borders-v2';
+  const VERSION = '20261121-detailed-country-borders-v2-r2';
   const ELEVATION = 18000;
+  const REQUEST_TIMEOUT = 25000;
   const ISO = /^[A-Z]{3}$/;
   const pending = new Map(), cache = new Map(), tried = new Set();
   const EMPTY = new Map();
   let index, key = '', installedKey = '', active = EMPTY, drawn = [], wanted = new Set();
+  let indexLoading = false, indexRetryAfter = 0, baseReady = false;
   let cachedSegments = 0, segments = 0;
 
   async function json(name, signal) {
@@ -59,7 +61,7 @@
     if (cache.has(iso) || pending.has(iso) || tried.has(iso)) return;
     tried.add(iso);
     const [count,files] = index.packs[iso];
-    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),6000);
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),REQUEST_TIMEOUT);
     pending.set(iso,controller);
     Promise.all(files.map(file => json(file,controller.signal))).then(chunks => {
       if (controller.signal.aborted) return;
@@ -91,7 +93,10 @@
     drawn = []; active = EMPTY; installedKey = ''; segments = 0;
   }
   function forCountries(isos) {
-    if (!index) return EMPTY;
+    if (!index || !baseReady) {
+      if (isos.size) requestIndex();
+      return EMPTY;
+    }
     const detailIsos = [...isos].filter(iso => Object.hasOwn(index.packs,iso)).sort();
     const includesChina = isos.has('CHN') && G.countries.get('CHN')?.entities?.some(e => e._chinaAuthoritativeOutline);
     const nextKey = detailIsos.join(',') + (includesChina ? '|CHN' : '');
@@ -156,18 +161,38 @@
       G.worldGeo?.features?.push(feature);
     }
   }
+  function activateIndex() {
+    G.viewer.entities.suspendEvents();
+    try { installExtras(); }
+    catch (error) { console.warn('[V52 detailed borders] Country index unavailable',error); index = null; }
+    finally { G.viewer.entities.resumeEvents(); }
+    // A microstate from a late index may have been missing when the story
+    // was selected. Do not disturb a country stage that already has a scope.
+    const scope = G.v52StoryBorders?.getDiagnostics().countries;
+    if (G.started && !G.overviewMode && scope?.length === 0) G.selectStoryBorders?.(G.news?.[G.current]);
+    else G.applyStoryBorders?.();
+  }
+  function requestIndex() {
+    if (index || indexLoading || Date.now() < indexRetryAfter) return;
+    indexLoading = true;
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),REQUEST_TIMEOUT);
+    void json('index.json',controller.signal).then(data => {
+      if (controller.signal.aborted) return;
+      if (data?.version !== 2 || !data.packs || !data.extras) throw Error('Invalid border index');
+      index = data;
+      if (baseReady) activateIndex();
+    }).catch(() => {}).finally(() => {
+      indexLoading = false; indexRetryAfter = Date.now() + 3000; clearTimeout(timeout);
+    });
+  }
   const loadBorders = G.loadBorders;
   G.loadBorders = async function (...args) {
-    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),4000);
-    const manifest = json('index.json',controller.signal).catch(() => null).finally(() => clearTimeout(timeout));
-    const [result,data] = await Promise.all([loadBorders.apply(this,args),manifest]);
-    if (data?.version === 2 && data.packs && data.extras) {
-      G.viewer.entities.suspendEvents();
-      try { index = data; installExtras(); }
-      catch (error) { console.warn('[V52 detailed borders] Country index unavailable',error); index = null; }
-      finally { G.viewer.entities.resumeEvents(); }
-      G.applyStoryBorders?.();
-    }
+    // The atlas is optional at startup. A slow connection must not block
+    // the base map or permanently prevent it from upgrading to detail.
+    requestIndex();
+    const result = await loadBorders.apply(this,args);
+    baseReady = true;
+    if (index) activateIndex();
     return result;
   };
   const setCountry = G.setCountry;

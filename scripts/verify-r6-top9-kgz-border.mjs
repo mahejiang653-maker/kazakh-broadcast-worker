@@ -124,7 +124,7 @@ try{
  await page.evaluate(()=>window.NG14?.closeSettings?.());
  await page.waitForFunction(()=>!document.querySelector('#drawerBackdrop')?.classList.contains('show'),null,{timeout:10000});
  // These are positive assertions about final visual state, not just title/flag presence.
- await page.evaluate(()=>{NG14.__kgzSamples=[];NG14.__kgzTimer=setInterval(()=>{const G=NG14;if(G.current!==8)return;const iso=G.v52StoryBorders?.getDiagnostics?.().countries||[];const count=c=>(G.countries?.get(c)?.entities||[]).filter(e=>e.show===true).length;G.__kgzSamples.push({iso,kgz:count('KGZ'),chn:count('CHN')});},100)});
+ await page.evaluate(()=>{NG14.__kgzSamples=[];NG14.__kgzTimer=setInterval(()=>{const G=NG14;if(G.current!==8)return;const iso=G.v52StoryBorders?.getDiagnostics?.().countries||[];const count=c=>(G.storyBorderEntities?.(c)??G.countries?.get(c)?.entities??[]).filter(e=>e.show===true).length;G.__kgzSamples.push({iso,kgz:count('KGZ'),chn:count('CHN')});},100)});
  await page.locator('#timeline button').nth(8).click();
  await page.waitForFunction(()=>NG14.__kgzSamples?.some(x=>x.iso.join(',')==='KGZ'&&x.kgz>0),null,{timeout:90000});
  await page.screenshot({path:path.join(dir,'top9-kyrgyz-border.png')});

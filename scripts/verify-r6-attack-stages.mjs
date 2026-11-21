@@ -47,9 +47,10 @@ async function state(){return page.evaluate(()=>{
   canvas:rect.toJSON(),viewport:{width:innerWidth,height:innerHeight},scope,
   countries:(a?[a.attacker,a.victim]:[]).filter(Boolean).map(iso=>{
    const c=G.countries.get(iso),fills=G.v51SceneEntities.filter(e=>e.__v52TerritoryFill&&e.__v52CountryIso===iso&&v.entities.contains(e));
+   const borders=G.storyBorderEntities?.(iso)??c?.entities??[];
    return {iso,fills:fills.length,readyFills:fills.filter(gpuReady).length,
-    outlineSegments:(c?.entities||[]).filter(e=>e.polyline).length,
-    visibleBorderPoints:(c?.entities||[]).filter(e=>e.show&&e.polyline).flatMap(e=>e.polyline.positions.getValue(t)).filter(p=>within(project(p))&&occluder.isPointVisible(p)).length};
+    outlineSegments:borders.filter(e=>e.polyline).reduce((sum,e)=>sum+Math.max(0,e.polyline.positions.getValue(t).length-1),0),
+    visibleBorderPoints:borders.filter(e=>e.show&&e.polyline).flatMap(e=>e.polyline.positions.getValue(t)).filter(p=>within(project(p))&&occluder.isPointVisible(p)).length};
   }),
   flags:[...document.querySelectorAll('img[alt$=" flag"]')].filter(e=>getComputedStyle(e).display!=='none').map(e=>({iso:e.alt.split(' ')[0],complete:e.complete,width:e.naturalWidth,rect:e.getBoundingClientRect().toJSON()})),
   labels:G.v51SceneEntities.filter(e=>e.label).map(e=>e.label.text.getValue(t)),

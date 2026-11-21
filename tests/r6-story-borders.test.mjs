@@ -82,6 +82,21 @@ test('the high detail atlas covers every existing country, plus countries absent
 });
 
 const settled = () => new Promise(resolve=>setImmediate(resolve));
+test('a slow border index does not block globe startup or prevent later detail',async()=>{
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const {G}=harness({atlas:true,onFetch:name=>name===atlasRoot+'index.json'?gate:null});
+  try {
+    await G.loadBorders();
+    assert.equal(G.v52DetailedBorders.getDiagnostics().availableCountries,0);
+    installNews(G,[story('NLD')]);G.focus(0);assertScope(G,['NLD']);
+    assert.equal(G.borderEntities.filter(e=>e.show).length,14);
+  } finally { release(); }
+  await settled();assertScope(G,['NLD']);
+  assert.ok(G.countries.has('VAT'));
+  assert.equal(G.v52DetailedBorders.getDiagnostics().segments,842);
+});
+
 test('Hague switches to real detailed coastlines; fast navigation and overview remove stale detail',async()=>{
   let delay,loadSignal;
   const {G,hide}=harness({atlas:true,onFetch:(name,options)=>{

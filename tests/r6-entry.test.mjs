@@ -78,7 +78,7 @@ test('R6 entry uses the current daily edition and cache key', async () => {
   assert.ok(scripts.some(src => /^\/news-globe-v14-v51-scene-engine\.js\?v=20261121-detailed-country-borders-v2$/.test(src)));
   assert.ok(scripts.includes('/news-globe-v52-hard-rules.js?v=20261029-event-detail-r1'));
   assert.ok(scripts.includes('/news-globe-v52-story-borders.js?v=20261121-detailed-country-borders-v2'));
-  assert.ok(scripts.includes('/news-globe-v52-detailed-borders.js?v=20261121-detailed-country-borders-v2'));
+  assert.ok(scripts.includes('/news-globe-v52-detailed-borders.js?v=20261121-detailed-country-borders-v2-r2'));
   assert.ok(namesOrder(scripts,'/news-globe-v52-story-borders.js','/news-globe-v52-detailed-borders.js','/news-globe-v14-main.js'));
   assert.ok(names.indexOf('/news-globe-v52-flag-images.js') < names.indexOf('/news-globe-v52-attack-model.js'));
   assert.ok(names.indexOf('/news-globe-v52-attack-model.js') < names.indexOf('/news-globe-v14-v51-scene-engine.js'));
