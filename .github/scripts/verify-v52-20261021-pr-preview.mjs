@@ -219,8 +219,8 @@ try{
       borderDiagnostics:G.v52StoryBorders?.getDiagnostics?.(),
       borderVisibility:{annotationsHidden:G.v52DetailedBorders?.annotationsHidden?.()??null,overviewMode:!!G.overviewMode,sgEntities:G.countries.get('SGP')?.entities?.map(e=>({show:e.show,polyline:!!e.polyline}))||[],idnVisible:G.countries.get('IDN')?.entities?.filter(e=>e.show).length||0},
       whiteBorders:{
-        singapore:G.countries.get('SGP')?.entities?.filter(e=>e.show&&e.polyline).length||0,
-        indonesia:G.countries.get('IDN')?.entities?.filter(e=>e.show&&e.polyline).length||0
+        singapore:G.storyBorderEntities?.('SGP')?.filter(e=>e.show&&e.polyline).length||0,
+        indonesia:G.storyBorderEntities?.('IDN')?.filter(e=>e.show&&e.polyline).length||0
       },
       originalPlace:n.location,
       finalAnnotation:G.v52FinalAnnotationGuard?.getDiagnostics?.()
