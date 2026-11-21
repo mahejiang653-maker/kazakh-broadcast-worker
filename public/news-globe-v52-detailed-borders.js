@@ -2,13 +2,14 @@
   'use strict';
   if (!G || !C || G.v52DetailedBorders) return;
   const ROOT = '/news-globe-country-borders-v2/';
-  const VERSION = '20261121-detailed-country-borders-v2-r2';
+  const VERSION = '20261122-country-territory-fill-v1';
   const ELEVATION = 18000;
   const REQUEST_TIMEOUT = 25000;
   const ISO = /^[A-Z]{3}$/;
   const pending = new Map(), cache = new Map(), tried = new Set();
   const EMPTY = new Map();
-  let index, key = '', installedKey = '', active = EMPTY, drawn = [], wanted = new Set();
+  let index, key = '', installedKey = '', active = EMPTY, drawn = [];
+  let wanted = new Set(), borderCodes = new Set();
   let indexLoading = false, indexRetryAfter = 0, baseReady = false;
   let cachedSegments = 0, segments = 0;
 
@@ -50,6 +51,32 @@
     if (positions.length < 6) throw Error('Border arc too short');
     return positions;
   }
+  function fillPolygons(iso, arcs) {
+    const byId = new Map(arcs.map(({id,positions}) => [id,positions]));
+    const polygons = index.fills[iso]?.map(poly => poly.map(refs => {
+      const ring = [];
+      for (const ref of refs) {
+        const id = Array.isArray(ref) ? ref[0] : Math.abs(ref);
+        const line = typeof ref === 'string' ? decode(ref) : byId.get(id);
+        if (!line) throw Error('Missing polygon arc');
+        const last = line.length / 3 - 1;
+        const [start,end] = Array.isArray(ref) ? ref.slice(1) : ref < 0 ? [last,0] : [0,last];
+        if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < 0 ||
+          start > last || end > last || start === end) throw Error('Invalid polygon arc range');
+        const prev = ring.at(-1);
+        if (prev && (prev[0] !== line[start*3] || prev[1] !== line[start*3+1]))
+          throw Error('Disconnected polygon arc');
+        const step = start < end ? 1 : -1;
+        for (let i = prev ? start+step : start; i !== end+step; i += step)
+          ring.push([line[i*3],line[i*3+1]]);
+      }
+      if (ring.length < 4 || ring[0][0] !== ring.at(-1)[0] || ring[0][1] !== ring.at(-1)[1])
+        throw Error('Unclosed country polygon');
+      return ring;
+    }));
+    if (!polygons?.length || polygons.some(poly => !poly.length)) throw Error('Missing country polygon');
+    return {type:'MultiPolygon',coordinates:polygons};
+  }
   function trimCache(wanted) {
     for (const [iso,item] of cache) {
       if (cachedSegments <= 180000 && cache.size <= 12) break;
@@ -72,7 +99,9 @@
       });
       if (!arcs.length || arcs.reduce((n,arc) => n + arc.positions.length / 3 - 1,0) !== count)
         throw Error('Incomplete border pack');
-      cache.set(iso,{arcs,count}); cachedSegments += count;
+      const geometry = fillPolygons(iso,arcs);
+      cache.set(iso,{arcs,count,fill:{geometry,height:ELEVATION-500,detailed:true}});
+      cachedSegments += count;
       trimCache(wanted);
       // Recalculate from the latest story; never show a country's late results
       // after a switch, in overview or in an annotation-free closeup.
@@ -93,17 +122,18 @@
     drawn = []; active = EMPTY; installedKey = ''; segments = 0;
   }
   function forCountries(isos) {
+    const fills = G.v52VisibleTerritories?.() || [];
     if (!index || !baseReady) {
-      if (isos.size) requestIndex();
+      if (isos.size || fills.length) requestIndex();
       return EMPTY;
     }
     const detailIsos = [...isos].filter(iso => Object.hasOwn(index.packs,iso)).sort();
     const includesChina = isos.has('CHN') && G.countries.get('CHN')?.entities?.some(e => e._chinaAuthoritativeOutline);
     const nextKey = detailIsos.join(',') + (includesChina ? '|CHN' : '');
-    if (key !== nextKey) {
-      key = nextKey;
+    const nextWanted = new Set([...detailIsos,...fills.filter(iso => Object.hasOwn(index.packs,iso))]);
+    if (nextWanted.size !== wanted.size || [...nextWanted].some(iso => !wanted.has(iso))) {
+      wanted = nextWanted;
       tried.clear();
-      wanted = new Set(detailIsos);
       for (const [iso,controller] of pending) if (!wanted.has(iso)) {
         controller.abort(); pending.delete(iso);
       }
@@ -113,6 +143,10 @@
         else request(iso);
       }
       trimCache(wanted);
+    }
+    if (key !== nextKey) {
+      key = nextKey;
+      borderCodes = new Set(detailIsos);
       clearDetail();
     }
     if (!detailIsos.length || detailIsos.some(iso => !cache.has(iso))) return EMPTY;
@@ -142,6 +176,12 @@
       clearDetail(); installedKey = key;
     }
     return active;
+  }
+
+  function territory(iso) {
+    // If an applicable outline batch is still loading, both sides use the
+    // coarse level until all selected detailed lines can replace it together.
+    return (!borderCodes.has(iso) || active.has(iso)) ? cache.get(iso)?.fill : null;
   }
 
   function installExtras() {
@@ -176,9 +216,9 @@
     if (index || indexLoading || Date.now() < indexRetryAfter) return;
     indexLoading = true;
     const controller = new AbortController(), timeout = setTimeout(() => controller.abort(),REQUEST_TIMEOUT);
-    void json('index.json',controller.signal).then(data => {
+    void json('territories-v1.json',controller.signal).then(data => {
       if (controller.signal.aborted) return;
-      if (data?.version !== 2 || !data.packs || !data.extras) throw Error('Invalid border index');
+      if (data?.version !== 2 || !data.packs || !data.extras || !data.fills) throw Error('Invalid border index');
       index = data;
       if (baseReady) activateIndex();
     }).catch(() => {}).finally(() => {
@@ -202,7 +242,7 @@
     if (active.has(code)) for (const e of active.get(code)) Object.assign(e.polyline,style(code));
     return result;
   };
-  G.v52DetailedBorders = {version:VERSION,forCountries,annotationsHidden,
+  G.v52DetailedBorders = {version:VERSION,forCountries,annotationsHidden,territory,
     getDiagnostics:() => ({countries:[...active.keys()],segments,lines:drawn.length,pending:[...pending.keys()],
       availableCountries:index ? Object.keys(index.packs).length : 0})};
 })(window.NG14,window.Cesium);

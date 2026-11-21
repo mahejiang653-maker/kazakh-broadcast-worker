@@ -55,7 +55,7 @@ G.addAdminPolygon=(poly)=>{
   const col=C.Color.fromCssColorString('#ff2b2b');
   G.localHighlightEntities.push(G.viewer.entities.add({polygon:{
     hierarchy:h,
-    height:8500,
+    height:15500,
     perPositionHeight:false,
     arcType:C.ArcType.GEODESIC,
     granularity:C.Math.RADIANS_PER_DEGREE/4,

@@ -7,27 +7,79 @@ G.label=(text,lon,lat,mode)=>{if(!text||!Number.isFinite(+lon)||!Number.isFinite
 G.clearCountry=()=>{if(G.highlightTimer){clearTimeout(G.highlightTimer);G.highlightTimer=null}if(G.countryBlinkTimer){clearInterval(G.countryBlinkTimer);G.countryBlinkTimer=null}if(G.countryLabelEntity)try{G.viewer.entities.remove(G.countryLabelEntity)}catch{}G.countryLabelEntity=null;if(G.countryFlagEntity)try{G.viewer.entities.remove(G.countryFlagEntity)}catch{}G.countryFlagEntity=null;for(const e of G.countryFillEntities)try{G.viewer.entities.remove(e)}catch{}G.countryFillEntities=[];if(G.activeIso){G.setCountry(G.activeIso,false);G.activeIso=null}};
 G.centerOf=g=>{const p=G.collect(g,[]);if(!p.length)return null;let a=0,b=0;for(const c of p){a+=+c[0];b+=+c[1]}return[a/p.length,b/p.length]};
 G.outerHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],7000)))};
-G.countryHierarchy=poly=>{if(!poly?.[0])return null;return new C.PolygonHierarchy(poly[0].map(c=>C.Cartesian3.fromDegrees(+c[0],+c[1],0)))};
-// Country colour is a CLIPPED polygon fill, never a red border stroke.
-// MultiPolygon islands and polygon holes follow the actual sovereign geometry.
+G.countryHierarchy=poly=>{
+ const positions=ring=>(ring||[]).filter(p=>Number.isFinite(+p[0])&&Number.isFinite(+p[1]))
+  .map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
+ const outer=positions(poly?.[0]);if(outer.length<3)return null;
+ const holes=poly.slice(1).map(positions).filter(x=>x.length>=3).map(x=>new C.PolygonHierarchy(x));
+ return new C.PolygonHierarchy(outer,holes);
+};
+function paintTerritory(geometry,tint,opacity,height,metadata={}){
+ const polygons=geometry?.type==='Polygon'?[geometry.coordinates]:geometry?.type==='MultiPolygon'?geometry.coordinates:[];
+ const material=C.Color.fromCssColorString(tint).withAlpha(Math.max(.48,Math.min(.58,opacity*2)));
+ const parts=[];
+ for(const rings of polygons){
+  const hierarchy=G.countryHierarchy(rings);if(!hierarchy)continue;
+  // Fixed height tessellation follows the globe; per-position triangles cut
+  // below its surface for wide countries and provinces.
+  const entity=G.viewer.entities.add({polygon:{hierarchy,height,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
+   material,outline:false}});
+  Object.assign(entity,{__v52TerritoryFill:true,...metadata});parts.push(entity);
+ }
+ return parts;
+}
 G.addCountryFill=(geometry,tint='#ed3e50',opacity=.25)=>{
- const C=Cesium,polys=geometry?.type==='Polygon'?[geometry.coordinates]:
-   geometry?.type==='MultiPolygon'?geometry.coordinates:[];
- // Every country is triangulated on a CURVED ellipsoid at a fixed height.
- // perPositionHeight=true builds large flat triangles that disappear BELOW
- // the globe across Brazil, China, Russia and archipelagos (patchy red fill).
- const col=C.Color.fromCssColorString(tint).withAlpha(Math.max(.48,Math.min(.58,opacity*2)));
- for(const rings of polys){
-  const positions=ring=>(ring||[]).filter(p=>Number.isFinite(+p[0])&&Number.isFinite(+p[1]))
-    .map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
-  const outer=positions(rings?.[0]);if(outer.length<3)continue;
-  const holes=(rings||[]).slice(1).map(positions).filter(x=>x.length>=3)
-    .map(x=>new C.PolygonHierarchy(x));
-  const entity=G.viewer.entities.add({__v52TerritoryFill:true,
-    polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
-      height:13500,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
-      material:col,outline:false}});
-  G.countryFillEntities.push(entity);
+ G.countryFillEntities.push(...paintTerritory(geometry,tint,opacity,13500));
+};
+
+const territoryGroups=new Set();
+let requestScheduled=false;
+function liveTerritories(){
+ const out=[];
+ for(const group of territoryGroups){
+  if(group.serial!==G.navSerial || !group.parts.some(e=>group.list.includes(e)&&G.viewer?.entities?.contains?.(e)!==false)){
+   territoryGroups.delete(group);continue;
+  }
+  if(!G.overviewMode)out.push(group);
+ }
+ return out;
+}
+function territoryData(iso){
+ const country=G.countries?.get(iso),canonical=iso==='CHN'&&country?.authoritativeOutline?.geometry;
+ if(canonical)return {geometry:canonical,height:13500};
+ return G.v52DetailedBorders?.territory?.(iso) || {geometry:country?.feature?.geometry,height:13500};
+}
+function paintGroup(group,data){
+ return paintTerritory(data.geometry,group.tint,group.opacity,data.height,
+  {...group.metadata,__v52CountryIso:group.iso,__v52DetailedFill:!!data.detailed});
+}
+G.v52DrawTerritory=(iso,list,tint,opacity,metadata)=>{
+ const code=String(iso||'').toUpperCase(),data=territoryData(code);
+ if(!data.geometry)return false;
+ const group={iso:code,list,tint,opacity,metadata,serial:G.navSerial,geometry:data.geometry,parts:[]};
+ group.parts=paintGroup(group,data);
+ if(!group.parts.length)return false;
+ list.push(...group.parts);
+ if(G.v52DetailedBorders){
+  liveTerritories();territoryGroups.add(group);
+  // Several countries can be added within one scene; request all of their
+  // packs once without changing which white borders the story selected.
+  if(!requestScheduled){requestScheduled=true;Promise.resolve().then(()=>{
+   requestScheduled=false;if(liveTerritories().length)G.applyStoryBorders?.();
+  });}
+ }
+ return true;
+};
+G.v52VisibleTerritories=()=>[...new Set(liveTerritories().map(group=>group.iso))];
+G.v52RefreshTerritoryFills=()=>{
+ for(const group of liveTerritories()){
+  const data=territoryData(group.iso);
+  if(!data.geometry||data.geometry===group.geometry)continue;
+  const next=paintGroup(group,data);if(!next.length)continue;
+  const old=new Set(group.parts);
+  for(let i=group.list.length-1;i>=0;i--)if(old.has(group.list[i]))group.list.splice(i,1);
+  for(const e of old)G.viewer.entities.remove(e);
+  group.geometry=data.geometry;group.parts=next;group.list.push(...next);
  }
 };
 G.setCountry=(iso,on,phase=1)=>{iso=String(iso||'').toUpperCase();const c=G.countries.get(iso);if(!c)return;
@@ -45,8 +97,7 @@ G.flashCountry=(iso,n)=>{
  G.selectCountryOverviewBorders?.(iso);
  G.setCountry(iso,true);
  const color=n?.scenePlan?.territoryRole==='blue'?'#38a7f6':'#ec4150';
- const geometry=iso==='CHN'&&c.authoritativeOutline?.geometry?c.authoritativeOutline.geometry:c.feature?.geometry;
- G.addCountryFill(geometry,color,.26);
+ G.v52DrawTerritory(iso,G.countryFillEntities,color,.26);
  const p=iso==='CHN'?[103.5,35.5]:(c.center||G.centerOf(c.feature?.geometry));
  if(p){
    const name=G.countryNameZh?.(iso)||G.storyCountryName(n,iso);

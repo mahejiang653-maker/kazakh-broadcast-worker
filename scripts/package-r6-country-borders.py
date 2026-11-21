@@ -1,9 +1,10 @@
 """Package the pinned Natural Earth 10m country outlines for V52.
 
-Run with ne_10m_admin_0_countries.geojson from the URL below. The output is
-display geometry only; China's outline and existing country fills are separate.
-Each arc contains original vertices (rounded to 1e-6 degrees). Shared frontiers
-have the same arc ID in each owner's file, including reversed source rings.
+Run with ne_10m_admin_0_countries.geojson from the URL below. White outlines
+and coloured fills share the original vertices (rounded to 1e-6 degrees).
+The fill index records ring topology with references to the outline arcs;
+only dateline closure edges live exclusively in the fill index. China keeps
+the existing authoritative geometry outside this dataset.
 """
 
 import base64
@@ -91,6 +92,41 @@ def encode(path):
     return base64.b64encode(out).decode('ascii')
 
 
+def ring_refs(ring, arcs, arc_edges):
+    points = [(round(x*SCALE), round(y*SCALE)) for x, y in ring]
+    points = [p for i, p in enumerate(points) if not i or points[i-1] != p]
+    assert len(points) >= 4 and points[0] == points[-1], 'Invalid polygon ring'
+    runs = []
+    for a, b in zip(points, points[1:]):
+        if abs(a[0]) == abs(b[0]) == 180*SCALE:
+            # Close the fill across the cut without creating a white seam.
+            runs.append((a, b))
+            continue
+        arc, j = arc_edges[tuple(sorted((a, b)))]
+        line = arcs[arc]
+        start, end = (j, j+1) if line[j] == a else (j+1, j)
+        prev = runs[-1] if runs else None
+        if isinstance(prev, list) and prev[0] == arc and prev[2] == start:
+            prev[2] = end
+        else:
+            runs.append([arc, start, end])
+    refs, joined = [], []
+    for run in runs:
+        if isinstance(run, tuple):
+            refs.append(encode(run))
+            line = run
+        else:
+            arc, start, end = run
+            line = arcs[arc][min(start, end):max(start, end)+1]
+            if start > end:
+                line = line[::-1]
+            refs.append((arc if start < end else -arc) if len(line) == len(arcs[arc]) else run)
+        assert not joined or joined[-1] == line[0], 'Disconnected arc reference'
+        joined.extend(line[1:] if joined else line)
+    assert joined == points, 'Fill references must reproduce the original ring exactly'
+    return refs
+
+
 def main(source_path):
     raw = source_path.read_bytes()
     assert hashlib.sha256(raw).hexdigest() == SHA256, 'Unexpected Natural Earth source version'
@@ -121,6 +157,7 @@ def main(source_path):
     for edge, owners in edges.items():
         by_owners[tuple(sorted(owners))].append(edge)
     by_iso = defaultdict(list)
+    arcs, arc_edges = {}, {}
     arc_id = 0
     for owners in sorted(by_owners):
         if owners == ('CHN',):
@@ -129,6 +166,9 @@ def main(source_path):
             for i in range(0, len(chain)-1, MAX_ARC_VERTICES-1):
                 line = chain[i:i+MAX_ARC_VERTICES]
                 arc_id += 1
+                arcs[arc_id] = line
+                for j, (a, b) in enumerate(zip(line, line[1:])):
+                    arc_edges[tuple(sorted((a, b)))] = (arc_id, j)
                 record = [arc_id, ''.join(owners), encode(line)]
                 for iso in owners:
                     if iso != 'CHN':
@@ -160,9 +200,14 @@ def main(source_path):
              'sourceURL': SOURCE, 'sourceSHA256': SHA256, 'license': 'public domain',
              'packs': packs, 'extras': {k:v for k,v in sorted(extras.items()) if k in packs}}
     (OUT/'index.json').write_text(dump(index)+'\n', encoding='utf8')
+    fills = {iso:[[ring_refs(ring, arcs, arc_edges) for ring in poly] for poly in polys]
+             for iso, _, polys in source if iso in packs}
+    assert fills.keys() == packs.keys(), 'Every border pack needs a fill'
+    (OUT/'territories-v1.json').write_text(dump({**index, 'fills':fills})+'\n', encoding='utf8')
     print(dump({'codes':len(packs), 'arcs':arc_id, 'extraCountries':len(index['extras']),
                 'segments':sum(sum(n for _,n in lines) for lines in by_iso.values()),
-                'files':len(list(OUT.glob('*.json'))), 'bytes':sum(p.stat().st_size for p in OUT.glob('*.json'))}))
+                'files':len(list(OUT.glob('*.json'))), 'bytes':sum(p.stat().st_size for p in OUT.glob('*.json')),
+                'fillPolygons':sum(len(polys) for polys in fills.values())}))
 
 
 if __name__ == '__main__':

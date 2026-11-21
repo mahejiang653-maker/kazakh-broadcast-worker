@@ -7,7 +7,8 @@ const source = name => fs.readFileSync(new URL('../public/' + name,import.meta.u
 const world = JSON.parse(fs.readFileSync(new URL('./fixtures/r6-world-borders-20261007.geojson',import.meta.url)));
 const china = JSON.parse(source('news-globe-china-outline-v52.geojson'));
 const atlasRoot = 'news-globe-country-borders-v2/';
-const atlasIndex = JSON.parse(source(atlasRoot+'index.json'));
+const atlasManifest = atlasRoot+'territories-v1.json';
+const atlasIndex = JSON.parse(source(atlasManifest));
 function harness({atlas=false,onFetch=()=>{}}={}) {
   const values = [], nodes = new Map();
   const node = id => {
@@ -15,11 +16,12 @@ function harness({atlas=false,onFetch=()=>{}}={}) {
     return nodes.get(id);
   };
   const color = {withAlpha(){return this;}};
-  const C = {Color:{fromCssColorString:()=>color,BLACK:color,WHITE:color},ArcType:{GEODESIC:1},
+  const C = {Color:{fromCssColorString:css=>({css,withAlpha(){return this;}}),BLACK:color,WHITE:color},ArcType:{GEODESIC:1},
     Cartesian3:{fromDegrees:(lon,lat,height)=>({lon,lat,height}),
       fromDegreesArrayHeights:a=>Array.from({length:a.length/3},(_,i)=>({lon:a[i*3],lat:a[i*3+1],height:a[i*3+2]}))},
     BoundingSphere:{fromPoints:points=>({points,radius:2000000})},
-    PolygonHierarchy:class {},Cartesian2:class {constructor(x,y){this.x=x;this.y=y}},HeadingPitchRange:class {},
+    PolygonHierarchy:class {constructor(positions,holes=[]){this.positions=positions;this.holes=holes;}},
+    Cartesian2:class {constructor(x,y){this.x=x;this.y=y}},HeadingPitchRange:class {},
     PolylineOutlineMaterialProperty:class {constructor(options){Object.assign(this,options);}},
     Math:{toRadians:n=>n*Math.PI/180}};
   let hideAnnotations = false;
@@ -28,7 +30,7 @@ function harness({atlas=false,onFetch=()=>{}}={}) {
     setTimeout,clearTimeout,setInterval,clearInterval,AbortController,AbortSignal,atob});
   vm.runInContext(source('news-globe-v14-core.js'),context);
   const G = context.window.NG14;
-  G.viewer = {entities:{values,add(e){values.push(e);return e;},
+  G.viewer = {entities:{values,add(e){values.push(e);return e;},contains(e){return values.includes(e);},
     remove(e){const i=values.indexOf(e);if(i>=0)values.splice(i,1);},suspendEvents(){},resumeEvents(){}},
     scene:{requestRender(){}},clock:{currentTime:0},camera:{flyTo(){},flyToBoundingSphere(){}}};
   G.fetchJSON = async urls => urls===G.WORLD ? structuredClone(world) : urls===G.CHINA_OUTLINE ? structuredClone(china) : {features:[]};
@@ -76,7 +78,9 @@ test('the high detail atlas covers every existing country, plus countries absent
   }
   for(const [iso,[segments,parts]] of Object.entries(atlasIndex.packs)){
     assert.ok(segments>0&&parts.length&&parts.every(file=>file.startsWith(iso+'-')&&files.has(file)),iso+' has missing parts');
+    assert.ok(atlasIndex.fills[iso]?.length,iso+' has no fill rings');
   }
+  assert.deepEqual(Object.keys(atlasIndex.fills).sort(),Object.keys(atlasIndex.packs).sort());
   for(const iso of ['VAT','MCO','LIE','AND','MLT','MDV','SGP'])assert.ok(atlasIndex.packs[iso]);
   assert.equal(atlasIndex.packs.CHN,undefined,'China must use its existing authoritative outline');
 });
@@ -85,7 +89,7 @@ const settled = () => new Promise(resolve=>setImmediate(resolve));
 test('a slow border index does not block globe startup or prevent later detail',async()=>{
   let release;
   const gate=new Promise(resolve=>{release=resolve;});
-  const {G}=harness({atlas:true,onFetch:name=>name===atlasRoot+'index.json'?gate:null});
+  const {G}=harness({atlas:true,onFetch:name=>name===atlasManifest?gate:null});
   try {
     await G.loadBorders();
     assert.equal(G.v52DetailedBorders.getDiagnostics().availableCountries,0);
@@ -95,6 +99,73 @@ test('a slow border index does not block globe startup or prevent later detail',
   await settled();assertScope(G,['NLD']);
   assert.ok(G.countries.has('VAT'));
   assert.equal(G.v52DetailedBorders.getDiagnostics().segments,842);
+});
+
+function edgeKey(a,b){
+  return [a,b].map(p=>`${p.lon.toFixed(6)},${p.lat.toFixed(6)}`).sort().join(':');
+}
+function outlineEdges(lines){
+  return new Set(lines.flatMap(line=>line.slice(1).map((p,i)=>edgeKey(line[i],p))));
+}
+function fillLines(parts){
+  return parts.flatMap(e=>{
+    const h=e.polygon.hierarchy;
+    return [h.positions,...h.holes.map(hole=>hole.positions)];
+  });
+}
+
+test('country fills and white strokes upgrade together from the same real arcs',async()=>{
+  const {G,values}=harness({atlas:true});await G.loadBorders();
+  G.overviewMode=false;G.label=()=>null;
+  G.flashCountry('NLD',story('NLD'));
+  const fallback=[...G.countryFillEntities];
+  assert.ok(fallback.length>0&&fallback.every(e=>!e.__v52DetailedFill));
+  assert.ok(G.storyBorderEntities('NLD').every(e=>!e.__v52DetailedBorder));
+  await settled();
+  assert.ok(fallback.every(e=>!values.includes(e)),'old fill must be removed');
+  const pieces=G.countryFillEntities;
+  assert.ok(pieces.every(e=>e.__v52DetailedFill&&e.polygon.height===17500));
+  assert.equal(pieces.length,12,'mainland and islands stay separate');
+  const white=outlineEdges(G.storyBorderEntities('NLD').map(e=>e.polyline.positions));
+  const filled=outlineEdges(fillLines(pieces));
+  assert.equal(white.size,842);
+  assert.deepEqual(filled,white,'every fill edge, including its coast, uses the exact outline coordinates');
+  G.clearCountry();G.overview();await settled();
+  assert.ok(pieces.every(e=>!values.includes(e)),'overview clears every upgraded polygon');
+});
+
+test('all active red and blue polygons retain their holes and scene metadata after refinement',async()=>{
+  const {G}=harness({atlas:true});await G.loadBorders();G.overviewMode=false;
+  const layer=[];
+  G.selectCountryOverviewBordersBatch(['ZAF','LSO']);
+  G.v52DrawTerritory('ZAF',layer,'#ff4050',.26,{__v52AttackSerial:9,__v52AttackKind:'country-ZAF'});
+  G.v52DrawTerritory('LSO',layer,'#3dbdff',.26);
+  await settled();
+  assertScope(G,['LSO','ZAF']);assert.ok(layer.every(e=>e.__v52DetailedFill));
+  const home=layer.filter(e=>e.__v52CountryIso==='ZAF');
+  const interior=home.flatMap(e=>e.polygon.hierarchy.holes.map(h=>h.positions))[0];
+  assert.ok(interior?.length>20,'a country surrounding another leaves a real hole');
+  const enclave=layer.filter(e=>e.__v52CountryIso==='LSO');
+  assert.deepEqual(outlineEdges([interior]),outlineEdges(fillLines(enclave)));
+  assert.ok(home.every(e=>e.__v52AttackSerial===9&&e.__v52AttackKind==='country-ZAF'&&e.polygon.material.css==='#ff4050'));
+  assert.ok(enclave.every(e=>e.polygon.material.css==='#3dbdff'));
+  // A regional source polygon uses the same hierarchy builder (including holes).
+  const admin=[[[0,0],[2,0],[2,2],[0,2],[0,0]],[[.4,.4],[.4,.8],[.8,.8],[.4,.4]]];
+  assert.equal(G.countryHierarchy(admin).holes[0].positions.length,4);
+});
+
+test('a late polygon pack cannot recreate an old territory after a story switch',async()=>{
+  let release,signal;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const {G,values}=harness({atlas:true,onFetch:(name,options)=>{
+    if(name===atlasRoot+'NLD-0.json'){signal=options.signal;return gate;}
+  }});await G.loadBorders();G.label=()=>null;
+  installNews(G,[story('NLD'),story('LIE')]);G.focus(0);G.flashCountry('NLD',story('NLD'));
+  G.focus(1);G.flashCountry('LIE',story('LIE'));
+  assert.equal(signal.aborted,true);
+  release();await settled();
+  assert.ok(G.countryFillEntities.length&&G.countryFillEntities.every(e=>e.__v52CountryIso==='LIE'&&e.__v52DetailedFill));
+  assert.ok(!values.some(e=>e.__v52TerritoryFill&&e.__v52CountryIso==='NLD'));
 });
 
 test('Hague switches to real detailed coastlines; fast navigation and overview remove stale detail',async()=>{

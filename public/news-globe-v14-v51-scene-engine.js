@@ -103,10 +103,9 @@ function impactHeight(ctx){
  // tight that a portrait phone loses all geographic context.
  return Math.round(Math.max(aspect<.8?500000:350000,(aspect<.8?2400000:1650000)*scale));
 }
-/* Fill follows the same existing China outline as the border; camera fitting stays unchanged. */
-// Use real country Polygon/MultiPolygon boundaries. Colour lives INSIDE the
-// white outline, never as a coloured country border or enclosing rectangle.
-function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35){
+function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35,metadata){
+ if(G.v52DrawTerritory)return G.v52DrawTerritory(iso,G.v51SceneEntities,color,alpha,metadata);
+ // Older standalone pages can still load this file with a cached highlight module.
  const geometry=iso==='CHN'&&G.countries?.get('CHN')?.authoritativeOutline?.geometry?
    G.countries.get('CHN').authoritativeOutline.geometry:raw(iso)?.geometry;
  if(!geometry)return false;
@@ -118,7 +117,7 @@ function drawCountry(iso,color=COLOR.main,alpha=.26,width=2.35){
   const coords=ring=>(ring||[]).filter(p=>good(p?.[0],p?.[1])).map(p=>C.Cartesian3.fromDegrees(+p[0],+p[1],0));
   const outer=coords(rings?.[0]);if(outer.length<3)continue;
   const holes=(rings||[]).slice(1).map(coords).filter(v=>v.length>=3).map(v=>new C.PolygonHierarchy(v));
-  add(G.viewer.entities.add({__v52TerritoryFill:true,__v52CountryIso:iso,
+  add(G.viewer.entities.add({__v52TerritoryFill:true,__v52CountryIso:iso,...metadata,
     polygon:{hierarchy:new C.PolygonHierarchy(outer,holes),
       height:13500,perPositionHeight:false,arcType:C.ArcType?.GEODESIC,
       material,outline:false}}));
@@ -411,7 +410,6 @@ function waitAttackGeometry(ctx){
  const viewer=G.viewer,display=viewer.dataSourceDisplay;
  if(typeof display?.getBoundingSphere!=='function'){ctx.geometryReady=true;return Promise.resolve(true);}
  ctx.stage='geometry';const start=performance.now(),bounds=new C.BoundingSphere();
- const fills=G.v51SceneEntities.filter(e=>e.__v52AttackSerial===ctx.serial&&e.polygon);
  return new Promise(resolve=>{
   let finished=false;
   const finish=ready=>{if(finished)return;finished=true;ctx.cancelGeometry=null;ctx.geometryReady=ready;ctx.geometryWaitMs=Math.round(performance.now()-start);resolve(ready);};
@@ -421,7 +419,7 @@ function waitAttackGeometry(ctx){
    viewer.scene.requestRender();
    // A more detailed outline can replace a coarse border while the geometry
    // is preparing. Wait for the border currently selected, not the old entity.
-   const entities=fills.slice();
+   const entities=G.v51SceneEntities.filter(e=>e.__v52AttackSerial===ctx.serial&&e.polygon);
    for(const iso of new Set([ctx.data.att,ctx.data.vic])){
     const borders=G.storyBorderEntities?.(iso)??G.countries?.get(iso)?.entities;
     const border=borders?.find(e=>e.show&&e.polyline);if(border)entities.push(border);
@@ -447,8 +445,7 @@ async function renderAttack(n,iso,s){
  clearScene();hideBase();
  const ctx=activeAttack={serial:s,data:a,timers:new Set(),stage:'framing',impactCount:0,anchors:{
   attacker:a.att&&a.att!==a.vic?attackAnchor(a.att,a.target):null,victim:mainland(a.vic)}};
- const country=(code,color)=>{const before=G.v51SceneEntities.length;drawCountry(code,color,.18);
-  for(const e of G.v51SceneEntities.slice(before)){e.__v52AttackSerial=s;e.__v52AttackKind='country-'+code;}};
+ const country=(code,color)=>drawCountry(code,color,.18,2.35,{__v52AttackSerial:s,__v52AttackKind:'country-'+code});
  if(a.att&&a.att!==a.vic)country(a.att,COLOR.second);country(a.vic,COLOR.main);
  ctx.badges=[];
  if(ctx.anchors.attacker){const [lon,lat]=ctx.anchors.attacker;

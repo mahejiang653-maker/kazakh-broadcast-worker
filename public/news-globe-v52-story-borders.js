@@ -98,6 +98,7 @@
       for (const e of visible) if (!next.has(e)) e.show = false;
       for (const e of next) if (e.show !== true) e.show = true;
       visible = next;
+      G.v52RefreshTerritoryFills?.();
     } finally { entities?.resumeEvents?.(); }
     G.viewer?.scene?.requestRender?.();
   };

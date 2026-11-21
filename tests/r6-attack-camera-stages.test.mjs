@@ -148,7 +148,7 @@ test('France overview camera frames mainland and Corsica together after upstream
   raw:iso=>geometry[iso],
   carts:iso=>iso==='FRA'?[...points(mainland),...points(corsica)]:points(indonesia),
   area:ring=>Math.abs(ring.reduce((a,p,i)=>{const q=ring[(i+1)%ring.length];return a+p[0]*q[1]-q[0]*p[1];},0)/2)});
- vm.runInContext(between('const DISPERSED_TERRITORIES=', '/* Fill follows'),ctx);
+ vm.runInContext(between('const DISPERSED_TERRITORIES=', 'function drawCountry('),ctx);
  const fra=vm.runInContext('countryFramePoints("FRA",{lon:2.35,lat:48.85})',ctx);
  assert.equal(fra.length,mainland.length+corsica.length,'France camera must frame ALL metropolitan territory');
  const withoutFocus=vm.runInContext('countryFramePoints("FRA")',ctx);
@@ -162,7 +162,7 @@ test('small-state impact camera height is lower than large-country camera height
  const G={viewer:{scene:{canvas:{clientWidth:690,clientHeight:378}}}};
  const C={BoundingSphere:{fromPoints:pts=>({radius:pts[0].radius})}};
  const ctx=vm.createContext({G,C,countryFramePoints:iso=>[{radius:iso==='PSE'?90000:iso==='UKR'?600000:900000}]});
- vm.runInContext(between('function impactHeight(ctx){','/* Fill follows'),ctx);
+ vm.runInContext(between('function impactHeight(ctx){','function drawCountry('),ctx);
  const palestine=vm.runInContext('impactHeight({data:{vic:"PSE",target:{lon:35.10,lat:31.5}}})',ctx);
  const large=vm.runInContext('impactHeight({data:{vic:"FRA",target:{lon:2.3,lat:48.8}}})',ctx);
  assert.equal(palestine,495000);
