@@ -197,12 +197,16 @@ G.runSequence=async function(n,iso,s){if(s!==G.navSerial)return false;normalize(
    const accurate=n.lon!=null&&n.lon!==''&&n.lat!=null&&n.lat!==''&&
      Number.isFinite(+n.lon)&&Number.isFinite(+n.lat)&&Math.abs(+n.lon)<=180&&Math.abs(+n.lat)<=90;
    const countryOnly=n.countryOnly===true||n.noPoint===true||mode==='COUNTRY'||mode==='ADMIN_REGION';
-   if(countryOnly||!accurate){trace('authored-country-complete',{countries:pair});return s===G.navSerial;}
+   if(countryOnly||!accurate){if(s===G.navSerial&&!G.overviewMode)G.selectCountryOverviewBordersBatch?.(pair);trace('authored-country-complete',{countries:pair});return s===G.navSerial;}
    const q={...n,sceneMode:'POINT',noPoint:false,countryOnly:false,secondaryCountryIso3:null,
      scenePlan:{...p,focusCountries:pair.slice(),participants:[],contextCountries:[],
        regionalContext:false,hierarchyPresented:true,finalLocation:true}};
    trace('authored-country-location',{countries:pair,location:String(n.focusLabel||n.location||'')});
-   return oldRun?oldRun.call(this,q,String(p.primaryIso3||n.countryIso3||'').toUpperCase(),s):false;
+   const rendered=oldRun?await oldRun.call(this,q,String(p.primaryIso3||n.countryIso3||'').toUpperCase(),s):false;
+   // Legacy POINT playback selects only its primary country. Restore the two
+   // authored sovereign outlines after the final camera stage has settled.
+   if(rendered!==false&&s===G.navSerial&&!G.overviewMode)G.selectCountryOverviewBordersBatch?.(pair);
+   return rendered;
  }
  // A precise locality story must never terminate at a whole-country fill.
  // This also guards imports whose sceneMode is lowercase 'city' or stale COUNTRY.
