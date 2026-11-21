@@ -140,7 +140,7 @@ function chinaLevelOne(name){
  }
  return null;
 }
-async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(!chain.length||!oldFlashAdmin)return null;if(primary!=='CHN'&&chain.some(step=>!step?.focusGeometry||!['Polygon','MultiPolygon'].includes(step.focusGeometry.type))){trace('admin-unavailable',{iso:primary,reason:'verified-geometry-required'});return null;}await runCountry(primary,n,s,1500,'admin-country');if(s!==G.navSerial)return false;for(const step of chain){
+async function runAdminHierarchy(n,primary,s){const chain=Array.isArray(n?.scenePlan?.adminChain)?n.scenePlan.adminChain.filter(Boolean):[];if(!chain.length||!oldFlashAdmin)return null;if(primary!=='CHN'&&chain.some(step=>!step?.focusGeometry||!['Polygon','MultiPolygon'].includes(step.focusGeometry.type))){trace('admin-unavailable',{iso:primary,reason:'verified-geometry-required'});return null;}if(!await runCountry(primary,n,s,1500,'admin-country'))return false;if(s!==G.navSerial)return false;for(const step of chain){
  if(s!==G.navSerial)return false;
  let selected=step;
  // For region-wide news, never replace a province polygon with a guessed dot
