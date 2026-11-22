@@ -5,11 +5,19 @@
 ## 当前代码与生产
 
 - 现有项目：全球新闻地球仪 V52·A1 R6；仓库 mahejiang653-maker/kazakh-broadcast-worker，分支main；与哈萨克语播音共享Worker。
-- 最新已验证应用提交：`a2064e16c75e34ffe2882c0f2c72eb3f2c1444e3`；[构建、分镜及部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385871)、[Top10离线合同](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44887385900)通过。
-- Cloudflare正式版本：`6ae7ce60-e266-4ff0-a1d8-ba0368e5f95d`，2026-11-21 17:03北京时间部署成功。
+- 最新已验证应用提交：`88d8aba299c3187d4db15740f58de15adfe70ce2`；[CI构建、正式站验收及部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44940551068)通过。
+- Cloudflare正式版本：`635351f0-c735-49a5-a12f-6564d31b8953`，2026-11-22 03:26北京时间部署成功。
 - 正式入口：https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html 。
-- 入口加载边境模块 `20261121-detailed-country-borders-v2-r2`，其余分镜和daily10直接导入沿用当前生产基线。
+- 入口加载边境模块 `20261122-country-territory-fill-v1`，其余分镜和daily10直接导入沿用当前生产基线。
 - 默认数据仍为2026-10-11历史预览Top10；本轮通过选择文件导入攻击回归数据验收。不要声称系统已自动发布当天日报。
+
+## 国家与地区填充轮廓同步（2026-11-22）
+
+- 红色、蓝色国家填充改为与新版白色边境线共用同一套高精度 Natural Earth 1:10m 多边形连接关系，不再使用旧的 1:110m 粗轮廓。238 个国家和地区均有对应填充数据；岛屿、飞地、内陆孔洞和多部件国土按原始环关系保留。
+- 细化索引为 `territories-v1.json`，包含 4,157 个填充多边形、18 个内陆孔洞和 5,192 条共享弧；白边与填充在同一国家的每段坐标上对齐，双国显示时按各自红蓝角色绘制。
+- 中国仍保留原有514条权威边界轮廓与13,500米填充高度，其他国家细化填充高度为17,500米；边境线继续悬空绘制，像素比例、MSAA和16:9直角显示区域不变。
+- 手机视口实际验收：荷兰12个填充多边形、842段白边逐段一致；法国3,661段、加拿大67,781段、巴勒斯坦232段、斐济1,425段均完成细化检查；南非—莱索托飞地孔洞和双国红蓝场景通过。
+- 本地 `npm test`：322项，320通过、0失败、2项既有测试跳过；独立手机尺寸浏览器回归、跨日界线、快速切换、横屏和总览清理全部通过。线上10个关键资源SHA-256与提交 `88d8aba` 一致；CI构建、正式站浏览器验收和Cloudflare部署均成功。
 
 ## 全球高精度边境（2026-11-21）
 
