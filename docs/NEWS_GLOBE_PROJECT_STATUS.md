@@ -5,8 +5,8 @@
 ## 当前代码与生产
 
 - 现有项目：全球新闻地球仪 V52·A1 R6；仓库 mahejiang653-maker/kazakh-broadcast-worker，分支main；与哈萨克语播音共享Worker。
-- 最新已验证应用提交：`88d8aba299c3187d4db15740f58de15adfe70ce2`；[CI构建、正式站验收及部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44940551068)通过。
-- Cloudflare正式版本：`635351f0-c735-49a5-a12f-6564d31b8953`，2026-11-22 03:26北京时间部署成功。
+- 最新已验证应用提交：`aec7ebdd31a48d3a041335cddfe718c45c5e0ae1`；[CI构建、正式站验收及部署](https://github.com/mahejiang653-maker/kazakh-broadcast-worker/actions/runs/44948021926)通过。
+- Cloudflare正式版本：`6699dd44-66e6-4c40-bdaa-c4619ed4c8bd`，2026-11-22 04:51北京时间部署成功。
 - 正式入口：https://kazakh-broadcast-worker.mahejiang653.workers.dev/news-globe-run-20260920-v52-r1.html 。
 - 入口加载边境模块 `20261122-country-territory-fill-v1`，其余分镜和daily10直接导入沿用当前生产基线。
 - 默认数据仍为2026-10-11历史预览Top10；本轮通过选择文件导入攻击回归数据验收。不要声称系统已自动发布当天日报。
